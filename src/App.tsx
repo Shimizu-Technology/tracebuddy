@@ -118,7 +118,7 @@ const PAPER_UNAVAILABLE_MESSAGE = 'Start the camera first, then try finding the 
 const PAPER_FOUND_MESSAGE = 'Paper found. Tap Track paper to follow small camera shifts.'
 const PAPER_TRACKING_MESSAGE = 'Tracking paper. Keep the sheet in view.'
 const PAPER_TRACKING_PAUSED_MESSAGE = 'Camera paused. Retry camera to resume paper tracking.'
-const UPLOAD_CLEANUP_MAX_DIMENSION = 1400
+const UPLOAD_CLEANUP_MAX_DIMENSION = 1024
 const UPLOAD_CLEANUP_CHUNK_PIXELS = 120_000
 const UPLOAD_CLEANUP_IDLE_MESSAGE = 'Use the original upload, or clean it when the background gets in the way.'
 const UPLOAD_CLEANUP_BACKGROUND_PROCESSING_MESSAGE = 'Removing the simple background locally.'
@@ -304,7 +304,15 @@ async function convertImageDataToOutline(imageData: ImageData, detail: number) {
 
     for (let index = indexStart; index < indexEnd; index += 1) {
       const offset = index * 4
-      grayscale[index] = 0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]
+      const grayscaleValue = 0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]
+      const darkness = 255 - grayscaleValue
+      const toneAlpha = clamp((darkness - toneCutoff) * 2.2, 0, 170)
+      const sourceAlpha = data[offset + 3] / 255
+      grayscale[index] = grayscaleValue
+      output[offset] = 20
+      output[offset + 1] = 32
+      output[offset + 2] = 51
+      output[offset + 3] = Math.round(toneAlpha * sourceAlpha)
     }
 
     if (indexEnd < width * height) await yieldToBrowser()
@@ -357,8 +365,11 @@ async function processUploadedImage(src: string, options: UploadCleanupOptions) 
   const context = canvas.getContext('2d', { willReadFrequently: true })
   if (!context) throw new Error('Canvas is unavailable.')
 
+  await yieldToBrowser()
   context.drawImage(image, 0, 0, size.width, size.height)
+  await yieldToBrowser()
   const imageData = context.getImageData(0, 0, size.width, size.height)
+  await yieldToBrowser()
 
   if (options.mode === 'background') {
     await removeBackgroundFromImageData(imageData, options.backgroundTolerance)

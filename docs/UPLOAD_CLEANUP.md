@@ -38,6 +38,10 @@ The **Line detail** slider controls how many weaker edges are kept.
 
 All cleanup runs in the browser with a local canvas. TraceBuddy does not upload images, camera frames, or processed results to a server.
 
+## Performance
+
+Large uploaded images are downscaled before cleanup so phone browsers stay responsive. Pixel processing is chunked where possible, but cleanup can still take a moment on older devices.
+
 ## Limitations
 
 This is not AI segmentation. It will not perfectly cut out complex hair, fuzzy edges, or subjects that blend into the background.
