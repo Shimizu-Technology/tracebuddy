@@ -119,6 +119,7 @@ const PAPER_FOUND_MESSAGE = 'Paper found. Tap Track paper to follow small camera
 const PAPER_TRACKING_MESSAGE = 'Tracking paper. Keep the sheet in view.'
 const PAPER_TRACKING_PAUSED_MESSAGE = 'Camera paused. Retry camera to resume paper tracking.'
 const UPLOAD_CLEANUP_MAX_DIMENSION = 1400
+const UPLOAD_CLEANUP_CHUNK_PIXELS = 120_000
 const UPLOAD_CLEANUP_IDLE_MESSAGE = 'Use the original upload, or clean it when the background gets in the way.'
 const UPLOAD_CLEANUP_BACKGROUND_PROCESSING_MESSAGE = 'Removing the simple background locally.'
 const UPLOAD_CLEANUP_OUTLINE_PROCESSING_MESSAGE = 'Building a transparent line-art version locally.'
@@ -176,13 +177,37 @@ function getScaledImageSize(width: number, height: number, maxDimension: number)
   }
 }
 
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+}
+
+function canvasToPngDataUrl(canvas: HTMLCanvasElement) {
+  return new Promise<string>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Could not encode cleaned image.'))
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(new Error('Could not read cleaned image.'))
+      reader.readAsDataURL(blob)
+    }, 'image/png')
+  })
+}
+
 function sampleBackgroundColor(data: Uint8ClampedArray, width: number, height: number): [number, number, number] {
-  const cornerSize = clamp(Math.round(Math.min(width, height) * 0.045), 4, 28)
+  if (width < 1 || height < 1) return [255, 255, 255]
+
+  const desiredCornerSize = clamp(Math.round(Math.min(width, height) * 0.045), 4, 28)
+  const cornerWidth = Math.max(1, Math.min(width, desiredCornerSize))
+  const cornerHeight = Math.max(1, Math.min(height, desiredCornerSize))
   const corners = [
     [0, 0],
-    [width - cornerSize, 0],
-    [0, height - cornerSize],
-    [width - cornerSize, height - cornerSize],
+    [width - cornerWidth, 0],
+    [0, height - cornerHeight],
+    [width - cornerWidth, height - cornerHeight],
   ]
   let red = 0
   let green = 0
@@ -190,8 +215,8 @@ function sampleBackgroundColor(data: Uint8ClampedArray, width: number, height: n
   let count = 0
 
   for (const [startX, startY] of corners) {
-    for (let y = startY; y < startY + cornerSize; y += 1) {
-      for (let x = startX; x < startX + cornerSize; x += 1) {
+    for (let y = startY; y < startY + cornerHeight; y += 1) {
+      for (let x = startX; x < startX + cornerWidth; x += 1) {
         const offset = (y * width + x) * 4
         if (data[offset + 3] < 12) continue
         red += data[offset]
@@ -203,71 +228,120 @@ function sampleBackgroundColor(data: Uint8ClampedArray, width: number, height: n
   }
 
   if (!count) return [255, 255, 255]
-  return [red / count, green / count, blue / count]
+
+  const background: [number, number, number] = [red / count, green / count, blue / count]
+  return background.every(Number.isFinite) ? background : [255, 255, 255]
 }
 
-function removeBackgroundFromImageData(imageData: ImageData, tolerance: number) {
+async function removeBackgroundFromImageData(imageData: ImageData, tolerance: number) {
   const { data, width, height } = imageData
   const [backgroundRed, backgroundGreen, backgroundBlue] = sampleBackgroundColor(data, width, height)
   const cutDistance = 18 + tolerance * 1.42
   const featherDistance = 44
+  const chunkBytes = UPLOAD_CLEANUP_CHUNK_PIXELS * 4
 
-  for (let offset = 0; offset < data.length; offset += 4) {
-    const redDistance = data[offset] - backgroundRed
-    const greenDistance = data[offset + 1] - backgroundGreen
-    const blueDistance = data[offset + 2] - backgroundBlue
-    const colorDistance = Math.sqrt(redDistance * redDistance + greenDistance * greenDistance + blueDistance * blueDistance)
+  for (let chunkStart = 0; chunkStart < data.length; chunkStart += chunkBytes) {
+    const chunkEnd = Math.min(data.length, chunkStart + chunkBytes)
 
-    if (colorDistance <= cutDistance) {
-      data[offset + 3] = 0
-      continue
+    for (let offset = chunkStart; offset < chunkEnd; offset += 4) {
+      const redDistance = data[offset] - backgroundRed
+      const greenDistance = data[offset + 1] - backgroundGreen
+      const blueDistance = data[offset + 2] - backgroundBlue
+      const colorDistance = Math.sqrt(redDistance * redDistance + greenDistance * greenDistance + blueDistance * blueDistance)
+
+      if (colorDistance <= cutDistance) {
+        data[offset + 3] = 0
+        continue
+      }
+
+      if (colorDistance <= cutDistance + featherDistance) {
+        const alphaScale = clamp((colorDistance - cutDistance) / featherDistance, 0, 1)
+        data[offset + 3] = Math.round(data[offset + 3] * alphaScale)
+      }
     }
 
-    if (colorDistance <= cutDistance + featherDistance) {
-      const alphaScale = clamp((colorDistance - cutDistance) / featherDistance, 0, 1)
-      data[offset + 3] = Math.round(data[offset + 3] * alphaScale)
-    }
+    if (chunkEnd < data.length) await yieldToBrowser()
   }
 }
 
-function convertImageDataToOutline(imageData: ImageData, detail: number) {
+async function convertTinyImageToOutline(imageData: ImageData, detail: number) {
+  const { data } = imageData
+  const toneCutoff = 210 - detail * 1.35
+  const chunkBytes = UPLOAD_CLEANUP_CHUNK_PIXELS * 4
+
+  for (let chunkStart = 0; chunkStart < data.length; chunkStart += chunkBytes) {
+    const chunkEnd = Math.min(data.length, chunkStart + chunkBytes)
+
+    for (let offset = chunkStart; offset < chunkEnd; offset += 4) {
+      const grayscale = 0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]
+      const darkness = 255 - grayscale
+      const alpha = clamp((darkness - toneCutoff) * 2.2, 0, 210) * (data[offset + 3] / 255)
+      data[offset] = 20
+      data[offset + 1] = 32
+      data[offset + 2] = 51
+      data[offset + 3] = Math.round(alpha)
+    }
+
+    if (chunkEnd < data.length) await yieldToBrowser()
+  }
+}
+
+async function convertImageDataToOutline(imageData: ImageData, detail: number) {
   const { data, width, height } = imageData
+
+  if (width < 3 || height < 3) {
+    await convertTinyImageToOutline(imageData, detail)
+    return
+  }
+
   const grayscale = new Float32Array(width * height)
   const output = new Uint8ClampedArray(data.length)
   const edgeCutoff = 182 - detail * 1.42
   const toneCutoff = 210 - detail * 1.35
 
-  for (let index = 0; index < width * height; index += 1) {
-    const offset = index * 4
-    grayscale[index] = 0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]
+  for (let indexStart = 0; indexStart < width * height; indexStart += UPLOAD_CLEANUP_CHUNK_PIXELS) {
+    const indexEnd = Math.min(width * height, indexStart + UPLOAD_CLEANUP_CHUNK_PIXELS)
+
+    for (let index = indexStart; index < indexEnd; index += 1) {
+      const offset = index * 4
+      grayscale[index] = 0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]
+    }
+
+    if (indexEnd < width * height) await yieldToBrowser()
   }
 
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const index = y * width + x
-      const topLeft = grayscale[index - width - 1]
-      const top = grayscale[index - width]
-      const topRight = grayscale[index - width + 1]
-      const left = grayscale[index - 1]
-      const right = grayscale[index + 1]
-      const bottomLeft = grayscale[index + width - 1]
-      const bottom = grayscale[index + width]
-      const bottomRight = grayscale[index + width + 1]
-      const gx = -topLeft + topRight - 2 * left + 2 * right - bottomLeft + bottomRight
-      const gy = -topLeft - 2 * top - topRight + bottomLeft + 2 * bottom + bottomRight
-      const edgeStrength = Math.sqrt(gx * gx + gy * gy)
-      const darkness = 255 - grayscale[index]
-      const edgeAlpha = clamp((edgeStrength - edgeCutoff) * 2.35, 0, 255)
-      const toneAlpha = clamp((darkness - toneCutoff) * 2.2, 0, 170)
-      const sourceAlpha = data[index * 4 + 3] / 255
-      const alpha = Math.round(Math.max(edgeAlpha, toneAlpha) * sourceAlpha)
-      const offset = index * 4
+  for (let yStart = 1; yStart < height - 1; yStart += 72) {
+    const yEnd = Math.min(height - 1, yStart + 72)
 
-      output[offset] = 20
-      output[offset + 1] = 32
-      output[offset + 2] = 51
-      output[offset + 3] = alpha
+    for (let y = yStart; y < yEnd; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const index = y * width + x
+        const topLeft = grayscale[index - width - 1]
+        const top = grayscale[index - width]
+        const topRight = grayscale[index - width + 1]
+        const left = grayscale[index - 1]
+        const right = grayscale[index + 1]
+        const bottomLeft = grayscale[index + width - 1]
+        const bottom = grayscale[index + width]
+        const bottomRight = grayscale[index + width + 1]
+        const gx = -topLeft + topRight - 2 * left + 2 * right - bottomLeft + bottomRight
+        const gy = -topLeft - 2 * top - topRight + bottomLeft + 2 * bottom + bottomRight
+        const edgeStrength = Math.sqrt(gx * gx + gy * gy)
+        const darkness = 255 - grayscale[index]
+        const edgeAlpha = clamp((edgeStrength - edgeCutoff) * 2.35, 0, 255)
+        const toneAlpha = clamp((darkness - toneCutoff) * 2.2, 0, 170)
+        const sourceAlpha = data[index * 4 + 3] / 255
+        const alpha = Math.round(Math.max(edgeAlpha, toneAlpha) * sourceAlpha)
+        const offset = index * 4
+
+        output[offset] = 20
+        output[offset + 1] = 32
+        output[offset + 2] = 51
+        output[offset + 3] = alpha
+      }
     }
+
+    if (yEnd < height - 1) await yieldToBrowser()
   }
 
   data.set(output)
@@ -287,13 +361,13 @@ async function processUploadedImage(src: string, options: UploadCleanupOptions) 
   const imageData = context.getImageData(0, 0, size.width, size.height)
 
   if (options.mode === 'background') {
-    removeBackgroundFromImageData(imageData, options.backgroundTolerance)
+    await removeBackgroundFromImageData(imageData, options.backgroundTolerance)
   } else {
-    convertImageDataToOutline(imageData, options.outlineDetail)
+    await convertImageDataToOutline(imageData, options.outlineDetail)
   }
 
   context.putImageData(imageData, 0, 0)
-  return canvas.toDataURL('image/png')
+  return canvasToPngDataUrl(canvas)
 }
 
 function isPaperPixel(r: number, g: number, b: number) {
