@@ -887,6 +887,15 @@ function TraceScreen({
     updateTransform({ rotation: clamp(transform.rotation + delta, -180, 180) })
   }
 
+  const toggleLockOrTracking = () => {
+    if (paperLockEnabled) {
+      onTogglePaperLock()
+      return
+    }
+
+    updateTransform({ locked: !transform.locked })
+  }
+
   return (
     <section className="trace-screen">
       <div className="trace-header">
@@ -962,10 +971,12 @@ function TraceScreen({
               <span>{controlsExpanded ? 'Hide controls' : 'Adjust drawing'}</span>
               <small>{paperLockEnabled ? 'Paper lock active' : transform.locked ? 'Locked' : 'Setup mode'}</small>
             </button>
-            <button className={transform.locked || paperLockEnabled ? 'mini-lock active' : 'mini-lock'} type="button" aria-pressed={transform.locked || paperLockEnabled} disabled={paperLockEnabled} onClick={() => updateTransform({ locked: !transform.locked })}>
-              {paperLockEnabled ? 'Tracking' : transform.locked ? 'Unlock' : 'Lock'}
+            <button className={transform.locked || paperLockEnabled ? 'mini-lock active' : 'mini-lock'} type="button" aria-pressed={transform.locked || paperLockEnabled} onClick={toggleLockOrTracking}>
+              {paperLockEnabled ? 'Stop track' : transform.locked ? 'Unlock' : 'Lock'}
             </button>
           </div>
+
+          <p className="sr-only" aria-live="polite">{paperDetectionMessage}</p>
 
           <div className="controls-body">
             <div className="control-card setup-control">
@@ -985,7 +996,7 @@ function TraceScreen({
                   {paperLockEnabled ? 'Stop paper lock' : 'Track paper'}
                 </button>
               </div>
-              <p className={`paper-status ${paperDetectionStatus}`} aria-live="polite">{paperDetectionMessage}</p>
+              <p className={`paper-status ${paperDetectionStatus}`}>{paperDetectionMessage}</p>
             </div>
 
             <div className="quick-controls" aria-label="Quick tracing adjustments">
@@ -1020,8 +1031,8 @@ function TraceScreen({
             <Slider label="Rotate" value={transform.rotation} min={-180} max={180} step={1} disabled={manualTransformDisabled} format={(v) => `${Math.round(v)}°`} onChange={(value) => updateTransform({ rotation: value })} />
 
             <div className="toggle-grid">
-              <button className={transform.locked || paperLockEnabled ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.locked || paperLockEnabled} disabled={paperLockEnabled} onClick={() => updateTransform({ locked: !transform.locked })}>
-                {paperLockEnabled ? 'Tracking' : transform.locked ? 'Unlock' : 'Lock'}
+              <button className={transform.locked || paperLockEnabled ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.locked || paperLockEnabled} onClick={toggleLockOrTracking}>
+                {paperLockEnabled ? 'Stop tracking' : transform.locked ? 'Unlock' : 'Lock'}
                 <small>{paperLockEnabled ? 'Paper lock' : transform.locked ? 'Move again' : 'Trace safely'}</small>
               </button>
               <button className={transform.outline ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.outline} onClick={() => updateTransform({ outline: !transform.outline })}>
