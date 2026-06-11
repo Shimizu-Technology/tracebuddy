@@ -23,6 +23,8 @@ type Transform = {
   outline: boolean
 }
 
+type TransformUpdate = Partial<Transform> | ((current: Transform) => Partial<Transform>)
+
 type PaperDetectionStatus = 'idle' | 'scanning' | 'found' | 'not-found' | 'unavailable'
 
 type PaperDetection = {
@@ -623,8 +625,11 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  function updateTransform(partial: Partial<Transform>) {
-    setTransform((current) => ({ ...current, ...partial }))
+  function updateTransform(update: TransformUpdate) {
+    setTransform((current) => ({
+      ...current,
+      ...(typeof update === 'function' ? update(current) : update),
+    }))
   }
 
   function resetOverlay() {
@@ -876,7 +881,7 @@ function TraceScreen({
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void
-  updateTransform: (partial: Partial<Transform>) => void
+  updateTransform: (update: TransformUpdate) => void
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
   onPicker: () => void
   onRetryCamera: () => void
@@ -897,12 +902,12 @@ function TraceScreen({
 
   const adjustScale = (delta: number) => {
     if (manualTransformDisabled) return
-    updateTransform({ scale: clamp(transform.scale + delta, 0.35, 2.2) })
+    updateTransform((current) => ({ scale: clamp(current.scale + delta, 0.35, 2.2) }))
   }
 
   const adjustRotation = (delta: number) => {
     if (manualTransformDisabled) return
-    updateTransform({ rotation: clamp(transform.rotation + delta, -180, 180) })
+    updateTransform((current) => ({ rotation: clamp(current.rotation + delta, -180, 180) }))
   }
 
   const toggleLockOrTracking = () => {
@@ -911,7 +916,7 @@ function TraceScreen({
       return
     }
 
-    updateTransform({ locked: !transform.locked })
+    updateTransform((current) => ({ locked: !current.locked }))
   }
 
   return (
@@ -1010,7 +1015,7 @@ function TraceScreen({
               <small>TraceBuddy looks for the largest bright sheet and can keep the drawing centered on it as the camera view shifts.</small>
               <div className="paper-actions">
                 <button type="button" onClick={onFindPaper} disabled={cameraStatus !== 'ready'}>Find paper</button>
-                <button type="button" className={paperLockEnabled ? 'active' : ''} aria-pressed={paperLockEnabled} onClick={onTogglePaperLock} disabled={cameraStatus !== 'ready'}>
+                <button type="button" className={paperLockEnabled ? 'active' : ''} aria-pressed={paperLockEnabled} onClick={onTogglePaperLock} disabled={cameraStatus !== 'ready' && !paperLockEnabled}>
                   {paperLockEnabled ? 'Stop paper lock' : 'Track paper'}
                 </button>
               </div>
@@ -1053,17 +1058,17 @@ function TraceScreen({
                 {paperLockEnabled ? 'Stop tracking' : transform.locked ? 'Unlock' : 'Lock'}
                 <small>{paperLockEnabled ? 'Paper lock' : transform.locked ? 'Move again' : 'Trace safely'}</small>
               </button>
-              <button className={transform.outline ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.outline} onClick={() => updateTransform({ outline: !transform.outline })}>
+              <button className={transform.outline ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.outline} onClick={() => updateTransform((current) => ({ outline: !current.outline }))}>
                 Outline
                 <small>High contrast</small>
               </button>
             </div>
 
             <div className="nudge-grid" aria-label="Nudge overlay position">
-              <button type="button" aria-label="Move overlay up" disabled={manualTransformDisabled} onClick={() => updateTransform({ y: transform.y - 10 })}><ArrowIcon direction="up" /></button>
-              <button type="button" aria-label="Move overlay left" disabled={manualTransformDisabled} onClick={() => updateTransform({ x: transform.x - 10 })}><ArrowIcon direction="left" /></button>
-              <button type="button" aria-label="Move overlay right" disabled={manualTransformDisabled} onClick={() => updateTransform({ x: transform.x + 10 })}><ArrowIcon direction="right" /></button>
-              <button type="button" aria-label="Move overlay down" disabled={manualTransformDisabled} onClick={() => updateTransform({ y: transform.y + 10 })}><ArrowIcon direction="down" /></button>
+              <button type="button" aria-label="Move overlay up" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ y: current.y - 10 }))}><ArrowIcon direction="up" /></button>
+              <button type="button" aria-label="Move overlay left" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ x: current.x - 10 }))}><ArrowIcon direction="left" /></button>
+              <button type="button" aria-label="Move overlay right" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ x: current.x + 10 }))}><ArrowIcon direction="right" /></button>
+              <button type="button" aria-label="Move overlay down" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ y: current.y + 10 }))}><ArrowIcon direction="down" /></button>
             </div>
 
             <button className="reset-button" type="button" onClick={onReset}>Reset overlay</button>
