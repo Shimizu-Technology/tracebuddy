@@ -657,7 +657,11 @@ function App() {
       paperLockEnabledRef.current = false
       setPaperLockEnabled(false)
       setTransform((current) => ({ ...current, locked: false }))
-      setPaperDetectionMessage((current) => (current === PAPER_TRACKING_MESSAGE ? PAPER_FOUND_MESSAGE : current))
+      setPaperDetectionMessage((current) => {
+        if (current === PAPER_TRACKING_MESSAGE) return PAPER_FOUND_MESSAGE
+        if (current === PAPER_TRACKING_PAUSED_MESSAGE) return PAPER_UNAVAILABLE_MESSAGE
+        return current
+      })
       return
     }
 
