@@ -99,8 +99,10 @@ const PAPER_MIN_AREA_RATIO = 0.04
 const PAPER_IDLE_MESSAGE = 'Find the paper to align the drawing automatically.'
 const PAPER_SCANNING_MESSAGE = 'Scanning for paper.'
 const PAPER_NOT_FOUND_MESSAGE = 'No clear sheet found. Use bright paper on a darker, non-glossy surface.'
+const PAPER_UNAVAILABLE_MESSAGE = 'Start the camera first, then try finding the paper again.'
 const PAPER_FOUND_MESSAGE = 'Paper found. Tap Track paper to follow small camera shifts.'
 const PAPER_TRACKING_MESSAGE = 'Tracking paper. Keep the sheet in view.'
+const PAPER_TRACKING_PAUSED_MESSAGE = 'Camera paused. Retry camera to resume paper tracking.'
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -517,7 +519,7 @@ function App() {
 
     if (cameraStatus !== 'ready' || !video || !stage || !canvas) {
       setPaperDetectionStatus('unavailable')
-      setPaperDetectionMessage('Start the camera first, then try finding the paper again.')
+      setPaperDetectionMessage(paperLockEnabledRef.current ? PAPER_TRACKING_PAUSED_MESSAGE : PAPER_UNAVAILABLE_MESSAGE)
       return false
     }
 
@@ -590,7 +592,16 @@ function App() {
   }, [ensureCameraStream, requestWakeLock])
 
   useEffect(() => {
-    if (!paperLockEnabled || mode !== 'trace' || cameraStatus !== 'ready') return undefined
+    if (!paperLockEnabled || mode !== 'trace') return undefined
+
+    if (cameraStatus !== 'ready') {
+      const pauseStatus = window.setTimeout(() => {
+        setPaperDetectionStatus('unavailable')
+        setPaperDetectionMessage(PAPER_TRACKING_PAUSED_MESSAGE)
+      }, 0)
+
+      return () => window.clearTimeout(pauseStatus)
+    }
 
     const firstScan = window.setTimeout(() => {
       detectAndApplyPaper({ smooth: false })
@@ -892,6 +903,7 @@ function TraceScreen({
 }) {
   const [controlsExpanded, setControlsExpanded] = useState(false)
   const manualTransformDisabled = paperLockEnabled
+  const paperTrackingPaused = paperLockEnabled && cameraStatus !== 'ready'
 
   const cameraMessage = useMemo(() => {
     if (cameraStatus === 'ready') return 'Camera ready — place paper in view.'
@@ -977,7 +989,7 @@ function TraceScreen({
 
           <div className="stage-badge">
             <span aria-hidden="true">{transform.locked || paperLockEnabled ? <LockIcon /> : <MoveIcon />}</span>
-            <span>{paperLockEnabled ? 'Paper lock on — follows sheet' : transform.locked ? 'Locked — trace now' : 'Drag picture to move'}</span>
+            <span>{paperTrackingPaused ? 'Paper lock paused — retry camera' : paperLockEnabled ? 'Paper lock on — follows sheet' : transform.locked ? 'Locked — trace now' : 'Drag picture to move'}</span>
           </div>
 
           {cameraStatus !== 'ready' && (
@@ -993,7 +1005,7 @@ function TraceScreen({
           <div className="mobile-control-bar">
             <button className="sheet-toggle" type="button" aria-expanded={controlsExpanded} onClick={() => setControlsExpanded((current) => !current)}>
               <span>{controlsExpanded ? 'Hide controls' : 'Adjust drawing'}</span>
-              <small>{paperLockEnabled ? 'Paper lock active' : transform.locked ? 'Locked' : 'Setup mode'}</small>
+              <small>{paperTrackingPaused ? 'Paper lock paused' : paperLockEnabled ? 'Paper lock active' : transform.locked ? 'Locked' : 'Setup mode'}</small>
             </button>
             <button className={transform.locked || paperLockEnabled ? 'mini-lock active' : 'mini-lock'} type="button" aria-pressed={transform.locked || paperLockEnabled} onClick={toggleLockOrTracking}>
               {paperLockEnabled ? 'Stop track' : transform.locked ? 'Unlock' : 'Lock'}
