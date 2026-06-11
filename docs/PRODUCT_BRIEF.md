@@ -93,7 +93,9 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 
 - Is browser paper tracking stable enough on real iPhone/iPad setups?
 - Would printable marker-based tracking be more reliable than plain paper detection?
+- Should uploaded photos support optional local background removal before tracing?
 - Should uploaded photos be converted to outlines client-side before tracing?
+- Which premade drawing/template categories does Stassie like most?
 - Which drawing packs are most useful for Stassie-style practice?
 - Does the app need a fullscreen/low-distraction mode after real-device testing?
 - Is a native AR version ever worth the added complexity?

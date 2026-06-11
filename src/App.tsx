@@ -320,6 +320,7 @@ function App() {
   const cameraRequestRef = useRef(0)
   const mountedRef = useRef(false)
   const modeRef = useRef<AppMode>(mode)
+  const paperLockEnabledRef = useRef(false)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
 
   const overlaySrc = uploadedImage ?? svgToDataUrl(selectedDrawing.svg)
@@ -498,9 +499,9 @@ function App() {
       y: lerp(current.y, nextY, smoothing),
       scale: lerp(current.scale, nextScale, smoothing),
       rotation: lerpRotation(current.rotation, detection.rotation, smoothing),
-      locked: paperLockEnabled ? true : current.locked,
+      locked: paperLockEnabledRef.current ? true : current.locked,
     }))
-  }, [paperLockEnabled])
+  }, [])
 
   const detectAndApplyPaper = useCallback(({ smooth = false }: PaperDetectionOptions = {}) => {
     const video = videoRef.current
@@ -521,7 +522,7 @@ function App() {
     const detection = detectPaperRectangle(video, stage, canvas)
 
     if (!detection) {
-      if (smooth && paperLockEnabled) {
+      if (smooth && paperLockEnabledRef.current) {
         return false
       }
 
@@ -531,13 +532,13 @@ function App() {
       return false
     }
 
-    const nextMessage = paperLockEnabled ? 'Tracking paper. Keep the sheet in view.' : 'Paper found. Tap Track paper to follow small camera shifts.'
+    const nextMessage = paperLockEnabledRef.current ? 'Tracking paper. Keep the sheet in view.' : 'Paper found. Tap Track paper to follow small camera shifts.'
     setPaperDetection(detection)
     setPaperDetectionStatus('found')
     setPaperDetectionMessage((current) => (current === nextMessage ? current : nextMessage))
     applyPaperDetection(detection, { smooth })
     return true
-  }, [applyPaperDetection, cameraStatus, paperLockEnabled])
+  }, [applyPaperDetection, cameraStatus])
 
   useEffect(() => {
     mountedRef.current = true
@@ -564,6 +565,10 @@ function App() {
 
     return () => window.clearTimeout(task)
   }, [mode, releaseWakeLock, requestWakeLock, startCamera, stopCamera])
+
+  useEffect(() => {
+    paperLockEnabledRef.current = paperLockEnabled
+  }, [paperLockEnabled])
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -595,6 +600,7 @@ function App() {
   }, [cameraStatus, detectAndApplyPaper, mode, paperLockEnabled])
 
   function resetPaperDetection() {
+    paperLockEnabledRef.current = false
     setPaperDetection(null)
     setPaperDetectionStatus('idle')
     setPaperDetectionMessage('Find the paper to align the drawing automatically.')
@@ -626,11 +632,13 @@ function App() {
   }
 
   function togglePaperLock() {
-    if (paperLockEnabled) {
+    if (paperLockEnabledRef.current) {
+      paperLockEnabledRef.current = false
       setPaperLockEnabled(false)
       return
     }
 
+    paperLockEnabledRef.current = true
     setPaperLockEnabled(true)
     setTransform((transformState) => ({ ...transformState, locked: true }))
   }

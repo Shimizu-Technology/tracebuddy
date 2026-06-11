@@ -45,7 +45,8 @@ Goal: prove the fixed-device tracing setup works in a real drawing session.
 
 Goal: make the app more useful for everyday Stassie-style drawing practice.
 
-- Add more simple drawing packs.
+- Add more simple drawing packs and premade templates.
+- Add template categories such as animals, ocean, princess/fairy, vehicles, letters, seasonal, and Guam/island themes.
 - Add difficulty levels: starter, medium, detailed.
 - Add a favorites/recent drawings section stored locally.
 - Add a clearer parent setup mode vs child tracing mode.
@@ -53,10 +54,11 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.
 - Improve print/export options for built-in line art if useful.
 
-## Phase 3: Upload-to-outline processing
+## Phase 3: Uploaded image cleanup and outline processing
 
 Goal: better support the original idea of tracing whatever she wants.
 
+- Add optional client-side background removal for uploaded images.
 - Add client-side edge detection.
 - Add threshold/contrast controls.
 - Add invert/black-and-white controls.

@@ -116,7 +116,8 @@ Generated files:
 - Deploy to HTTPS for real iPad/phone camera testing
 - Test with a physical stand and real paper
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
-- Add a few more Stassie-friendly drawing packs
+- Add a few more Stassie-friendly drawing packs/templates
+- Add optional client-side background removal for uploaded images
 - Add client-side photo-to-outline processing
 - Prototype printable marker-based tracking if plain paper detection is not stable enough
 - Consider native ARKit/ARCore only if browser-based tracking is not good enough
