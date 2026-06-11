@@ -704,6 +704,15 @@ input[type='range'] {
   height: 1.15rem;
 }
 
+.arrow-icon {
+  transform-origin: center;
+}
+
+.arrow-icon--up { transform: rotate(0deg); }
+.arrow-icon--right { transform: rotate(90deg); }
+.arrow-icon--down { transform: rotate(180deg); }
+.arrow-icon--left { transform: rotate(270deg); }
+
 .nudge-grid button:nth-child(1) { grid-area: up; }
 .nudge-grid button:nth-child(2) { grid-area: left; }
 .nudge-grid button:nth-child(3) { grid-area: right; }

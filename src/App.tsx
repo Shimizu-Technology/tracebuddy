@@ -195,6 +195,14 @@ function App() {
       }
 
       streamRef.current = stream
+      stream.getVideoTracks().forEach((track) => {
+        track.addEventListener('ended', () => {
+          if (mountedRef.current && modeRef.current === 'trace' && streamRef.current === stream) {
+            setCameraStatus('idle')
+            setCameraError('Camera stream ended. Tap Retry camera to restart.')
+          }
+        }, { once: true })
+      })
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream
@@ -215,6 +223,31 @@ function App() {
       setCameraError(error instanceof Error ? error.message : 'Camera permission was blocked or unavailable.')
     }
   }, [isCurrentCameraRequest, stopActiveCamera, stopStream])
+
+  const hasLiveCameraStream = useCallback(() => {
+    const stream = streamRef.current
+    if (!stream) return false
+
+    const videoTracks = stream.getVideoTracks()
+    const hasLiveVideoTrack = videoTracks.some((track) => track.readyState === 'live')
+    const hasEndedVideoTrack = videoTracks.some((track) => track.readyState === 'ended')
+    const videoHasCurrentStream = videoRef.current?.srcObject === stream
+
+    return videoTracks.length > 0 && hasLiveVideoTrack && !hasEndedVideoTrack && videoHasCurrentStream
+  }, [])
+
+  const ensureCameraStream = useCallback(() => {
+    if (!hasLiveCameraStream()) {
+      void startCamera()
+      return
+    }
+
+    if (videoRef.current?.paused) {
+      void videoRef.current.play().catch(() => {
+        void startCamera()
+      })
+    }
+  }, [hasLiveCameraStream, startCamera])
 
   useEffect(() => {
     mountedRef.current = true
@@ -245,13 +278,14 @@ function App() {
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible' && modeRef.current === 'trace') {
+        ensureCameraStream()
         void requestWakeLock()
       }
     }
 
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
-  }, [requestWakeLock])
+  }, [ensureCameraStream, requestWakeLock])
 
   function openTrace(drawing?: Drawing) {
     if (drawing) {
@@ -490,7 +524,7 @@ function TraceScreen({
         <div>
           <p className="eyebrow">Trace mode</p>
           <h1>{pictureName}</h1>
-          <p aria-live="polite">{cameraMessage} <span>{pictureTheme}</span></p>
+          <p><span aria-live="polite">{cameraMessage}</span> <span>{pictureTheme}</span></p>
         </div>
         <div className="trace-header-actions">
           <button className="secondary-button compact" type="button" onClick={onPicker}>Change picture</button>
@@ -642,15 +676,10 @@ function LockIcon({ className }: IconProps) {
 }
 
 function ArrowIcon({ direction, className }: IconProps & { direction: Direction }) {
-  const rotation = {
-    up: 0,
-    right: 90,
-    down: 180,
-    left: 270,
-  }[direction]
+  const iconClassName = ['arrow-icon', `arrow-icon--${direction}`, className].filter(Boolean).join(' ')
 
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ transform: `rotate(${rotation}deg)` }}>
+    <svg className={iconClassName} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 19V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="m6.5 10.5 5.5-5.5 5.5 5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>

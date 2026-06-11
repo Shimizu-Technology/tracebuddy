@@ -1,5 +1,6 @@
-const CACHE_NAME = 'tracebuddy-app-shell-v1'
+const CACHE_NAME = 'tracebuddy-app-shell-v2'
 const APP_SHELL = ['/', '/manifest.webmanifest', '/favicon.svg']
+const VITE_ASSET_PREFIX = '/assets/'
 
 const OFFLINE_HTML = `<!doctype html>
 <html lang="en">
@@ -79,6 +80,11 @@ async function networkFirstNavigation(request) {
     const response = await fetch(request)
     if (response.ok) {
       await cache.put('/', response.clone())
+
+      if (isHtmlResponse(response)) {
+        const html = await response.clone().text()
+        await pruneStaleViteAssets(cache, extractViteAssets(html))
+      }
     }
     return response
   } catch {
@@ -86,10 +92,33 @@ async function networkFirstNavigation(request) {
   }
 }
 
+function isHtmlResponse(response) {
+  return response.headers.get('content-type')?.includes('text/html')
+}
+
+function extractViteAssets(html) {
+  const matches = html.match(/\/assets\/[^"'<>\s)]+/g) || []
+  return new Set(matches.map((assetPath) => new URL(assetPath, self.location.origin).href))
+}
+
+async function pruneStaleViteAssets(cache, currentAssetUrls) {
+  if (!currentAssetUrls.size) return
+
+  const cachedRequests = await cache.keys()
+  await Promise.all(
+    cachedRequests
+      .filter((cachedRequest) => {
+        const cachedUrl = new URL(cachedRequest.url)
+        return cachedUrl.pathname.startsWith(VITE_ASSET_PREFIX) && !currentAssetUrls.has(cachedUrl.href)
+      })
+      .map((cachedRequest) => cache.delete(cachedRequest)),
+  )
+}
+
 function shouldCacheAsset(request, url) {
   return (
     ['script', 'style', 'image', 'font', 'manifest'].includes(request.destination) ||
-    url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith(VITE_ASSET_PREFIX) ||
     url.pathname === '/favicon.svg'
   )
 }
