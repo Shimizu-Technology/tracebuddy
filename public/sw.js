@@ -69,7 +69,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (shouldCacheAsset(request, url)) {
-    event.respondWith(staleWhileRevalidate(request))
+    const { response, refresh } = staleWhileRevalidate(request)
+    event.respondWith(response)
+    event.waitUntil(refresh)
   }
 })
 
@@ -123,23 +125,33 @@ function shouldCacheAsset(request, url) {
   )
 }
 
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE_NAME)
-  const cached = await cache.match(request)
-
-  const refresh = fetch(request)
-    .then(async (response) => {
-      if (response.ok) {
-        await cache.put(request, response.clone())
-      }
-      return response
-    })
+function staleWhileRevalidate(request) {
+  const cachePromise = caches.open(CACHE_NAME)
+  const refreshResponse = cachePromise
+    .then((cache) => fetch(request)
+      .then(async (fetchResponse) => {
+        if (fetchResponse.ok) {
+          try {
+            await cache.put(request, fetchResponse.clone())
+          } catch {
+            // The network response is still valid even if the cache write fails.
+          }
+        }
+        return fetchResponse
+      }))
     .catch(() => undefined)
 
-  if (cached) {
-    void refresh
-    return cached
-  }
+  const response = cachePromise
+    .then(async (cache) => {
+      const cached = await cache.match(request)
+      if (cached) return cached
 
-  return (await refresh) || new Response('', { status: 504, statusText: 'Offline' })
+      return (await refreshResponse) || new Response('', { status: 504, statusText: 'Offline' })
+    })
+    .catch(async () => (await refreshResponse) || new Response('', { status: 504, statusText: 'Offline' }))
+
+  return {
+    response,
+    refresh: refreshResponse.then(() => undefined),
+  }
 }
