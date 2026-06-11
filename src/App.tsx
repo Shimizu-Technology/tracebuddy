@@ -103,6 +103,14 @@ function lerp(start: number, end: number, amount: number) {
   return start + (end - start) * amount
 }
 
+function normalizeRotation(degrees: number) {
+  return ((((degrees + 180) % 360) + 360) % 360) - 180
+}
+
+function lerpRotation(start: number, end: number, amount: number) {
+  return normalizeRotation(start + normalizeRotation(end - start) * amount)
+}
+
 function normalizeAngle(degrees: number) {
   let angle = degrees
   while (angle > 90) angle -= 180
@@ -313,6 +321,7 @@ function App() {
   const mountedRef = useRef(false)
   const modeRef = useRef<AppMode>(mode)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
+  const paperLockInitialScanDoneRef = useRef(false)
 
   const overlaySrc = uploadedImage ?? svgToDataUrl(selectedDrawing.svg)
   const pictureName = uploadedImage ? 'Uploaded picture' : selectedDrawing.name
@@ -489,7 +498,7 @@ function App() {
       x: lerp(current.x, nextX, smoothing),
       y: lerp(current.y, nextY, smoothing),
       scale: lerp(current.scale, nextScale, smoothing),
-      rotation: lerp(current.rotation, detection.rotation, smoothing),
+      rotation: lerpRotation(current.rotation, detection.rotation, smoothing),
       locked: paperLockEnabled ? true : current.locked,
     }))
   }, [paperLockEnabled])
@@ -568,20 +577,28 @@ function App() {
   useEffect(() => {
     if (!paperLockEnabled || mode !== 'trace' || cameraStatus !== 'ready') return undefined
 
-    const firstScan = window.setTimeout(() => {
-      detectAndApplyPaper({ smooth: false })
-    }, 250)
+    let firstScan: number | undefined
+
+    if (!paperLockInitialScanDoneRef.current) {
+      firstScan = window.setTimeout(() => {
+        paperLockInitialScanDoneRef.current = true
+        detectAndApplyPaper({ smooth: false })
+      }, 250)
+    }
+
     const interval = window.setInterval(() => {
+      paperLockInitialScanDoneRef.current = true
       detectAndApplyPaper({ smooth: true })
     }, 700)
 
     return () => {
-      window.clearTimeout(firstScan)
+      if (firstScan !== undefined) window.clearTimeout(firstScan)
       window.clearInterval(interval)
     }
   }, [cameraStatus, detectAndApplyPaper, mode, paperLockEnabled])
 
   function resetPaperDetection() {
+    paperLockInitialScanDoneRef.current = false
     setPaperDetection(null)
     setPaperDetectionStatus('idle')
     setPaperDetectionMessage('Find the paper to align the drawing automatically.')
@@ -614,10 +631,12 @@ function App() {
 
   function togglePaperLock() {
     if (paperLockEnabled) {
+      paperLockInitialScanDoneRef.current = false
       setPaperLockEnabled(false)
       return
     }
 
+    paperLockInitialScanDoneRef.current = false
     setPaperLockEnabled(true)
     setTransform((transformState) => ({ ...transformState, locked: true }))
   }
