@@ -321,7 +321,6 @@ function App() {
   const mountedRef = useRef(false)
   const modeRef = useRef<AppMode>(mode)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
-  const paperLockInitialScanDoneRef = useRef(false)
 
   const overlaySrc = uploadedImage ?? svgToDataUrl(selectedDrawing.svg)
   const pictureName = uploadedImage ? 'Uploaded picture' : selectedDrawing.name
@@ -577,28 +576,21 @@ function App() {
   useEffect(() => {
     if (!paperLockEnabled || mode !== 'trace' || cameraStatus !== 'ready') return undefined
 
-    let firstScan: number | undefined
-
-    if (!paperLockInitialScanDoneRef.current) {
-      firstScan = window.setTimeout(() => {
-        paperLockInitialScanDoneRef.current = true
-        detectAndApplyPaper({ smooth: false })
-      }, 250)
-    }
+    const firstScan = window.setTimeout(() => {
+      detectAndApplyPaper({ smooth: false })
+    }, 250)
 
     const interval = window.setInterval(() => {
-      paperLockInitialScanDoneRef.current = true
       detectAndApplyPaper({ smooth: true })
     }, 700)
 
     return () => {
-      if (firstScan !== undefined) window.clearTimeout(firstScan)
+      window.clearTimeout(firstScan)
       window.clearInterval(interval)
     }
   }, [cameraStatus, detectAndApplyPaper, mode, paperLockEnabled])
 
   function resetPaperDetection() {
-    paperLockInitialScanDoneRef.current = false
     setPaperDetection(null)
     setPaperDetectionStatus('idle')
     setPaperDetectionMessage('Find the paper to align the drawing automatically.')
@@ -631,12 +623,10 @@ function App() {
 
   function togglePaperLock() {
     if (paperLockEnabled) {
-      paperLockInitialScanDoneRef.current = false
       setPaperLockEnabled(false)
       return
     }
 
-    paperLockInitialScanDoneRef.current = false
     setPaperLockEnabled(true)
     setTransform((transformState) => ({ ...transformState, locked: true }))
   }
