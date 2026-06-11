@@ -1,6 +1,6 @@
-# TraceBuddy POC
+# TraceBuddy
 
-Kid-friendly camera overlay tracing helper built as a mobile-first React/Vite proof of concept.
+Kid-friendly camera overlay tracing helper built as a mobile-first React/Vite MVP.
 
 ## What it does
 
@@ -13,7 +13,7 @@ TraceBuddy lets a child or parent:
 5. Adjust opacity, size, rotation, and position.
 6. Lock the overlay and trace on paper.
 
-The proof of concept is designed for Stassie-style drawing practice: simple, friendly, private, and usable on a phone or iPad with a stand.
+The MVP is designed for Stassie-style drawing practice: simple, friendly, private, and usable on a phone or iPad with a stand.
 
 ## Current features
 
@@ -31,7 +31,7 @@ The proof of concept is designed for Stassie-style drawing practice: simple, fri
 
 ## Important boundaries
 
-This is a frontend proof of concept only.
+This is a frontend MVP only.
 
 - No real AR anchoring
 - No native app code
