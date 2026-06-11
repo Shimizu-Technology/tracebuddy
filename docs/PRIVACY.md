@@ -16,6 +16,12 @@ Parents can upload a local image from the device. The image is read by the brows
 
 TraceBuddy does not upload the image, save it to a server, or send it to an AI service.
 
+### Paper detection
+
+Paper detection samples the live camera frame into a small hidden canvas in the browser. It estimates where the sheet of paper is so the overlay can be aligned locally.
+
+TraceBuddy does not upload, save, or transmit these sampled frames.
+
 ## What may be stored by the browser
 
 The service worker caches the app shell so TraceBuddy can load more reliably after the first visit. Cached files can include:

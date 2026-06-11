@@ -78,7 +78,29 @@ Pass if upload works and the UI no longer labels the uploaded image as a built-i
 
 Pass if blocked/unsupported states are understandable and recoverable.
 
-### 5. Lock and nudge controls
+### 5. Paper detection and tracking
+
+- Put bright paper on a darker table.
+- Tap Find paper.
+- Confirm the paper guide appears around the sheet.
+- Tap Track paper.
+- Move the device slightly or shift the paper a small amount.
+- Confirm the overlay follows the detected sheet without excessive jitter.
+- Try again on a white/light table to document failure behavior.
+
+Pass if tracking helps with small shifts under good lighting and fails gracefully when contrast is poor.
+
+### 6. Mobile controls
+
+- Open trace mode on a phone.
+- Tap Adjust drawing.
+- Confirm controls open as a bottom sheet over the camera.
+- Test quick size, rotate, opacity, lock, paper detection, and nudge controls.
+- Tap Hide controls.
+
+Pass if setup controls are usable without scrolling away from the camera view.
+
+### 7. Lock and nudge controls
 
 - Drag the overlay.
 - Tap Lock.
@@ -88,7 +110,7 @@ Pass if blocked/unsupported states are understandable and recoverable.
 
 Pass if lock prevents accidental drag movement and controls remain clear.
 
-### 6. Screen sleep behavior
+### 8. Screen sleep behavior
 
 - Enter trace mode.
 - Leave the app open during a tracing session.
@@ -96,7 +118,7 @@ Pass if lock prevents accidental drag movement and controls remain clear.
 
 Pass if supported browsers keep the screen awake. Note browsers that ignore Wake Lock.
 
-### 7. Offline shell behavior
+### 9. Offline shell behavior
 
 - Load the deployed app once while online.
 - Turn off network.

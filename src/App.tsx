@@ -23,6 +23,25 @@ type Transform = {
   outline: boolean
 }
 
+type TransformUpdate = Partial<Transform> | ((current: Transform) => Partial<Transform>)
+
+type PaperDetectionStatus = 'idle' | 'scanning' | 'found' | 'not-found' | 'unavailable'
+
+type PaperDetection = {
+  centerX: number
+  centerY: number
+  width: number
+  height: number
+  rotation: number
+  confidence: number
+  stageWidth: number
+  stageHeight: number
+}
+
+type PaperDetectionOptions = {
+  smooth?: boolean
+}
+
 type IconProps = {
   className?: string
 }
@@ -75,8 +94,219 @@ const defaultTransform: Transform = {
   outline: false,
 }
 
+const PAPER_SCAN_WIDTH = 180
+const PAPER_MIN_AREA_RATIO = 0.04
+const PAPER_IDLE_MESSAGE = 'Find the paper to align the drawing automatically.'
+const PAPER_SCANNING_MESSAGE = 'Scanning for paper.'
+const PAPER_NOT_FOUND_MESSAGE = 'No clear sheet found. Use bright paper on a darker, non-glossy surface.'
+const PAPER_UNAVAILABLE_MESSAGE = 'Start the camera first, then try finding the paper again.'
+const PAPER_FOUND_MESSAGE = 'Paper found. Tap Track paper to follow small camera shifts.'
+const PAPER_TRACKING_MESSAGE = 'Tracking paper. Keep the sheet in view.'
+const PAPER_TRACKING_PAUSED_MESSAGE = 'Camera paused. Retry camera to resume paper tracking.'
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function lerp(start: number, end: number, amount: number) {
+  return start + (end - start) * amount
+}
+
+function normalizeRotation(degrees: number) {
+  return ((((degrees + 180) % 360) + 360) % 360) - 180
+}
+
+function lerpRotation(start: number, end: number, amount: number) {
+  return normalizeRotation(start + normalizeRotation(end - start) * amount)
+}
+
+function normalizeAngle(degrees: number) {
+  let angle = degrees
+  while (angle > 90) angle -= 180
+  while (angle < -90) angle += 180
+  return angle
+}
+
+function paperEdgeRotation(majorAxisDegrees: number) {
+  const angle = normalizeAngle(majorAxisDegrees)
+  if (Math.abs(angle) > 45) return angle + (angle < 0 ? 90 : -90)
+  return angle
+}
+
 function svgToDataUrl(svg: string) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
+function isPaperPixel(r: number, g: number, b: number) {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b
+  const saturation = max - min
+
+  return luminance > 145 && saturation < 78 && r > 118 && g > 118 && b > 108
+}
+
+function mapVideoRectToStage(
+  video: HTMLVideoElement,
+  stage: HTMLDivElement,
+  rect: { centerX: number; centerY: number; width: number; height: number; rotation: number; confidence: number },
+  sampleWidth: number,
+  sampleHeight: number,
+): PaperDetection | null {
+  const videoWidth = video.videoWidth
+  const videoHeight = video.videoHeight
+  const stageRect = stage.getBoundingClientRect()
+
+  if (!videoWidth || !videoHeight || !stageRect.width || !stageRect.height) return null
+
+  const scaleToVideoX = videoWidth / sampleWidth
+  const scaleToVideoY = videoHeight / sampleHeight
+  const coverScale = Math.max(stageRect.width / videoWidth, stageRect.height / videoHeight)
+  const renderedWidth = videoWidth * coverScale
+  const renderedHeight = videoHeight * coverScale
+  const offsetX = (stageRect.width - renderedWidth) / 2
+  const offsetY = (stageRect.height - renderedHeight) / 2
+
+  const videoCenterX = rect.centerX * scaleToVideoX
+  const videoCenterY = rect.centerY * scaleToVideoY
+  const stageCenterX = offsetX + videoCenterX * coverScale
+  const stageCenterY = offsetY + videoCenterY * coverScale
+  const stageWidth = rect.width * scaleToVideoX * coverScale
+  const stageHeight = rect.height * scaleToVideoY * coverScale
+
+  return {
+    centerX: stageCenterX,
+    centerY: stageCenterY,
+    width: stageWidth,
+    height: stageHeight,
+    rotation: rect.rotation,
+    confidence: rect.confidence,
+    stageWidth: stageRect.width,
+    stageHeight: stageRect.height,
+  }
+}
+
+function detectPaperRectangle(video: HTMLVideoElement, stage: HTMLDivElement, canvas: HTMLCanvasElement): PaperDetection | null {
+  const videoWidth = video.videoWidth
+  const videoHeight = video.videoHeight
+  if (!videoWidth || !videoHeight) return null
+
+  const sampleWidth = PAPER_SCAN_WIDTH
+  const sampleHeight = Math.max(90, Math.round((videoHeight / videoWidth) * sampleWidth))
+  canvas.width = sampleWidth
+  canvas.height = sampleHeight
+
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) return null
+
+  context.drawImage(video, 0, 0, sampleWidth, sampleHeight)
+  const { data } = context.getImageData(0, 0, sampleWidth, sampleHeight)
+  const totalPixels = sampleWidth * sampleHeight
+  const mask = new Uint8Array(totalPixels)
+
+  for (let pixel = 0; pixel < totalPixels; pixel += 1) {
+    const offset = pixel * 4
+    if (isPaperPixel(data[offset], data[offset + 1], data[offset + 2])) {
+      mask[pixel] = 1
+    }
+  }
+
+  const visited = new Uint8Array(totalPixels)
+  const stack: number[] = []
+  let bestPoints: Array<[number, number]> = []
+
+  for (let index = 0; index < totalPixels; index += 1) {
+    if (!mask[index] || visited[index]) continue
+
+    const points: Array<[number, number]> = []
+    stack.push(index)
+    visited[index] = 1
+
+    while (stack.length) {
+      const current = stack.pop()
+      if (current === undefined) continue
+
+      const x = current % sampleWidth
+      const y = Math.floor(current / sampleWidth)
+      points.push([x, y])
+
+      const neighbors = [current - 1, current + 1, current - sampleWidth, current + sampleWidth]
+      for (const neighbor of neighbors) {
+        if (neighbor < 0 || neighbor >= totalPixels || visited[neighbor] || !mask[neighbor]) continue
+        const neighborX = neighbor % sampleWidth
+        if (Math.abs(neighborX - x) > 1) continue
+        visited[neighbor] = 1
+        stack.push(neighbor)
+      }
+    }
+
+    if (points.length > bestPoints.length) {
+      bestPoints = points
+    }
+  }
+
+  if (bestPoints.length < totalPixels * PAPER_MIN_AREA_RATIO) return null
+
+  const sum = bestPoints.reduce((acc, [x, y]) => ({ x: acc.x + x, y: acc.y + y }), { x: 0, y: 0 })
+  const centerX = sum.x / bestPoints.length
+  const centerY = sum.y / bestPoints.length
+
+  let covarianceXX = 0
+  let covarianceYY = 0
+  let covarianceXY = 0
+
+  for (const [x, y] of bestPoints) {
+    const dx = x - centerX
+    const dy = y - centerY
+    covarianceXX += dx * dx
+    covarianceYY += dy * dy
+    covarianceXY += dx * dy
+  }
+
+  const theta = 0.5 * Math.atan2(2 * covarianceXY, covarianceXX - covarianceYY)
+  const cos = Math.cos(theta)
+  const sin = Math.sin(theta)
+  let minA = Number.POSITIVE_INFINITY
+  let maxA = Number.NEGATIVE_INFINITY
+  let minB = Number.POSITIVE_INFINITY
+  let maxB = Number.NEGATIVE_INFINITY
+
+  for (const [x, y] of bestPoints) {
+    const a = x * cos + y * sin
+    const b = -x * sin + y * cos
+    minA = Math.min(minA, a)
+    maxA = Math.max(maxA, a)
+    minB = Math.min(minB, b)
+    maxB = Math.max(maxB, b)
+  }
+
+  const major = maxA - minA
+  const minor = maxB - minB
+  if (major < sampleWidth * 0.2 || minor < sampleHeight * 0.16) return null
+
+  const majorAxisDegrees = normalizeAngle((theta * 180) / Math.PI)
+  const rotation = paperEdgeRotation(majorAxisDegrees)
+  const majorAxisIsVertical = Math.abs(majorAxisDegrees) > 45
+  const paperWidth = majorAxisIsVertical ? minor : major
+  const paperHeight = majorAxisIsVertical ? major : minor
+  const centerA = (minA + maxA) / 2
+  const centerB = (minB + maxB) / 2
+  const boxCenterX = centerA * cos - centerB * sin
+  const boxCenterY = centerA * sin + centerB * cos
+  const fillRatio = clamp(bestPoints.length / Math.max(major * minor, 1), 0, 1)
+  const areaRatio = clamp(bestPoints.length / totalPixels / 0.35, 0, 1)
+  const confidence = clamp(fillRatio * 0.7 + areaRatio * 0.3, 0, 1)
+
+  if (confidence < 0.35) return null
+
+  return mapVideoRectToStage(video, stage, {
+    centerX: boxCenterX,
+    centerY: boxCenterY,
+    width: paperWidth,
+    height: paperHeight,
+    rotation,
+    confidence,
+  }, sampleWidth, sampleHeight)
 }
 
 function App() {
@@ -86,12 +316,20 @@ function App() {
   const [transform, setTransform] = useState<Transform>(defaultTransform)
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle')
   const [cameraError, setCameraError] = useState('')
+  const [paperDetection, setPaperDetection] = useState<PaperDetection | null>(null)
+  const [paperDetectionStatus, setPaperDetectionStatus] = useState<PaperDetectionStatus>('idle')
+  const [paperDetectionMessage, setPaperDetectionMessage] = useState(PAPER_IDLE_MESSAGE)
+  const [paperLockEnabled, setPaperLockEnabled] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const overlayRef = useRef<HTMLDivElement | null>(null)
+  const paperCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const dragRef = useRef({ active: false, startX: 0, startY: 0, baseX: 0, baseY: 0 })
   const cameraRequestRef = useRef(0)
   const mountedRef = useRef(false)
   const modeRef = useRef<AppMode>(mode)
+  const paperLockEnabledRef = useRef(false)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
 
   const overlaySrc = uploadedImage ?? svgToDataUrl(selectedDrawing.svg)
@@ -249,6 +487,68 @@ function App() {
     }
   }, [hasLiveCameraStream, startCamera])
 
+  const applyPaperDetection = useCallback((detection: PaperDetection, { smooth = false }: PaperDetectionOptions = {}) => {
+    const overlayElement = overlayRef.current
+    const baseOverlayWidth = overlayElement?.offsetWidth || Math.min(detection.stageWidth * 0.76, 470)
+    const baseOverlayHeight = overlayElement?.offsetHeight || baseOverlayWidth
+    const overlayAspect = baseOverlayWidth / Math.max(baseOverlayHeight, 1)
+    const paperAspect = detection.width / Math.max(detection.height, 1)
+    const widthMatchedScale = (detection.width * 0.84) / Math.max(baseOverlayWidth, 1)
+    const heightMatchedScale = (detection.height * 0.84) / Math.max(baseOverlayHeight, 1)
+    const geometricFallbackScale = (Math.sqrt(detection.width * detection.height) * 0.72) / Math.max(Math.sqrt(baseOverlayWidth * baseOverlayHeight), 1)
+    const targetScale = overlayAspect >= paperAspect ? widthMatchedScale : heightMatchedScale
+    const nextScale = clamp(Number.isFinite(targetScale) ? targetScale : geometricFallbackScale, 0.35, 2.2)
+    const nextX = detection.centerX - detection.stageWidth / 2
+    const nextY = detection.centerY - detection.stageHeight / 2
+    const smoothing = smooth ? 0.38 : 1
+
+    setTransform((current) => ({
+      ...current,
+      x: lerp(current.x, nextX, smoothing),
+      y: lerp(current.y, nextY, smoothing),
+      scale: lerp(current.scale, nextScale, smoothing),
+      rotation: lerpRotation(current.rotation, detection.rotation, smoothing),
+      locked: paperLockEnabledRef.current ? true : current.locked,
+    }))
+  }, [])
+
+  const detectAndApplyPaper = useCallback(({ smooth = false }: PaperDetectionOptions = {}) => {
+    const video = videoRef.current
+    const stage = stageRef.current
+    const canvas = paperCanvasRef.current
+
+    if (cameraStatus !== 'ready' || !video || !stage || !canvas) {
+      setPaperDetectionStatus('unavailable')
+      setPaperDetectionMessage(paperLockEnabledRef.current ? PAPER_TRACKING_PAUSED_MESSAGE : PAPER_UNAVAILABLE_MESSAGE)
+      return false
+    }
+
+    if (!smooth) {
+      setPaperDetectionStatus('scanning')
+      setPaperDetectionMessage(PAPER_SCANNING_MESSAGE)
+    }
+
+    const detection = detectPaperRectangle(video, stage, canvas)
+
+    if (!detection) {
+      if (smooth && paperLockEnabledRef.current) {
+        return false
+      }
+
+      setPaperDetection(null)
+      setPaperDetectionStatus('not-found')
+      setPaperDetectionMessage(PAPER_NOT_FOUND_MESSAGE)
+      return false
+    }
+
+    const nextMessage = paperLockEnabledRef.current ? PAPER_TRACKING_MESSAGE : PAPER_FOUND_MESSAGE
+    setPaperDetection(detection)
+    setPaperDetectionStatus('found')
+    setPaperDetectionMessage((current) => (current === nextMessage ? current : nextMessage))
+    applyPaperDetection(detection, { smooth })
+    return true
+  }, [applyPaperDetection, cameraStatus])
+
   useEffect(() => {
     mountedRef.current = true
 
@@ -276,6 +576,10 @@ function App() {
   }, [mode, releaseWakeLock, requestWakeLock, startCamera, stopCamera])
 
   useEffect(() => {
+    paperLockEnabledRef.current = paperLockEnabled
+  }, [paperLockEnabled])
+
+  useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible' && modeRef.current === 'trace') {
         ensureCameraStream()
@@ -287,18 +591,83 @@ function App() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [ensureCameraStream, requestWakeLock])
 
+  useEffect(() => {
+    if (!paperLockEnabled || mode !== 'trace') return undefined
+
+    if (cameraStatus !== 'ready') {
+      const pauseStatus = window.setTimeout(() => {
+        setPaperDetectionStatus('unavailable')
+        setPaperDetectionMessage(PAPER_TRACKING_PAUSED_MESSAGE)
+      }, 0)
+
+      return () => window.clearTimeout(pauseStatus)
+    }
+
+    const firstScan = window.setTimeout(() => {
+      detectAndApplyPaper({ smooth: false })
+    }, 250)
+
+    const interval = window.setInterval(() => {
+      detectAndApplyPaper({ smooth: true })
+    }, 700)
+
+    return () => {
+      window.clearTimeout(firstScan)
+      window.clearInterval(interval)
+    }
+  }, [cameraStatus, detectAndApplyPaper, mode, paperLockEnabled])
+
+  function resetPaperDetection() {
+    paperLockEnabledRef.current = false
+    setPaperDetection(null)
+    setPaperDetectionStatus('idle')
+    setPaperDetectionMessage(PAPER_IDLE_MESSAGE)
+    setPaperLockEnabled(false)
+  }
+
   function openTrace(drawing?: Drawing) {
     if (drawing) {
       setSelectedDrawing(drawing)
       setUploadedImage(null)
     }
+    resetPaperDetection()
     setTransform(defaultTransform)
     setMode('trace')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  function updateTransform(partial: Partial<Transform>) {
-    setTransform((current) => ({ ...current, ...partial }))
+  function updateTransform(update: TransformUpdate) {
+    setTransform((current) => ({
+      ...current,
+      ...(typeof update === 'function' ? update(current) : update),
+    }))
+  }
+
+  function resetOverlay() {
+    resetPaperDetection()
+    setTransform(defaultTransform)
+  }
+
+  function findPaper() {
+    detectAndApplyPaper({ smooth: false })
+  }
+
+  function togglePaperLock() {
+    if (paperLockEnabledRef.current) {
+      paperLockEnabledRef.current = false
+      setPaperLockEnabled(false)
+      setTransform((current) => ({ ...current, locked: false }))
+      setPaperDetectionMessage((current) => {
+        if (current === PAPER_TRACKING_MESSAGE) return PAPER_FOUND_MESSAGE
+        if (current === PAPER_TRACKING_PAUSED_MESSAGE) return PAPER_UNAVAILABLE_MESSAGE
+        return current
+      })
+      return
+    }
+
+    paperLockEnabledRef.current = true
+    setPaperLockEnabled(true)
+    setTransform((transformState) => ({ ...transformState, locked: true }))
   }
 
   function onUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -314,6 +683,7 @@ function App() {
     const reader = new FileReader()
     reader.onload = () => {
       setUploadedImage(String(reader.result))
+      resetPaperDetection()
       setTransform(defaultTransform)
       setMode('trace')
       input.value = ''
@@ -326,7 +696,7 @@ function App() {
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (transform.locked) return
+    if (transform.locked || paperLockEnabled) return
     event.currentTarget.setPointerCapture(event.pointerId)
     dragRef.current = {
       active: true,
@@ -338,7 +708,7 @@ function App() {
   }
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
-    if (!dragRef.current.active || transform.locked) return
+    if (!dragRef.current.active || transform.locked || paperLockEnabled) return
     const dx = event.clientX - dragRef.current.startX
     const dy = event.clientY - dragRef.current.startY
     updateTransform({ x: dragRef.current.baseX + dx, y: dragRef.current.baseY + dy })
@@ -355,6 +725,7 @@ function App() {
 
   return (
     <main className="app-shell">
+      <canvas ref={paperCanvasRef} className="paper-scan-canvas" aria-hidden="true" />
       <header className="topbar">
         <button className="brand" type="button" onClick={() => setMode('welcome')} aria-label="TraceBuddy home">
           <span className="brand-mark" aria-hidden="true"><PencilIcon /></span>
@@ -380,7 +751,13 @@ function App() {
           transform={transform}
           cameraStatus={cameraStatus}
           cameraError={cameraError}
+          paperDetection={paperDetection}
+          paperDetectionStatus={paperDetectionStatus}
+          paperDetectionMessage={paperDetectionMessage}
+          paperLockEnabled={paperLockEnabled}
           videoRef={videoRef}
+          stageRef={stageRef}
+          overlayRef={overlayRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -388,7 +765,9 @@ function App() {
           onUpload={onUpload}
           onPicker={() => setMode('picker')}
           onRetryCamera={startCamera}
-          onReset={() => setTransform(defaultTransform)}
+          onFindPaper={findPaper}
+          onTogglePaperLock={togglePaperLock}
+          onReset={resetOverlay}
         />
       )}
     </main>
@@ -484,7 +863,13 @@ function TraceScreen({
   transform,
   cameraStatus,
   cameraError,
+  paperDetection,
+  paperDetectionStatus,
+  paperDetectionMessage,
+  paperLockEnabled,
   videoRef,
+  stageRef,
+  overlayRef,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -492,6 +877,8 @@ function TraceScreen({
   onUpload,
   onPicker,
   onRetryCamera,
+  onFindPaper,
+  onTogglePaperLock,
   onReset,
 }: {
   pictureName: string
@@ -500,16 +887,28 @@ function TraceScreen({
   transform: Transform
   cameraStatus: CameraStatus
   cameraError: string
+  paperDetection: PaperDetection | null
+  paperDetectionStatus: PaperDetectionStatus
+  paperDetectionMessage: string
+  paperLockEnabled: boolean
   videoRef: React.RefObject<HTMLVideoElement | null>
+  stageRef: React.RefObject<HTMLDivElement | null>
+  overlayRef: React.RefObject<HTMLDivElement | null>
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void
-  updateTransform: (partial: Partial<Transform>) => void
+  updateTransform: (update: TransformUpdate) => void
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
   onPicker: () => void
   onRetryCamera: () => void
+  onFindPaper: () => void
+  onTogglePaperLock: () => void
   onReset: () => void
 }) {
+  const [controlsExpanded, setControlsExpanded] = useState(false)
+  const manualTransformDisabled = paperLockEnabled
+  const paperTrackingPaused = paperLockEnabled && cameraStatus !== 'ready'
+
   const cameraMessage = useMemo(() => {
     if (cameraStatus === 'ready') return 'Camera ready — place paper in view.'
     if (cameraStatus === 'starting') return 'Starting camera.'
@@ -517,6 +916,25 @@ function TraceScreen({
     if (cameraStatus === 'blocked') return 'Camera blocked — demo surface shown.'
     return 'Camera idle.'
   }, [cameraStatus])
+
+  const adjustScale = (delta: number) => {
+    if (manualTransformDisabled) return
+    updateTransform((current) => ({ scale: clamp(current.scale + delta, 0.35, 2.2) }))
+  }
+
+  const adjustRotation = (delta: number) => {
+    if (manualTransformDisabled) return
+    updateTransform((current) => ({ rotation: clamp(current.rotation + delta, -180, 180) }))
+  }
+
+  const toggleLockOrTracking = () => {
+    if (paperLockEnabled) {
+      onTogglePaperLock()
+      return
+    }
+
+    updateTransform((current) => ({ locked: !current.locked }))
+  }
 
   return (
     <section className="trace-screen">
@@ -536,7 +954,7 @@ function TraceScreen({
       </div>
 
       <div className="trace-layout">
-        <div className="camera-stage" aria-label="Camera tracing stage">
+        <div ref={stageRef} className="camera-stage" aria-label="Camera tracing stage">
           <video ref={videoRef} className={cameraStatus === 'ready' ? 'camera-video visible' : 'camera-video'} playsInline muted />
           <div className={`demo-camera ${cameraStatus === 'ready' ? 'hidden' : ''}`}>
             <div className="desk-grid" />
@@ -545,8 +963,23 @@ function TraceScreen({
             </div>
           </div>
 
+          {paperDetection && (
+            <div
+              className={`paper-guide ${paperLockEnabled ? 'active' : ''}`}
+              aria-hidden="true"
+              style={{
+                left: `${paperDetection.centerX}px`,
+                top: `${paperDetection.centerY}px`,
+                width: `${paperDetection.width}px`,
+                height: `${paperDetection.height}px`,
+                transform: `translate(-50%, -50%) rotate(${paperDetection.rotation}deg)`,
+              }}
+            />
+          )}
+
           <div
-            className={`overlay-layer ${transform.locked ? 'locked' : ''}`}
+            ref={overlayRef}
+            className={`overlay-layer ${transform.locked || paperLockEnabled ? 'locked' : ''}`}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -559,8 +992,8 @@ function TraceScreen({
           </div>
 
           <div className="stage-badge">
-            <span aria-hidden="true">{transform.locked ? <LockIcon /> : <MoveIcon />}</span>
-            <span>{transform.locked ? 'Locked — trace now' : 'Drag picture to move'}</span>
+            <span aria-hidden="true">{transform.locked || paperLockEnabled ? <LockIcon /> : <MoveIcon />}</span>
+            <span>{paperTrackingPaused ? 'Paper lock paused — retry camera' : paperLockEnabled ? 'Paper lock on — follows sheet' : transform.locked ? 'Locked — trace now' : 'Drag picture to move'}</span>
           </div>
 
           {cameraStatus !== 'ready' && (
@@ -572,37 +1005,92 @@ function TraceScreen({
           )}
         </div>
 
-        <aside className="controls-panel" aria-label="Tracing controls">
-          <div className="control-card primary-control">
-            <span>Step 1</span>
-            <strong>Prop your device above the paper.</strong>
-            <small>A stand, box, or gooseneck holder works best.</small>
-          </div>
-
-          <Slider label="Opacity" value={transform.opacity} min={0.15} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(value) => updateTransform({ opacity: value })} />
-          <Slider label="Size" value={transform.scale} min={0.35} max={2.2} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(value) => updateTransform({ scale: value })} />
-          <Slider label="Rotate" value={transform.rotation} min={-180} max={180} step={1} format={(v) => `${Math.round(v)}°`} onChange={(value) => updateTransform({ rotation: value })} />
-
-          <div className="toggle-grid">
-            <button className={transform.locked ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.locked} onClick={() => updateTransform({ locked: !transform.locked })}>
-              {transform.locked ? 'Unlock' : 'Lock'}
-              <small>{transform.locked ? 'Move again' : 'Trace safely'}</small>
+        <aside className={`controls-panel ${controlsExpanded ? 'expanded' : 'collapsed'}`} aria-label="Tracing controls">
+          <div className="mobile-control-bar">
+            <button className="sheet-toggle" type="button" aria-expanded={controlsExpanded} onClick={() => setControlsExpanded((current) => !current)}>
+              <span>{controlsExpanded ? 'Hide controls' : 'Adjust drawing'}</span>
+              <small>{paperTrackingPaused ? 'Paper lock paused' : paperLockEnabled ? 'Paper lock active' : transform.locked ? 'Locked' : 'Setup mode'}</small>
             </button>
-            <button className={transform.outline ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.outline} onClick={() => updateTransform({ outline: !transform.outline })}>
-              Outline
-              <small>High contrast</small>
+            <button className={transform.locked || paperLockEnabled ? 'mini-lock active' : 'mini-lock'} type="button" aria-pressed={transform.locked || paperLockEnabled} onClick={toggleLockOrTracking}>
+              {paperLockEnabled ? 'Stop track' : transform.locked ? 'Unlock' : 'Lock'}
             </button>
           </div>
 
-          <div className="nudge-grid" aria-label="Nudge overlay position">
-            <button type="button" aria-label="Move overlay up" onClick={() => updateTransform({ y: transform.y - 10 })}><ArrowIcon direction="up" /></button>
-            <button type="button" aria-label="Move overlay left" onClick={() => updateTransform({ x: transform.x - 10 })}><ArrowIcon direction="left" /></button>
-            <button type="button" aria-label="Move overlay right" onClick={() => updateTransform({ x: transform.x + 10 })}><ArrowIcon direction="right" /></button>
-            <button type="button" aria-label="Move overlay down" onClick={() => updateTransform({ y: transform.y + 10 })}><ArrowIcon direction="down" /></button>
-          </div>
+          <p className="sr-only" aria-live="polite">{paperDetectionMessage}</p>
 
-          <button className="reset-button" type="button" onClick={onReset}>Reset overlay</button>
-          <p className="privacy-note">Privacy: this MVP does not upload photos or camera video anywhere.</p>
+          <div className="controls-body">
+            <div className="control-card setup-control">
+              <span>Step 1</span>
+              <strong>Prop your device above the paper.</strong>
+              <small>Use a gooseneck holder, overhead stand, tripod arm, document camera stand, or a sturdy box/books setup.</small>
+              <p>Safety: make sure the phone or tablet cannot fall onto the child or paper.</p>
+            </div>
+
+            <div className={`control-card paper-control ${paperLockEnabled ? 'active' : ''}`}>
+              <span>Beta</span>
+              <strong>Find the paper automatically.</strong>
+              <small>TraceBuddy looks for the largest bright sheet and can keep the drawing centered on it as the camera view shifts.</small>
+              <div className="paper-actions">
+                <button type="button" onClick={onFindPaper} disabled={cameraStatus !== 'ready'}>Find paper</button>
+                <button type="button" className={paperLockEnabled ? 'active' : ''} aria-pressed={paperLockEnabled} onClick={onTogglePaperLock} disabled={cameraStatus !== 'ready' && !paperLockEnabled}>
+                  {paperLockEnabled ? 'Stop paper lock' : 'Track paper'}
+                </button>
+              </div>
+              <p className={`paper-status ${paperDetectionStatus}`}>{paperDetectionMessage}</p>
+            </div>
+
+            <div className="quick-controls" aria-label="Quick tracing adjustments">
+              <div className="quick-row">
+                <span>Size</span>
+                <div className="stepper-buttons">
+                  <button type="button" onClick={() => adjustScale(-0.08)} disabled={manualTransformDisabled}>Smaller</button>
+                  <button type="button" onClick={() => adjustScale(0.08)} disabled={manualTransformDisabled}>Bigger</button>
+                </div>
+              </div>
+              <div className="quick-row">
+                <span>Rotate</span>
+                <div className="stepper-buttons">
+                  <button type="button" onClick={() => adjustRotation(-5)} disabled={manualTransformDisabled}>-5°</button>
+                  <button type="button" onClick={() => adjustRotation(5)} disabled={manualTransformDisabled}>+5°</button>
+                </div>
+              </div>
+              <div className="quick-row opacity-row">
+                <span>Opacity</span>
+                <div className="preset-buttons">
+                  {[0.35, 0.5, 0.7, 0.9].map((opacity) => (
+                    <button key={opacity} className={Math.abs(transform.opacity - opacity) < 0.02 ? 'active' : ''} type="button" onClick={() => updateTransform({ opacity })}>
+                      {Math.round(opacity * 100)}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <Slider label="Opacity" value={transform.opacity} min={0.15} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(value) => updateTransform({ opacity: value })} />
+            <Slider label="Size" value={transform.scale} min={0.35} max={2.2} step={0.01} disabled={manualTransformDisabled} format={(v) => `${Math.round(v * 100)}%`} onChange={(value) => updateTransform({ scale: value })} />
+            <Slider label="Rotate" value={transform.rotation} min={-180} max={180} step={1} disabled={manualTransformDisabled} format={(v) => `${Math.round(v)}°`} onChange={(value) => updateTransform({ rotation: value })} />
+
+            <div className="toggle-grid">
+              <button className={transform.locked || paperLockEnabled ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.locked || paperLockEnabled} onClick={toggleLockOrTracking}>
+                {paperLockEnabled ? 'Stop tracking' : transform.locked ? 'Unlock' : 'Lock'}
+                <small>{paperLockEnabled ? 'Paper lock' : transform.locked ? 'Move again' : 'Trace safely'}</small>
+              </button>
+              <button className={transform.outline ? 'toggle active' : 'toggle'} type="button" aria-pressed={transform.outline} onClick={() => updateTransform((current) => ({ outline: !current.outline }))}>
+                Outline
+                <small>High contrast</small>
+              </button>
+            </div>
+
+            <div className="nudge-grid" aria-label="Nudge overlay position">
+              <button type="button" aria-label="Move overlay up" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ y: current.y - 10 }))}><ArrowIcon direction="up" /></button>
+              <button type="button" aria-label="Move overlay left" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ x: current.x - 10 }))}><ArrowIcon direction="left" /></button>
+              <button type="button" aria-label="Move overlay right" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ x: current.x + 10 }))}><ArrowIcon direction="right" /></button>
+              <button type="button" aria-label="Move overlay down" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ y: current.y + 10 }))}><ArrowIcon direction="down" /></button>
+            </div>
+
+            <button className="reset-button" type="button" onClick={onReset}>Reset overlay</button>
+            <p className="privacy-note">Privacy: paper detection runs locally in this browser and does not upload photos or camera video anywhere.</p>
+          </div>
         </aside>
       </div>
     </section>
@@ -616,6 +1104,7 @@ function Slider({
   max,
   step,
   format,
+  disabled = false,
   onChange,
 }: {
   label: string
@@ -623,6 +1112,7 @@ function Slider({
   min: number
   max: number
   step: number
+  disabled?: boolean
   format: (value: number) => string
   onChange: (value: number) => void
 }) {
@@ -632,7 +1122,7 @@ function Slider({
         <strong>{label}</strong>
         <small>{format(value)}</small>
       </span>
-      <input type="range" value={value} min={min} max={max} step={step} aria-valuetext={format(value)} onChange={(event) => onChange(Number(event.target.value))} />
+      <input type="range" value={value} min={min} max={max} step={step} disabled={disabled} aria-valuetext={format(value)} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   )
 }

@@ -17,6 +17,8 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Local image upload.
 - Camera preview with demo fallback.
 - Overlay drag, opacity, scale, rotation, nudge, lock, and reset.
+- Mobile-friendly floating trace controls.
+- Experimental paper rectangle detection and tracking.
 - High-contrast outline display mode.
 - Safer camera cleanup and retry behavior.
 - Uploaded-image header labeling.
@@ -43,26 +45,46 @@ Goal: prove the fixed-device tracing setup works in a real drawing session.
 
 Goal: make the app more useful for everyday Stassie-style drawing practice.
 
-- Add more simple drawing packs.
+- Add more simple drawing packs and premade templates.
+- Add template categories such as animals, ocean, princess/fairy, vehicles, letters, seasonal, and Guam/island themes.
 - Add difficulty levels: starter, medium, detailed.
 - Add a favorites/recent drawings section stored locally.
 - Add a clearer parent setup mode vs child tracing mode.
+- Continue tuning the mobile controls based on live phone/tablet use.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.
 - Improve print/export options for built-in line art if useful.
 
-## Phase 3: Upload-to-outline processing
+## Phase 3: Uploaded image cleanup and outline processing
 
 Goal: better support the original idea of tracing whatever she wants.
 
+- Add optional client-side background removal for uploaded images.
 - Add client-side edge detection.
 - Add threshold/contrast controls.
 - Add invert/black-and-white controls.
 - Add a simple outline preview before entering trace mode.
 - Keep all processing local in the browser.
 
-## Phase 4: Native AR only if needed
+## Phase 4: Printable marker tracking
 
-Only consider native ARKit/ARCore if real-device testing proves that fixed-device tracing is not good enough.
+Goal: make paper tracking more reliable if plain paper rectangle detection is too sensitive to lighting, shadows, or white tables.
+
+Possible marker features:
+
+- Printable TraceBuddy page or mat.
+- Small high-contrast corner markers.
+- Marker-based paper transform calculation.
+- More stable tracking when the device shifts slightly.
+
+Tradeoffs:
+
+- Requires printing or using a special page.
+- Adds setup friction.
+- Needs marker design and calibration work.
+
+## Phase 5: Native AR only if needed
+
+Only consider native ARKit/ARCore if browser-based paper tracking and marker tracking are not good enough.
 
 Possible native/AR features:
 
