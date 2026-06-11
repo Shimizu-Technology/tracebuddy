@@ -4,7 +4,7 @@
 
 TraceBuddy is a mobile-first camera overlay tracing helper for kids and parents. A phone or iPad camera shows real paper on the table, and the app places a semi-transparent line-art drawing over the live camera view so the child can trace on paper.
 
-It is intentionally simple: no account, no backend, no uploads, no analytics, and no true AR anchoring. The MVP is a practical fixed-device tracing tool, not a native AR product.
+It is intentionally simple: no account, no backend, no uploads, no analytics, and no native AR anchoring. The MVP is a practical camera overlay tracing tool with experimental browser-based paper tracking.
 
 ## Why we built it
 
@@ -31,7 +31,7 @@ When a child wants to practice drawing, the parent can open TraceBuddy, pick or 
 2. Pick a built-in line drawing or upload a local image.
 3. Allow camera access.
 4. Place the device above real paper with a stand or stable prop.
-5. Adjust opacity, size, rotation, and position.
+5. Use Find paper/Track paper for automatic alignment, or adjust opacity, size, rotation, and position manually.
 6. Lock the overlay.
 7. Trace on paper.
 
@@ -42,6 +42,8 @@ The MVP is successful if:
 - It loads quickly on phone and tablet browsers.
 - Camera access works on real devices over HTTPS.
 - The overlay is easy to move, size, fade, rotate, and lock.
+- Mobile controls are usable while the camera remains visible.
+- Paper detection can align to a clear sheet in normal lighting.
 - The child can trace without accidental overlay movement once locked.
 - Parents understand that images and camera video stay local.
 - The physical setup is stable enough for a real drawing session.
@@ -62,9 +64,9 @@ The MVP is successful if:
 
 A mobile web MVP is faster to test and easier to share. Camera access is available through `getUserMedia`, and HTTPS deployment is enough for real-device validation.
 
-### Fixed-device overlay instead of AR anchoring
+### Browser paper tracking before native AR
 
-The app assumes the device is physically stable above the paper. If the device moves, the overlay moves with the screen. This is acceptable for the MVP because the main question is whether a stand-based setup is good enough.
+The app starts with a lightweight browser paper detector instead of native AR. It can find a bright sheet in the camera view and align/track the drawing locally. This is useful for small camera shifts, but physical stability still matters and manual controls remain available when detection fails.
 
 ### Local-first privacy
 
@@ -82,12 +84,15 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Local image upload.
 - Camera access with graceful demo fallback.
 - Overlay transform controls.
+- Mobile floating controls for trace mode.
+- Experimental paper rectangle detection and tracking.
 - PWA manifest and service worker app-shell caching.
 - Automated lint, build, viewport, and screenshot checks.
 
 ## Open questions
 
-- Is a fixed stand setup stable enough for a real child tracing session?
+- Is browser paper tracking stable enough on real iPhone/iPad setups?
+- Would printable marker-based tracking be more reliable than plain paper detection?
 - Should uploaded photos be converted to outlines client-side before tracing?
 - Which drawing packs are most useful for Stassie-style practice?
 - Does the app need a fullscreen/low-distraction mode after real-device testing?

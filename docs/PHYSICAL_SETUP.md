@@ -1,6 +1,6 @@
 # Physical Setup Guide
 
-TraceBuddy works best when the phone or tablet stays still above the paper. The app does not anchor drawings to the table with true AR, so physical stability matters more than anything else.
+TraceBuddy works best when the phone or tablet stays still above the paper. Paper tracking can follow small camera shifts when the sheet is clearly visible, but it is not true AR anchoring, so physical stability still matters.
 
 ## Recommended setup
 
@@ -8,6 +8,7 @@ Best options:
 
 - Gooseneck phone/tablet holder.
 - Overhead document camera stand.
+- Tripod with a horizontal arm.
 - Tablet stand with an arm that points down.
 - Stable box/books setup for quick testing.
 
@@ -33,10 +34,11 @@ Avoid:
 4. Pick a drawing or upload a local image.
 5. Allow camera access.
 6. Move the paper until it is centered in the camera view.
-7. Drag the overlay onto the paper.
-8. Adjust size, opacity, and rotation.
-9. Use the nudge controls for small alignment changes.
-10. Tap Lock before the child starts tracing.
+7. Tap Find paper if the sheet is clearly visible, or drag the overlay onto the paper manually.
+8. Optionally tap Track paper to keep the drawing aligned during small camera shifts.
+9. Adjust size, opacity, and rotation.
+10. Use the nudge controls for small alignment changes.
+11. Tap Lock before the child starts tracing.
 
 ## Alignment tips
 
@@ -65,11 +67,19 @@ Avoid:
 
 ### The overlay drifts
 
-The overlay is screen-fixed. It only appears to drift if the device, paper, or stand moves. Re-center the paper, re-align the overlay, and lock it again.
+Use Track paper when the full sheet is visible and the paper/background contrast is clear. If tracking cannot find the sheet, the overlay is screen-fixed and may drift when the device, paper, or stand moves. Re-center the paper, re-align the overlay, and lock it again.
 
 ### The child keeps moving the overlay accidentally
 
 Tap Lock after setup. When locked, dragging is disabled and only the controls can change the overlay.
+
+### Paper detection cannot find the sheet
+
+- Use white or bright paper on a darker table.
+- Make sure the full sheet is visible.
+- Reduce glare and strong shadows.
+- Avoid a white table or white background if possible.
+- Fall back to manual drag/nudge controls when needed.
 
 ### The picture is too detailed
 

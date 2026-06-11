@@ -16,7 +16,7 @@ TraceBuddy lets a child or parent:
 2. Open trace mode.
 3. Use the device camera as the background.
 4. Place a semi-transparent drawing over real paper.
-5. Adjust opacity, size, rotation, and position.
+5. Use paper detection for automatic alignment or adjust opacity, size, rotation, and position manually.
 6. Lock the overlay and trace on paper.
 
 The MVP is designed for Stassie-style drawing practice: simple, friendly, private, and usable on a phone or iPad with a stand.
@@ -30,7 +30,9 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Camera access with `getUserMedia`
 - Demo camera surface when camera is unavailable/blocked
 - Drag-to-position overlay
+- Mobile-friendly floating trace controls
 - Opacity, scale, rotation, nudge, lock, reset controls
+- Experimental paper rectangle detection and tracking
 - Outline/high-contrast display mode
 - Screen Wake Lock request where supported
 - PWA manifest metadata
@@ -41,19 +43,20 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 
 This is a frontend MVP only.
 
-- No real AR anchoring
+- No true/native AR anchoring
 - No native app code
 - No backend
 - No image/video upload
 - No AI image processing
 - Camera and uploaded images stay local in the browser session
 
-For real tracing, use a phone/iPad stand or prop the device above the paper. If the device or paper moves, the overlay will need to be realigned.
+For real tracing, use a phone/iPad stand or prop the device above the paper. Experimental paper tracking can follow small camera shifts when the page is clearly visible, but manual realignment may still be needed.
 
 ## Documentation
 
 - [Product brief](docs/PRODUCT_BRIEF.md)
 - [Physical setup guide](docs/PHYSICAL_SETUP.md)
+- [Paper tracking notes](docs/PAPER_TRACKING.md)
 - [Real-device testing checklist](docs/REAL_DEVICE_TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Privacy notes](docs/PRIVACY.md)
@@ -115,4 +118,5 @@ Generated files:
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
 - Add a few more Stassie-friendly drawing packs
 - Add client-side photo-to-outline processing
-- Consider native ARKit/ARCore only if fixed-device tracing is not good enough
+- Prototype printable marker-based tracking if plain paper detection is not stable enough
+- Consider native ARKit/ARCore only if browser-based tracking is not good enough
