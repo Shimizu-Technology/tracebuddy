@@ -1,0 +1,18 @@
+{
+  "name": "TraceBuddy",
+  "short_name": "TraceBuddy",
+  "description": "Kid-friendly camera overlay tracing helper.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff8ef",
+  "theme_color": "#ff795d",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
