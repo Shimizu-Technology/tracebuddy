@@ -14,7 +14,7 @@ TraceBuddy does not record, upload, or transmit camera video.
 
 Parents can upload a local image from the device. The image is read by the browser and stored in app state for the current session.
 
-TraceBuddy does not upload the image, save it to a server, or send it to an AI service.
+Optional cleanup modes also run locally in the browser using canvas processing. TraceBuddy can create a temporary transparent background or line-art version for the overlay, but it does not upload the image, save it to a server, or send it to an AI service.
 
 ### Paper detection
 
@@ -43,6 +43,6 @@ The app needs network access to load the deployed site the first time. After the
 
 ## Future changes
 
-If future versions add accounts, uploads, analytics, AI processing, or cloud storage, this privacy document must be updated before release.
+If future versions add accounts, uploads, analytics, remote AI processing, or cloud storage, this privacy document must be updated before release.
 
 Until then, the intended boundary is simple: camera and uploaded images stay on the device.

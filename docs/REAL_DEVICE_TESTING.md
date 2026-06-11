@@ -63,13 +63,24 @@ Pass if the overlay stays aligned when the device and paper remain still.
 ### 3. Uploaded image tracing
 
 - Upload a simple local image.
-- Confirm the trace header says Uploaded picture.
+- Confirm the trace header uses the uploaded file name.
 - Confirm the image stays local in the browser session.
 - Adjust and lock the overlay.
 
 Pass if upload works and the UI no longer labels the uploaded image as a built-in drawing.
 
-### 4. Camera fallback
+### 4. Uploaded image cleanup
+
+- Upload a photo with a visible background.
+- Open Adjust drawing.
+- Try Original, Cut background, and Line art.
+- Adjust Background sensitivity and Line detail.
+- Confirm cleanup updates the overlay without uploading the image.
+- Confirm Original restores the unprocessed upload.
+
+Pass if at least one cleanup mode makes a real family photo easier to trace without confusing the child or parent.
+
+### 5. Camera fallback
 
 - Block camera permission.
 - Confirm demo mode appears.
@@ -78,7 +89,7 @@ Pass if upload works and the UI no longer labels the uploaded image as a built-i
 
 Pass if blocked/unsupported states are understandable and recoverable.
 
-### 5. Paper detection and tracking
+### 6. Paper detection and tracking
 
 - Put bright paper on a darker table.
 - Tap Find paper.
@@ -90,7 +101,7 @@ Pass if blocked/unsupported states are understandable and recoverable.
 
 Pass if tracking helps with small shifts under good lighting and fails gracefully when contrast is poor.
 
-### 6. Mobile controls
+### 7. Mobile controls
 
 - Open trace mode on a phone.
 - Tap Adjust drawing.
@@ -100,7 +111,7 @@ Pass if tracking helps with small shifts under good lighting and fails gracefull
 
 Pass if setup controls are usable without scrolling away from the camera view.
 
-### 7. Lock and nudge controls
+### 8. Lock and nudge controls
 
 - Drag the overlay.
 - Tap Lock.
@@ -110,7 +121,7 @@ Pass if setup controls are usable without scrolling away from the camera view.
 
 Pass if lock prevents accidental drag movement and controls remain clear.
 
-### 8. Screen sleep behavior
+### 9. Screen sleep behavior
 
 - Enter trace mode.
 - Leave the app open during a tracing session.
@@ -118,7 +129,7 @@ Pass if lock prevents accidental drag movement and controls remain clear.
 
 Pass if supported browsers keep the screen awake. Note browsers that ignore Wake Lock.
 
-### 9. Offline shell behavior
+### 10. Offline shell behavior
 
 - Load the deployed app once while online.
 - Turn off network.

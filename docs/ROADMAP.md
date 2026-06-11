@@ -58,12 +58,19 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 
 Goal: better support the original idea of tracing whatever she wants.
 
-- Add optional client-side background removal for uploaded images.
-- Add client-side edge detection.
-- Add threshold/contrast controls.
-- Add invert/black-and-white controls.
-- Add a simple outline preview before entering trace mode.
-- Keep all processing local in the browser.
+Current beta:
+
+- Optional client-side background cleanup for uploaded images.
+- Client-side line-art conversion using local edge detection.
+- Sensitivity/detail controls in trace mode.
+- All processing stays local in the browser.
+
+Next improvements:
+
+- Add threshold/contrast controls if real photos need more tuning.
+- Add invert/black-and-white controls if dark/light images need it.
+- Add a simple cleanup preview before entering trace mode.
+- Explore better local foreground/background sampling.
 
 ## Phase 4: Printable marker tracking
 
