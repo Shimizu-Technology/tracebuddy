@@ -470,9 +470,16 @@ function App() {
   }, [hasLiveCameraStream, startCamera])
 
   const applyPaperDetection = useCallback((detection: PaperDetection, { smooth = false }: PaperDetectionOptions = {}) => {
-    const baseOverlayWidth = overlayRef.current?.offsetWidth || Math.min(detection.stageWidth * 0.76, 470)
-    const targetSize = Math.min(detection.width, detection.height) * 0.82
-    const nextScale = clamp(targetSize / Math.max(baseOverlayWidth, 1), 0.35, 2.2)
+    const overlayElement = overlayRef.current
+    const baseOverlayWidth = overlayElement?.offsetWidth || Math.min(detection.stageWidth * 0.76, 470)
+    const baseOverlayHeight = overlayElement?.offsetHeight || baseOverlayWidth
+    const overlayAspect = baseOverlayWidth / Math.max(baseOverlayHeight, 1)
+    const paperAspect = detection.width / Math.max(detection.height, 1)
+    const widthMatchedScale = (detection.width * 0.84) / Math.max(baseOverlayWidth, 1)
+    const heightMatchedScale = (detection.height * 0.84) / Math.max(baseOverlayHeight, 1)
+    const geometricFallbackScale = (Math.sqrt(detection.width * detection.height) * 0.72) / Math.max(Math.sqrt(baseOverlayWidth * baseOverlayHeight), 1)
+    const targetScale = overlayAspect >= paperAspect ? widthMatchedScale : heightMatchedScale
+    const nextScale = clamp(Number.isFinite(targetScale) ? targetScale : geometricFallbackScale, 0.35, 2.2)
     const nextX = detection.centerX - detection.stageWidth / 2
     const nextY = detection.centerY - detection.stageHeight / 2
     const smoothing = smooth ? 0.38 : 1
@@ -498,7 +505,11 @@ function App() {
       return false
     }
 
-    setPaperDetectionStatus('scanning')
+    if (!smooth) {
+      setPaperDetectionStatus('scanning')
+      setPaperDetectionMessage('Scanning for paper.')
+    }
+
     const detection = detectPaperRectangle(video, stage, canvas)
 
     if (!detection) {
@@ -508,12 +519,13 @@ function App() {
       return false
     }
 
+    const nextMessage = paperLockEnabled ? 'Tracking paper. Keep the sheet in view.' : 'Paper found. Tap Track paper to follow small camera shifts.'
     setPaperDetection(detection)
     setPaperDetectionStatus('found')
-    setPaperDetectionMessage(`Paper found with ${Math.round(detection.confidence * 100)}% confidence.`)
+    setPaperDetectionMessage((current) => (current === nextMessage ? current : nextMessage))
     applyPaperDetection(detection, { smooth })
     return true
-  }, [applyPaperDetection, cameraStatus])
+  }, [applyPaperDetection, cameraStatus, paperLockEnabled])
 
   useEffect(() => {
     mountedRef.current = true
@@ -608,7 +620,6 @@ function App() {
 
     setPaperLockEnabled(true)
     setTransform((transformState) => ({ ...transformState, locked: true }))
-    window.setTimeout(() => detectAndApplyPaper({ smooth: false }), 0)
   }
 
   function onUpload(event: ChangeEvent<HTMLInputElement>) {
