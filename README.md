@@ -26,13 +26,14 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Mobile-first responsive interface
 - Clean, modern, kid-friendly visual design
 - Built-in traceable SVG drawings
-- Local image upload
+- Local image upload with optional cleanup modes
 - Camera access with `getUserMedia`
 - Demo camera surface when camera is unavailable/blocked
 - Drag-to-position overlay
 - Mobile-friendly floating trace controls
 - Opacity, scale, rotation, nudge, lock, reset controls
 - Experimental paper rectangle detection and tracking
+- Uploaded image background cleanup and line-art conversion
 - Outline/high-contrast display mode
 - Screen Wake Lock request where supported
 - PWA manifest metadata
@@ -47,7 +48,7 @@ This is a frontend MVP only.
 - No native app code
 - No backend
 - No image/video upload
-- No AI image processing
+- No remote or server-side image processing
 - Camera and uploaded images stay local in the browser session
 
 For real tracing, use a phone/iPad stand or prop the device above the paper. Experimental paper tracking can follow small camera shifts when the page is clearly visible, but manual realignment may still be needed.
@@ -57,6 +58,7 @@ For real tracing, use a phone/iPad stand or prop the device above the paper. Exp
 - [Product brief](docs/PRODUCT_BRIEF.md)
 - [Physical setup guide](docs/PHYSICAL_SETUP.md)
 - [Paper tracking notes](docs/PAPER_TRACKING.md)
+- [Uploaded image cleanup](docs/UPLOAD_CLEANUP.md)
 - [Real-device testing checklist](docs/REAL_DEVICE_TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Privacy notes](docs/PRIVACY.md)
@@ -117,7 +119,6 @@ Generated files:
 - Test with a physical stand and real paper
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
 - Add a few more Stassie-friendly drawing packs/templates
-- Add optional client-side background removal for uploaded images
-- Add client-side photo-to-outline processing
+- Improve uploaded image cleanup after real-device testing
 - Prototype printable marker-based tracking if plain paper detection is not stable enough
 - Consider native ARKit/ARCore only if browser-based tracking is not good enough

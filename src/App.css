@@ -716,14 +716,16 @@ button.active:disabled {
   line-height: 1.42;
 }
 
-.paper-control.active {
+.paper-control.active,
+.upload-cleanup-control.active {
   border: 1px solid rgba(107, 215, 183, 0.45);
   background: linear-gradient(135deg, #e9fff7, #ffffff);
 }
 
 .paper-actions,
 .stepper-buttons,
-.preset-buttons {
+.preset-buttons,
+.cleanup-mode-grid {
   display: grid;
   gap: 0.5rem;
 }
@@ -733,9 +735,15 @@ button.active:disabled {
   margin-top: 0.85rem;
 }
 
+.cleanup-mode-grid {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 0.85rem;
+}
+
 .paper-actions button,
 .stepper-buttons button,
 .preset-buttons button,
+.cleanup-mode-grid button,
 .sheet-toggle,
 .mini-lock {
   min-height: 42px;
@@ -749,26 +757,78 @@ button.active:disabled {
 
 .paper-actions button.active,
 .preset-buttons button.active,
+.cleanup-mode-grid button.active,
 .mini-lock.active {
   border-color: rgba(107, 215, 183, 0.45);
   background: #e9fff7;
 }
 
-.paper-status {
+.cleanup-mode-grid button {
+  display: grid;
+  gap: 0.16rem;
+  min-height: 74px;
+  padding: 0.68rem;
+  text-align: left;
+}
+
+.cleanup-mode-grid button small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.cleanup-slider {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  border: 1px solid rgba(20, 32, 51, 0.07);
+  border-radius: 18px;
+  padding: 0.78rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.cleanup-slider span {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cleanup-slider small {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.paper-status,
+.cleanup-status {
   border-radius: 16px;
   padding: 0.75rem;
   background: rgba(255, 255, 255, 0.72);
 }
 
-.paper-status.found {
+.cleanup-status {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.42;
+}
+
+.paper-status.found,
+.cleanup-status.ready {
   color: #21785f;
   background: #e9fff7;
 }
 
 .paper-status.not-found,
-.paper-status.unavailable {
+.paper-status.unavailable,
+.cleanup-status.error {
   color: #9a4a36;
   background: #fff1dc;
+}
+
+.cleanup-status.processing {
+  color: #7b5630;
+  background: #fff7d8;
 }
 
 .quick-controls {
@@ -1074,14 +1134,24 @@ input[type='range'] {
 
   .paper-actions,
   .stepper-buttons,
-  .preset-buttons {
+  .preset-buttons,
+  .cleanup-mode-grid {
     gap: 0.42rem;
+  }
+
+  .cleanup-mode-grid {
+    grid-template-columns: 1fr;
   }
 
   .paper-actions button,
   .stepper-buttons button,
   .preset-buttons button {
     min-height: 44px;
+    font-size: 0.88rem;
+  }
+
+  .cleanup-mode-grid button {
+    min-height: 58px;
     font-size: 0.88rem;
   }
 }

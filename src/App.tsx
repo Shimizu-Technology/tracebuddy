@@ -25,6 +25,21 @@ type Transform = {
 
 type TransformUpdate = Partial<Transform> | ((current: Transform) => Partial<Transform>)
 
+type UploadedImageState = {
+  originalSrc: string
+  processedSrc: string
+  fileName: string
+}
+
+type UploadCleanupMode = 'original' | 'background' | 'outline'
+type UploadCleanupStatus = 'idle' | 'processing' | 'ready' | 'error'
+
+type UploadCleanupOptions = {
+  mode: Exclude<UploadCleanupMode, 'original'>
+  backgroundTolerance: number
+  outlineDetail: number
+}
+
 type PaperDetectionStatus = 'idle' | 'scanning' | 'found' | 'not-found' | 'unavailable'
 
 type PaperDetection = {
@@ -103,6 +118,13 @@ const PAPER_UNAVAILABLE_MESSAGE = 'Start the camera first, then try finding the 
 const PAPER_FOUND_MESSAGE = 'Paper found. Tap Track paper to follow small camera shifts.'
 const PAPER_TRACKING_MESSAGE = 'Tracking paper. Keep the sheet in view.'
 const PAPER_TRACKING_PAUSED_MESSAGE = 'Camera paused. Retry camera to resume paper tracking.'
+const UPLOAD_CLEANUP_MAX_DIMENSION = 1400
+const UPLOAD_CLEANUP_IDLE_MESSAGE = 'Use the original upload, or clean it when the background gets in the way.'
+const UPLOAD_CLEANUP_BACKGROUND_PROCESSING_MESSAGE = 'Removing the simple background locally.'
+const UPLOAD_CLEANUP_OUTLINE_PROCESSING_MESSAGE = 'Building a transparent line-art version locally.'
+const UPLOAD_CLEANUP_BACKGROUND_READY_MESSAGE = 'Background cleanup applied. Adjust sensitivity if too much disappears.'
+const UPLOAD_CLEANUP_OUTLINE_READY_MESSAGE = 'Line-art cleanup applied. Adjust detail if lines are missing or noisy.'
+const UPLOAD_CLEANUP_ERROR_MESSAGE = 'Could not clean this image. Try the original or upload a different picture.'
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -135,6 +157,143 @@ function paperEdgeRotation(majorAxisDegrees: number) {
 
 function svgToDataUrl(svg: string) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Image could not be loaded.'))
+    image.src = src
+  })
+}
+
+function getScaledImageSize(width: number, height: number, maxDimension: number) {
+  const scale = Math.min(1, maxDimension / Math.max(width, height))
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  }
+}
+
+function sampleBackgroundColor(data: Uint8ClampedArray, width: number, height: number): [number, number, number] {
+  const cornerSize = clamp(Math.round(Math.min(width, height) * 0.045), 4, 28)
+  const corners = [
+    [0, 0],
+    [width - cornerSize, 0],
+    [0, height - cornerSize],
+    [width - cornerSize, height - cornerSize],
+  ]
+  let red = 0
+  let green = 0
+  let blue = 0
+  let count = 0
+
+  for (const [startX, startY] of corners) {
+    for (let y = startY; y < startY + cornerSize; y += 1) {
+      for (let x = startX; x < startX + cornerSize; x += 1) {
+        const offset = (y * width + x) * 4
+        if (data[offset + 3] < 12) continue
+        red += data[offset]
+        green += data[offset + 1]
+        blue += data[offset + 2]
+        count += 1
+      }
+    }
+  }
+
+  if (!count) return [255, 255, 255]
+  return [red / count, green / count, blue / count]
+}
+
+function removeBackgroundFromImageData(imageData: ImageData, tolerance: number) {
+  const { data, width, height } = imageData
+  const [backgroundRed, backgroundGreen, backgroundBlue] = sampleBackgroundColor(data, width, height)
+  const cutDistance = 18 + tolerance * 1.42
+  const featherDistance = 44
+
+  for (let offset = 0; offset < data.length; offset += 4) {
+    const redDistance = data[offset] - backgroundRed
+    const greenDistance = data[offset + 1] - backgroundGreen
+    const blueDistance = data[offset + 2] - backgroundBlue
+    const colorDistance = Math.sqrt(redDistance * redDistance + greenDistance * greenDistance + blueDistance * blueDistance)
+
+    if (colorDistance <= cutDistance) {
+      data[offset + 3] = 0
+      continue
+    }
+
+    if (colorDistance <= cutDistance + featherDistance) {
+      const alphaScale = clamp((colorDistance - cutDistance) / featherDistance, 0, 1)
+      data[offset + 3] = Math.round(data[offset + 3] * alphaScale)
+    }
+  }
+}
+
+function convertImageDataToOutline(imageData: ImageData, detail: number) {
+  const { data, width, height } = imageData
+  const grayscale = new Float32Array(width * height)
+  const output = new Uint8ClampedArray(data.length)
+  const edgeCutoff = 182 - detail * 1.42
+  const toneCutoff = 210 - detail * 1.35
+
+  for (let index = 0; index < width * height; index += 1) {
+    const offset = index * 4
+    grayscale[index] = 0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]
+  }
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = y * width + x
+      const topLeft = grayscale[index - width - 1]
+      const top = grayscale[index - width]
+      const topRight = grayscale[index - width + 1]
+      const left = grayscale[index - 1]
+      const right = grayscale[index + 1]
+      const bottomLeft = grayscale[index + width - 1]
+      const bottom = grayscale[index + width]
+      const bottomRight = grayscale[index + width + 1]
+      const gx = -topLeft + topRight - 2 * left + 2 * right - bottomLeft + bottomRight
+      const gy = -topLeft - 2 * top - topRight + bottomLeft + 2 * bottom + bottomRight
+      const edgeStrength = Math.sqrt(gx * gx + gy * gy)
+      const darkness = 255 - grayscale[index]
+      const edgeAlpha = clamp((edgeStrength - edgeCutoff) * 2.35, 0, 255)
+      const toneAlpha = clamp((darkness - toneCutoff) * 2.2, 0, 170)
+      const sourceAlpha = data[index * 4 + 3] / 255
+      const alpha = Math.round(Math.max(edgeAlpha, toneAlpha) * sourceAlpha)
+      const offset = index * 4
+
+      output[offset] = 20
+      output[offset + 1] = 32
+      output[offset + 2] = 51
+      output[offset + 3] = alpha
+    }
+  }
+
+  data.set(output)
+}
+
+async function processUploadedImage(src: string, options: UploadCleanupOptions) {
+  const image = await loadImage(src)
+  const canvas = document.createElement('canvas')
+  const size = getScaledImageSize(image.naturalWidth || image.width, image.naturalHeight || image.height, UPLOAD_CLEANUP_MAX_DIMENSION)
+  canvas.width = size.width
+  canvas.height = size.height
+
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) throw new Error('Canvas is unavailable.')
+
+  context.drawImage(image, 0, 0, size.width, size.height)
+  const imageData = context.getImageData(0, 0, size.width, size.height)
+
+  if (options.mode === 'background') {
+    removeBackgroundFromImageData(imageData, options.backgroundTolerance)
+  } else {
+    convertImageDataToOutline(imageData, options.outlineDetail)
+  }
+
+  context.putImageData(imageData, 0, 0)
+  return canvas.toDataURL('image/png')
 }
 
 function isPaperPixel(r: number, g: number, b: number) {
@@ -312,7 +471,12 @@ function detectPaperRectangle(video: HTMLVideoElement, stage: HTMLDivElement, ca
 function App() {
   const [mode, setMode] = useState<AppMode>('welcome')
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [uploadedImage, setUploadedImage] = useState<UploadedImageState | null>(null)
+  const [uploadCleanupMode, setUploadCleanupMode] = useState<UploadCleanupMode>('original')
+  const [backgroundTolerance, setBackgroundTolerance] = useState(48)
+  const [outlineDetail, setOutlineDetail] = useState(62)
+  const [uploadCleanupStatus, setUploadCleanupStatus] = useState<UploadCleanupStatus>('idle')
+  const [uploadCleanupMessage, setUploadCleanupMessage] = useState(UPLOAD_CLEANUP_IDLE_MESSAGE)
   const [transform, setTransform] = useState<Transform>(defaultTransform)
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle')
   const [cameraError, setCameraError] = useState('')
@@ -330,11 +494,12 @@ function App() {
   const mountedRef = useRef(false)
   const modeRef = useRef<AppMode>(mode)
   const paperLockEnabledRef = useRef(false)
+  const uploadCleanupRequestRef = useRef(0)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
 
-  const overlaySrc = uploadedImage ?? svgToDataUrl(selectedDrawing.svg)
-  const pictureName = uploadedImage ? 'Uploaded picture' : selectedDrawing.name
-  const pictureTheme = uploadedImage ? 'Local image from this device' : selectedDrawing.theme
+  const overlaySrc = uploadedImage?.processedSrc ?? svgToDataUrl(selectedDrawing.svg)
+  const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
+  const pictureTheme = uploadedImage ? `Local upload · ${uploadCleanupMode === 'original' ? 'Original image' : uploadCleanupMode === 'background' ? 'Background cleanup' : 'Line-art cleanup'}` : selectedDrawing.theme
 
   const stopStream = useCallback((stream: MediaStream) => {
     stream.getTracks().forEach((track) => track.stop())
@@ -617,6 +782,42 @@ function App() {
     }
   }, [cameraStatus, detectAndApplyPaper, mode, paperLockEnabled])
 
+  useEffect(() => {
+    if (!uploadedImage?.originalSrc) return undefined
+
+    const originalSrc = uploadedImage.originalSrc
+    const requestId = uploadCleanupRequestRef.current + 1
+    uploadCleanupRequestRef.current = requestId
+
+    const task = window.setTimeout(() => {
+      if (uploadCleanupMode === 'original') {
+        setUploadedImage((current) => (current?.originalSrc === originalSrc ? { ...current, processedSrc: current.originalSrc } : current))
+        setUploadCleanupStatus('idle')
+        setUploadCleanupMessage(UPLOAD_CLEANUP_IDLE_MESSAGE)
+        return
+      }
+
+      setUploadCleanupStatus('processing')
+      setUploadCleanupMessage(uploadCleanupMode === 'background' ? UPLOAD_CLEANUP_BACKGROUND_PROCESSING_MESSAGE : UPLOAD_CLEANUP_OUTLINE_PROCESSING_MESSAGE)
+
+      void processUploadedImage(originalSrc, { mode: uploadCleanupMode, backgroundTolerance, outlineDetail })
+        .then((processedSrc) => {
+          if (uploadCleanupRequestRef.current !== requestId) return
+          setUploadedImage((current) => (current?.originalSrc === originalSrc ? { ...current, processedSrc } : current))
+          setUploadCleanupStatus('ready')
+          setUploadCleanupMessage(uploadCleanupMode === 'background' ? UPLOAD_CLEANUP_BACKGROUND_READY_MESSAGE : UPLOAD_CLEANUP_OUTLINE_READY_MESSAGE)
+        })
+        .catch(() => {
+          if (uploadCleanupRequestRef.current !== requestId) return
+          setUploadedImage((current) => (current?.originalSrc === originalSrc ? { ...current, processedSrc: current.originalSrc } : current))
+          setUploadCleanupStatus('error')
+          setUploadCleanupMessage(UPLOAD_CLEANUP_ERROR_MESSAGE)
+        })
+    }, uploadCleanupMode === 'original' ? 0 : 160)
+
+    return () => window.clearTimeout(task)
+  }, [backgroundTolerance, outlineDetail, uploadCleanupMode, uploadedImage?.originalSrc])
+
   function resetPaperDetection() {
     paperLockEnabledRef.current = false
     setPaperDetection(null)
@@ -625,10 +826,20 @@ function App() {
     setPaperLockEnabled(false)
   }
 
+  function resetUploadCleanup() {
+    uploadCleanupRequestRef.current += 1
+    setUploadCleanupMode('original')
+    setBackgroundTolerance(48)
+    setOutlineDetail(62)
+    setUploadCleanupStatus('idle')
+    setUploadCleanupMessage(UPLOAD_CLEANUP_IDLE_MESSAGE)
+  }
+
   function openTrace(drawing?: Drawing) {
     if (drawing) {
       setSelectedDrawing(drawing)
       setUploadedImage(null)
+      resetUploadCleanup()
     }
     resetPaperDetection()
     setTransform(defaultTransform)
@@ -682,7 +893,13 @@ function App() {
 
     const reader = new FileReader()
     reader.onload = () => {
-      setUploadedImage(String(reader.result))
+      const originalSrc = String(reader.result)
+      resetUploadCleanup()
+      setUploadedImage({
+        originalSrc,
+        processedSrc: originalSrc,
+        fileName: file.name || 'Uploaded picture',
+      })
       resetPaperDetection()
       setTransform(defaultTransform)
       setMode('trace')
@@ -755,6 +972,12 @@ function App() {
           paperDetectionStatus={paperDetectionStatus}
           paperDetectionMessage={paperDetectionMessage}
           paperLockEnabled={paperLockEnabled}
+          hasUploadedImage={Boolean(uploadedImage)}
+          uploadCleanupMode={uploadCleanupMode}
+          uploadCleanupStatus={uploadCleanupStatus}
+          uploadCleanupMessage={uploadCleanupMessage}
+          backgroundTolerance={backgroundTolerance}
+          outlineDetail={outlineDetail}
           videoRef={videoRef}
           stageRef={stageRef}
           overlayRef={overlayRef}
@@ -767,6 +990,9 @@ function App() {
           onRetryCamera={startCamera}
           onFindPaper={findPaper}
           onTogglePaperLock={togglePaperLock}
+          onCleanupModeChange={setUploadCleanupMode}
+          onBackgroundToleranceChange={setBackgroundTolerance}
+          onOutlineDetailChange={setOutlineDetail}
           onReset={resetOverlay}
         />
       )}
@@ -867,6 +1093,12 @@ function TraceScreen({
   paperDetectionStatus,
   paperDetectionMessage,
   paperLockEnabled,
+  hasUploadedImage,
+  uploadCleanupMode,
+  uploadCleanupStatus,
+  uploadCleanupMessage,
+  backgroundTolerance,
+  outlineDetail,
   videoRef,
   stageRef,
   overlayRef,
@@ -879,6 +1111,9 @@ function TraceScreen({
   onRetryCamera,
   onFindPaper,
   onTogglePaperLock,
+  onCleanupModeChange,
+  onBackgroundToleranceChange,
+  onOutlineDetailChange,
   onReset,
 }: {
   pictureName: string
@@ -891,6 +1126,12 @@ function TraceScreen({
   paperDetectionStatus: PaperDetectionStatus
   paperDetectionMessage: string
   paperLockEnabled: boolean
+  hasUploadedImage: boolean
+  uploadCleanupMode: UploadCleanupMode
+  uploadCleanupStatus: UploadCleanupStatus
+  uploadCleanupMessage: string
+  backgroundTolerance: number
+  outlineDetail: number
   videoRef: React.RefObject<HTMLVideoElement | null>
   stageRef: React.RefObject<HTMLDivElement | null>
   overlayRef: React.RefObject<HTMLDivElement | null>
@@ -903,6 +1144,9 @@ function TraceScreen({
   onRetryCamera: () => void
   onFindPaper: () => void
   onTogglePaperLock: () => void
+  onCleanupModeChange: (mode: UploadCleanupMode) => void
+  onBackgroundToleranceChange: (value: number) => void
+  onOutlineDetailChange: (value: number) => void
   onReset: () => void
 }) {
   const [controlsExpanded, setControlsExpanded] = useState(false)
@@ -935,6 +1179,12 @@ function TraceScreen({
 
     updateTransform((current) => ({ locked: !current.locked }))
   }
+
+  const cleanupModes: Array<{ mode: UploadCleanupMode; label: string; description: string }> = [
+    { mode: 'original', label: 'Original', description: 'No cleanup' },
+    { mode: 'background', label: 'Cut background', description: 'Best for plain backdrops' },
+    { mode: 'outline', label: 'Line art', description: 'Best for tracing' },
+  ]
 
   return (
     <section className="trace-screen">
@@ -1038,6 +1288,44 @@ function TraceScreen({
               </div>
               <p className={`paper-status ${paperDetectionStatus}`}>{paperDetectionMessage}</p>
             </div>
+
+            {hasUploadedImage && (
+              <div className={`control-card upload-cleanup-control ${uploadCleanupMode !== 'original' ? 'active' : ''}`}>
+                <span>Upload beta</span>
+                <strong>Clean the uploaded image.</strong>
+                <small>Remove simple backgrounds or turn a photo into transparent tracing lines. Everything stays in this browser.</small>
+                <div className="cleanup-mode-grid" role="group" aria-label="Uploaded image cleanup mode">
+                  {cleanupModes.map((cleanupMode) => (
+                    <button key={cleanupMode.mode} type="button" className={uploadCleanupMode === cleanupMode.mode ? 'active' : ''} aria-pressed={uploadCleanupMode === cleanupMode.mode} onClick={() => onCleanupModeChange(cleanupMode.mode)}>
+                      <strong>{cleanupMode.label}</strong>
+                      <small>{cleanupMode.description}</small>
+                    </button>
+                  ))}
+                </div>
+
+                {uploadCleanupMode === 'background' && (
+                  <label className="cleanup-slider">
+                    <span>
+                      <strong>Background sensitivity</strong>
+                      <small>{Math.round(backgroundTolerance)}%</small>
+                    </span>
+                    <input type="range" value={backgroundTolerance} min={10} max={90} step={1} aria-valuetext={`${Math.round(backgroundTolerance)}%`} onChange={(event) => onBackgroundToleranceChange(Number(event.target.value))} />
+                  </label>
+                )}
+
+                {uploadCleanupMode === 'outline' && (
+                  <label className="cleanup-slider">
+                    <span>
+                      <strong>Line detail</strong>
+                      <small>{Math.round(outlineDetail)}%</small>
+                    </span>
+                    <input type="range" value={outlineDetail} min={20} max={95} step={1} aria-valuetext={`${Math.round(outlineDetail)}%`} onChange={(event) => onOutlineDetailChange(Number(event.target.value))} />
+                  </label>
+                )}
+
+                <p className={`cleanup-status ${uploadCleanupStatus}`} aria-live="polite">{uploadCleanupMessage}</p>
+              </div>
+            )}
 
             <div className="quick-controls" aria-label="Quick tracing adjustments">
               <div className="quick-row">
