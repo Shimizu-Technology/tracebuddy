@@ -94,6 +94,11 @@ const defaultTransform: Transform = {
 
 const PAPER_SCAN_WIDTH = 180
 const PAPER_MIN_AREA_RATIO = 0.04
+const PAPER_IDLE_MESSAGE = 'Find the paper to align the drawing automatically.'
+const PAPER_SCANNING_MESSAGE = 'Scanning for paper.'
+const PAPER_NOT_FOUND_MESSAGE = 'No clear sheet found. Use bright paper on a darker, non-glossy surface.'
+const PAPER_FOUND_MESSAGE = 'Paper found. Tap Track paper to follow small camera shifts.'
+const PAPER_TRACKING_MESSAGE = 'Tracking paper. Keep the sheet in view.'
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -309,7 +314,7 @@ function App() {
   const [cameraError, setCameraError] = useState('')
   const [paperDetection, setPaperDetection] = useState<PaperDetection | null>(null)
   const [paperDetectionStatus, setPaperDetectionStatus] = useState<PaperDetectionStatus>('idle')
-  const [paperDetectionMessage, setPaperDetectionMessage] = useState('Find the paper to align the drawing automatically.')
+  const [paperDetectionMessage, setPaperDetectionMessage] = useState(PAPER_IDLE_MESSAGE)
   const [paperLockEnabled, setPaperLockEnabled] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
@@ -516,7 +521,7 @@ function App() {
 
     if (!smooth) {
       setPaperDetectionStatus('scanning')
-      setPaperDetectionMessage('Scanning for paper.')
+      setPaperDetectionMessage(PAPER_SCANNING_MESSAGE)
     }
 
     const detection = detectPaperRectangle(video, stage, canvas)
@@ -528,11 +533,11 @@ function App() {
 
       setPaperDetection(null)
       setPaperDetectionStatus('not-found')
-      setPaperDetectionMessage('No clear sheet found. Use bright paper on a darker, non-glossy surface.')
+      setPaperDetectionMessage(PAPER_NOT_FOUND_MESSAGE)
       return false
     }
 
-    const nextMessage = paperLockEnabledRef.current ? 'Tracking paper. Keep the sheet in view.' : 'Paper found. Tap Track paper to follow small camera shifts.'
+    const nextMessage = paperLockEnabledRef.current ? PAPER_TRACKING_MESSAGE : PAPER_FOUND_MESSAGE
     setPaperDetection(detection)
     setPaperDetectionStatus('found')
     setPaperDetectionMessage((current) => (current === nextMessage ? current : nextMessage))
@@ -603,7 +608,7 @@ function App() {
     paperLockEnabledRef.current = false
     setPaperDetection(null)
     setPaperDetectionStatus('idle')
-    setPaperDetectionMessage('Find the paper to align the drawing automatically.')
+    setPaperDetectionMessage(PAPER_IDLE_MESSAGE)
     setPaperLockEnabled(false)
   }
 
@@ -635,6 +640,7 @@ function App() {
     if (paperLockEnabledRef.current) {
       paperLockEnabledRef.current = false
       setPaperLockEnabled(false)
+      setPaperDetectionMessage((current) => (current === PAPER_TRACKING_MESSAGE ? PAPER_FOUND_MESSAGE : current))
       return
     }
 
