@@ -521,6 +521,10 @@ function App() {
     const detection = detectPaperRectangle(video, stage, canvas)
 
     if (!detection) {
+      if (smooth && paperLockEnabled) {
+        return false
+      }
+
       setPaperDetection(null)
       setPaperDetectionStatus('not-found')
       setPaperDetectionMessage('No clear sheet found. Use bright paper on a darker, non-glossy surface.')
