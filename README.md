@@ -2,6 +2,12 @@
 
 Kid-friendly camera overlay tracing helper built as a mobile-first React/Vite MVP.
 
+## Why we built it
+
+TraceBuddy came from a simple family use case: build a tracing app with a phone camera so Stassie can trace and draw whatever she wants.
+
+The MVP tests whether a fixed phone/iPad plus camera overlay is good enough before considering heavier native AR work.
+
 ## What it does
 
 TraceBuddy lets a child or parent:
@@ -25,8 +31,10 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Demo camera surface when camera is unavailable/blocked
 - Drag-to-position overlay
 - Opacity, scale, rotation, nudge, lock, reset controls
-- Outline/high-contrast mode
+- Outline/high-contrast display mode
+- Screen Wake Lock request where supported
 - PWA manifest metadata
+- Service worker app-shell caching
 - No account, backend, ads, analytics, or uploads
 
 ## Important boundaries
@@ -40,7 +48,15 @@ This is a frontend MVP only.
 - No AI image processing
 - Camera and uploaded images stay local in the browser session
 
-For real tracing, use a phone/iPad stand or prop the device above the paper.
+For real tracing, use a phone/iPad stand or prop the device above the paper. If the device or paper moves, the overlay will need to be realigned.
+
+## Documentation
+
+- [Product brief](docs/PRODUCT_BRIEF.md)
+- [Physical setup guide](docs/PHYSICAL_SETUP.md)
+- [Real-device testing checklist](docs/REAL_DEVICE_TESTING.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Privacy notes](docs/PRIVACY.md)
 
 ## Run locally
 
@@ -67,13 +83,13 @@ npm run build
 With the dev server running, viewport checks can be run with:
 
 ```bash
-node scripts/viewport-check.mjs
+npm run check:viewports
 ```
 
 Or against another local port:
 
 ```bash
-CHECK_URL=http://127.0.0.1:5174 node scripts/viewport-check.mjs
+CHECK_URL=http://127.0.0.1:5174 npm run check:viewports
 ```
 
 ## Capture screenshots
@@ -81,7 +97,7 @@ CHECK_URL=http://127.0.0.1:5174 node scripts/viewport-check.mjs
 With the dev server running:
 
 ```bash
-node scripts/capture-screenshots.mjs
+npm run screenshots
 ```
 
 Generated files:
@@ -96,7 +112,7 @@ Generated files:
 
 - Deploy to HTTPS for real iPad/phone camera testing
 - Test with a physical stand and real paper
+- Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
 - Add a few more Stassie-friendly drawing packs
 - Add client-side photo-to-outline processing
-- Add optional service worker/offline caching
 - Consider native ARKit/ARCore only if fixed-device tracing is not good enough
