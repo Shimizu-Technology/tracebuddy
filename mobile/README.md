@@ -32,3 +32,43 @@ This app intentionally uses Expo Go-supported modules only:
 - `react-native-svg` for built-in SVG templates
 
 AR, paper tracking, and uploaded-image cleanup are deferred until after the native tracing loop is validated.
+## TestFlight / EAS build
+
+This app is configured for EAS Build with `eas.json`.
+
+First-time setup for the Shimizu Technology Expo account:
+
+```bash
+cd mobile
+eas init
+```
+
+Accept creating/linking the EAS project for `@shimizutechnology/tracebuddy-mobile`. This writes `extra.eas.projectId` into `app.json`.
+
+Then build iOS for TestFlight:
+
+```bash
+cd mobile
+eas build -p ios --profile production
+```
+
+After the build finishes, submit to App Store Connect:
+
+```bash
+eas submit -p ios --profile production
+```
+
+If `npx eas ...` fails with a `libsimdjson` / Homebrew `node` dynamic library error, the local Homebrew Node install is broken. Fix it with:
+
+```bash
+brew reinstall node
+rehash
+```
+
+Then prefer one of these commands:
+
+```bash
+eas build -p ios --profile production
+# or
+npx eas-cli build -p ios --profile production
+```
