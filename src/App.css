@@ -476,6 +476,7 @@ button.active:disabled {
 }
 
 .upload-pill {
+  position: relative;
   gap: 0.72rem;
   min-height: 86px;
   border-radius: 26px;
