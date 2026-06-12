@@ -40,6 +40,7 @@ This app is configured for EAS Build with `eas.json` and linked to the Shimizu T
 ```text
 @shimizutechnology/tracebuddy-mobile
 projectId: 32bf20c8-1faf-4333-966a-f046461e7f48
+ASC App ID: 6779658138
 ```
 
 Build iOS for TestFlight:
@@ -49,10 +50,10 @@ cd mobile
 eas build -p ios --profile production
 ```
 
-After the build finishes, submit to App Store Connect:
+After the build finishes, submit to App Store Connect. The production submit profile is pinned to ASC App ID `6779658138`, so EAS will use the existing TraceBuddy App Store Connect record instead of trying to create a new app:
 
 ```bash
-eas submit -p ios --profile production
+eas submit -p ios --latest --profile production --wait
 ```
 
 If `npx eas ...` fails with a `libsimdjson` / Homebrew `node` dynamic library error, the local Homebrew Node install is broken. Fix it with:
