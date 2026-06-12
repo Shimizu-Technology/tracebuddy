@@ -47,10 +47,19 @@ npm run screenshots
 
 Pass if the app feels usable without zooming or layout glitches.
 
-### 2. Built-in drawing tracing
+### 2. Template picker library
 
 - Tap Pick a picture.
-- Choose Island Turtle or Happy Flower.
+- Confirm the picker shows two compact template cards per row on a phone.
+- Scroll through the larger template library.
+- Try category filters such as Animals, Ocean, Magic, Vehicles, Letters, Island, and Seasonal.
+- Confirm Upload your own remains easy to find.
+
+Pass if browsing feels quick and templates are easy to scan without zooming.
+
+### 3. Built-in drawing tracing
+
+- Choose Island Turtle, Happy Flower, or another built-in template.
 - Allow camera access.
 - Confirm the live camera appears.
 - Align the overlay over paper.
@@ -60,7 +69,7 @@ Pass if the app feels usable without zooming or layout glitches.
 
 Pass if the overlay stays aligned when the device and paper remain still.
 
-### 3. Uploaded image tracing
+### 4. Uploaded image tracing
 
 - Upload a simple local image.
 - Confirm the trace header uses the uploaded file name.
@@ -69,7 +78,7 @@ Pass if the overlay stays aligned when the device and paper remain still.
 
 Pass if upload works and the UI no longer labels the uploaded image as a built-in drawing.
 
-### 4. Uploaded image cleanup
+### 5. Uploaded image cleanup
 
 - Upload a photo with a visible background.
 - Open Adjust drawing.
@@ -80,7 +89,7 @@ Pass if upload works and the UI no longer labels the uploaded image as a built-i
 
 Pass if at least one cleanup mode makes a real family photo easier to trace without confusing the child or parent.
 
-### 5. Camera fallback
+### 6. Camera fallback
 
 - Block camera permission.
 - Confirm demo mode appears.
@@ -89,7 +98,7 @@ Pass if at least one cleanup mode makes a real family photo easier to trace with
 
 Pass if blocked/unsupported states are understandable and recoverable.
 
-### 6. Paper detection and tracking
+### 7. Paper detection and tracking
 
 - Put bright paper on a darker table.
 - Tap Find paper.
@@ -101,7 +110,7 @@ Pass if blocked/unsupported states are understandable and recoverable.
 
 Pass if tracking helps with small shifts under good lighting and fails gracefully when contrast is poor.
 
-### 7. Mobile controls
+### 8. Mobile controls
 
 - Open trace mode on a phone.
 - Tap Adjust drawing.
@@ -111,7 +120,7 @@ Pass if tracking helps with small shifts under good lighting and fails gracefull
 
 Pass if setup controls are usable without scrolling away from the camera view.
 
-### 8. Lock and nudge controls
+### 9. Lock and nudge controls
 
 - Drag the overlay.
 - Tap Lock.
@@ -121,7 +130,7 @@ Pass if setup controls are usable without scrolling away from the camera view.
 
 Pass if lock prevents accidental drag movement and controls remain clear.
 
-### 9. Screen sleep behavior
+### 10. Screen sleep behavior
 
 - Enter trace mode.
 - Leave the app open during a tracing session.
@@ -129,7 +138,7 @@ Pass if lock prevents accidental drag movement and controls remain clear.
 
 Pass if supported browsers keep the screen awake. Note browsers that ignore Wake Lock.
 
-### 10. Offline shell behavior
+### 11. Offline shell behavior
 
 - Load the deployed app once while online.
 - Turn off network.

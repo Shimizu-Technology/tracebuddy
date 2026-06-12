@@ -80,7 +80,7 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 
 - React + Vite + TypeScript frontend.
 - CSS-only visual design.
-- Built-in SVG drawing pack.
+- Built-in SVG drawing library with compact mobile picker and category filters.
 - Local image upload with optional browser-only cleanup.
 - Camera access with graceful demo fallback.
 - Overlay transform controls.
@@ -95,7 +95,7 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Is browser paper tracking stable enough on real iPhone/iPad setups?
 - Would printable marker-based tracking be more reliable than plain paper detection?
 - Are the beta uploaded-image cleanup modes good enough on real family photos?
-- Which premade drawing/template categories does Stassie like most?
-- Which drawing packs are most useful for Stassie-style practice?
+- Which premade drawing/template categories does Stassie use most?
+- Does the larger library need favorites/recent templates?
 - Does the app need a fullscreen/low-distraction mode after real-device testing?
 - Is a native AR version ever worth the added complexity?
