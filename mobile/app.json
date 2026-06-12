@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "TraceBuddy",
+    "slug": "tracebuddy-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "tracebuddy",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shimizutechnology.tracebuddy",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "TraceBuddy uses your camera to show paper under the tracing overlay. Photos and drawings stay on this device.",
+        "NSPhotoLibraryUsageDescription": "TraceBuddy lets you choose a local photo or drawing to trace. Images stay on this device."
+      }
+    },
+    "android": {
+      "package": "com.shimizutechnology.tracebuddy",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFF1DC"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "TraceBuddy uses your camera to show paper under the tracing overlay. Photos and drawings stay on this device.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TraceBuddy lets you choose a local photo or drawing to trace. Images stay on this device."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "backgroundColor": "#FFF7EA"
+        }
+      ]
+    ],
+    "owner": "shimizutechnology"
+  }
+}

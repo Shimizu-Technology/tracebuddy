@@ -1,12 +1,12 @@
 # TraceBuddy
 
-Kid-friendly camera overlay tracing helper built as a mobile-first React/Vite MVP.
+Kid-friendly camera overlay tracing helper built as a mobile-first React/Vite PWA with an Expo Go native mobile MVP.
 
 ## Why we built it
 
 TraceBuddy came from a simple family use case: build a tracing app with a phone camera so Stassie can trace and draw whatever she wants.
 
-The MVP tests whether a fixed phone/iPad plus camera overlay is good enough before considering heavier native AR work.
+The MVP tests whether a fixed phone/iPad plus camera overlay is good enough before considering heavier native AR work. The Expo app now lets us compare the same idea against a native camera experience in Expo Go.
 
 ## What it does
 
@@ -45,11 +45,11 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 This is a frontend MVP only.
 
 - No true/native AR anchoring
-- No native app code
+- No production native AR code
 - No backend
 - No image/video upload
 - No remote or server-side image processing
-- Camera and uploaded images stay local in the browser session
+- Camera and uploaded images stay local in the browser session or Expo app state
 
 For real tracing, use a phone/iPad stand or prop the device above the paper. Experimental paper tracking can follow small camera shifts when the page is clearly visible, but manual realignment may still be needed.
 
@@ -59,11 +59,12 @@ For real tracing, use a phone/iPad stand or prop the device above the paper. Exp
 - [Physical setup guide](docs/PHYSICAL_SETUP.md)
 - [Paper tracking notes](docs/PAPER_TRACKING.md)
 - [Uploaded image cleanup](docs/UPLOAD_CLEANUP.md)
+- [Expo mobile app plan](docs/MOBILE_APP_PLAN.md)
 - [Real-device testing checklist](docs/REAL_DEVICE_TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Privacy notes](docs/PRIVACY.md)
 
-## Run locally
+## Run the web app locally
 
 ```bash
 npm install
@@ -78,11 +79,23 @@ http://127.0.0.1:5173
 
 Camera access on mobile requires HTTPS. Localhost works on desktop for development, but real phone/iPad testing should use an HTTPS deployment such as Netlify or Vercel.
 
+## Run the Expo mobile app
+
+```bash
+npm install
+npm --prefix mobile install
+npm run mobile:start
+```
+
+Scan the QR code with Expo Go on a real phone. The mobile MVP uses native camera, local image picker, keep-awake, shared built-in templates, and manual overlay controls. AR is not part of the Expo Go MVP.
+
 ## Verify
 
 ```bash
 npm run lint
 npm run build
+npm run mobile:typecheck
+npm run mobile:doctor
 ```
 
 With the dev server running, viewport checks can be run with:
@@ -118,7 +131,8 @@ Generated files:
 - Deploy to HTTPS for real iPad/phone camera testing
 - Test with a physical stand and real paper
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
+- Test the Expo Go mobile MVP on a real phone over paper
 - Improve uploaded image cleanup after real-device testing
 - Add favorites/recent templates if the larger library needs shortcuts
 - Prototype printable marker-based tracking if plain paper detection is not stable enough
-- Consider native ARKit/ARCore only if browser-based tracking is not good enough
+- Move to an Expo development build only when AR or custom native modules are needed

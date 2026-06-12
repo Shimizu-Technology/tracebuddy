@@ -4,7 +4,7 @@
 
 TraceBuddy is a mobile-first camera overlay tracing helper for kids and parents. A phone or iPad camera shows real paper on the table, and the app places a semi-transparent line-art drawing over the live camera view so the child can trace on paper.
 
-It is intentionally simple: no account, no backend, no uploads, no analytics, and no native AR anchoring. The MVP is a practical camera overlay tracing tool with experimental browser-based paper tracking.
+It is intentionally simple: no account, no backend, no uploads, no analytics, and no native AR anchoring. The product is a practical camera overlay tracing tool with a production-oriented web MVP and an Expo Go mobile MVP for native camera validation.
 
 ## Why we built it
 
@@ -14,7 +14,7 @@ The original Brain-Dump prompt was:
 
 Source: `/Users/leonshimizu/Desktop/ShimizuTechnology/Brain-Dump/_inbox.md:523`
 
-The product goal is to answer that idea quickly and safely: can a child use an existing phone or iPad, plus a stand, to trace drawings on real paper without printing, a lightbox, an account, or a native app?
+The product goal is to answer that idea quickly and safely: can a child use an existing phone or iPad, plus a stand, to trace drawings on real paper without printing, a lightbox, an account, or remote processing?
 
 ## Primary user
 
@@ -51,7 +51,7 @@ The MVP is successful if:
 ## Non-goals for the MVP
 
 - True AR plane detection or anchoring.
-- Native iOS/Android app code.
+- Production native AR anchoring.
 - Account creation.
 - Cloud storage.
 - Uploading photos or camera video.
@@ -60,9 +60,11 @@ The MVP is successful if:
 
 ## Key product decisions
 
-### Web-first instead of native-first
+### Web-first, then Expo Go
 
-A mobile web MVP is faster to test and easier to share. Camera access is available through `getUserMedia`, and HTTPS deployment is enough for real-device validation.
+A mobile web MVP was faster to test and easier to share. Camera access is available through `getUserMedia`, and HTTPS deployment is enough for browser real-device validation.
+
+The next step is an Expo Go mobile MVP using only Expo Go-supported modules. This gives us a native camera preview, local image picker, keep-awake behavior, and React Native controls without committing to custom native AR work yet.
 
 ### Browser paper tracking before native AR
 
@@ -78,11 +80,13 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 
 ## Current implementation
 
-- React + Vite + TypeScript frontend.
+- React + Vite + TypeScript web frontend.
+- Expo Go + React Native + TypeScript mobile MVP under `mobile/`.
 - CSS-only visual design.
-- Built-in SVG drawing library with compact mobile picker and category filters.
+- Shared built-in SVG drawing library with compact mobile picker and category filters.
 - Local image upload with optional browser-only cleanup.
-- Camera access with graceful demo fallback.
+- Browser camera access with graceful demo fallback.
+- Native Expo camera trace mode in the mobile MVP.
 - Overlay transform controls.
 - Mobile floating controls for trace mode.
 - Experimental paper rectangle detection and tracking.
@@ -92,6 +96,7 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 
 ## Open questions
 
+- Does the Expo Go native camera experience feel better than the PWA during a real tracing session?
 - Is browser paper tracking stable enough on real iPhone/iPad setups?
 - Would printable marker-based tracking be more reliable than plain paper detection?
 - Are the beta uploaded-image cleanup modes good enough on real family photos?

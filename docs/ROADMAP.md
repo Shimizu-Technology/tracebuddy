@@ -8,12 +8,14 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Prefer simple controls over clever automation.
 - Optimize for a parent setting up quickly and a child tracing safely.
 - Do not add accounts, uploads, or analytics unless there is a clear reason.
+- Use Expo Go for native camera validation before committing to native AR.
 - Treat native AR as a last resort, not the default path.
 
 ## Completed in the current MVP
 
 - Mobile-first React/Vite frontend.
-- Built-in SVG line-art drawing library with category filters.
+- Expo Go native mobile MVP.
+- Shared SVG line-art drawing library with category filters.
 - Local image upload.
 - Camera preview with demo fallback.
 - Overlay drag, opacity, scale, rotation, nudge, lock, and reset.
@@ -54,7 +56,29 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.
 - Improve print/export options for built-in line art if useful.
 
-## Phase 3: Uploaded image cleanup and outline processing
+## Phase 3: Expo mobile validation
+
+Goal: compare the native camera tracing loop against the PWA before adding AR complexity.
+
+Current Expo Go MVP:
+
+- Native camera trace mode.
+- Shared built-in template library.
+- Two-column mobile template picker with category filters.
+- Local photo library selection.
+- Manual overlay drag, nudge, opacity, scale, rotation, lock, and reset controls.
+- Screen keep-awake behavior during trace mode.
+- No backend, accounts, uploads, analytics, or remote image processing.
+
+Next improvements:
+
+- Test on real iPhone and Android devices using Expo Go.
+- Compare native camera stability against Safari/Chrome PWA behavior.
+- Decide whether uploaded-image cleanup should be ported to native.
+- Decide whether paper tracking should remain web-only, be reimplemented natively, or be replaced by marker-based AR.
+- Move to an Expo development build only when AR or custom native modules are needed.
+
+## Phase 4: Uploaded image cleanup and outline processing
 
 Goal: better support the original idea of tracing whatever she wants.
 
@@ -72,7 +96,7 @@ Next improvements:
 - Add a simple cleanup preview before entering trace mode.
 - Explore better local foreground/background sampling.
 
-## Phase 4: Printable marker tracking
+## Phase 5: Printable marker tracking
 
 Goal: make paper tracking more reliable if plain paper rectangle detection is too sensitive to lighting, shadows, or white tables.
 
@@ -89,9 +113,9 @@ Tradeoffs:
 - Adds setup friction.
 - Needs marker design and calibration work.
 
-## Phase 5: Native AR only if needed
+## Phase 6: Native AR only if needed
 
-Only consider native ARKit/ARCore if browser-based paper tracking and marker tracking are not good enough.
+Only consider native ARKit/ARCore after the Expo Go mobile MVP is validated and browser-based paper tracking or printable marker tracking are not good enough.
 
 Possible native/AR features:
 
@@ -103,6 +127,7 @@ Possible native/AR features:
 Tradeoffs:
 
 - More development time.
+- Requires leaving Expo Go for an Expo development build or prebuild.
 - App Store/TestFlight complexity.
 - Device compatibility constraints.
 - Harder sharing and iteration.
