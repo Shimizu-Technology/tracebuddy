@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Alert,
+  Animated,
   FlatList,
   Image,
   PanResponder,
@@ -79,7 +80,6 @@ function TraceBuddyMobile() {
   const [controlsOpen, setControlsOpen] = useState(true)
   const [isPickingImage, setIsPickingImage] = useState(false)
   const cameraPromptedRef = useRef(false)
-  const dragStartRef = useRef({ x: 0, y: 0 })
 
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
@@ -99,6 +99,8 @@ function TraceBuddyMobile() {
   const uploadedAspect = uploadedImage?.width && uploadedImage.height ? uploadedImage.width / uploadedImage.height : 1
   const overlayWidth = uploadedImage ? overlayBaseSize * clamp(uploadedAspect, 0.65, 1.35) : overlayBaseSize
   const overlayHeight = uploadedImage ? overlayBaseSize / clamp(uploadedAspect, 0.65, 1.35) : overlayBaseSize
+
+  const pan = useMemo(() => new Animated.ValueXY({ x: defaultTransform.x, y: defaultTransform.y }), [])
 
   useEffect(() => {
     if (mode !== 'trace') return undefined
@@ -121,9 +123,11 @@ function TraceBuddyMobile() {
   }, [mode, permission?.granted, requestPermission])
 
   const resetOverlay = useCallback(() => {
+    pan.setOffset({ x: 0, y: 0 })
+    pan.setValue({ x: defaultTransform.x, y: defaultTransform.y })
     setTransform(defaultTransform)
     setOverlayLocked(false)
-  }, [])
+  }, [pan])
 
   const openTraceWithDrawing = useCallback((drawing: Drawing) => {
     setSelectedDrawing(drawing)
@@ -178,26 +182,30 @@ function TraceBuddyMobile() {
   }, [])
 
   const nudgeOverlay = useCallback((x: number, y: number) => {
-    setTransform((current) => ({ ...current, x: current.x + x, y: current.y + y }))
-  }, [])
+    const nextX = transform.x + x
+    const nextY = transform.y + y
+    pan.setOffset({ x: 0, y: 0 })
+    pan.setValue({ x: nextX, y: nextY })
+    setTransform((current) => ({ ...current, x: nextX, y: nextY }))
+  }, [pan, transform.x, transform.y])
 
-  /* eslint-disable react-hooks/refs -- PanResponder reads this ref only inside gesture callbacks, not during render. */
+  const settleDraggedOverlay = useCallback(() => {
+    pan.flattenOffset()
+    pan.stopAnimation((value) => {
+      setTransform((current) => ({ ...current, x: value.x, y: value.y }))
+    })
+  }, [pan])
+
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => !overlayLocked,
     onMoveShouldSetPanResponder: (_event, gesture) => !overlayLocked && (Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2),
     onPanResponderGrant: () => {
-      dragStartRef.current = { x: transform.x, y: transform.y }
+      pan.extractOffset()
     },
-    onPanResponderMove: (_event, gesture) => {
-      if (overlayLocked) return
-      setTransform((current) => ({
-        ...current,
-        x: dragStartRef.current.x + gesture.dx,
-        y: dragStartRef.current.y + gesture.dy,
-      }))
-    },
-  }), [overlayLocked, transform.x, transform.y])
-  /* eslint-enable react-hooks/refs */
+    onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+    onPanResponderRelease: settleDraggedOverlay,
+    onPanResponderTerminate: settleDraggedOverlay,
+  }), [overlayLocked, pan, settleDraggedOverlay])
 
   if (mode === 'picker') {
     return (
@@ -307,7 +315,7 @@ function TraceBuddyMobile() {
         </Pressable>
       </View>
 
-      <View
+      <Animated.View
         style={[
           styles.overlayWrap,
           {
@@ -317,8 +325,8 @@ function TraceBuddyMobile() {
             height: overlayHeight,
             opacity: transform.opacity,
             transform: [
-              { translateX: transform.x },
-              { translateY: transform.y },
+              { translateX: pan.x },
+              { translateY: pan.y },
               { scale: transform.scale },
               { rotate: `${transform.rotation}deg` },
             ],
@@ -333,7 +341,7 @@ function TraceBuddyMobile() {
         ) : (
           <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
         )}
-      </View>
+      </Animated.View>
 
       <View style={[styles.traceControls, { paddingBottom: insets.bottom + 12 }]} pointerEvents="box-none">
         {!controlsOpen ? (
