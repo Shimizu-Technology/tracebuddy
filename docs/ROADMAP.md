@@ -13,7 +13,7 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 ## Completed in the current MVP
 
 - Mobile-first React/Vite frontend.
-- Built-in SVG line-art drawings.
+- Built-in SVG line-art drawing library with category filters.
 - Local image upload.
 - Camera preview with demo fallback.
 - Overlay drag, opacity, scale, rotation, nudge, lock, and reset.
@@ -45,10 +45,10 @@ Goal: prove the fixed-device tracing setup works in a real drawing session.
 
 Goal: make the app more useful for everyday Stassie-style drawing practice.
 
-- Add more simple drawing packs and premade templates.
-- Add template categories such as animals, ocean, princess/fairy, vehicles, letters, seasonal, and Guam/island themes.
-- Add difficulty levels: starter, medium, detailed.
-- Add a favorites/recent drawings section stored locally.
+- Continue adding simple drawing packs and premade templates based on what Stassie uses most.
+- Keep template categories such as animals, ocean, magic/fairy, vehicles, letters, seasonal, and Guam/island themes.
+- Keep difficulty labels: starter, medium, detailed.
+- Add a favorites/recent drawings section stored locally if the larger library needs shortcuts.
 - Add a clearer parent setup mode vs child tracing mode.
 - Continue tuning the mobile controls based on live phone/tablet use.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.

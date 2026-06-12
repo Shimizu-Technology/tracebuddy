@@ -416,18 +416,118 @@ button.active:disabled {
   margin-bottom: 2rem;
 }
 
+.picker-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  gap: 1rem;
+  align-items: end;
+  max-width: none;
+}
+
+.picker-heading h1 {
+  font-size: clamp(2.7rem, 6vw, 5.2rem);
+}
+
+.category-strip {
+  display: flex;
+  gap: 0.55rem;
+  overflow-x: auto;
+  margin: 0 0 1rem;
+  padding: 0.2rem 0 0.55rem;
+  scrollbar-width: none;
+}
+
+.category-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.category-strip button,
+.upload-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(20, 32, 51, 0.1);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: rgba(20, 32, 51, 0.1) 0 18px 42px -32px;
+}
+
+.category-strip button {
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  min-height: 46px;
+  border-radius: 999px;
+  padding: 0.58rem 0.74rem 0.58rem 0.95rem;
+  font-weight: 900;
+}
+
+.category-strip button.active {
+  border-color: rgba(255, 121, 93, 0.36);
+  background: #fff1dc;
+}
+
+.category-strip small {
+  display: grid;
+  min-width: 1.55rem;
+  min-height: 1.55rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.upload-pill {
+  gap: 0.72rem;
+  min-height: 86px;
+  border-radius: 26px;
+  padding: 0.85rem;
+  text-align: left;
+}
+
+.upload-pill span:last-child {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.upload-pill strong,
+.upload-pill small {
+  display: block;
+}
+
+.upload-pill small,
+.template-count {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.upload-pill input,
+.upload-card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.template-count {
+  margin: -0.25rem 0 1rem;
+  font-weight: 850;
+}
+
 .drawing-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .drawing-card {
+  position: relative;
   display: grid;
-  gap: 0.55rem;
-  min-height: 270px;
-  border-radius: 30px;
-  padding: 1rem;
+  gap: 0.48rem;
+  min-height: 235px;
+  border-radius: 26px;
+  padding: 0.78rem;
   color: var(--ink);
   cursor: pointer;
   text-align: left;
@@ -444,9 +544,9 @@ button.active:disabled {
   width: 100%;
   aspect-ratio: 1;
   object-fit: contain;
-  border-radius: 22px;
+  border-radius: 20px;
   background: #fff8ef;
-  padding: 0.75rem;
+  padding: 0.62rem;
 }
 
 .drawing-icon {
@@ -465,9 +565,26 @@ button.active:disabled {
   height: 1.65rem;
 }
 
+.drawing-meta {
+  display: grid;
+  gap: 0.1rem;
+}
+
 .drawing-card strong {
-  font-size: 1rem;
+  font-size: 0.96rem;
   letter-spacing: -0.035em;
+}
+
+.difficulty-badge {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 0.24rem 0.5rem;
+  background: rgba(255, 241, 220, 0.9);
+  color: #9a4a36;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .drawing-card small,
@@ -1020,19 +1137,56 @@ input[type='range'] {
     width: 100%;
   }
 
+  .picker-heading {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+
+  .upload-pill {
+    width: 100%;
+    min-height: 72px;
+    border-radius: 22px;
+  }
+
+  .picker-heading h1 {
+    font-size: clamp(2.25rem, 10vw, 3rem);
+  }
+
+  .category-strip {
+    margin-right: -0.5rem;
+    margin-left: -0.5rem;
+    padding-right: 0.5rem;
+    padding-left: 0.5rem;
+  }
+
   .drawing-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
+    gap: 0.62rem;
   }
 
   .drawing-card {
-    min-height: 220px;
-    border-radius: 24px;
-    padding: 0.75rem;
+    min-height: 188px;
+    border-radius: 22px;
+    padding: 0.58rem;
   }
 
-  .upload-card {
-    grid-column: 1 / -1;
+  .drawing-card img {
+    aspect-ratio: 1.08;
+    border-radius: 17px;
+    padding: 0.42rem;
+  }
+
+  .drawing-card strong {
+    font-size: 0.84rem;
+  }
+
+  .drawing-card small {
+    font-size: 0.72rem;
+  }
+
+  .difficulty-badge {
+    padding: 0.2rem 0.42rem;
+    font-size: 0.6rem;
   }
 
   .trace-header {
@@ -1158,7 +1312,7 @@ input[type='range'] {
 
 @media (max-width: 430px) {
   .drawing-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .mock-camera-bg,
