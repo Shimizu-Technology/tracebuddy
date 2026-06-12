@@ -1,6 +1,6 @@
 # Real-Device Testing Checklist
 
-Automated viewport checks are useful, but TraceBuddy needs real camera testing on actual phones/tablets because camera permissions, HTTPS, stands, lighting, and browser behavior are the core product risks.
+Automated viewport checks are useful, but TraceBuddy needs real camera testing on actual phones/tablets because camera permissions, HTTPS, Expo Go behavior, stands, lighting, and browser/native camera differences are the core product risks.
 
 ## Preflight
 
@@ -27,6 +27,8 @@ Run locally:
 ```bash
 npm run lint
 npm run build
+npm run mobile:typecheck
+npm run mobile:doctor
 ```
 
 With the dev server running:
@@ -36,7 +38,7 @@ npm run check:viewports
 npm run screenshots
 ```
 
-## Manual scenarios
+## Web manual scenarios
 
 ### 1. First load
 
@@ -145,6 +147,48 @@ Pass if supported browsers keep the screen awake. Note browsers that ignore Wake
 - Reopen the app.
 
 Pass if the cached app shell loads. Camera still depends on device/browser permissions and HTTPS context.
+
+## Expo Go mobile app scenarios
+
+### 1. Expo Go launch
+
+- Run `npm run mobile:start`.
+- Scan the Expo QR code on a real phone.
+- Confirm the picker loads without redbox errors.
+- Confirm category filters and template counts render.
+
+Pass if the app opens quickly and the picker is usable in Expo Go.
+
+### 2. Native built-in tracing
+
+- Choose a built-in template.
+- Grant camera permission.
+- Confirm the native camera preview appears.
+- Drag the overlay while unlocked.
+- Adjust opacity, size, rotation, and nudge controls.
+- Lock the overlay and try dragging again.
+- Tap Reset.
+
+Pass if the native overlay controls feel at least as usable as the PWA controls.
+
+### 3. Native local image tracing
+
+- Tap Upload your own.
+- Grant photo library permission.
+- Choose a local image.
+- Confirm trace mode opens with the selected image overlay.
+- Adjust and lock the overlay.
+
+Pass if local images stay on device and tracing still works without browser file input behavior.
+
+### 4. Native session behavior
+
+- Leave trace mode open for 5-10 minutes.
+- Confirm the screen stays awake when supported.
+- Watch battery/heat and camera stability.
+- Compare against the PWA on the same stand and lighting.
+
+Pass if Expo Go is noticeably stable enough to justify native app work.
 
 ## Browser-specific notes
 

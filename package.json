@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "check:viewports": "node scripts/viewport-check.mjs",
     "screenshots": "node scripts/capture-screenshots.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "mobile:start": "npm --prefix mobile run start",
+    "mobile:typecheck": "npm --prefix mobile run typecheck",
+    "mobile:doctor": "npm --prefix mobile run doctor"
   },
   "dependencies": {
     "react": "^19.2.6",
