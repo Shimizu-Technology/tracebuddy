@@ -171,15 +171,24 @@ function TraceBuddyMobile() {
     }
   }, [resetOverlay])
 
-  const adjustTransform = useCallback((updates: Partial<OverlayTransform>) => {
-    setTransform((current) => ({
-      ...current,
-      ...updates,
-      scale: clamp(updates.scale ?? current.scale, 0.42, 2.2),
-      rotation: updates.rotation ?? current.rotation,
-      opacity: clamp(updates.opacity ?? current.opacity, 0.18, 1),
-    }))
+  const adjustOpacity = useCallback((delta: number) => {
+    setTransform((current) => ({ ...current, opacity: clamp(current.opacity + delta, 0.18, 1) }))
   }, [])
+
+  const adjustScale = useCallback((delta: number) => {
+    setTransform((current) => ({ ...current, scale: clamp(current.scale + delta, 0.42, 2.2) }))
+  }, [])
+
+  const adjustRotation = useCallback((delta: number) => {
+    setTransform((current) => ({ ...current, rotation: current.rotation + delta }))
+  }, [])
+
+  const decreaseOpacity = useCallback(() => adjustOpacity(-0.08), [adjustOpacity])
+  const increaseOpacity = useCallback(() => adjustOpacity(0.08), [adjustOpacity])
+  const decreaseScale = useCallback(() => adjustScale(-0.08), [adjustScale])
+  const increaseScale = useCallback(() => adjustScale(0.08), [adjustScale])
+  const rotateLeft = useCallback(() => adjustRotation(-5), [adjustRotation])
+  const rotateRight = useCallback(() => adjustRotation(5), [adjustRotation])
 
   const nudgeOverlay = useCallback((x: number, y: number) => {
     pan.stopAnimation((value) => {
@@ -190,6 +199,11 @@ function TraceBuddyMobile() {
       setTransform((current) => ({ ...current, x: nextX, y: nextY }))
     })
   }, [pan])
+
+  const nudgeUp = useCallback(() => nudgeOverlay(0, -8), [nudgeOverlay])
+  const nudgeLeft = useCallback(() => nudgeOverlay(-8, 0), [nudgeOverlay])
+  const nudgeDown = useCallback(() => nudgeOverlay(0, 8), [nudgeOverlay])
+  const nudgeRight = useCallback(() => nudgeOverlay(8, 0), [nudgeOverlay])
 
   const settleDraggedOverlay = useCallback(() => {
     pan.flattenOffset()
@@ -303,7 +317,7 @@ function TraceBuddyMobile() {
         </View>
       )}
 
-      <View style={[styles.traceHeader, { paddingTop: insets.top + 12 }]} pointerEvents="box-none">
+      <View style={[styles.traceHeader, styles.pointerBoxNone, { paddingTop: insets.top + 12 }]}>
         <Pressable style={styles.headerButton} onPress={() => setMode('picker')} accessibilityRole="button" accessibilityLabel="Back to picture picker">
           <BackIcon />
           <Text style={styles.headerButtonText}>Picker</Text>
@@ -334,9 +348,9 @@ function TraceBuddyMobile() {
             ],
           },
           overlayLocked && styles.overlayWrapLocked,
+          styles.pointerBoxOnly,
         ]}
         {...panResponder.panHandlers}
-        pointerEvents="box-only"
       >
         {uploadedImage ? (
           <Image source={{ uri: uploadedImage.uri }} style={styles.uploadedOverlayImage} resizeMode="contain" />
@@ -345,7 +359,7 @@ function TraceBuddyMobile() {
         )}
       </Animated.View>
 
-      <View style={[styles.traceControls, { paddingBottom: insets.bottom + 12 }]} pointerEvents="box-none">
+      <View style={[styles.traceControls, styles.pointerBoxNone, { paddingBottom: insets.bottom + 12 }]}>
         {!controlsOpen ? (
           <Pressable style={styles.openControlsButton} onPress={() => setControlsOpen(true)} accessibilityRole="button">
             <Text style={styles.openControlsText}>Adjust drawing</Text>
@@ -365,33 +379,33 @@ function TraceBuddyMobile() {
 
             <View style={styles.controlGrid}>
               <ControlGroup label="Opacity">
-                <ControlButton label="Less" onPress={() => adjustTransform({ opacity: transform.opacity - 0.08 })} />
+                <ControlButton label="Less" onPress={decreaseOpacity} />
                 <ControlValue value={`${Math.round(transform.opacity * 100)}%`} />
-                <ControlButton label="More" onPress={() => adjustTransform({ opacity: transform.opacity + 0.08 })} />
+                <ControlButton label="More" onPress={increaseOpacity} />
               </ControlGroup>
 
               <ControlGroup label="Size">
-                <ControlButton label="Smaller" onPress={() => adjustTransform({ scale: transform.scale - 0.08 })} />
+                <ControlButton label="Smaller" onPress={decreaseScale} />
                 <ControlValue value={`${Math.round(transform.scale * 100)}%`} />
-                <ControlButton label="Larger" onPress={() => adjustTransform({ scale: transform.scale + 0.08 })} />
+                <ControlButton label="Larger" onPress={increaseScale} />
               </ControlGroup>
 
               <ControlGroup label="Rotate">
-                <ControlButton label="Left" onPress={() => adjustTransform({ rotation: transform.rotation - 5 })} />
+                <ControlButton label="Left" onPress={rotateLeft} />
                 <ControlValue value={`${Math.round(transform.rotation)}°`} />
-                <ControlButton label="Right" onPress={() => adjustTransform({ rotation: transform.rotation + 5 })} />
+                <ControlButton label="Right" onPress={rotateRight} />
               </ControlGroup>
             </View>
 
             <View style={styles.nudgePanel}>
               <Text style={styles.nudgeTitle}>Nudge</Text>
               <View style={styles.nudgeRowCenter}>
-                <ControlButton label="Up" onPress={() => nudgeOverlay(0, -8)} />
+                <ControlButton label="Up" onPress={nudgeUp} />
               </View>
               <View style={styles.nudgeRow}>
-                <ControlButton label="Left" onPress={() => nudgeOverlay(-8, 0)} />
-                <ControlButton label="Down" onPress={() => nudgeOverlay(0, 8)} />
-                <ControlButton label="Right" onPress={() => nudgeOverlay(8, 0)} />
+                <ControlButton label="Left" onPress={nudgeLeft} />
+                <ControlButton label="Down" onPress={nudgeDown} />
+                <ControlButton label="Right" onPress={nudgeRight} />
               </View>
             </View>
 
@@ -685,6 +699,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.camera,
     overflow: 'hidden',
+  },
+  pointerBoxNone: {
+    pointerEvents: 'box-none',
+  },
+  pointerBoxOnly: {
+    pointerEvents: 'box-only',
   },
   cameraFallback: {
     position: 'absolute',
