@@ -182,12 +182,14 @@ function TraceBuddyMobile() {
   }, [])
 
   const nudgeOverlay = useCallback((x: number, y: number) => {
-    const nextX = transform.x + x
-    const nextY = transform.y + y
-    pan.setOffset({ x: 0, y: 0 })
-    pan.setValue({ x: nextX, y: nextY })
-    setTransform((current) => ({ ...current, x: nextX, y: nextY }))
-  }, [pan, transform.x, transform.y])
+    pan.stopAnimation((value) => {
+      const nextX = value.x + x
+      const nextY = value.y + y
+      pan.setOffset({ x: 0, y: 0 })
+      pan.setValue({ x: nextX, y: nextY })
+      setTransform((current) => ({ ...current, x: nextX, y: nextY }))
+    })
+  }, [pan])
 
   const settleDraggedOverlay = useCallback(() => {
     pan.flattenOffset()
