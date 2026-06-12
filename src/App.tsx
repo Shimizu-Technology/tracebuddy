@@ -130,6 +130,12 @@ function svgToDataUrl(svg: string) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
+const drawingImageSrcById = new Map(drawings.map((drawing) => [drawing.id, svgToDataUrl(drawing.svg)]))
+
+function drawingImageSrc(drawing: Drawing) {
+  return drawingImageSrcById.get(drawing.id) ?? svgToDataUrl(drawing.svg)
+}
+
 function loadImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image()
@@ -552,7 +558,7 @@ function App() {
   const uploadCleanupRequestRef = useRef(0)
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
 
-  const overlaySrc = uploadedImage?.processedSrc ?? svgToDataUrl(selectedDrawing.svg)
+  const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
   const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
   const pictureTheme = uploadedImage ? `Local upload · ${uploadCleanupMode === 'original' ? 'Original image' : uploadCleanupMode === 'background' ? 'Background cleanup' : 'Line-art cleanup'}` : selectedDrawing.theme
 
@@ -1081,7 +1087,7 @@ function WelcomeScreen({ onStart, onDemo }: { onStart: () => void; onDemo: () =>
         <div className="mock-device">
           <div className="mock-camera-bg">
             <span className="paper-sheet" />
-            <img src={svgToDataUrl(demoDrawing.svg)} alt={`${demoDrawing.name} overlay preview`} />
+            <img src={drawingImageSrc(demoDrawing)} alt={`${demoDrawing.name} overlay preview`} />
           </div>
         </div>
         <div className="setup-card">
@@ -1157,7 +1163,7 @@ function PickerScreen({
             className={`drawing-card ${selectedDrawing.id === drawing.id ? 'selected' : ''}`}
             onClick={() => onSelect(drawing)}
           >
-            <img src={svgToDataUrl(drawing.svg)} alt={`${drawing.name} tracing line art`} loading="lazy" />
+            <img src={drawingImageSrc(drawing)} alt={`${drawing.name} tracing line art`} />
             <span className="drawing-meta">
               <strong>{drawing.name}</strong>
               <small>{drawing.theme}</small>

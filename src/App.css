@@ -304,14 +304,12 @@ button.active:disabled {
   padding: 0.72rem 1rem;
 }
 
-.file-button,
-.upload-card {
+.file-button {
   position: relative;
   cursor: pointer;
 }
 
-.file-button input,
-.upload-card input {
+.file-button input {
   position: absolute;
   inset: 0;
   opacity: 0;
@@ -501,8 +499,7 @@ button.active:disabled {
   font-size: 0.86rem;
 }
 
-.upload-pill input,
-.upload-card input {
+.upload-pill input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -593,13 +590,6 @@ button.active:disabled {
 .toggle small {
   color: var(--muted);
   line-height: 1.35;
-}
-
-.upload-card {
-  align-content: center;
-  justify-items: start;
-  border-style: dashed;
-  background: rgba(255, 249, 240, 0.72);
 }
 
 .trace-screen {

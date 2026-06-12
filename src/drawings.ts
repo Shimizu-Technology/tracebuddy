@@ -286,7 +286,7 @@ export const drawings: Drawing[] = [
     theme: 'Letters',
     category: 'letters',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><text x="62" y="250" fill="none" stroke="#18243a" stroke-width="8" font-size="150" font-family="ui-rounded, system-ui, sans-serif" font-weight="900">A</text><text x="170" y="250" fill="none" stroke="#18243a" stroke-width="8" font-size="150" font-family="ui-rounded, system-ui, sans-serif" font-weight="900">B</text><text x="280" y="250" fill="none" stroke="#18243a" stroke-width="8" font-size="150" font-family="ui-rounded, system-ui, sans-serif" font-weight="900">C</text><path d="M61 303h298"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M70 254 112 128l42 126"/><path d="M86 209h52"/><path d="M186 128v126h51c31 0 48-15 48-36 0-19-15-33-43-33h-56"/><path d="M186 128h48c28 0 44 13 44 32 0 18-15 31-40 31h-52"/><path d="M350 151c-15-16-35-24-59-24-44 0-75 28-75 65s31 65 75 65c24 0 44-8 59-24"/><path d="M61 303h298"/></svg>`,
   },
   {
     id: 'numbers-123',
@@ -294,7 +294,7 @@ export const drawings: Drawing[] = [
     theme: 'Numbers',
     category: 'letters',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><text x="57" y="252" fill="none" stroke="#18243a" stroke-width="8" font-size="152" font-family="ui-rounded, system-ui, sans-serif" font-weight="900">1</text><text x="166" y="252" fill="none" stroke="#18243a" stroke-width="8" font-size="152" font-family="ui-rounded, system-ui, sans-serif" font-weight="900">2</text><text x="278" y="252" fill="none" stroke="#18243a" stroke-width="8" font-size="152" font-family="ui-rounded, system-ui, sans-serif" font-weight="900">3</text><path d="M61 303h298"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M103 151 137 128v126"/><path d="M93 254h88"/><path d="M210 151c16-18 42-25 64-14 21 10 31 33 22 54-7 17-25 32-76 63h89"/><path d="M324 139h72l-45 45c33 1 55 16 55 38 0 25-25 42-60 42-21 0-39-6-54-18"/><path d="M61 303h298"/></svg>`,
   },
   {
     id: 'big-heart-word',
@@ -302,7 +302,7 @@ export const drawings: Drawing[] = [
     theme: 'Letters',
     category: 'letters',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M210 315C108 241 64 196 70 139c4-42 37-72 78-72 29 0 52 14 62 39 10-25 33-39 62-39 41 0 74 30 78 72 6 57-38 102-140 176Z"/><text x="92" y="230" fill="none" stroke="#18243a" stroke-width="6" font-size="66" font-family="ui-rounded, system-ui, sans-serif" font-weight="900">LOVE</text></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M210 315C108 241 64 196 70 139c4-42 37-72 78-72 29 0 52 14 62 39 10-25 33-39 62-39 41 0 74 30 78 72 6 57-38 102-140 176Z"/><path d="M108 222v-70"/><path d="M108 222h34"/><circle cx="179" cy="187" r="36"/><path d="M229 152l30 70 30-70"/><path d="M343 152h-39v70h39"/><path d="M304 187h34"/></svg>`,
   },
   {
     id: 'name-banner',
