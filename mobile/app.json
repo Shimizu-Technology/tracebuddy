@@ -54,6 +54,11 @@
         }
       ]
     ],
-    "owner": "shimizutechnology"
+    "owner": "shimizutechnology",
+    "extra": {
+      "eas": {
+        "projectId": "32bf20c8-1faf-4333-966a-f046461e7f48"
+      }
+    }
   }
 }

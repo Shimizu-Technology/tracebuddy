@@ -32,20 +32,17 @@ This app intentionally uses Expo Go-supported modules only:
 - `react-native-svg` for built-in SVG templates
 
 AR, paper tracking, and uploaded-image cleanup are deferred until after the native tracing loop is validated.
+
 ## TestFlight / EAS build
 
-This app is configured for EAS Build with `eas.json`.
+This app is configured for EAS Build with `eas.json` and linked to the Shimizu Technology EAS project in `app.json`:
 
-First-time setup for the Shimizu Technology Expo account:
-
-```bash
-cd mobile
-eas init
+```text
+@shimizutechnology/tracebuddy-mobile
+projectId: 32bf20c8-1faf-4333-966a-f046461e7f48
 ```
 
-Accept creating/linking the EAS project for `@shimizutechnology/tracebuddy-mobile`. This writes `extra.eas.projectId` into `app.json`.
-
-Then build iOS for TestFlight:
+Build iOS for TestFlight:
 
 ```bash
 cd mobile
