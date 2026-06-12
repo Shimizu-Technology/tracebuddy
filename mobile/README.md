@@ -12,6 +12,16 @@ npm run start
 
 Scan the Expo QR code with Expo Go on a real phone. Camera tracing should be tested on a physical device, not only a simulator.
 
+If the phone camera or iOS Code Scanner says "No usable data found," open the Expo Go app directly and use Expo Go's scanner. You can also type the Metro URL shown in the terminal, such as `exp://192.168.x.x:8081`, into Expo Go manually.
+
+If Expo Go opens but cannot connect, make sure the phone and laptop are on the same Wi-Fi network. If local network discovery is flaky, run:
+
+```bash
+npm run start -- --tunnel
+```
+
+Then scan the new tunnel QR code from Expo Go.
+
 ## Scope
 
 This app intentionally uses Expo Go-supported modules only:

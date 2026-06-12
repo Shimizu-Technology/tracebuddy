@@ -4,7 +4,7 @@
     "strict": true,
     "paths": {
       "@/*": ["./*"],
-      "@tracebuddy/shared": ["../shared/drawings.ts"],
+      "@tracebuddy/shared": ["../shared/index.ts"],
       "@tracebuddy/shared/*": ["../shared/*"]
     }
   },

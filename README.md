@@ -87,7 +87,9 @@ npm --prefix mobile install
 npm run mobile:start
 ```
 
-Scan the QR code with Expo Go on a real phone. The mobile MVP uses native camera, local image picker, keep-awake, shared built-in templates, and manual overlay controls. AR is not part of the Expo Go MVP.
+Scan the QR code with Expo Go on a real phone. If the built-in phone camera says "No usable data found," open Expo Go directly and use its scanner or enter the `exp://...` Metro URL manually. If the phone cannot connect to the local server, run `cd mobile && npm run start -- --tunnel`.
+
+The mobile MVP uses native camera, local image picker, keep-awake, shared built-in templates, and manual overlay controls. AR is not part of the Expo Go MVP.
 
 ## Verify
 
