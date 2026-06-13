@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, PointerEvent } from 'react'
 import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from './drawings'
-import type { Drawing, DrawingCategoryId } from './drawings'
+import type { Drawing, DrawingFilterId } from './drawings'
 import './App.css'
 
 type AppMode = 'welcome' | 'picker' | 'trace' | 'practice'
@@ -9,7 +9,7 @@ type TraceSurface = 'camera' | 'screen'
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'blocked' | 'unsupported'
 type Direction = 'up' | 'right' | 'down' | 'left'
 
-type PickerCategoryId = 'all' | DrawingCategoryId
+type PickerCategoryId = DrawingFilterId
 
 type PracticePoint = {
   x: number
@@ -1194,12 +1194,15 @@ function PickerScreen({
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
     for (const drawing of drawings) {
       counts[drawing.category] = (counts[drawing.category] ?? 0) + 1
+      if (drawing.collection) counts[drawing.collection] = (counts[drawing.collection] ?? 0) + 1
     }
     return counts
   }, [])
-  const visibleDrawings = useMemo(() => (
-    activeCategory === 'all' ? drawings : drawings.filter((drawing) => drawing.category === activeCategory)
-  ), [activeCategory])
+  const visibleDrawings = useMemo(() => {
+    if (activeCategory === 'all') return drawings
+    if (activeCategory === 'curated') return drawings.filter((drawing) => drawing.collection === 'curated')
+    return drawings.filter((drawing) => drawing.category === activeCategory)
+  }, [activeCategory])
 
   return (
     <section className="picker-screen">

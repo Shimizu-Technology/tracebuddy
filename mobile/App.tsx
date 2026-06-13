@@ -21,11 +21,11 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Svg, { Circle, Path, Rect, SvgXml } from 'react-native-svg'
 
 import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from '@tracebuddy/shared'
-import type { Drawing, DrawingCategoryId } from '@tracebuddy/shared'
+import type { Drawing, DrawingFilterId } from '@tracebuddy/shared'
 
 type ScreenMode = 'picker' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
-type PickerCategoryId = 'all' | DrawingCategoryId
+type PickerCategoryId = DrawingFilterId
 
 type PracticePoint = {
   x: number
@@ -105,13 +105,16 @@ function TraceBuddyMobile() {
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
     for (const drawing of drawings) {
       counts[drawing.category] = (counts[drawing.category] ?? 0) + 1
+      if (drawing.collection) counts[drawing.collection] = (counts[drawing.collection] ?? 0) + 1
     }
     return counts
   }, [])
 
-  const visibleDrawings = useMemo(() => (
-    activeCategory === 'all' ? drawings : drawings.filter((drawing) => drawing.category === activeCategory)
-  ), [activeCategory])
+  const visibleDrawings = useMemo(() => {
+    if (activeCategory === 'all') return drawings
+    if (activeCategory === 'curated') return drawings.filter((drawing) => drawing.collection === 'curated')
+    return drawings.filter((drawing) => drawing.category === activeCategory)
+  }, [activeCategory])
 
   const pictureName = uploadedImage?.name ?? selectedDrawing.name
   const pictureTheme = uploadedImage ? 'Local image' : selectedDrawing.theme

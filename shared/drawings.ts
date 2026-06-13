@@ -1,4 +1,8 @@
-export type DrawingCategoryId = 'animals' | 'ocean' | 'magic' | 'vehicles' | 'letters' | 'island' | 'seasonal' | 'starters'
+import { curatedTemplateSvgs } from './curatedTemplates'
+
+export type DrawingCategoryId = 'animals' | 'nature' | 'ocean' | 'magic' | 'vehicles' | 'letters' | 'island' | 'seasonal' | 'starters'
+export type DrawingCollectionId = 'curated'
+export type DrawingFilterId = 'all' | DrawingCollectionId | DrawingCategoryId
 
 export type DrawingDifficulty = 'Starter' | 'Medium' | 'Detailed'
 
@@ -7,6 +11,7 @@ export type Drawing = {
   name: string
   theme: string
   category: DrawingCategoryId
+  collection?: DrawingCollectionId
   difficulty: DrawingDifficulty
   svg: string
 }
@@ -66,9 +71,11 @@ export function createTextDrawing(value: string): Drawing {
   }
 }
 
-export const drawingCategories: Array<{ id: 'all' | DrawingCategoryId; label: string }> = [
+export const drawingCategories: Array<{ id: DrawingFilterId; label: string }> = [
   { id: 'all', label: 'All' },
+  { id: 'curated', label: 'Curated' },
   { id: 'starters', label: 'Starters' },
+  { id: 'nature', label: 'Nature' },
   { id: 'animals', label: 'Animals' },
   { id: 'ocean', label: 'Ocean' },
   { id: 'magic', label: 'Magic' },
@@ -78,7 +85,146 @@ export const drawingCategories: Array<{ id: 'all' | DrawingCategoryId; label: st
   { id: 'seasonal', label: 'Seasonal' },
 ]
 
+const curatedDrawings: Drawing[] = [
+  {
+    id: 'curated-flower-head-008',
+    name: 'Flower Head',
+    theme: 'Curated nature pick 008',
+    category: 'nature',
+    collection: 'curated',
+    difficulty: 'Starter',
+    svg: curatedTemplateSvgs.flowerHead008,
+  },
+  {
+    id: 'curated-cute-crab-056',
+    name: 'Cute Crab',
+    theme: 'Curated ocean pick 056',
+    category: 'ocean',
+    collection: 'curated',
+    difficulty: 'Medium',
+    svg: curatedTemplateSvgs.cuteCrab056,
+  },
+  {
+    id: 'curated-shell-057',
+    name: 'Sea Shell',
+    theme: 'Curated ocean pick 057',
+    category: 'ocean',
+    collection: 'curated',
+    difficulty: 'Detailed',
+    svg: curatedTemplateSvgs.seaShell057,
+  },
+  {
+    id: 'curated-car-062',
+    name: 'Simple Car',
+    theme: 'Curated vehicle pick 062',
+    category: 'vehicles',
+    collection: 'curated',
+    difficulty: 'Starter',
+    svg: curatedTemplateSvgs.simpleCar062,
+  },
+  {
+    id: 'curated-rocket-064',
+    name: 'Rocket',
+    theme: 'Curated vehicle pick 064',
+    category: 'vehicles',
+    collection: 'curated',
+    difficulty: 'Starter',
+    svg: curatedTemplateSvgs.rocket064,
+  },
+  {
+    id: 'curated-kite-070',
+    name: 'Kite',
+    theme: 'Curated seasonal pick 070',
+    category: 'seasonal',
+    collection: 'curated',
+    difficulty: 'Starter',
+    svg: curatedTemplateSvgs.kite070,
+  },
+  {
+    id: 'curated-snowflake-080',
+    name: 'Snowflake',
+    theme: 'Curated seasonal pick 080',
+    category: 'seasonal',
+    collection: 'curated',
+    difficulty: 'Medium',
+    svg: curatedTemplateSvgs.snowflake080,
+  },
+  {
+    id: 'curated-palm-tree-081',
+    name: 'Palm Tree',
+    theme: 'Curated island pick 081',
+    category: 'island',
+    collection: 'curated',
+    difficulty: 'Detailed',
+    svg: curatedTemplateSvgs.palmTree081,
+  },
+  {
+    id: 'curated-pine-tree-088',
+    name: 'Pine Tree',
+    theme: 'Curated nature pick 088',
+    category: 'nature',
+    collection: 'curated',
+    difficulty: 'Medium',
+    svg: curatedTemplateSvgs.pineTree088,
+  },
+  {
+    id: 'curated-pumpkin-097',
+    name: 'Pumpkin',
+    theme: 'Curated seasonal pick 097',
+    category: 'seasonal',
+    collection: 'curated',
+    difficulty: 'Medium',
+    svg: curatedTemplateSvgs.pumpkin097,
+  },
+  {
+    id: 'curated-airplane-110',
+    name: 'Propeller Airplane',
+    theme: 'Curated vehicle pick 110',
+    category: 'vehicles',
+    collection: 'curated',
+    difficulty: 'Medium',
+    svg: curatedTemplateSvgs.propellerAirplane110,
+  },
+  {
+    id: 'curated-rose-117',
+    name: 'Rose',
+    theme: 'Curated nature pick 117',
+    category: 'nature',
+    collection: 'curated',
+    difficulty: 'Detailed',
+    svg: curatedTemplateSvgs.rose117,
+  },
+  {
+    id: 'curated-fish-118',
+    name: 'Cartoon Fish',
+    theme: 'Curated ocean pick 118',
+    category: 'ocean',
+    collection: 'curated',
+    difficulty: 'Medium',
+    svg: curatedTemplateSvgs.cartoonFish118,
+  },
+  {
+    id: 'curated-flower-120',
+    name: 'Big Flower',
+    theme: 'Curated nature pick 120',
+    category: 'nature',
+    collection: 'curated',
+    difficulty: 'Detailed',
+    svg: curatedTemplateSvgs.bigFlower120,
+  },
+  {
+    id: 'curated-long-stem-flower-257',
+    name: 'Long Stem Flower',
+    theme: 'Curated nature pick 257',
+    category: 'nature',
+    collection: 'curated',
+    difficulty: 'Medium',
+    svg: curatedTemplateSvgs.longStemFlower257,
+  },
+]
+
 export const drawings: Drawing[] = [
+  ...curatedDrawings,
   {
     id: 'flower',
     name: 'Happy Flower',
