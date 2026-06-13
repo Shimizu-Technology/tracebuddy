@@ -1607,10 +1607,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 16,
-    height: 18,
+    minHeight: 20,
     marginTop: 6,
     marginBottom: 6,
     paddingHorizontal: 4,
+    includeFontPadding: false,
   },
   practiceTransformLayer: {
     position: 'absolute',
