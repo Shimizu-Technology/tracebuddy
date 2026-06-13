@@ -90,10 +90,8 @@ Length: 86 characters.
 Recommended support URL:
 
 ```text
-https://tracebuddy-gu.netlify.app
+https://tracebuddy-gu.netlify.app/support.html
 ```
-
-If a dedicated support page is added later, use that instead.
 
 ## Marketing URL
 
@@ -156,6 +154,12 @@ Suggested questionnaire answers:
 The app lets a user choose a local image from their own device, but it does not publish or share user-generated content.
 
 ## App Privacy
+
+Recommended privacy policy URL:
+
+```text
+https://tracebuddy-gu.netlify.app/privacy.html
+```
 
 Recommended App Privacy declaration:
 
