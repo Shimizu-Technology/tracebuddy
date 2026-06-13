@@ -876,7 +876,7 @@ function PracticeScreen({
       </View>
 
       <View style={styles.practiceStageCard}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.practiceToolRail}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.practiceToolScroller} contentContainerStyle={styles.practiceToolRail}>
           <Pressable
             style={[styles.practiceModeButton, viewportLocked && styles.practiceModeButtonActive]}
             onPress={toggleViewportMode}
@@ -953,7 +953,7 @@ function PracticeScreen({
           </View>
         </ScrollView>
 
-        <Text style={styles.practiceCanvasHint} numberOfLines={2}>{viewportLocked ? 'Draw mode keeps the page steady for coloring.' : 'Move mode: drag with one finger, pinch with two fingers, then lock to color.'}</Text>
+        <Text style={styles.practiceCanvasHint} numberOfLines={1}>{viewportLocked ? 'Locked: draw and color without moving the page.' : 'Move: drag or pinch, then lock to draw.'}</Text>
 
         <View
           style={styles.practiceCanvas}
@@ -1421,13 +1421,13 @@ const styles = StyleSheet.create({
   practiceStageCard: {
     flex: 1,
     marginHorizontal: 10,
-    marginTop: 10,
+    marginTop: 8,
     marginBottom: 8,
     borderRadius: 30,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.surface,
-    padding: 10,
+    padding: 8,
     shadowColor: palette.ink,
     shadowOpacity: 0.08,
     shadowRadius: 24,
@@ -1465,14 +1465,20 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 12,
   },
+  practiceToolScroller: {
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 66,
+    maxHeight: 66,
+  },
   practiceToolRail: {
-    alignItems: 'stretch',
+    alignItems: 'center',
     gap: 8,
     paddingRight: 4,
   },
   practiceModeButton: {
-    minWidth: 96,
-    minHeight: 58,
+    minWidth: 92,
+    height: 58,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
@@ -1499,13 +1505,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   practiceToolGroupCompact: {
-    minHeight: 58,
+    height: 58,
     borderRadius: 18,
     backgroundColor: palette.paper,
     borderWidth: 1,
     borderColor: 'rgba(24,36,58,0.08)',
     padding: 8,
     gap: 6,
+    justifyContent: 'center',
   },
   practiceOptionGroup: {
     gap: 8,
@@ -1600,14 +1607,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 16,
-    marginVertical: 8,
+    minHeight: 20,
+    marginTop: 6,
+    marginBottom: 6,
     paddingHorizontal: 4,
+    includeFontPadding: false,
   },
   practiceTransformLayer: {
     position: 'absolute',
     top: 0,
     left: 0,
-    transformOrigin: 'top left',
+    transformOrigin: [0, 0, 0],
   },
   practiceGuide: {
     position: 'absolute',
