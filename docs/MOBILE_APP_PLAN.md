@@ -4,7 +4,7 @@ TraceBuddy is already usable as a mobile-first PWA, but tracing is a physical ac
 
 ## Why build the native mobile app now?
 
-- **Primary use is mobile.** The real workflow is phone/tablet camera over paper, not desktop.
+- **Primary use is mobile.** The real workflow is phone/tablet camera over paper, with an on-screen practice fallback when a stand or paper setup is not available.
 - **Native camera lifecycle is more predictable.** Expo gives us a first-class camera preview, permission prompts, and screen-awake behavior instead of relying on browser differences.
 - **Expo Go is enough for the next proof.** The first native milestone can use Expo Go-supported modules only: camera, image picker, SVG rendering, keep awake, and React Native controls.
 - **It keeps the product local-first.** The mobile MVP should still have no accounts, backend, uploads, analytics, or remote image processing.
@@ -73,6 +73,7 @@ The first mobile app should be intentionally small and reliable:
 - Two-column template picker with category filters.
 - Upload/select a local image from the device photo library.
 - Native camera trace mode.
+- On-screen practice mode for finger/stylus tracing over the selected guide.
 - Manual overlay controls:
   - move by dragging when unlocked
   - nudge controls
@@ -115,6 +116,7 @@ The first mobile app should be intentionally small and reliable:
   - open picker
   - filter categories
   - select built-in drawing
+  - try on-screen practice with finger or stylus
   - grant camera permission
   - drag/nudge/resize/rotate/change opacity
   - lock/unlock overlay

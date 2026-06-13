@@ -6,9 +6,9 @@ TraceBuddy is designed as a local-first tracing helper. The web MVP and Expo Go 
 
 ### Camera
 
-Trace mode asks the browser for camera access using `getUserMedia`. The Expo mobile MVP asks the operating system for camera access through `expo-camera`. The camera feed is shown directly as the tracing background.
+Trace mode asks the browser for camera access using `getUserMedia`. The Expo mobile MVP asks the operating system for camera access through `expo-camera`. The camera feed is shown directly as the tracing background. On-screen practice mode does not require camera access.
 
-TraceBuddy does not record, upload, or transmit camera video.
+TraceBuddy does not record, upload, or transmit camera video. Practice strokes drawn on the screen stay in local app/browser state for the current session.
 
 ### Uploaded images
 

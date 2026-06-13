@@ -15,6 +15,7 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 
 - Mobile-first React/Vite frontend.
 - Expo Go native mobile MVP.
+- On-screen practice mode for tracing without a paper/camera setup.
 - Shared SVG line-art drawing library with category filters.
 - Local image upload.
 - Camera preview with demo fallback.
@@ -51,6 +52,7 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Keep template categories such as animals, ocean, magic/fairy, vehicles, letters, seasonal, and Guam/island themes.
 - Keep difficulty labels: starter, medium, detailed.
 - Add a favorites/recent drawings section stored locally if the larger library needs shortcuts.
+- Add dynamic word/name tracing on top of the on-screen practice surface.
 - Add a clearer parent setup mode vs child tracing mode.
 - Continue tuning the mobile controls based on live phone/tablet use.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.
@@ -63,11 +65,12 @@ Goal: compare the native camera tracing loop against the PWA before adding AR co
 Current Expo Go MVP:
 
 - Native camera trace mode.
+- On-screen practice mode for finger/stylus tracing.
 - Shared built-in template library.
 - Two-column mobile template picker with category filters.
 - Local photo library selection.
 - Manual overlay drag, nudge, opacity, scale, rotation, lock, and reset controls.
-- Screen keep-awake behavior during trace mode.
+- Screen keep-awake behavior during trace and practice mode.
 - No backend, accounts, uploads, analytics, or remote image processing.
 
 Next improvements:

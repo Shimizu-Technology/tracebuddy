@@ -41,7 +41,7 @@ async function mobile() {
   await page.setViewport({ width: 390, height: 950, deviceScaleFactor: 2, isMobile: true })
   await page.goto(url, { waitUntil: 'networkidle0' })
   await page.screenshot({ path: '/tmp/tracebuddy-04-home-mobile.png', fullPage: true })
-  await click(page, 'Try trace mode')
+  await click(page, 'Try camera trace')
   await page.screenshot({ path: '/tmp/tracebuddy-05-trace-mobile.png', fullPage: true })
   const metrics = await page.evaluate(() => ({ innerWidth: innerWidth, scrollWidth: document.documentElement.scrollWidth, bodyScrollWidth: document.body.scrollWidth }))
   console.log(JSON.stringify(metrics, null, 2))

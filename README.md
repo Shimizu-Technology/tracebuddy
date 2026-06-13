@@ -14,10 +14,10 @@ TraceBuddy lets a child or parent:
 
 1. Pick a simple line-art drawing.
 2. Open trace mode.
-3. Use the device camera as the background.
-4. Place a semi-transparent drawing over real paper.
+3. Choose camera tracing over paper or on-screen practice.
+4. Place a semi-transparent drawing over real paper, or trace directly with a finger/stylus on the device.
 5. Use paper detection for automatic alignment or adjust opacity, size, rotation, and position manually.
-6. Lock the overlay and trace on paper.
+6. Lock the overlay and trace on paper, or clear/undo digital practice strokes.
 
 The MVP is designed for Stassie-style drawing practice: simple, friendly, private, and usable on a phone or iPad with a stand.
 
@@ -28,6 +28,7 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Built-in traceable SVG drawing library with category filters
 - Local image upload with optional cleanup modes
 - Camera access with `getUserMedia`
+- On-screen practice mode for finger, stylus, or mouse tracing
 - Demo camera surface when camera is unavailable/blocked
 - Drag-to-position overlay
 - Mobile-friendly floating trace controls
@@ -133,7 +134,7 @@ Generated files:
 - Deploy to HTTPS for real iPad/phone camera testing
 - Test with a physical stand and real paper
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
-- Test the Expo Go mobile MVP on a real phone over paper
+- Test the Expo Go mobile MVP on a real phone over paper and in on-screen practice mode
 - Improve uploaded image cleanup after real-device testing
 - Add favorites/recent templates if the larger library needs shortcuts
 - Prototype printable marker-based tracking if plain paper detection is not stable enough

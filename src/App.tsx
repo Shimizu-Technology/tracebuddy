@@ -4,11 +4,19 @@ import { drawingCategories, drawings } from './drawings'
 import type { Drawing, DrawingCategoryId } from './drawings'
 import './App.css'
 
-type AppMode = 'welcome' | 'picker' | 'trace'
+type AppMode = 'welcome' | 'picker' | 'trace' | 'practice'
+type TraceSurface = 'camera' | 'screen'
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'blocked' | 'unsupported'
 type Direction = 'up' | 'right' | 'down' | 'left'
 
 type PickerCategoryId = 'all' | DrawingCategoryId
+
+type PracticePoint = {
+  x: number
+  y: number
+}
+
+type PracticeStroke = PracticePoint[]
 
 type Transform = {
   x: number
@@ -134,6 +142,12 @@ const drawingImageSrcById = new Map(drawings.map((drawing) => [drawing.id, svgTo
 
 function drawingImageSrc(drawing: Drawing) {
   return drawingImageSrcById.get(drawing.id) ?? svgToDataUrl(drawing.svg)
+}
+
+function pointsToPath(points: PracticeStroke) {
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y} l 0.1 0`
+  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
 }
 
 function loadImage(src: string) {
@@ -533,6 +547,7 @@ function App() {
   const [mode, setMode] = useState<AppMode>('welcome')
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImageState | null>(null)
+  const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [uploadCleanupMode, setUploadCleanupMode] = useState<UploadCleanupMode>('original')
   const [backgroundTolerance, setBackgroundTolerance] = useState(48)
   const [outlineDetail, setOutlineDetail] = useState(62)
@@ -599,7 +614,7 @@ function App() {
     try {
       const sentinel = await wakeLock.request('screen')
 
-      if (wakeLockRef.current || modeRef.current !== 'trace' || document.visibilityState !== 'visible') {
+      if (wakeLockRef.current || (modeRef.current !== 'trace' && modeRef.current !== 'practice') || document.visibilityState !== 'visible') {
         await sentinel.release()
         return
       }
@@ -792,6 +807,9 @@ function App() {
       if (mode === 'trace') {
         void startCamera()
         void requestWakeLock()
+      } else if (mode === 'practice') {
+        stopCamera()
+        void requestWakeLock()
       } else {
         stopCamera()
         void releaseWakeLock()
@@ -807,8 +825,8 @@ function App() {
 
   useEffect(() => {
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && modeRef.current === 'trace') {
-        ensureCameraStream()
+      if (document.visibilityState === 'visible' && (modeRef.current === 'trace' || modeRef.current === 'practice')) {
+        if (modeRef.current === 'trace') ensureCameraStream()
         void requestWakeLock()
       }
     }
@@ -902,10 +920,33 @@ function App() {
       setUploadedImage(null)
       resetUploadCleanup()
     }
+    setTraceSurface('camera')
     resetPaperDetection()
     setTransform(defaultTransform)
     setMode('trace')
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function openPractice(drawing?: Drawing) {
+    if (drawing) {
+      setSelectedDrawing(drawing)
+      setUploadedImage(null)
+      resetUploadCleanup()
+    }
+    setTraceSurface('screen')
+    resetPaperDetection()
+    setTransform(defaultTransform)
+    setMode('practice')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function openSelectedSurface(drawing: Drawing) {
+    if (traceSurface === 'screen') {
+      openPractice(drawing)
+      return
+    }
+
+    openTrace(drawing)
   }
 
   function updateTransform(update: TransformUpdate) {
@@ -942,7 +983,7 @@ function App() {
     setTransform((transformState) => ({ ...transformState, locked: true }))
   }
 
-  function onUpload(event: ChangeEvent<HTMLInputElement>) {
+  function onUpload(event: ChangeEvent<HTMLInputElement>, targetMode: 'trace' | 'practice' = 'trace') {
     const input = event.currentTarget
     const file = input.files?.[0]
     if (!file) return
@@ -963,7 +1004,8 @@ function App() {
       })
       resetPaperDetection()
       setTransform(defaultTransform)
-      setMode('trace')
+      setTraceSurface(targetMode === 'practice' ? 'screen' : 'camera')
+      setMode(targetMode)
       input.value = ''
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
@@ -1009,18 +1051,27 @@ function App() {
           <span className="brand-mark" aria-hidden="true"><PencilIcon /></span>
           <span>
             <strong>TraceBuddy</strong>
-            <small>Camera tracing helper</small>
+            <small>Camera + screen tracing</small>
           </span>
         </button>
         <nav aria-label="Main navigation">
           <button className={mode === 'welcome' ? 'active' : ''} type="button" onClick={() => setMode('welcome')} aria-current={mode === 'welcome' ? 'page' : undefined}>Home</button>
           <button className={mode === 'picker' ? 'active' : ''} type="button" onClick={() => setMode('picker')} aria-current={mode === 'picker' ? 'page' : undefined}>Pictures</button>
-          <button className={mode === 'trace' ? 'active' : ''} type="button" onClick={() => openTrace()} aria-current={mode === 'trace' ? 'page' : undefined}>Trace mode</button>
+          <button className={mode === 'trace' ? 'active' : ''} type="button" onClick={() => openTrace()} aria-current={mode === 'trace' ? 'page' : undefined}>Camera</button>
+          <button className={mode === 'practice' ? 'active' : ''} type="button" onClick={() => openPractice()} aria-current={mode === 'practice' ? 'page' : undefined}>Practice</button>
         </nav>
       </header>
 
-      {mode === 'welcome' && <WelcomeScreen onStart={() => setMode('picker')} onDemo={() => openTrace(drawings[0])} />}
-      {mode === 'picker' && <PickerScreen selectedDrawing={selectedDrawing} onSelect={openTrace} onUpload={onUpload} />}
+      {mode === 'welcome' && <WelcomeScreen onStart={() => setMode('picker')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
+      {mode === 'picker' && (
+        <PickerScreen
+          selectedDrawing={selectedDrawing}
+          traceSurface={traceSurface}
+          onTraceSurfaceChange={setTraceSurface}
+          onSelect={openSelectedSurface}
+          onUpload={(event) => onUpload(event, traceSurface === 'screen' ? 'practice' : 'trace')}
+        />
+      )}
       {mode === 'trace' && (
         <TraceScreen
           pictureName={pictureName}
@@ -1048,6 +1099,7 @@ function App() {
           updateTransform={updateTransform}
           onUpload={onUpload}
           onPicker={() => setMode('picker')}
+          onPractice={() => openPractice()}
           onRetryCamera={startCamera}
           onFindPaper={findPaper}
           onTogglePaperLock={togglePaperLock}
@@ -1057,11 +1109,21 @@ function App() {
           onReset={resetOverlay}
         />
       )}
+      {mode === 'practice' && (
+        <PracticeScreen
+          pictureName={pictureName}
+          pictureTheme={pictureTheme}
+          overlaySrc={overlaySrc}
+          onPicker={() => setMode('picker')}
+          onCameraTrace={() => openTrace()}
+          onUpload={(event) => onUpload(event, 'practice')}
+        />
+      )}
     </main>
   )
 }
 
-function WelcomeScreen({ onStart, onDemo }: { onStart: () => void; onDemo: () => void }) {
+function WelcomeScreen({ onStart, onDemo, onPractice }: { onStart: () => void; onDemo: () => void; onPractice: () => void }) {
   const demoDrawing = drawings.find((drawing) => drawing.id === 'dream-unicorn') ?? drawings[0]
 
   return (
@@ -1070,11 +1132,12 @@ function WelcomeScreen({ onStart, onDemo }: { onStart: () => void; onDemo: () =>
         <p className="eyebrow">Camera overlay drawing practice</p>
         <h1>Trace drawings on real paper with your camera.</h1>
         <p className="lede">
-          Pick a cute picture, place your phone or iPad on a stand, and TraceBuddy overlays the drawing on the camera view so kids can trace with confidence.
+          Pick a cute picture, trace it on real paper with the camera, or practice directly on the screen with a finger or stylus.
         </p>
         <div className="hero-actions">
           <button className="primary-button" type="button" onClick={onStart}>Pick a picture</button>
-          <button className="secondary-button" type="button" onClick={onDemo}>Try trace mode</button>
+          <button className="secondary-button" type="button" onClick={onDemo}>Try camera trace</button>
+          <button className="secondary-button" type="button" onClick={onPractice}>Practice on screen</button>
         </div>
         <div className="trust-row" aria-label="Privacy and safety boundaries">
           <span>No account</span>
@@ -1105,10 +1168,14 @@ function WelcomeScreen({ onStart, onDemo }: { onStart: () => void; onDemo: () =>
 
 function PickerScreen({
   selectedDrawing,
+  traceSurface,
+  onTraceSurfaceChange,
   onSelect,
   onUpload,
 }: {
   selectedDrawing: Drawing
+  traceSurface: TraceSurface
+  onTraceSurfaceChange: (surface: TraceSurface) => void
   onSelect: (drawing: Drawing) => void
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
@@ -1130,7 +1197,17 @@ function PickerScreen({
         <div>
           <p className="eyebrow">Choose a tracing picture</p>
           <h1>Pick from a bigger tracing library.</h1>
-          <p>Browse simple line-art templates by category, or upload your own image and clean it locally before tracing.</p>
+          <p>Browse simple line-art templates, then use the camera over paper or practice directly on the screen.</p>
+          <div className="surface-switch" role="group" aria-label="Tracing surface">
+            <button type="button" className={traceSurface === 'camera' ? 'active' : ''} aria-pressed={traceSurface === 'camera'} onClick={() => onTraceSurfaceChange('camera')}>
+              <strong>Camera + paper</strong>
+              <small>Overlay above real paper</small>
+            </button>
+            <button type="button" className={traceSurface === 'screen' ? 'active' : ''} aria-pressed={traceSurface === 'screen'} onClick={() => onTraceSurfaceChange('screen')}>
+              <strong>On-screen practice</strong>
+              <small>Trace with finger or stylus</small>
+            </button>
+          </div>
         </div>
         <label className="upload-pill" aria-label="Upload your own tracing image">
           <span className="drawing-icon" aria-hidden="true"><ImageIcon /></span>
@@ -1202,6 +1279,7 @@ function TraceScreen({
   updateTransform,
   onUpload,
   onPicker,
+  onPractice,
   onRetryCamera,
   onFindPaper,
   onTogglePaperLock,
@@ -1235,6 +1313,7 @@ function TraceScreen({
   updateTransform: (update: TransformUpdate) => void
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
   onPicker: () => void
+  onPractice: () => void
   onRetryCamera: () => void
   onFindPaper: () => void
   onTogglePaperLock: () => void
@@ -1290,6 +1369,7 @@ function TraceScreen({
         </div>
         <div className="trace-header-actions">
           <button className="secondary-button compact" type="button" onClick={onPicker}>Change picture</button>
+          <button className="secondary-button compact" type="button" onClick={onPractice}>Practice on screen</button>
           <label className="secondary-button compact file-button">
             Upload
             <input type="file" accept="image/*" onChange={onUpload} />
@@ -1473,6 +1553,150 @@ function TraceScreen({
             <button className="reset-button" type="button" onClick={onReset}>Reset overlay</button>
             <p className="privacy-note">Privacy: paper detection runs locally in this browser and does not upload photos or camera video anywhere.</p>
           </div>
+        </aside>
+      </div>
+    </section>
+  )
+}
+
+function PracticeScreen({
+  pictureName,
+  pictureTheme,
+  overlaySrc,
+  onPicker,
+  onCameraTrace,
+  onUpload,
+}: {
+  pictureName: string
+  pictureTheme: string
+  overlaySrc: string
+  onPicker: () => void
+  onCameraTrace: () => void
+  onUpload: (event: ChangeEvent<HTMLInputElement>) => void
+}) {
+  const [strokes, setStrokes] = useState<PracticeStroke[]>([])
+  const [activeStroke, setActiveStroke] = useState<PracticeStroke>([])
+  const [guideOpacity, setGuideOpacity] = useState(0.28)
+  const activeStrokeRef = useRef<PracticeStroke>([])
+  const drawingRef = useRef(false)
+
+  const pointFromEvent = (event: PointerEvent<HTMLDivElement>): PracticePoint => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return {
+      x: clamp(((event.clientX - rect.left) / Math.max(rect.width, 1)) * 1000, 0, 1000),
+      y: clamp(((event.clientY - rect.top) / Math.max(rect.height, 1)) * 1000, 0, 1000),
+    }
+  }
+
+  const finishStroke = () => {
+    if (activeStrokeRef.current.length > 0) {
+      setStrokes((current) => [...current, activeStrokeRef.current])
+    }
+
+    activeStrokeRef.current = []
+    drawingRef.current = false
+    setActiveStroke([])
+  }
+
+  const onPracticePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const point = pointFromEvent(event)
+    activeStrokeRef.current = [point]
+    drawingRef.current = true
+    setActiveStroke([point])
+  }
+
+  const onPracticePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!drawingRef.current) return
+    const point = pointFromEvent(event)
+    const lastPoint = activeStrokeRef.current[activeStrokeRef.current.length - 1]
+    if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 3) return
+
+    activeStrokeRef.current = [...activeStrokeRef.current, point]
+    setActiveStroke(activeStrokeRef.current)
+  }
+
+  const onPracticePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    finishStroke()
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch {
+      // Pointer may already be released if the stroke was cancelled.
+    }
+  }
+
+  const clearPractice = () => {
+    activeStrokeRef.current = []
+    drawingRef.current = false
+    setActiveStroke([])
+    setStrokes([])
+  }
+
+  return (
+    <section className="practice-screen">
+      <div className="practice-header">
+        <div>
+          <p className="eyebrow">On-screen practice</p>
+          <h1>{pictureName}</h1>
+          <p>{pictureTheme} · Trace with a finger, stylus, or mouse.</p>
+        </div>
+        <div className="trace-header-actions">
+          <button className="secondary-button compact" type="button" onClick={onPicker}>Change picture</button>
+          <button className="secondary-button compact" type="button" onClick={onCameraTrace}>Camera trace</button>
+          <label className="secondary-button compact file-button">
+            Upload
+            <input type="file" accept="image/*" onChange={onUpload} />
+          </label>
+        </div>
+      </div>
+
+      <div className="practice-layout">
+        <div className="practice-card">
+          <div className="practice-card-copy">
+            <span>Finger or stylus mode</span>
+            <strong>Follow the light guide underneath.</strong>
+            <small>Use this when a camera stand or paper setup is not available. Strokes stay only in this browser session.</small>
+          </div>
+
+          <div
+            className="practice-canvas"
+            onPointerDown={onPracticePointerDown}
+            onPointerMove={onPracticePointerMove}
+            onPointerUp={onPracticePointerUp}
+            onPointerCancel={onPracticePointerUp}
+          >
+            <img className="practice-guide-image" src={overlaySrc} alt="Tracing guide" draggable={false} style={{ opacity: guideOpacity }} />
+            <svg className="practice-ink" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+              {strokes.map((stroke, index) => (
+                <path key={`stroke-${index}`} d={pointsToPath(stroke)} />
+              ))}
+              {activeStroke.length > 0 && <path className="active" d={pointsToPath(activeStroke)} />}
+            </svg>
+          </div>
+        </div>
+
+        <aside className="practice-controls" aria-label="On-screen practice controls">
+          <div className="control-card setup-control">
+            <span>Practice surface</span>
+            <strong>Draw directly on the device.</strong>
+            <small>This is for tracing inside TraceBuddy, separate from the camera-and-paper workflow.</small>
+          </div>
+
+          <Slider label="Guide opacity" value={guideOpacity} min={0.1} max={0.65} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setGuideOpacity} />
+
+          <div className="toggle-grid practice-actions">
+            <button className="toggle" type="button" onClick={() => setStrokes((current) => current.slice(0, -1))} disabled={strokes.length === 0}>
+              Undo
+              <small>Remove last stroke</small>
+            </button>
+            <button className="toggle" type="button" onClick={clearPractice} disabled={strokes.length === 0 && activeStroke.length === 0}>
+              Clear
+              <small>Start again</small>
+            </button>
+          </div>
+
+          <button className="reset-button" type="button" onClick={onCameraTrace}>Switch to camera trace</button>
+          <p className="privacy-note">Coming next: a word and name tracing tool can use this same screen-practice surface for letters and phrases.</p>
         </aside>
       </div>
     </section>

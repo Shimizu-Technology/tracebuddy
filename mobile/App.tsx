@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native'
 import {
   Alert,
-  Animated,
   FlatList,
   Image,
   PanResponder,
@@ -23,8 +23,16 @@ import Svg, { Circle, Path, Rect, SvgXml } from 'react-native-svg'
 import { drawingCategories, drawings } from '@tracebuddy/shared'
 import type { Drawing, DrawingCategoryId } from '@tracebuddy/shared'
 
-type ScreenMode = 'picker' | 'trace'
+type ScreenMode = 'picker' | 'trace' | 'practice'
+type TraceSurface = 'camera' | 'screen'
 type PickerCategoryId = 'all' | DrawingCategoryId
+
+type PracticePoint = {
+  x: number
+  y: number
+}
+
+type PracticeStroke = PracticePoint[]
 
 type OverlayTransform = {
   x: number
@@ -67,6 +75,12 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
+function pointsToPath(points: PracticeStroke) {
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y} l 0.1 0`
+  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+}
+
 function TraceBuddyMobile() {
   const insets = useSafeAreaInsets()
   const { width, height } = useWindowDimensions()
@@ -75,11 +89,15 @@ function TraceBuddyMobile() {
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null)
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
+  const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [transform, setTransform] = useState<OverlayTransform>(defaultTransform)
   const [overlayLocked, setOverlayLocked] = useState(false)
   const [controlsOpen, setControlsOpen] = useState(true)
   const [isPickingImage, setIsPickingImage] = useState(false)
   const cameraPromptedRef = useRef(false)
+  const dragStartRef = useRef({ x: defaultTransform.x, y: defaultTransform.y })
+  const transformRef = useRef(defaultTransform)
+  const [overlayPanHandlers, setOverlayPanHandlers] = useState<ReturnType<typeof PanResponder.create>['panHandlers'] | null>(null)
 
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
@@ -100,10 +118,12 @@ function TraceBuddyMobile() {
   const overlayWidth = uploadedImage ? overlayBaseSize * clamp(uploadedAspect, 0.65, 1.35) : overlayBaseSize
   const overlayHeight = uploadedImage ? overlayBaseSize / clamp(uploadedAspect, 0.65, 1.35) : overlayBaseSize
 
-  const pan = useMemo(() => new Animated.ValueXY({ x: defaultTransform.x, y: defaultTransform.y }), [])
+  useEffect(() => {
+    transformRef.current = transform
+  }, [transform])
 
   useEffect(() => {
-    if (mode !== 'trace') return undefined
+    if (mode !== 'trace' && mode !== 'practice') return undefined
 
     activateKeepAwakeAsync('tracebuddy-trace').catch(() => {
       // Keep awake is a convenience, not a blocker for tracing.
@@ -123,19 +143,19 @@ function TraceBuddyMobile() {
   }, [mode, permission?.granted, requestPermission])
 
   const resetOverlay = useCallback(() => {
-    pan.setOffset({ x: 0, y: 0 })
-    pan.setValue({ x: defaultTransform.x, y: defaultTransform.y })
+    dragStartRef.current = { x: defaultTransform.x, y: defaultTransform.y }
+    transformRef.current = defaultTransform
     setTransform(defaultTransform)
     setOverlayLocked(false)
-  }, [pan])
+  }, [])
 
   const openTraceWithDrawing = useCallback((drawing: Drawing) => {
     setSelectedDrawing(drawing)
     setUploadedImage(null)
-    setMode('trace')
+    setMode(traceSurface === 'screen' ? 'practice' : 'trace')
     setControlsOpen(true)
     resetOverlay()
-  }, [resetOverlay])
+  }, [resetOverlay, traceSurface])
 
   const pickLocalImage = useCallback(async () => {
     try {
@@ -160,7 +180,7 @@ function TraceBuddyMobile() {
           width: asset.width,
           height: asset.height,
         })
-        setMode('trace')
+        setMode(traceSurface === 'screen' ? 'practice' : 'trace')
         setControlsOpen(true)
         resetOverlay()
       }
@@ -169,7 +189,7 @@ function TraceBuddyMobile() {
     } finally {
       setIsPickingImage(false)
     }
-  }, [resetOverlay])
+  }, [resetOverlay, traceSurface])
 
   const adjustOpacity = useCallback((delta: number) => {
     setTransform((current) => ({ ...current, opacity: clamp(current.opacity + delta, 0.18, 1) }))
@@ -191,37 +211,64 @@ function TraceBuddyMobile() {
   const rotateRight = useCallback(() => adjustRotation(5), [adjustRotation])
 
   const nudgeOverlay = useCallback((x: number, y: number) => {
-    pan.stopAnimation((value) => {
-      const nextX = value.x + x
-      const nextY = value.y + y
-      pan.setOffset({ x: 0, y: 0 })
-      pan.setValue({ x: nextX, y: nextY })
-      setTransform((current) => ({ ...current, x: nextX, y: nextY }))
-    })
-  }, [pan])
+    setTransform((current) => ({ ...current, x: current.x + x, y: current.y + y }))
+  }, [])
 
   const nudgeUp = useCallback(() => nudgeOverlay(0, -8), [nudgeOverlay])
   const nudgeLeft = useCallback(() => nudgeOverlay(-8, 0), [nudgeOverlay])
   const nudgeDown = useCallback(() => nudgeOverlay(0, 8), [nudgeOverlay])
   const nudgeRight = useCallback(() => nudgeOverlay(8, 0), [nudgeOverlay])
 
-  const settleDraggedOverlay = useCallback(() => {
-    pan.flattenOffset()
-    pan.stopAnimation((value) => {
-      setTransform((current) => ({ ...current, x: value.x, y: value.y }))
-    })
-  }, [pan])
+  const openCameraTrace = useCallback(() => {
+    setTraceSurface('camera')
+    setMode('trace')
+    setControlsOpen(true)
+    resetOverlay()
+  }, [resetOverlay])
 
-  const panResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => !overlayLocked,
-    onMoveShouldSetPanResponder: (_event, gesture) => !overlayLocked && (Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2),
-    onPanResponderGrant: () => {
-      pan.extractOffset()
-    },
-    onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
-    onPanResponderRelease: settleDraggedOverlay,
-    onPanResponderTerminate: settleDraggedOverlay,
-  }), [overlayLocked, pan, settleDraggedOverlay])
+  const openScreenPractice = useCallback(() => {
+    setTraceSurface('screen')
+    setMode('practice')
+  }, [])
+
+  useEffect(() => {
+    const responder = PanResponder.create({
+      onStartShouldSetPanResponder: () => !overlayLocked,
+      onMoveShouldSetPanResponder: (_event, gesture) => !overlayLocked && (Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2),
+      onPanResponderGrant: () => {
+        dragStartRef.current = { x: transformRef.current.x, y: transformRef.current.y }
+      },
+      onPanResponderMove: (_event, gesture) => {
+        const nextX = dragStartRef.current.x + gesture.dx
+        const nextY = dragStartRef.current.y + gesture.dy
+        setTransform((current) => {
+          const next = { ...current, x: nextX, y: nextY }
+          transformRef.current = next
+          return next
+        })
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        const nextX = dragStartRef.current.x + gesture.dx
+        const nextY = dragStartRef.current.y + gesture.dy
+        setTransform((current) => {
+          const next = { ...current, x: nextX, y: nextY }
+          transformRef.current = next
+          return next
+        })
+      },
+      onPanResponderTerminate: (_event, gesture) => {
+        const nextX = dragStartRef.current.x + gesture.dx
+        const nextY = dragStartRef.current.y + gesture.dy
+        setTransform((current) => {
+          const next = { ...current, x: nextX, y: nextY }
+          transformRef.current = next
+          return next
+        })
+      },
+    })
+
+    setOverlayPanHandlers(responder.panHandlers)
+  }, [overlayLocked])
 
   if (mode === 'picker') {
     return (
@@ -242,8 +289,28 @@ function TraceBuddyMobile() {
                   </View>
                   <Text style={styles.eyebrow}>TraceBuddy mobile</Text>
                 </View>
-                <Text style={styles.heroTitle}>Pick a picture, then trace over live camera.</Text>
-                <Text style={styles.heroCopy}>This Expo Go MVP keeps everything local on your phone while we test whether native camera tracing feels better than the browser.</Text>
+                <Text style={styles.heroTitle}>Pick a picture, then trace your way.</Text>
+                <Text style={styles.heroCopy}>Use the camera for paper tracing, or practice directly on the screen with your finger or stylus. Everything stays local on this phone.</Text>
+                <View style={styles.traceSurfaceSwitch} accessibilityLabel="Tracing mode">
+                  <Pressable
+                    style={[styles.traceSurfaceOption, traceSurface === 'camera' && styles.traceSurfaceOptionActive]}
+                    onPress={() => setTraceSurface('camera')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: traceSurface === 'camera' }}
+                  >
+                    <Text style={[styles.traceSurfaceTitle, traceSurface === 'camera' && styles.traceSurfaceTitleActive]}>Camera + paper</Text>
+                    <Text style={[styles.traceSurfaceCopy, traceSurface === 'camera' && styles.traceSurfaceCopyActive]}>Overlay above real paper.</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.traceSurfaceOption, traceSurface === 'screen' && styles.traceSurfaceOptionActive]}
+                    onPress={() => setTraceSurface('screen')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: traceSurface === 'screen' }}
+                  >
+                    <Text style={[styles.traceSurfaceTitle, traceSurface === 'screen' && styles.traceSurfaceTitleActive]}>On-screen practice</Text>
+                    <Text style={[styles.traceSurfaceCopy, traceSurface === 'screen' && styles.traceSurfaceCopyActive]}>Trace with finger or stylus.</Text>
+                  </Pressable>
+                </View>
                 <Pressable style={styles.uploadPill} onPress={pickLocalImage} disabled={isPickingImage} accessibilityRole="button" accessibilityLabel="Upload a local photo or drawing">
                   <ImageIcon />
                   <View style={styles.uploadCopy}>
@@ -299,6 +366,21 @@ function TraceBuddyMobile() {
     )
   }
 
+  if (mode === 'practice') {
+    return (
+      <PracticeScreen
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+        pictureName={pictureName}
+        pictureTheme={pictureTheme}
+        selectedDrawing={selectedDrawing}
+        uploadedImage={uploadedImage}
+        onPicker={() => setMode('picker')}
+        onCameraTrace={openCameraTrace}
+      />
+    )
+  }
+
   const cameraReady = Boolean(permission?.granted)
 
   return (
@@ -331,7 +413,7 @@ function TraceBuddyMobile() {
         </Pressable>
       </View>
 
-      <Animated.View
+      <View
         style={[
           styles.overlayWrap,
           {
@@ -341,8 +423,8 @@ function TraceBuddyMobile() {
             height: overlayHeight,
             opacity: transform.opacity,
             transform: [
-              { translateX: pan.x },
-              { translateY: pan.y },
+              { translateX: transform.x },
+              { translateY: transform.y },
               { scale: transform.scale },
               { rotate: `${transform.rotation}deg` },
             ],
@@ -350,14 +432,14 @@ function TraceBuddyMobile() {
           overlayLocked && styles.overlayWrapLocked,
           styles.pointerBoxOnly,
         ]}
-        {...panResponder.panHandlers}
+        {...(overlayPanHandlers ?? {})}
       >
         {uploadedImage ? (
           <Image source={{ uri: uploadedImage.uri }} style={styles.uploadedOverlayImage} resizeMode="contain" />
         ) : (
           <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
         )}
-      </Animated.View>
+      </View>
 
       <View style={[styles.traceControls, styles.pointerBoxNone, { paddingBottom: insets.bottom + 12 }]}>
         {!controlsOpen ? (
@@ -416,9 +498,159 @@ function TraceBuddyMobile() {
               <Pressable style={styles.actionButton} onPress={resetOverlay} accessibilityRole="button">
                 <Text style={styles.actionButtonText}>Reset</Text>
               </Pressable>
+              <Pressable style={styles.actionButton} onPress={openScreenPractice} accessibilityRole="button">
+                <Text style={styles.actionButtonText}>Screen</Text>
+              </Pressable>
             </View>
           </View>
         )}
+      </View>
+    </View>
+  )
+}
+
+function PracticeScreen({
+  insetsTop,
+  insetsBottom,
+  pictureName,
+  pictureTheme,
+  selectedDrawing,
+  uploadedImage,
+  onPicker,
+  onCameraTrace,
+}: {
+  insetsTop: number
+  insetsBottom: number
+  pictureName: string
+  pictureTheme: string
+  selectedDrawing: Drawing
+  uploadedImage: UploadedImage | null
+  onPicker: () => void
+  onCameraTrace: () => void
+}) {
+  const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 })
+  const [practiceStrokes, setPracticeStrokes] = useState<PracticeStroke[]>([])
+  const [activeStroke, setActiveStroke] = useState<PracticeStroke>([])
+  const activeStrokeRef = useRef<PracticeStroke>([])
+  const lastPointRef = useRef<PracticePoint | null>(null)
+  const [practicePanHandlers, setPracticePanHandlers] = useState<ReturnType<typeof PanResponder.create>['panHandlers'] | null>(null)
+
+  const handleCanvasLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout
+    setCanvasSize({ width: Math.max(1, width), height: Math.max(1, height) })
+  }, [])
+
+  const pointFromEvent = useCallback((event: GestureResponderEvent): PracticePoint => ({
+    x: clamp(event.nativeEvent.locationX, 0, canvasSize.width),
+    y: clamp(event.nativeEvent.locationY, 0, canvasSize.height),
+  }), [canvasSize.height, canvasSize.width])
+
+  const finishPracticeStroke = useCallback(() => {
+    const stroke = activeStrokeRef.current
+    if (stroke.length > 0) {
+      setPracticeStrokes((current) => [...current, stroke])
+    }
+
+    activeStrokeRef.current = []
+    lastPointRef.current = null
+    setActiveStroke([])
+  }, [])
+
+  useEffect(() => {
+    const responder = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (event) => {
+        const point = pointFromEvent(event)
+        activeStrokeRef.current = [point]
+        lastPointRef.current = point
+        setActiveStroke([point])
+      },
+      onPanResponderMove: (event) => {
+        const point = pointFromEvent(event)
+        const lastPoint = lastPointRef.current
+        if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 2.5) return
+
+        activeStrokeRef.current = [...activeStrokeRef.current, point]
+        lastPointRef.current = point
+        setActiveStroke(activeStrokeRef.current)
+      },
+      onPanResponderRelease: finishPracticeStroke,
+      onPanResponderTerminate: finishPracticeStroke,
+    })
+
+    setPracticePanHandlers(responder.panHandlers)
+  }, [finishPracticeStroke, pointFromEvent])
+
+  const undoPracticeStroke = useCallback(() => {
+    setPracticeStrokes((current) => current.slice(0, -1))
+  }, [])
+
+  const clearPracticeStrokes = useCallback(() => {
+    activeStrokeRef.current = []
+    lastPointRef.current = null
+    setActiveStroke([])
+    setPracticeStrokes([])
+  }, [])
+
+  return (
+    <View style={styles.practiceShell}>
+      <StatusBar style="dark" />
+      <View style={[styles.practiceHeader, { paddingTop: insetsTop + 12 }]}>
+        <Pressable style={styles.practiceHeaderButton} onPress={onPicker} accessibilityRole="button" accessibilityLabel="Back to picture picker">
+          <Text style={styles.practiceHeaderButtonText}>Picker</Text>
+        </Pressable>
+        <View style={styles.practiceTitleCard}>
+          <Text style={styles.practiceTitle} numberOfLines={1}>{pictureName}</Text>
+          <Text style={styles.practiceSubtitle} numberOfLines={1}>{pictureTheme} · On-screen practice</Text>
+        </View>
+        <Pressable style={styles.practiceHeaderButton} onPress={onCameraTrace} accessibilityRole="button" accessibilityLabel="Switch to camera tracing">
+          <Text style={styles.practiceHeaderButtonText}>Camera</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.practiceStageCard}>
+        <View style={styles.practiceStageIntro}>
+          <Text style={styles.practiceStageEyebrow}>Finger or stylus</Text>
+          <Text style={styles.practiceStageTitle}>Trace directly on the screen.</Text>
+          <Text style={styles.practiceStageCopy}>Follow the light guide underneath. Clear or undo anytime without changing the original picture.</Text>
+        </View>
+
+        <View style={styles.practiceCanvas} onLayout={handleCanvasLayout} {...(practicePanHandlers ?? {})}>
+          <View style={styles.practiceGuide} pointerEvents="none">
+            {uploadedImage ? (
+              <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
+            ) : (
+              <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
+            )}
+          </View>
+          <Svg
+            pointerEvents="none"
+            width={canvasSize.width}
+            height={canvasSize.height}
+            viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+            style={styles.practiceInkLayer}
+          >
+            {practiceStrokes.map((stroke, index) => (
+              <Path key={`stroke-${index}`} d={pointsToPath(stroke)} stroke={palette.ink} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            ))}
+            {activeStroke.length > 0 && (
+              <Path d={pointsToPath(activeStroke)} stroke={palette.coral} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            )}
+          </Svg>
+        </View>
+      </View>
+
+      <View style={[styles.practiceToolbar, { paddingBottom: insetsBottom + 12 }]}>
+        <Pressable style={styles.practiceToolButton} onPress={undoPracticeStroke} accessibilityRole="button">
+          <Text style={styles.practiceToolButtonText}>Undo</Text>
+        </Pressable>
+        <Pressable style={styles.practiceToolButton} onPress={clearPracticeStrokes} accessibilityRole="button">
+          <Text style={styles.practiceToolButtonText}>Clear</Text>
+        </Pressable>
+        <Pressable style={[styles.practiceToolButton, styles.practiceToolButtonPrimary]} onPress={onCameraTrace} accessibilityRole="button">
+          <Text style={[styles.practiceToolButtonText, styles.practiceToolButtonPrimaryText]}>Use camera</Text>
+        </Pressable>
       </View>
     </View>
   )
@@ -584,6 +816,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 3,
   },
+  traceSurfaceSwitch: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  traceSurfaceOption: {
+    flex: 1,
+    minHeight: 78,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#FFFDF8',
+    padding: 12,
+    justifyContent: 'center',
+  },
+  traceSurfaceOptionActive: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  traceSurfaceTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  traceSurfaceTitleActive: {
+    color: '#FFFFFF',
+  },
+  traceSurfaceCopy: {
+    color: palette.muted,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 4,
+    fontWeight: '700',
+  },
+  traceSurfaceCopyActive: {
+    color: 'rgba(255,255,255,0.72)',
+  },
   categoryStrip: {
     gap: 8,
     paddingHorizontal: 2,
@@ -694,6 +963,147 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.7,
     textTransform: 'uppercase',
+  },
+  practiceShell: {
+    flex: 1,
+    backgroundColor: palette.paper,
+  },
+  practiceHeader: {
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    zIndex: 5,
+  },
+  practiceHeaderButton: {
+    minHeight: 46,
+    borderRadius: 999,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  practiceHeaderButtonText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  practiceTitleCard: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 22,
+    backgroundColor: palette.ink,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  practiceTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  practiceSubtitle: {
+    color: 'rgba(255,255,255,0.68)',
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '700',
+  },
+  practiceStageCard: {
+    flex: 1,
+    margin: 12,
+    borderRadius: 34,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    padding: 14,
+    shadowColor: palette.ink,
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 5,
+  },
+  practiceStageIntro: {
+    marginBottom: 12,
+  },
+  practiceStageEyebrow: {
+    color: palette.coralDark,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+  },
+  practiceStageTitle: {
+    color: palette.ink,
+    fontSize: 24,
+    lineHeight: 27,
+    fontWeight: '900',
+    letterSpacing: -0.8,
+    marginTop: 4,
+  },
+  practiceStageCopy: {
+    color: palette.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
+  },
+  practiceCanvas: {
+    flex: 1,
+    minHeight: 340,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: '#FFFDF7',
+    borderWidth: 1,
+    borderColor: 'rgba(24,36,58,0.1)',
+  },
+  practiceGuide: {
+    position: 'absolute',
+    top: 18,
+    right: 18,
+    bottom: 18,
+    left: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.24,
+  },
+  practiceGuideImage: {
+    width: '100%',
+    height: '100%',
+  },
+  practiceInkLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  practiceToolbar: {
+    paddingHorizontal: 12,
+    paddingTop: 2,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  practiceToolButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  practiceToolButtonPrimary: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  practiceToolButtonText: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  practiceToolButtonPrimaryText: {
+    color: '#FFFFFF',
   },
   traceShell: {
     flex: 1,

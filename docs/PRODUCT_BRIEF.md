@@ -2,7 +2,7 @@
 
 ## Summary
 
-TraceBuddy is a mobile-first camera overlay tracing helper for kids and parents. A phone or iPad camera shows real paper on the table, and the app places a semi-transparent line-art drawing over the live camera view so the child can trace on paper.
+TraceBuddy is a mobile-first tracing helper for kids and parents. A phone or iPad camera can show real paper on the table with a semi-transparent line-art overlay, and an on-screen practice mode lets a child trace directly with a finger or stylus when a paper setup is not available.
 
 It is intentionally simple: no account, no backend, no uploads, no analytics, and no native AR anchoring. The product is a practical camera overlay tracing tool with a production-oriented web MVP and an Expo Go mobile MVP for native camera validation.
 
@@ -29,11 +29,11 @@ When a child wants to practice drawing, the parent can open TraceBuddy, pick or 
 
 1. Open TraceBuddy on a phone or tablet.
 2. Pick a built-in line drawing or upload a local image.
-3. Allow camera access.
-4. Place the device above real paper with a stand or stable prop.
-5. Use Find paper/Track paper for automatic alignment, or adjust opacity, size, rotation, and position manually.
-6. Lock the overlay.
-7. Trace on paper.
+3. Choose camera tracing over paper or on-screen practice.
+4. Allow camera access when using the paper workflow.
+5. Place the device above real paper with a stand or stable prop.
+6. Use Find paper/Track paper for automatic alignment, or adjust opacity, size, rotation, and position manually.
+7. Lock the overlay and trace on paper, or trace directly on the device in practice mode.
 
 ## Success criteria
 
@@ -87,6 +87,7 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Local image upload with optional browser-only cleanup.
 - Browser camera access with graceful demo fallback.
 - Native Expo camera trace mode in the mobile MVP.
+- On-screen practice mode in web and mobile for finger/stylus tracing.
 - Overlay transform controls.
 - Mobile floating controls for trace mode.
 - Experimental paper rectangle detection and tracking.
