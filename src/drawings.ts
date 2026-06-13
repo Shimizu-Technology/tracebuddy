@@ -1,2 +1,2 @@
-export type { Drawing, DrawingCategoryId, DrawingDifficulty } from '../shared'
-export { drawingCategories, drawings } from '../shared'
+export type { Drawing, DrawingCategoryId, DrawingCollectionId, DrawingDifficulty, DrawingFilterId } from '../shared'
+export { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from '../shared'

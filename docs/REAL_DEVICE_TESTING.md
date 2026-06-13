@@ -56,6 +56,7 @@ Pass if the app feels usable without zooming or layout glitches.
 - Scroll through the larger template library.
 - Try category filters such as Animals, Ocean, Magic, Vehicles, Letters, Island, and Seasonal.
 - Confirm Upload your own remains easy to find.
+- Type a custom name/word/phrase and confirm it opens in the selected camera or screen mode.
 
 Pass if browsing feels quick and templates are easy to scan without zooming.
 
@@ -91,7 +92,18 @@ Pass if upload works and the UI no longer labels the uploaded image as a built-i
 
 Pass if at least one cleanup mode makes a real family photo easier to trace without confusing the child or parent.
 
-### 6. Camera fallback
+### 6. On-screen practice
+
+- In the picker, choose On-screen practice.
+- Open a built-in drawing.
+- Trace over the light guide with a finger, stylus, or mouse.
+- Switch marker colors and brush sizes, then color inside the guide.
+- Use Undo and Clear.
+- Switch back to Camera trace.
+
+Pass if practice mode feels usable without a paper/camera setup and does not ask for camera permission.
+
+### 7. Camera fallback
 
 - Block camera permission.
 - Confirm demo mode appears.
@@ -100,7 +112,7 @@ Pass if at least one cleanup mode makes a real family photo easier to trace with
 
 Pass if blocked/unsupported states are understandable and recoverable.
 
-### 7. Paper detection and tracking
+### 8. Paper detection and tracking
 
 - Put bright paper on a darker table.
 - Tap Find paper.
@@ -112,17 +124,18 @@ Pass if blocked/unsupported states are understandable and recoverable.
 
 Pass if tracking helps with small shifts under good lighting and fails gracefully when contrast is poor.
 
-### 8. Mobile controls
+### 9. Mobile controls
 
 - Open trace mode on a phone.
 - Tap Adjust drawing.
 - Confirm controls open as a bottom sheet over the camera.
 - Test quick size, rotate, opacity, lock, paper detection, and nudge controls.
 - Tap Hide controls.
+- Drag the overlay after changing size/rotation and confirm the adjusted size/rotation persists.
 
 Pass if setup controls are usable without scrolling away from the camera view.
 
-### 9. Lock and nudge controls
+### 10. Lock and nudge controls
 
 - Drag the overlay.
 - Tap Lock.
@@ -132,7 +145,7 @@ Pass if setup controls are usable without scrolling away from the camera view.
 
 Pass if lock prevents accidental drag movement and controls remain clear.
 
-### 10. Screen sleep behavior
+### 11. Screen sleep behavior
 
 - Enter trace mode.
 - Leave the app open during a tracing session.
@@ -140,7 +153,7 @@ Pass if lock prevents accidental drag movement and controls remain clear.
 
 Pass if supported browsers keep the screen awake. Note browsers that ignore Wake Lock.
 
-### 11. Offline shell behavior
+### 12. Offline shell behavior
 
 - Load the deployed app once while online.
 - Turn off network.
@@ -181,7 +194,18 @@ Pass if the native overlay controls feel at least as usable as the PWA controls.
 
 Pass if local images stay on device and tracing still works without browser file input behavior.
 
-### 4. Native session behavior
+### 4. Native on-screen practice
+
+- Choose On-screen practice in the picker.
+- Pick a built-in template.
+- Trace with a finger or stylus.
+- Switch marker colors and brush sizes, then color inside the guide.
+- Use Undo and Clear.
+- Switch to camera tracing for the same picture.
+
+Pass if on-screen practice works smoothly and remains separate from the camera permission flow.
+
+### 5. Native session behavior
 
 - Leave trace mode open for 5-10 minutes.
 - Confirm the screen stays awake when supported.
