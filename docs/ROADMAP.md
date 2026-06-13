@@ -8,8 +8,8 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Prefer simple controls over clever automation.
 - Optimize for a parent setting up quickly and a child tracing safely.
 - Do not add accounts, uploads, or analytics unless there is a clear reason.
-- Use Expo Go for native camera validation before committing to native AR.
-- Treat native AR as a last resort, not the default path.
+- Use the current Expo/TestFlight app for native camera validation before committing AR to the primary workflow.
+- Treat native AR as a focused paper-anchoring feature, not a novelty 3D feature.
 
 ## Completed in the current MVP
 
@@ -79,8 +79,8 @@ Next improvements:
 - Test on real iPhone and Android devices using Expo Go.
 - Compare native camera stability against Safari/Chrome PWA behavior.
 - Decide whether uploaded-image cleanup should be ported to native.
-- Decide whether paper tracking should remain web-only, be reimplemented natively, or be replaced by marker-based AR.
-- Move to an Expo development build only when AR or custom native modules are needed.
+- Decide whether paper tracking should remain web-only, be reimplemented natively, or be replaced by ARKit marker anchoring.
+- Move to a custom native iOS module only when ARKit work begins.
 
 ## Phase 4: Uploaded image cleanup and outline processing
 
@@ -100,41 +100,48 @@ Next improvements:
 - Add a simple cleanup preview before entering trace mode.
 - Explore better local foreground/background sampling.
 
-## Phase 5: Printable marker tracking
+## Phase 5: iOS ARKit Trace spike
 
-Goal: make paper tracking more reliable if plain paper rectangle detection is too sensitive to lighting, shadows, or white tables.
+Goal: prove that the tracing guide can stay attached to real paper when the device moves.
 
-Possible marker features:
+See `docs/AR_TRACE_PLAN.md` for the full plan.
 
-- Printable TraceBuddy page or mat.
-- Small high-contrast corner markers.
-- Marker-based paper transform calculation.
-- More stable tracking when the device shifts slightly.
+Recommended first AR scope:
 
-Tradeoffs:
+- Add an experimental iOS-only AR Trace mode.
+- Use full ARKit with a printed TraceBuddy reference marker.
+- Detect the marker and place a transparent guide plane relative to it.
+- Render the selected tracing guide on the plane.
+- Show tracking states: searching, locked, limited, lost, unsupported.
+- Keep regular Camera Trace and Practice as fallback modes.
 
-- Requires printing or using a special page.
-- Adds setup friction.
-- Needs marker design and calibration work.
+Why marker-based ARKit first:
 
-## Phase 6: Native AR only if needed
-
-Only consider native ARKit/ARCore after the Expo Go mobile MVP is validated and browser-based paper tracking or printable marker tracking are not good enough.
-
-Possible native/AR features:
-
-- Paper plane detection.
-- Anchored overlay that stays attached to the paper when the device moves.
-- Better camera calibration.
-- Native fullscreen and wake behavior.
+- ARKit needs a stable real-world anchor.
+- Blank paper detection is more sensitive to lighting, shadows, and table color.
+- A printed marker makes setup explainable and repeatable.
+- This preserves the core value: the guide sticks to the worksheet while the phone or iPad moves.
 
 Tradeoffs:
 
-- More development time.
-- Requires leaving Expo Go for an Expo development build or prebuild.
-- App Store/TestFlight complexity.
-- Device compatibility constraints.
-- Harder sharing and iteration.
+- Requires custom native iOS code, not Expo Go.
+- Requires EAS/TestFlight builds for testing.
+- Requires a printable marker or worksheet.
+- Android ARCore would be a separate later project.
+
+## Phase 6: AR polish and printable workflow
+
+If the ARKit spike works well on real devices, polish it into a reliable workflow.
+
+Possible follow-up features:
+
+- Printable TraceBuddy worksheet PDFs.
+- Multiple paper sizes and guide-placement presets.
+- Manual four-corner calibration.
+- Freeze-on-lost-tracking behavior.
+- Save AR screenshots locally.
+- Plain paper corner detection after marker anchoring is proven.
+- Android ARCore exploration only after iOS proves the value.
 
 ## Explicitly deferred
 
