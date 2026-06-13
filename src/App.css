@@ -923,10 +923,167 @@ button.active:disabled {
   line-height: 1.5;
 }
 
+.practice-studio-shell {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.practice-toolbar-ribbon {
+  position: sticky;
+  top: 86px;
+  z-index: 20;
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
+  overflow-x: auto;
+  border: 1px solid rgba(20, 32, 51, 0.08);
+  border-radius: 28px;
+  padding: 0.55rem;
+  background: rgba(255, 253, 249, 0.9);
+  box-shadow: rgba(20, 32, 51, 0.09) 0 18px 46px -32px;
+  backdrop-filter: blur(18px);
+  scrollbar-width: none;
+}
+
+.practice-toolbar-ribbon::-webkit-scrollbar {
+  display: none;
+}
+
+.studio-tool,
+.studio-tool-group {
+  flex: 0 0 auto;
+  min-height: 62px;
+  border: 1px solid rgba(20, 32, 51, 0.08);
+  border-radius: 21px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.studio-tool {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 116px;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.studio-tool.active {
+  border-color: rgba(107, 215, 183, 0.55);
+  background: linear-gradient(135deg, #e9fff7, #ffffff);
+}
+
+.studio-tool span,
+.studio-tool-group > span {
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.studio-tool small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.studio-tool-group {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 126px;
+  padding: 0.55rem;
+}
+
+.color-tool {
+  min-width: 228px;
+}
+
+.compact-swatches {
+  display: flex;
+  align-items: center;
+  gap: 0.36rem;
+}
+
+.compact-swatches button {
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: rgba(20, 32, 51, 0.18) 0 0 0 1px;
+}
+
+.compact-swatches button.active {
+  box-shadow:
+    rgba(20, 32, 51, 0.2) 0 0 0 1px,
+    var(--ink) 0 0 0 3px;
+}
+
+.compact-segmented,
+.compact-stepper {
+  display: flex;
+  gap: 0.32rem;
+}
+
+.compact-segmented button,
+.compact-stepper button {
+  min-height: 31px;
+  border: 1px solid rgba(20, 32, 51, 0.1);
+  border-radius: 999px;
+  background: #fffaf2;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 950;
+  padding: 0 0.62rem;
+  white-space: nowrap;
+}
+
+.compact-segmented button.active {
+  background: var(--ink);
+  color: #ffffff;
+}
+
+.compact-stepper button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.brush-type-buttons button,
+.size-buttons button {
+  min-width: 58px;
+}
+
+.guide-tool,
+.zoom-tool,
+.action-tool {
+  min-width: 150px;
+}
+
+.studio-card {
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.72rem;
+}
+
+.practice-status-strip {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  border-radius: 18px;
+  padding: 0.42rem 0.75rem;
+  background: #fffaf2;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
 .practice-canvas {
   position: relative;
   overflow: hidden;
-  min-height: min(72vh, 760px);
+  min-height: clamp(620px, calc(100dvh - 290px), 900px);
   border: 1px solid rgba(20, 32, 51, 0.1);
   border-radius: 30px;
   background:
@@ -937,6 +1094,21 @@ button.active:disabled {
   cursor: crosshair;
   touch-action: none;
   user-select: none;
+}
+
+.practice-canvas.unlocked {
+  cursor: grab;
+}
+
+.practice-canvas.unlocked:active {
+  cursor: grabbing;
+}
+
+.practice-transform-layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 .practice-guide-image {
@@ -1453,14 +1625,65 @@ input[type='range'] {
     width: 100%;
   }
 
+  .practice-screen .trace-header-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .trace-header-actions .secondary-button {
     width: 100%;
   }
 
-  .camera-stage,
-  .practice-canvas {
+  .practice-screen .secondary-button.compact {
+    min-height: 48px;
+    padding: 0.62rem 0.52rem;
+    font-size: 0.84rem;
+  }
+
+  .practice-header h1 {
+    font-size: clamp(2.15rem, 9vw, 2.85rem);
+    margin-bottom: 0;
+  }
+
+  .practice-header p:not(.eyebrow) {
+    display: none;
+  }
+
+  .camera-stage {
     min-height: min(68dvh, 680px);
     border-radius: 26px;
+  }
+
+  .practice-canvas {
+    min-height: min(74dvh, 720px);
+    border-radius: 26px;
+  }
+
+  .practice-toolbar-ribbon {
+    top: 72px;
+    margin-right: -0.5rem;
+    margin-left: -0.5rem;
+    border-radius: 24px;
+    padding: 0.48rem;
+  }
+
+  .studio-tool,
+  .studio-tool-group {
+    min-height: 58px;
+    border-radius: 18px;
+  }
+
+  .color-tool {
+    min-width: 224px;
+  }
+
+  .compact-swatches button {
+    width: 1.36rem;
+    height: 1.36rem;
+  }
+
+  .practice-status-strip {
+    align-items: start;
+    font-size: 0.78rem;
   }
 
   .practice-card {
