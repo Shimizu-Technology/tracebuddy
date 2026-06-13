@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, PointerEvent } from 'react'
-import { drawingCategories, drawings } from './drawings'
+import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from './drawings'
 import type { Drawing, DrawingCategoryId } from './drawings'
 import './App.css'
 
@@ -16,7 +16,11 @@ type PracticePoint = {
   y: number
 }
 
-type PracticeStroke = PracticePoint[]
+type PracticeStroke = {
+  path: string
+  color: string
+  width: number
+}
 
 type Transform = {
   x: number
@@ -76,6 +80,8 @@ type NavigatorWithWakeLock = Navigator & {
     request: (type: 'screen') => Promise<WakeLockSentinelLike>
   }
 }
+
+const markerColors = ['#18243A', '#FF795D', '#2F80ED', '#219653', '#9B51E0', '#F2994A'] as const
 
 const defaultTransform: Transform = {
   x: 0,
@@ -142,12 +148,6 @@ const drawingImageSrcById = new Map(drawings.map((drawing) => [drawing.id, svgTo
 
 function drawingImageSrc(drawing: Drawing) {
   return drawingImageSrcById.get(drawing.id) ?? svgToDataUrl(drawing.svg)
-}
-
-function pointsToPath(points: PracticeStroke) {
-  if (points.length === 0) return ''
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y} l 0.1 0`
-  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
 }
 
 function loadImage(src: string) {
@@ -949,6 +949,12 @@ function App() {
     openTrace(drawing)
   }
 
+  function openTextSurface(value: string) {
+    const safeText = sanitizeTraceText(value)
+    if (!safeText) return
+    openSelectedSurface(createTextDrawing(safeText))
+  }
+
   function updateTransform(update: TransformUpdate) {
     setTransform((current) => ({
       ...current,
@@ -1069,6 +1075,7 @@ function App() {
           traceSurface={traceSurface}
           onTraceSurfaceChange={setTraceSurface}
           onSelect={openSelectedSurface}
+          onTextSubmit={openTextSurface}
           onUpload={(event) => onUpload(event, traceSurface === 'screen' ? 'practice' : 'trace')}
         />
       )}
@@ -1171,15 +1178,18 @@ function PickerScreen({
   traceSurface,
   onTraceSurfaceChange,
   onSelect,
+  onTextSubmit,
   onUpload,
 }: {
   selectedDrawing: Drawing
   traceSurface: TraceSurface
   onTraceSurfaceChange: (surface: TraceSurface) => void
   onSelect: (drawing: Drawing) => void
+  onTextSubmit: (value: string) => void
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
+  const [customText, setCustomText] = useState('')
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
     for (const drawing of drawings) {
@@ -1208,6 +1218,13 @@ function PickerScreen({
               <small>Trace with finger or stylus</small>
             </button>
           </div>
+          <form className="custom-text-form" onSubmit={(event) => { event.preventDefault(); onTextSubmit(customText) }}>
+            <label>
+              <span>Write your own words</span>
+              <input value={customText} maxLength={48} placeholder="Stassie, ABC, I love Guam" onChange={(event) => setCustomText(event.target.value)} />
+            </label>
+            <button type="submit">Trace words</button>
+          </form>
         </div>
         <label className="upload-pill" aria-label="Upload your own tracing image">
           <span className="drawing-icon" aria-hidden="true"><ImageIcon /></span>
@@ -1575,9 +1592,14 @@ function PracticeScreen({
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
   const [strokes, setStrokes] = useState<PracticeStroke[]>([])
-  const [activeStroke, setActiveStroke] = useState<PracticeStroke>([])
+  const [activePath, setActivePath] = useState('')
   const [guideOpacity, setGuideOpacity] = useState(0.28)
-  const activeStrokeRef = useRef<PracticeStroke>([])
+  const [markerColor, setMarkerColor] = useState<string>(markerColors[0])
+  const [markerWidth, setMarkerWidth] = useState(11)
+  const activePathRef = useRef('')
+  const activePointCountRef = useRef(0)
+  const activeStrokeStyleRef = useRef({ color: markerColor, width: markerWidth })
+  const lastPointRef = useRef<PracticePoint | null>(null)
   const drawingRef = useRef(false)
 
   const pointFromEvent = (event: PointerEvent<HTMLDivElement>): PracticePoint => {
@@ -1589,31 +1611,45 @@ function PracticeScreen({
   }
 
   const finishStroke = () => {
-    if (activeStrokeRef.current.length > 0) {
-      setStrokes((current) => [...current, activeStrokeRef.current])
+    if (!drawingRef.current) return
+
+    let path = activePathRef.current
+    if (path && activePointCountRef.current === 1) path = `${path} l 0.1 0`
+
+    if (path) {
+      const { color, width } = activeStrokeStyleRef.current
+      setStrokes((current) => [...current, { path, color, width }])
     }
 
-    activeStrokeRef.current = []
+    activePathRef.current = ''
+    activePointCountRef.current = 0
+    lastPointRef.current = null
     drawingRef.current = false
-    setActiveStroke([])
+    setActivePath('')
   }
 
   const onPracticePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId)
     const point = pointFromEvent(event)
-    activeStrokeRef.current = [point]
+    const path = `M ${point.x} ${point.y}`
+    activePathRef.current = path
+    activePointCountRef.current = 1
+    activeStrokeStyleRef.current = { color: markerColor, width: markerWidth }
+    lastPointRef.current = point
     drawingRef.current = true
-    setActiveStroke([point])
+    setActivePath(path)
   }
 
   const onPracticePointerMove = (event: PointerEvent<HTMLDivElement>) => {
     if (!drawingRef.current) return
     const point = pointFromEvent(event)
-    const lastPoint = activeStrokeRef.current[activeStrokeRef.current.length - 1]
+    const lastPoint = lastPointRef.current
     if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 3) return
 
-    activeStrokeRef.current = [...activeStrokeRef.current, point]
-    setActiveStroke(activeStrokeRef.current)
+    activePathRef.current = `${activePathRef.current} L ${point.x} ${point.y}`
+    activePointCountRef.current += 1
+    lastPointRef.current = point
+    setActivePath(activePathRef.current)
   }
 
   const onPracticePointerUp = (event: PointerEvent<HTMLDivElement>) => {
@@ -1626,9 +1662,11 @@ function PracticeScreen({
   }
 
   const clearPractice = () => {
-    activeStrokeRef.current = []
+    activePathRef.current = ''
+    activePointCountRef.current = 0
+    lastPointRef.current = null
     drawingRef.current = false
-    setActiveStroke([])
+    setActivePath('')
     setStrokes([])
   }
 
@@ -1654,8 +1692,8 @@ function PracticeScreen({
         <div className="practice-card">
           <div className="practice-card-copy">
             <span>Finger or stylus mode</span>
-            <strong>Follow the light guide underneath.</strong>
-            <small>Use this when a camera stand or paper setup is not available. Strokes stay only in this browser session.</small>
+            <strong>Trace, then color it in.</strong>
+            <small>Use this when a camera stand or paper setup is not available. Switch marker colors to turn the tracing guide into a tiny coloring page.</small>
           </div>
 
           <div
@@ -1668,9 +1706,9 @@ function PracticeScreen({
             <img className="practice-guide-image" src={overlaySrc} alt="Tracing guide" draggable={false} style={{ opacity: guideOpacity }} />
             <svg className="practice-ink" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
               {strokes.map((stroke, index) => (
-                <path key={`stroke-${index}`} d={pointsToPath(stroke)} />
+                <path key={`stroke-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width }} />
               ))}
-              {activeStroke.length > 0 && <path className="active" d={pointsToPath(activeStroke)} />}
+              {activePath && <path className="active" d={activePath} style={{ stroke: markerColor, strokeWidth: markerWidth }} />}
             </svg>
           </div>
         </div>
@@ -1682,6 +1720,21 @@ function PracticeScreen({
             <small>This is for tracing inside TraceBuddy, separate from the camera-and-paper workflow.</small>
           </div>
 
+          <div className="control-card marker-control">
+            <span>Marker color</span>
+            <strong>Trace or color with a marker.</strong>
+            <div className="marker-swatches" role="group" aria-label="Marker color">
+              {markerColors.map((color) => (
+                <button key={color} type="button" className={markerColor === color ? 'active' : ''} style={{ backgroundColor: color }} aria-label={`Use marker color ${color}`} aria-pressed={markerColor === color} onClick={() => setMarkerColor(color)} />
+              ))}
+            </div>
+            <div className="stepper-buttons marker-size-buttons">
+              <button type="button" className={markerWidth === 8 ? 'active' : ''} onClick={() => setMarkerWidth(8)}>Thin</button>
+              <button type="button" className={markerWidth === 11 ? 'active' : ''} onClick={() => setMarkerWidth(11)}>Marker</button>
+              <button type="button" className={markerWidth === 18 ? 'active' : ''} onClick={() => setMarkerWidth(18)}>Color</button>
+            </div>
+          </div>
+
           <Slider label="Guide opacity" value={guideOpacity} min={0.1} max={0.65} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setGuideOpacity} />
 
           <div className="toggle-grid practice-actions">
@@ -1689,7 +1742,7 @@ function PracticeScreen({
               Undo
               <small>Remove last stroke</small>
             </button>
-            <button className="toggle" type="button" onClick={clearPractice} disabled={strokes.length === 0 && activeStroke.length === 0}>
+            <button className="toggle" type="button" onClick={clearPractice} disabled={strokes.length === 0 && !activePath}>
               Clear
               <small>Start again</small>
             </button>

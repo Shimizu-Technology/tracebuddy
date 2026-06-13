@@ -5,11 +5,11 @@ import {
   Alert,
   FlatList,
   Image,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native'
@@ -20,7 +20,7 @@ import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Circle, Path, Rect, SvgXml } from 'react-native-svg'
 
-import { drawingCategories, drawings } from '@tracebuddy/shared'
+import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from '@tracebuddy/shared'
 import type { Drawing, DrawingCategoryId } from '@tracebuddy/shared'
 
 type ScreenMode = 'picker' | 'trace' | 'practice'
@@ -32,7 +32,11 @@ type PracticePoint = {
   y: number
 }
 
-type PracticeStroke = PracticePoint[]
+type PracticeStroke = {
+  path: string
+  color: string
+  width: number
+}
 
 type OverlayTransform = {
   x: number
@@ -57,6 +61,8 @@ const defaultTransform: OverlayTransform = {
   opacity: 0.72,
 }
 
+const markerColors = ['#18243A', '#FF795D', '#2F80ED', '#219653', '#9B51E0', '#F2994A'] as const
+
 const palette = {
   ink: '#18243A',
   muted: '#667085',
@@ -75,12 +81,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function pointsToPath(points: PracticeStroke) {
-  if (points.length === 0) return ''
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y} l 0.1 0`
-  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
-}
-
 function TraceBuddyMobile() {
   const insets = useSafeAreaInsets()
   const { width, height } = useWindowDimensions()
@@ -90,14 +90,16 @@ function TraceBuddyMobile() {
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null)
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
+  const [customText, setCustomText] = useState('')
   const [transform, setTransform] = useState<OverlayTransform>(defaultTransform)
   const [overlayLocked, setOverlayLocked] = useState(false)
   const [controlsOpen, setControlsOpen] = useState(true)
   const [isPickingImage, setIsPickingImage] = useState(false)
   const cameraPromptedRef = useRef(false)
-  const dragStartRef = useRef({ x: defaultTransform.x, y: defaultTransform.y })
+  const overlayLockedRef = useRef(false)
+  const overlayDraggingRef = useRef(false)
+  const dragStartRef = useRef({ x: defaultTransform.x, y: defaultTransform.y, pageX: 0, pageY: 0 })
   const transformRef = useRef(defaultTransform)
-  const [overlayPanHandlers, setOverlayPanHandlers] = useState<ReturnType<typeof PanResponder.create>['panHandlers'] | null>(null)
 
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
@@ -118,9 +120,15 @@ function TraceBuddyMobile() {
   const overlayWidth = uploadedImage ? overlayBaseSize * clamp(uploadedAspect, 0.65, 1.35) : overlayBaseSize
   const overlayHeight = uploadedImage ? overlayBaseSize / clamp(uploadedAspect, 0.65, 1.35) : overlayBaseSize
 
+  const setOverlayTransform = useCallback((update: OverlayTransform | ((current: OverlayTransform) => OverlayTransform)) => {
+    const next = typeof update === 'function' ? update(transformRef.current) : update
+    transformRef.current = next
+    setTransform(next)
+  }, [])
+
   useEffect(() => {
-    transformRef.current = transform
-  }, [transform])
+    overlayLockedRef.current = overlayLocked
+  }, [overlayLocked])
 
   useEffect(() => {
     if (mode !== 'trace' && mode !== 'practice') return undefined
@@ -143,11 +151,11 @@ function TraceBuddyMobile() {
   }, [mode, permission?.granted, requestPermission])
 
   const resetOverlay = useCallback(() => {
-    dragStartRef.current = { x: defaultTransform.x, y: defaultTransform.y }
+    dragStartRef.current = { x: defaultTransform.x, y: defaultTransform.y, pageX: 0, pageY: 0 }
     transformRef.current = defaultTransform
-    setTransform(defaultTransform)
+    setOverlayTransform(defaultTransform)
     setOverlayLocked(false)
-  }, [])
+  }, [setOverlayTransform])
 
   const openTraceWithDrawing = useCallback((drawing: Drawing) => {
     setSelectedDrawing(drawing)
@@ -156,6 +164,16 @@ function TraceBuddyMobile() {
     setControlsOpen(true)
     resetOverlay()
   }, [resetOverlay, traceSurface])
+
+  const openTraceWithCustomText = useCallback(() => {
+    const safeText = sanitizeTraceText(customText)
+    if (!safeText) {
+      Alert.alert('Add words to trace', 'Type a name, word, number, or short phrase first.')
+      return
+    }
+
+    openTraceWithDrawing(createTextDrawing(safeText))
+  }, [customText, openTraceWithDrawing])
 
   const pickLocalImage = useCallback(async () => {
     try {
@@ -192,16 +210,16 @@ function TraceBuddyMobile() {
   }, [resetOverlay, traceSurface])
 
   const adjustOpacity = useCallback((delta: number) => {
-    setTransform((current) => ({ ...current, opacity: clamp(current.opacity + delta, 0.18, 1) }))
-  }, [])
+    setOverlayTransform((current) => ({ ...current, opacity: clamp(current.opacity + delta, 0.18, 1) }))
+  }, [setOverlayTransform])
 
   const adjustScale = useCallback((delta: number) => {
-    setTransform((current) => ({ ...current, scale: clamp(current.scale + delta, 0.42, 2.2) }))
-  }, [])
+    setOverlayTransform((current) => ({ ...current, scale: clamp(current.scale + delta, 0.42, 2.2) }))
+  }, [setOverlayTransform])
 
   const adjustRotation = useCallback((delta: number) => {
-    setTransform((current) => ({ ...current, rotation: current.rotation + delta }))
-  }, [])
+    setOverlayTransform((current) => ({ ...current, rotation: current.rotation + delta }))
+  }, [setOverlayTransform])
 
   const decreaseOpacity = useCallback(() => adjustOpacity(-0.08), [adjustOpacity])
   const increaseOpacity = useCallback(() => adjustOpacity(0.08), [adjustOpacity])
@@ -211,8 +229,8 @@ function TraceBuddyMobile() {
   const rotateRight = useCallback(() => adjustRotation(5), [adjustRotation])
 
   const nudgeOverlay = useCallback((x: number, y: number) => {
-    setTransform((current) => ({ ...current, x: current.x + x, y: current.y + y }))
-  }, [])
+    setOverlayTransform((current) => ({ ...current, x: current.x + x, y: current.y + y }))
+  }, [setOverlayTransform])
 
   const nudgeUp = useCallback(() => nudgeOverlay(0, -8), [nudgeOverlay])
   const nudgeLeft = useCallback(() => nudgeOverlay(-8, 0), [nudgeOverlay])
@@ -231,44 +249,29 @@ function TraceBuddyMobile() {
     setMode('practice')
   }, [])
 
-  useEffect(() => {
-    const responder = PanResponder.create({
-      onStartShouldSetPanResponder: () => !overlayLocked,
-      onMoveShouldSetPanResponder: (_event, gesture) => !overlayLocked && (Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2),
-      onPanResponderGrant: () => {
-        dragStartRef.current = { x: transformRef.current.x, y: transformRef.current.y }
-      },
-      onPanResponderMove: (_event, gesture) => {
-        const nextX = dragStartRef.current.x + gesture.dx
-        const nextY = dragStartRef.current.y + gesture.dy
-        setTransform((current) => {
-          const next = { ...current, x: nextX, y: nextY }
-          transformRef.current = next
-          return next
-        })
-      },
-      onPanResponderRelease: (_event, gesture) => {
-        const nextX = dragStartRef.current.x + gesture.dx
-        const nextY = dragStartRef.current.y + gesture.dy
-        setTransform((current) => {
-          const next = { ...current, x: nextX, y: nextY }
-          transformRef.current = next
-          return next
-        })
-      },
-      onPanResponderTerminate: (_event, gesture) => {
-        const nextX = dragStartRef.current.x + gesture.dx
-        const nextY = dragStartRef.current.y + gesture.dy
-        setTransform((current) => {
-          const next = { ...current, x: nextX, y: nextY }
-          transformRef.current = next
-          return next
-        })
-      },
-    })
+  const shouldStartOverlayDrag = useCallback(() => !overlayLockedRef.current, [])
 
-    setOverlayPanHandlers(responder.panHandlers)
-  }, [overlayLocked])
+  const startOverlayDrag = useCallback((event: GestureResponderEvent) => {
+    if (overlayLockedRef.current) return
+    overlayDraggingRef.current = true
+    dragStartRef.current = {
+      x: transformRef.current.x,
+      y: transformRef.current.y,
+      pageX: event.nativeEvent.pageX,
+      pageY: event.nativeEvent.pageY,
+    }
+  }, [])
+
+  const moveOverlayDrag = useCallback((event: GestureResponderEvent) => {
+    if (!overlayDraggingRef.current || overlayLockedRef.current) return
+    const nextX = dragStartRef.current.x + event.nativeEvent.pageX - dragStartRef.current.pageX
+    const nextY = dragStartRef.current.y + event.nativeEvent.pageY - dragStartRef.current.pageY
+    setOverlayTransform((current) => ({ ...current, x: nextX, y: nextY }))
+  }, [setOverlayTransform])
+
+  const endOverlayDrag = useCallback(() => {
+    overlayDraggingRef.current = false
+  }, [])
 
   if (mode === 'picker') {
     return (
@@ -309,6 +312,24 @@ function TraceBuddyMobile() {
                   >
                     <Text style={[styles.traceSurfaceTitle, traceSurface === 'screen' && styles.traceSurfaceTitleActive]}>On-screen practice</Text>
                     <Text style={[styles.traceSurfaceCopy, traceSurface === 'screen' && styles.traceSurfaceCopyActive]}>Trace with finger or stylus.</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.customTextCard}>
+                  <View style={styles.customTextCopy}>
+                    <Text style={styles.customTextTitle}>Write your own words</Text>
+                    <Text style={styles.customTextSmall}>Names, ABCs, numbers, or short phrases.</Text>
+                  </View>
+                  <TextInput
+                    value={customText}
+                    onChangeText={setCustomText}
+                    placeholder="Stassie, ABC, I love Guam"
+                    placeholderTextColor="#8A94A6"
+                    style={styles.customTextInput}
+                    returnKeyType="done"
+                    maxLength={48}
+                  />
+                  <Pressable style={styles.customTextButton} onPress={openTraceWithCustomText} accessibilityRole="button">
+                    <Text style={styles.customTextButtonText}>Trace words</Text>
                   </Pressable>
                 </View>
                 <Pressable style={styles.uploadPill} onPress={pickLocalImage} disabled={isPickingImage} accessibilityRole="button" accessibilityLabel="Upload a local photo or drawing">
@@ -432,7 +453,12 @@ function TraceBuddyMobile() {
           overlayLocked && styles.overlayWrapLocked,
           styles.pointerBoxOnly,
         ]}
-        {...(overlayPanHandlers ?? {})}
+        onStartShouldSetResponder={shouldStartOverlayDrag}
+        onMoveShouldSetResponder={shouldStartOverlayDrag}
+        onResponderGrant={startOverlayDrag}
+        onResponderMove={moveOverlayDrag}
+        onResponderRelease={endOverlayDrag}
+        onResponderTerminate={endOverlayDrag}
       >
         {uploadedImage ? (
           <Image source={{ uri: uploadedImage.uri }} style={styles.uploadedOverlayImage} resizeMode="contain" />
@@ -530,67 +556,98 @@ function PracticeScreen({
 }) {
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 })
   const [practiceStrokes, setPracticeStrokes] = useState<PracticeStroke[]>([])
-  const [activeStroke, setActiveStroke] = useState<PracticeStroke>([])
-  const activeStrokeRef = useRef<PracticeStroke>([])
+  const [activePath, setActivePath] = useState('')
+  const [markerColor, setMarkerColor] = useState<string>(markerColors[0])
+  const [markerWidth, setMarkerWidth] = useState(7)
+  const [guideOpacity, setGuideOpacity] = useState(0.24)
+  const canvasSizeRef = useRef(canvasSize)
+  const activePathRef = useRef('')
+  const activePointCountRef = useRef(0)
+  const activeStrokeStyleRef = useRef({ color: markerColor, width: markerWidth })
   const lastPointRef = useRef<PracticePoint | null>(null)
-  const [practicePanHandlers, setPracticePanHandlers] = useState<ReturnType<typeof PanResponder.create>['panHandlers'] | null>(null)
+  const drawingActiveRef = useRef(false)
+
+  useEffect(() => {
+    canvasSizeRef.current = canvasSize
+  }, [canvasSize])
+
+  useEffect(() => {
+    activeStrokeStyleRef.current = { color: markerColor, width: markerWidth }
+  }, [markerColor, markerWidth])
 
   const handleCanvasLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout
-    setCanvasSize({ width: Math.max(1, width), height: Math.max(1, height) })
+    const nextSize = { width: Math.max(1, width), height: Math.max(1, height) }
+    canvasSizeRef.current = nextSize
+    setCanvasSize(nextSize)
   }, [])
 
   const pointFromEvent = useCallback((event: GestureResponderEvent): PracticePoint => ({
-    x: clamp(event.nativeEvent.locationX, 0, canvasSize.width),
-    y: clamp(event.nativeEvent.locationY, 0, canvasSize.height),
-  }), [canvasSize.height, canvasSize.width])
+    x: clamp(event.nativeEvent.locationX, 0, canvasSizeRef.current.width),
+    y: clamp(event.nativeEvent.locationY, 0, canvasSizeRef.current.height),
+  }), [])
 
   const finishPracticeStroke = useCallback(() => {
-    const stroke = activeStrokeRef.current
-    if (stroke.length > 0) {
-      setPracticeStrokes((current) => [...current, stroke])
+    if (!drawingActiveRef.current) return
+
+    let path = activePathRef.current
+    if (path && activePointCountRef.current === 1) path = `${path} l 0.1 0`
+
+    if (path) {
+      const { color, width } = activeStrokeStyleRef.current
+      setPracticeStrokes((current) => [...current, { path, color, width }])
     }
 
-    activeStrokeRef.current = []
+    activePathRef.current = ''
+    activePointCountRef.current = 0
     lastPointRef.current = null
-    setActiveStroke([])
+    drawingActiveRef.current = false
+    setActivePath('')
   }, [])
 
-  useEffect(() => {
-    const responder = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (event) => {
-        const point = pointFromEvent(event)
-        activeStrokeRef.current = [point]
-        lastPointRef.current = point
-        setActiveStroke([point])
-      },
-      onPanResponderMove: (event) => {
-        const point = pointFromEvent(event)
-        const lastPoint = lastPointRef.current
-        if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 2.5) return
+  const startPracticeStroke = useCallback((event: GestureResponderEvent) => {
+    const point = pointFromEvent(event)
+    const path = `M ${point.x} ${point.y}`
+    activePathRef.current = path
+    activePointCountRef.current = 1
+    lastPointRef.current = point
+    drawingActiveRef.current = true
+    activeStrokeStyleRef.current = { color: markerColor, width: markerWidth }
+    setActivePath(path)
+  }, [markerColor, markerWidth, pointFromEvent])
 
-        activeStrokeRef.current = [...activeStrokeRef.current, point]
-        lastPointRef.current = point
-        setActiveStroke(activeStrokeRef.current)
-      },
-      onPanResponderRelease: finishPracticeStroke,
-      onPanResponderTerminate: finishPracticeStroke,
-    })
+  const movePracticeStroke = useCallback((event: GestureResponderEvent) => {
+    if (!drawingActiveRef.current) return
 
-    setPracticePanHandlers(responder.panHandlers)
-  }, [finishPracticeStroke, pointFromEvent])
+    const point = pointFromEvent(event)
+    const lastPoint = lastPointRef.current
+    if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 2.5) return
+
+    activePathRef.current = `${activePathRef.current} L ${point.x} ${point.y}`
+    activePointCountRef.current += 1
+    lastPointRef.current = point
+    setActivePath(activePathRef.current)
+  }, [pointFromEvent])
 
   const undoPracticeStroke = useCallback(() => {
     setPracticeStrokes((current) => current.slice(0, -1))
   }, [])
 
   const clearPracticeStrokes = useCallback(() => {
-    activeStrokeRef.current = []
+    activePathRef.current = ''
+    activePointCountRef.current = 0
     lastPointRef.current = null
-    setActiveStroke([])
+    drawingActiveRef.current = false
+    setActivePath('')
     setPracticeStrokes([])
+  }, [])
+
+  const lightenGuide = useCallback(() => {
+    setGuideOpacity((current) => clamp(current - 0.06, 0.1, 0.55))
+  }, [])
+
+  const darkenGuide = useCallback(() => {
+    setGuideOpacity((current) => clamp(current + 0.06, 0.1, 0.55))
   }, [])
 
   return (
@@ -612,12 +669,60 @@ function PracticeScreen({
       <View style={styles.practiceStageCard}>
         <View style={styles.practiceStageIntro}>
           <Text style={styles.practiceStageEyebrow}>Finger or stylus</Text>
-          <Text style={styles.practiceStageTitle}>Trace directly on the screen.</Text>
-          <Text style={styles.practiceStageCopy}>Follow the light guide underneath. Clear or undo anytime without changing the original picture.</Text>
+          <Text style={styles.practiceStageTitle}>Trace, then color it in.</Text>
+          <Text style={styles.practiceStageCopy}>Follow the light guide, switch marker colors, then add color like a tiny coloring book.</Text>
         </View>
 
-        <View style={styles.practiceCanvas} onLayout={handleCanvasLayout} {...(practicePanHandlers ?? {})}>
-          <View style={styles.practiceGuide} pointerEvents="none">
+        <View style={styles.practiceOptionsPanel}>
+          <View style={styles.practiceOptionGroup}>
+            <Text style={styles.practiceOptionLabel}>Marker</Text>
+            <View style={styles.colorSwatches}>
+              {markerColors.map((color) => (
+                <Pressable
+                  key={color}
+                  style={[styles.colorSwatch, { backgroundColor: color }, markerColor === color && styles.colorSwatchActive]}
+                  onPress={() => setMarkerColor(color)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use marker color ${color}`}
+                />
+              ))}
+            </View>
+          </View>
+          <View style={styles.practiceOptionGroup}>
+            <Text style={styles.practiceOptionLabel}>Brush</Text>
+            <View style={styles.practiceSegmentedRow}>
+              <Pressable style={[styles.practiceMiniButton, markerWidth === 5 && styles.practiceMiniButtonActive]} onPress={() => setMarkerWidth(5)} accessibilityRole="button">
+                <Text style={[styles.practiceMiniButtonText, markerWidth === 5 && styles.practiceMiniButtonTextActive]}>Thin</Text>
+              </Pressable>
+              <Pressable style={[styles.practiceMiniButton, markerWidth === 10 && styles.practiceMiniButtonActive]} onPress={() => setMarkerWidth(10)} accessibilityRole="button">
+                <Text style={[styles.practiceMiniButtonText, markerWidth === 10 && styles.practiceMiniButtonTextActive]}>Color</Text>
+              </Pressable>
+            </View>
+          </View>
+          <View style={styles.practiceOptionGroup}>
+            <Text style={styles.practiceOptionLabel}>Guide</Text>
+            <View style={styles.practiceSegmentedRow}>
+              <Pressable style={styles.practiceMiniButton} onPress={lightenGuide} accessibilityRole="button">
+                <Text style={styles.practiceMiniButtonText}>Less</Text>
+              </Pressable>
+              <Pressable style={styles.practiceMiniButton} onPress={darkenGuide} accessibilityRole="button">
+                <Text style={styles.practiceMiniButtonText}>More</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        <View
+          style={styles.practiceCanvas}
+          onLayout={handleCanvasLayout}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          onResponderGrant={startPracticeStroke}
+          onResponderMove={movePracticeStroke}
+          onResponderRelease={finishPracticeStroke}
+          onResponderTerminate={finishPracticeStroke}
+        >
+          <View style={[styles.practiceGuide, { opacity: guideOpacity }]} pointerEvents="none">
             {uploadedImage ? (
               <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
             ) : (
@@ -632,10 +737,10 @@ function PracticeScreen({
             style={styles.practiceInkLayer}
           >
             {practiceStrokes.map((stroke, index) => (
-              <Path key={`stroke-${index}`} d={pointsToPath(stroke)} stroke={palette.ink} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              <Path key={`stroke-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />
             ))}
-            {activeStroke.length > 0 && (
-              <Path d={pointsToPath(activeStroke)} stroke={palette.coral} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            {activePath && (
+              <Path d={activePath} stroke={markerColor} strokeWidth={markerWidth} strokeLinecap="round" strokeLinejoin="round" fill="none" />
             )}
           </Svg>
         </View>
@@ -815,6 +920,51 @@ const styles = StyleSheet.create({
     color: palette.muted,
     fontSize: 13,
     marginTop: 3,
+  },
+  customTextCard: {
+    marginTop: 14,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#FFFDF8',
+    padding: 12,
+    gap: 10,
+  },
+  customTextCopy: {
+    gap: 3,
+  },
+  customTextTitle: {
+    color: palette.ink,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  customTextSmall: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  customTextInput: {
+    minHeight: 48,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '800',
+    paddingHorizontal: 12,
+  },
+  customTextButton: {
+    minHeight: 46,
+    borderRadius: 17,
+    backgroundColor: palette.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customTextButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
   },
   traceSurfaceSwitch: {
     flexDirection: 'row',
@@ -1047,6 +1197,64 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: 6,
   },
+  practiceOptionsPanel: {
+    borderRadius: 24,
+    backgroundColor: palette.paper,
+    padding: 10,
+    gap: 10,
+    marginBottom: 12,
+  },
+  practiceOptionGroup: {
+    gap: 8,
+  },
+  practiceOptionLabel: {
+    color: palette.ink,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  colorSwatches: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  colorSwatch: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.9)',
+  },
+  colorSwatchActive: {
+    borderColor: palette.ink,
+    transform: [{ scale: 1.08 }],
+  },
+  practiceSegmentedRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  practiceMiniButton: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 14,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  practiceMiniButtonActive: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  practiceMiniButtonText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  practiceMiniButtonTextActive: {
+    color: '#FFFFFF',
+  },
   practiceCanvas: {
     flex: 1,
     minHeight: 340,
@@ -1064,7 +1272,6 @@ const styles = StyleSheet.create({
     left: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    opacity: 0.24,
   },
   practiceGuideImage: {
     width: '100%',

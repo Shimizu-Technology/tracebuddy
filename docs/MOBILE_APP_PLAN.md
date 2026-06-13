@@ -74,6 +74,8 @@ The first mobile app should be intentionally small and reliable:
 - Upload/select a local image from the device photo library.
 - Native camera trace mode.
 - On-screen practice mode for finger/stylus tracing over the selected guide.
+- Custom word/name/phrase tracing using the same local guide pipeline.
+- Marker color and brush-size controls for tracing and coloring.
 - Manual overlay controls:
   - move by dragging when unlocked
   - nudge controls

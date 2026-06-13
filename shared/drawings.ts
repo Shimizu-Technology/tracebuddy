@@ -11,6 +11,61 @@ export type Drawing = {
   svg: string
 }
 
+const SVG_TEXT_LIMIT = 48
+
+function escapeSvgText(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+export function sanitizeTraceText(value: string) {
+  return value.replace(/\s+/g, ' ').trim().slice(0, SVG_TEXT_LIMIT)
+}
+
+function splitTraceText(value: string) {
+  const safeText = sanitizeTraceText(value)
+  if (!safeText) return []
+
+  const words = safeText.split(' ')
+  const lines: string[] = []
+  let currentLine = ''
+
+  for (const word of words) {
+    const nextLine = currentLine ? `${currentLine} ${word}` : word
+    if (nextLine.length <= 13 || currentLine.length === 0) {
+      currentLine = nextLine
+    } else {
+      lines.push(currentLine)
+      currentLine = word
+    }
+  }
+
+  if (currentLine) lines.push(currentLine)
+  return lines.slice(0, 3)
+}
+
+export function createTextDrawing(value: string): Drawing {
+  const lines = splitTraceText(value)
+  const safeName = lines.join(' ') || 'My words'
+  const lineHeight = lines.length > 1 ? 82 : 96
+  const startY = 210 - ((lines.length - 1) * lineHeight) / 2
+  const fontSize = lines.length > 1 ? 64 : 78
+  const text = lines.map((line, index) => `<text x="210" y="${startY + index * lineHeight}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="4" fill="none" stroke="#18243a" stroke-width="2.6" stroke-linejoin="round">${escapeSvgText(line)}</text>`).join('')
+
+  return {
+    id: `custom-text-${safeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'words'}`,
+    name: safeName.length > 24 ? `${safeName.slice(0, 21)}...` : safeName,
+    theme: 'Custom words',
+    category: 'letters',
+    difficulty: 'Starter',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none"><path d="M68 300H352" stroke="#18243a" stroke-width="10" stroke-linecap="round" opacity="0.34"/><path d="M68 324H352" stroke="#18243a" stroke-width="4" stroke-linecap="round" opacity="0.2"/>${text}</svg>`,
+  }
+}
+
 export const drawingCategories: Array<{ id: 'all' | DrawingCategoryId; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'starters', label: 'Starters' },
@@ -94,7 +149,7 @@ export const drawings: Drawing[] = [
     theme: 'Big shapes',
     category: 'animals',
     difficulty: 'Medium',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M112 218c0-77 52-136 120-136 65 0 111 51 111 118 0 53-30 95-73 110"/><path d="M154 154c-52-30-95-16-124 40 31 49 78 61 128 28"/><path d="M287 138c43-35 82-38 118-9-9 48-42 72-99 72"/><path d="M260 284c-4 54-30 85-78 93-33-38-24-77 26-116"/><path d="M221 196c24 33 32 75 24 126"/><circle cx="246" cy="160" r="5" fill="#18243a" stroke="none"/><path d="M116 306v58M318 286v78"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M118 220c0-78 55-137 128-137 64 0 111 48 111 115 0 63-43 111-103 118"/><path d="M161 164c-54-36-98-26-132 30 31 52 81 67 137 31"/><path d="M326 176c37 7 60 29 69 66-28 25-61 27-98 5"/><path d="M241 211c30 34 37 79 19 135-39-5-61-30-65-74"/><circle cx="269" cy="162" r="5" fill="#18243a" stroke="none"/><path d="M113 311v57M316 293v75"/><path d="M144 349h44M289 349h44"/></svg>`,
   },
   {
     id: 'panda',
@@ -110,7 +165,7 @@ export const drawings: Drawing[] = [
     theme: 'Animal friend',
     category: 'animals',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M120 260c-16-59 23-110 89-110h84c48 0 82 33 82 80 0 64-55 108-136 108-61 0-104-27-119-78Z"/><path d="M185 155c-18-44-7-82 34-114 35 32 43 69 22 111"/><path d="M275 195c47-23 83-19 109 12-25 31-61 35-109 12"/><circle cx="238" cy="181" r="5" fill="#18243a" stroke="none"/><path d="M80 326c70 20 143 20 220 0"/><path d="M41 351c93 25 200 25 321 0"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M93 269c14-72 71-116 149-116h43c51 0 88 34 88 81 0 64-58 108-145 108-65 0-112-27-135-73Z"/><path d="M164 158c-9-50 13-91 66-122 37 42 39 83 6 122"/><path d="M276 199c48-25 86-21 114 12-27 34-65 38-114 13"/><circle cx="240" cy="181" r="5" fill="#18243a" stroke="none"/><path d="M91 333c74 23 149 23 224 0"/><path d="M49 361c102 26 207 26 315 0"/></svg>`,
   },
   {
     id: 'curly-snail',
@@ -118,7 +173,7 @@ export const drawings: Drawing[] = [
     theme: 'Loops',
     category: 'animals',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M75 283c47 38 112 53 195 45 59-6 97-35 114-88"/><path d="M129 277c-4-88 43-150 113-150 61 0 105 43 105 98 0 51-38 88-87 88-43 0-74-28-74-65 0-32 24-55 54-55 26 0 45 18 45 41 0 20-15 34-34 34"/><path d="M292 168c20-56 50-85 91-87"/><path d="M331 169c23-35 49-51 79-47"/><circle cx="382" cy="81" r="5" fill="#18243a" stroke="none"/><circle cx="410" cy="122" r="5" fill="#18243a" stroke="none"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M55 301c50 35 118 50 205 45 64-4 106-34 126-89"/><path d="M129 281c0-83 51-144 121-144 57 0 99 39 99 92 0 49-36 84-84 84-42 0-72-27-72-63 0-31 23-53 52-53 24 0 42 17 42 39 0 18-14 31-32 31"/><path d="M301 183c20-56 49-87 88-92"/><path d="M336 185c21-37 46-56 75-56"/><circle cx="389" cy="91" r="5" fill="#18243a" stroke="none"/><circle cx="411" cy="129" r="5" fill="#18243a" stroke="none"/></svg>`,
   },
   {
     id: 'island-turtle',
@@ -126,7 +181,7 @@ export const drawings: Drawing[] = [
     theme: 'Ocean friend',
     category: 'ocean',
     difficulty: 'Detailed',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M139 211c0-73 48-127 113-127 61 0 106 49 106 113 0 66-49 118-112 118-64 0-107-43-107-104Z"/><path d="M247 88c-21 28-33 68-33 119 0 47 12 85 34 106"/><path d="M143 209c58-18 128-17 211 2"/><path d="M184 116c27 21 46 52 55 93"/><path d="M315 117c-26 21-44 51-53 92"/><path d="M135 200c-25-23-56-28-78-12-18 13-21 38-7 55 18 22 56 14 85-43Z"/><path d="M323 112c13-35 42-51 69-39 18 8 27 28 20 46-10 26-48 27-89-7Z"/><path d="M121 296l-36 43"/><path d="M161 320l-16 54"/><path d="M331 293l38 39"/><path d="M295 321l19 52"/><circle cx="385" cy="98" r="4" fill="#18243a" stroke="none"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M128 217c0-67 49-117 116-117s116 50 116 117-49 117-116 117-116-50-116-117Z"/><path d="M244 102c-23 30-35 68-35 115s12 85 35 115"/><path d="M132 217c69-21 143-21 224 0"/><path d="M178 126c34 29 55 59 63 91M310 126c-34 29-55 59-63 91"/><path d="M127 204c-30-29-63-35-89-16-17 13-20 38-5 55 21 24 60 13 94-39Z"/><path d="M341 132c20-37 51-49 76-29 15 13 14 36-2 50-20 18-48 10-74-21Z"/><path d="M127 294l-49 41M169 326l-23 54M329 294l50 41M289 326l24 54"/><circle cx="383" cy="126" r="5" fill="#18243a" stroke="none"/></svg>`,
   },
   {
     id: 'friendly-fish',
@@ -134,7 +189,7 @@ export const drawings: Drawing[] = [
     theme: 'Ocean friend',
     category: 'ocean',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M79 213c54-70 134-94 238-72 34 7 60 30 78 68-18 38-44 61-78 68-104 22-184-2-238-72Z"/><path d="M80 213c-32-37-58-49-78-36 15 40 41 52 78 36Z"/><path d="M80 213c-32 37-58 49-78 36 15-40 41-52 78-36Z"/><circle cx="296" cy="190" r="6" fill="#18243a" stroke="none"/><path d="M236 161c-20 31-29 66-26 104"/><path d="M160 165c25 26 41 57 48 95"/><path d="M105 333c63 20 135 21 216 4"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M74 213c55-66 132-91 232-75 41 7 73 32 96 75-23 43-55 68-96 75-100 16-177-9-232-75Z"/><path d="M74 213c-35-34-62-43-82-27 17 36 45 45 82 27Z"/><path d="M74 213c-35 34-62 43-82 27 17-36 45-45 82-27Z"/><circle cx="300" cy="190" r="6" fill="#18243a" stroke="none"/><path d="M238 157c-19 34-25 71-17 112"/><path d="M163 164c22 28 35 61 38 98"/><path d="M120 323c58 18 126 19 205 2"/></svg>`,
   },
   {
     id: 'seahorse',
@@ -142,7 +197,7 @@ export const drawings: Drawing[] = [
     theme: 'Ocean friend',
     category: 'ocean',
     difficulty: 'Medium',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M246 87c-58-19-102 4-129 68 37-15 65-14 85 3-41 14-62 42-62 83 0 45 30 77 73 77 39 0 67-27 67-64 0-32-22-53-52-53"/><path d="M249 88c45 18 67 50 67 96 0 53-30 88-89 105"/><path d="M238 314c23 28 18 53-13 75-31-20-37-45-17-75"/><path d="M181 118c-18-27-38-40-59-38"/><circle cx="250" cy="132" r="5" fill="#18243a" stroke="none"/><path d="M286 169h69"/><path d="M292 203h52"/><path d="M176 247c30 13 62 13 97 0"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M248 72c-70-14-119 17-147 91 39-17 72-15 99 7-42 12-67 41-67 82 0 48 34 82 82 82 45 0 77-30 77-72 0-35-25-59-59-59"/><path d="M248 72c50 20 77 59 77 112 0 59-36 99-107 119"/><path d="M230 326c24 30 17 59-21 86-35-26-41-54-18-86"/><path d="M178 114c-21-29-45-43-72-40"/><circle cx="252" cy="129" r="5" fill="#18243a" stroke="none"/><path d="M291 169h72M296 204h54"/><path d="M177 254c32 14 66 14 102 0"/></svg>`,
   },
   {
     id: 'starfish',
@@ -158,7 +213,7 @@ export const drawings: Drawing[] = [
     theme: 'Ocean friend',
     category: 'ocean',
     difficulty: 'Medium',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M120 240c0-54 39-93 90-93s90 39 90 93c0 50-39 84-90 84s-90-34-90-84Z"/><path d="M149 161c-16-44-45-63-87-57-14 44 4 74 54 88"/><path d="M271 161c16-44 45-63 87-57 14 44-4 74-54 88"/><path d="M128 261H54M135 296H74M292 261h74M285 296h61"/><path d="M174 219c12 10 25 10 37 0"/><path d="M209 219c12 10 25 10 37 0"/><path d="M171 260c27 22 51 22 78 0"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M116 244c0-55 41-96 94-96s94 41 94 96c0 51-41 87-94 87s-94-36-94-87Z"/><path d="M143 161c-18-48-51-68-95-60-17 47 2 81 57 98"/><path d="M277 161c18-48 51-68 95-60 17 47-2 81-57 98"/><path d="M130 266H56M137 301H72M290 266h74M283 301h61"/><path d="M174 222c13 10 26 10 39 0M207 222c13 10 26 10 39 0"/><path d="M170 268c27 22 53 22 80 0"/></svg>`,
   },
   {
     id: 'tiny-whale',
@@ -166,7 +221,7 @@ export const drawings: Drawing[] = [
     theme: 'Ocean friend',
     category: 'ocean',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M61 226c47-70 116-101 207-91 74 8 118 48 132 120-53 48-119 67-199 58-75-8-122-37-140-87Z"/><path d="M110 213c-33-45-64-61-92-48 8 43 38 59 92 48Z"/><path d="M258 135c9-51 35-78 79-82 14 44-4 73-53 88"/><path d="M245 136c-18-43-12-76 18-100 31 30 33 63 6 99"/><circle cx="303" cy="207" r="6" fill="#18243a" stroke="none"/><path d="M276 241c24 12 47 12 71 0"/><path d="M92 346c76 20 163 21 261 2"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M57 236c51-70 122-101 214-91 73 8 116 47 129 117-54 47-121 65-201 56-73-9-120-36-142-82Z"/><path d="M105 221c-35-43-66-57-92-43 9 40 39 54 92 43Z"/><path d="M266 145c7-51 32-80 75-87 16 42 0 73-49 93"/><path d="M252 147c-20-42-16-75 13-101 33 27 37 60 12 98"/><path d="M296 210c23 12 45 12 68 0"/><circle cx="306" cy="195" r="5" fill="#18243a" stroke="none"/><path d="M94 345c78 20 165 21 262 3"/></svg>`,
   },
   {
     id: 'octopus',
@@ -190,7 +245,7 @@ export const drawings: Drawing[] = [
     theme: 'Magic',
     category: 'magic',
     difficulty: 'Detailed',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M153 303c-27-32-31-72-8-110 20-34 54-54 98-62 40-7 77 7 102 39 23 29 28 67 14 106-17 48-60 76-111 74-38-1-70-17-95-47Z"/><path d="M233 130c-5-42 8-78 39-108 19 36 18 72-4 108"/><path d="M280 126c31-25 62-33 94-23-11 28-36 49-72 62"/><path d="M161 202c-39-3-70 7-94 30 30 13 61 12 94-2"/><path d="M219 181c35 12 65 34 88 67"/><path d="M202 237c34-3 66 6 96 28"/><path d="M177 296c35 12 72 14 112 4"/><circle cx="306" cy="191" r="5" fill="#18243a" stroke="none"/><path d="M327 229c13 8 26 9 39 4"/><path d="M109 112c18-6 33-3 45 10"/><path d="M91 160c19-17 39-22 61-15"/><path d="M77 280c27-13 52-10 74 8"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M115 284c28-86 88-136 180-150 52-8 91 13 111 62-25 62-76 96-151 101"/><path d="M178 197c-47-14-86-5-117 27 28 30 65 36 111 18"/><path d="M259 133c-12-48 0-88 39-120 22 39 18 78-13 118"/><path d="M309 139c29-26 60-36 93-29-9 33-33 57-73 70"/><circle cx="321" cy="189" r="5" fill="#18243a" stroke="none"/><path d="M339 228c18 9 35 9 52 0"/><path d="M189 230c34 15 67 38 98 69"/><path d="M160 279c38 25 82 35 132 30"/><path d="M126 133c20-10 38-8 54 7M102 176c24-17 48-20 73-9M82 314c31-13 60-8 87 14"/></svg>`,
   },
   {
     id: 'fairy-wand',
@@ -198,7 +253,7 @@ export const drawings: Drawing[] = [
     theme: 'Magic',
     category: 'magic',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M104 348 278 174"/><path d="M286 42 310 112l74 2-58 45 20 72-61-40-63 40 22-72-58-45 73-2 27-70Z"/><path d="M80 125l27 27M106 98l-26 26M54 264h47M78 240v48M320 306l34 34M354 306l-34 34"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M82 358 268 172"/><path d="M290 38 318 113l80 4-62 50 20 78-66-43-68 43 22-78-62-50 80-4 28-75Z"/><path d="M73 132l30 30M103 102l-30 30M50 260h50M75 235v50M319 310l34 34M353 310l-34 34"/></svg>`,
   },
   {
     id: 'storybook-castle',
@@ -214,7 +269,7 @@ export const drawings: Drawing[] = [
     theme: 'Magic',
     category: 'magic',
     difficulty: 'Detailed',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M92 261c36-81 94-121 174-120 55 1 94 29 116 84-38 53-90 73-157 60"/><path d="M136 216c-35-39-72-49-111-30 11 50 45 69 103 57"/><path d="M226 142c-33-42-38-79-15-113 45 20 61 56 47 109"/><path d="M278 149c23-38 56-55 97-49-5 44-33 68-82 72"/><circle cx="318" cy="196" r="5" fill="#18243a" stroke="none"/><path d="M342 229c18 9 36 9 54 0"/><path d="M171 283l-29 73M231 288l5 78M286 275l35 66"/><path d="M151 179c28 22 49 51 64 87"/><path d="M203 166c29 20 50 48 64 84"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M92 260c35-76 93-113 174-111 56 2 95 31 117 86-39 52-91 71-158 57"/><path d="M139 219c-35-38-73-47-113-27 12 50 47 68 104 55"/><path d="M218 150c-34-42-40-79-18-114 46 19 63 55 50 108"/><path d="M281 158c24-38 57-54 98-47-6 44-34 67-83 70"/><path d="M312 207c25 4 47 17 65 39-30 20-59 19-87-4"/><circle cx="322" cy="196" r="5" fill="#18243a" stroke="none"/><path d="M165 286l-32 72M226 292l5 76M290 276l38 66"/><path d="M151 183c27 22 48 51 63 87M202 171c29 20 50 48 64 84"/></svg>`,
   },
   {
     id: 'royal-crown',
@@ -230,7 +285,7 @@ export const drawings: Drawing[] = [
     theme: 'Magic',
     category: 'magic',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M74 260c0-74 60-134 136-134s136 60 136 134"/><path d="M112 260c0-53 44-96 98-96s98 43 98 96"/><path d="M150 260c0-32 27-58 60-58s60 26 60 58"/><path d="M106 298c-39 0-63-22-63-51 0-27 22-47 51-45 12-34 44-55 82-47 20-31 60-40 91-20 23 15 35 38 34 65 42 0 76 28 76 64 0 35-31 62-72 62H106Z"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M79 263c0-76 59-137 131-137s131 61 131 137"/><path d="M118 263c0-54 41-98 92-98s92 44 92 98"/><path d="M157 263c0-33 24-60 53-60s53 27 53 60"/><path d="M97 305c-40 0-65-23-65-53 0-29 24-50 55-47 14-36 49-58 88-49 20-32 62-41 94-19 23 16 35 40 33 68 46 0 83 30 83 68 0 36-32 63-75 63H97Z"/></svg>`,
   },
   {
     id: 'rocket-ship',
@@ -238,7 +293,7 @@ export const drawings: Drawing[] = [
     theme: 'Vehicles',
     category: 'vehicles',
     difficulty: 'Medium',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M236 41c-73 40-118 103-136 190l89 89c87-18 150-63 190-136-8-64-43-100-107-107Z"/><circle cx="267" cy="153" r="31"/><path d="M128 210 56 236l70 26"/><path d="M210 292l-26 72 70-70"/><path d="M120 302c-37 11-63 37-78 76 40-15 66-41 78-76Z"/><path d="M178 101c43 2 78 17 105 44"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M210 36c61 45 91 105 91 181 0 55-26 104-91 147-65-43-91-92-91-147 0-76 30-136 91-181Z"/><circle cx="210" cy="156" r="35"/><path d="M132 246 72 304l72 12M288 246l60 58-72 12"/><path d="M184 350c-22 24-32 49-31 75M236 350c22 24 32 49 31 75"/><path d="M184 236h52M174 286h72"/></svg>`,
   },
   {
     id: 'race-car',
@@ -246,7 +301,7 @@ export const drawings: Drawing[] = [
     theme: 'Vehicles',
     category: 'vehicles',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M63 253c20-55 56-87 107-96h92c49 10 82 42 99 96v49H63v-49Z"/><path d="M142 158l37-54h78l35 54"/><path d="M179 104v54"/><path d="M257 104v54"/><circle cx="133" cy="302" r="34"/><circle cx="292" cy="302" r="34"/><path d="M83 240h46M295 240h48"/><path d="M178 214h79"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M52 258c23-54 63-85 120-94h98c51 9 85 40 102 94v44H52v-44Z"/><path d="M133 167l43-55h84l42 55"/><path d="M176 112v55M260 112v55"/><circle cx="130" cy="304" r="34"/><circle cx="296" cy="304" r="34"/><path d="M72 250h54M300 250h58M176 221h82"/><path d="M190 167h78"/></svg>`,
   },
   {
     id: 'airplane',
@@ -254,15 +309,15 @@ export const drawings: Drawing[] = [
     theme: 'Vehicles',
     category: 'vehicles',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M38 222 378 79c19-8 35 12 24 30L214 390l-44-127-132-41Z"/><path d="M170 263 378 79"/><path d="M214 390l-8-154"/><path d="M38 222l132 41"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M48 226c70-42 154-65 252-68 49-1 87 22 102 61-33 30-78 45-136 43-78-2-151-14-218-36Z"/><path d="M190 256l-76 83h74l88-76"/><path d="M200 164l-77-75h75l82 70"/><path d="M332 164l34-58h43l-20 88"/><path d="M101 222l-53 45"/><path d="M151 204h18M199 194h18M247 187h18"/></svg>`,
   },
   {
     id: 'delivery-truck',
-    name: 'Little Truck',
+    name: 'Little Pickup',
     theme: 'Vehicles',
     category: 'vehicles',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M55 165h204v122H55z"/><path d="M259 204h63l43 48v35H259"/><path d="M286 204v48h79"/><circle cx="122" cy="294" r="31"/><circle cx="309" cy="294" r="31"/><path d="M92 132h103"/><path d="M63 132h6"/><path d="M31 287h31"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M58 222h165v82H58z"/><path d="M223 182h82l55 65v57H223z"/><path d="M253 201v48h98"/><path d="M58 222l28-46h101l36 46"/><circle cx="126" cy="308" r="34"/><circle cx="307" cy="308" r="34"/><path d="M29 304h58M160 304h108M341 304h49"/></svg>`,
   },
   {
     id: 'sailboat',
@@ -278,7 +333,7 @@ export const drawings: Drawing[] = [
     theme: 'Vehicles',
     category: 'vehicles',
     difficulty: 'Medium',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M90 284h162c49 0 78-26 86-78"/><path d="M190 284l44-91h84"/><path d="M318 193l-38-72h62"/><path d="M342 121h38"/><circle cx="110" cy="299" r="42"/><circle cx="314" cy="299" r="42"/><path d="M123 214h80"/><path d="M153 214c0 36-17 59-51 69"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><circle cx="111" cy="309" r="39"/><circle cx="314" cy="309" r="39"/><path d="M111 309h129c45 0 75-25 83-75"/><path d="M169 309l61-112h82"/><path d="M312 197l-32-72h63"/><path d="M343 125h42"/><path d="M93 244h92"/><path d="M144 244c2 34-10 55-37 64"/></svg>`,
   },
   {
     id: 'abc-practice',
@@ -286,7 +341,7 @@ export const drawings: Drawing[] = [
     theme: 'Letters',
     category: 'letters',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M70 254 112 128l42 126"/><path d="M86 209h52"/><path d="M186 128v126h51c31 0 48-15 48-36 0-19-15-33-43-33h-56"/><path d="M186 128h48c28 0 44 13 44 32 0 18-15 31-40 31h-52"/><path d="M350 151c-15-16-35-24-59-24-44 0-75 28-75 65s31 65 75 65c24 0 44-8 59-24"/><path d="M61 303h298"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none"><text x="210" y="242" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="116" font-weight="700" letter-spacing="18" fill="none" stroke="#18243a" stroke-width="4.2" stroke-linejoin="round">ABC</text><path d="M64 304H356" stroke="#18243a" stroke-width="10" stroke-linecap="round"/></svg>`,
   },
   {
     id: 'numbers-123',
@@ -294,7 +349,7 @@ export const drawings: Drawing[] = [
     theme: 'Numbers',
     category: 'letters',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M103 151 137 128v126"/><path d="M93 254h88"/><path d="M210 151c16-18 42-25 64-14 21 10 31 33 22 54-7 17-25 32-76 63h89"/><path d="M324 139h72l-45 45c33 1 55 16 55 38 0 25-25 42-60 42-21 0-39-6-54-18"/><path d="M61 303h298"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none"><text x="210" y="242" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="122" font-weight="650" letter-spacing="16" fill="none" stroke="#18243a" stroke-width="4.2" stroke-linejoin="round">123</text><path d="M64 304H356" stroke="#18243a" stroke-width="10" stroke-linecap="round"/></svg>`,
   },
   {
     id: 'big-heart-word',
@@ -302,7 +357,7 @@ export const drawings: Drawing[] = [
     theme: 'Letters',
     category: 'letters',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M210 315C108 241 64 196 70 139c4-42 37-72 78-72 29 0 52 14 62 39 10-25 33-39 62-39 41 0 74 30 78 72 6 57-38 102-140 176Z"/><path d="M108 222v-70"/><path d="M108 222h34"/><circle cx="179" cy="187" r="36"/><path d="M229 152l30 70 30-70"/><path d="M343 152h-39v70h39"/><path d="M304 187h34"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M210 328C111 254 64 207 69 143c4-43 38-74 80-74 29 0 51 13 61 38 10-25 32-38 61-38 42 0 76 31 80 74 5 64-42 111-141 185Z"/><text x="210" y="227" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="68" font-weight="700" letter-spacing="8" fill="none" stroke="#18243a" stroke-width="3.2" stroke-linejoin="round">LOVE</text></svg>`,
   },
   {
     id: 'name-banner',
@@ -322,11 +377,11 @@ export const drawings: Drawing[] = [
   },
   {
     id: 'palm-island',
-    name: 'Palm Island',
+    name: 'Coconut Tree',
     theme: 'Guam island',
     category: 'island',
     difficulty: 'Medium',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M213 337c5-88 8-153 8-195"/><path d="M221 142c-45-51-95-64-150-39 45 44 95 57 150 39Z"/><path d="M221 142c-18-65 1-110 57-136 19 60 0 105-57 136Z"/><path d="M221 142c54-45 109-51 166-18-51 38-106 44-166 18Z"/><path d="M221 142c13 54 44 88 93 103 7-53-24-87-93-103Z"/><path d="M102 345c62-31 135-31 220 0"/><path d="M60 374c89-31 190-31 303 0"/><path d="M170 337c-4-38-19-68-45-90"/><path d="M263 337c8-39 27-68 56-87"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M207 344c12-83 20-148 24-195"/><path d="M232 149c-45-45-93-53-146-24 42 34 91 42 146 24Z"/><path d="M232 149c-16-58 4-101 61-128 14 56-6 99-61 128Z"/><path d="M232 149c55-37 110-37 164 1-50 29-105 29-164-1Z"/><path d="M232 149c21 48 55 77 103 86 0-49-34-78-103-86Z"/><path d="M203 220c20 11 39 10 58-2M194 257c21 10 42 9 63-3M185 296c23 9 45 8 67-4"/><circle cx="225" cy="170" r="14"/><circle cx="254" cy="164" r="14"/><circle cx="239" cy="191" r="14"/><path d="M94 345c68-27 145-27 232 0"/><path d="M56 374c91-28 194-28 308 0"/></svg>`,
   },
   {
     id: 'hibiscus',
@@ -334,7 +389,7 @@ export const drawings: Drawing[] = [
     theme: 'Guam island',
     category: 'island',
     difficulty: 'Medium',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle cx="210" cy="205" r="33"/><path d="M210 172c-37-57-30-105 22-145 34 54 27 102-22 145Z"/><path d="M241 195c56-39 104-34 144 17-55 35-103 29-144-17Z"/><path d="M229 232c58 34 71 80 39 138-51-39-64-85-39-138Z"/><path d="M191 232c-59 34-105 24-139-30 60-27 106-17 139 30Z"/><path d="M179 195c-67-3-101-32-102-87 61 4 95 33 102 87Z"/><path d="M233 220c42 31 74 68 96 112"/><path d="M282 284c35-3 62 10 82 39-34 10-62-3-82-39Z"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle cx="210" cy="210" r="31"/><path d="M210 179c-45-50-45-100 0-150 45 50 45 100 0 150Z"/><path d="M240 200c57-34 106-24 147 30-58 29-107 19-147-30Z"/><path d="M230 238c39 55 31 104-25 147-29-59-20-108 25-147Z"/><path d="M190 238c-45 49-94 54-146 15 48-43 98-48 146-15Z"/><path d="M180 200c-64-16-94-55-89-119 61 20 91 60 89 119Z"/><path d="M230 220c44 25 78 60 102 105"/><path d="M289 286c33-3 59 9 78 36-33 10-59-2-78-36Z"/><circle cx="337" cy="334" r="5" fill="#18243a" stroke="none"/></svg>`,
   },
   {
     id: 'proa-canoe',
@@ -358,7 +413,7 @@ export const drawings: Drawing[] = [
     theme: 'Seasonal',
     category: 'seasonal',
     difficulty: 'Starter',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M210 141c-27-39-16-72 33-98"/><path d="M120 197c0-55 37-94 90-94s90 39 90 94c0 75-37 126-90 126s-90-51-90-126Z"/><path d="M96 213c0-53 31-91 74-91"/><path d="M324 213c0-53-31-91-74-91"/><path d="M156 199l38 28-48 13"/><path d="M264 199l-38 28 48 13"/><path d="M161 277c32 21 66 21 100 0"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M210 122c-22-30-15-62 27-91"/><path d="M237 31c27 18 32 44 14 76"/><path d="M210 126c-71 0-126 45-126 112 0 69 52 116 126 116s126-47 126-116c0-67-55-112-126-112Z"/><path d="M170 134c-35 25-55 62-55 104 0 47 25 87 65 108"/><path d="M250 134c35 25 55 62 55 104 0 47-25 87-65 108"/><path d="M210 128c-22 31-33 68-33 110 0 46 12 85 33 114 21-29 33-68 33-114 0-42-11-79-33-110Z"/><path d="M151 246c39 24 79 24 118 0"/><path d="M274 102c30-16 57-16 80 0"/></svg>`,
   },
   {
     id: 'snowflake',
@@ -366,7 +421,7 @@ export const drawings: Drawing[] = [
     theme: 'Seasonal',
     category: 'seasonal',
     difficulty: 'Medium',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M210 46v328M68 128l284 164M68 292l284-164"/><path d="M172 82l38 38 38-38"/><path d="M172 338l38-38 38 38"/><path d="M95 106l52 14-14-52"/><path d="M325 314l-52-14 14 52"/><path d="M95 314l38-38-52-14"/><path d="M325 106l-38 38 52 14"/><circle cx="210" cy="210" r="24"/></svg>`,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 420" fill="none" stroke="#18243a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M210 50v320M71 130l278 160M71 290l278-160"/><path d="m169 88 41 41 41-41M169 332l41-41 41 41"/><path d="m99 112 56 15-15-56M321 308l-56-15 15 56"/><path d="m99 308 41-41-56-15M321 112l-41 41 56 15"/><path d="m210 130-35 35M210 130l35 35M210 290l-35-35M210 290l35-35"/><circle cx="210" cy="210" r="18"/></svg>`,
   },
   {
     id: 'heart-balloons',

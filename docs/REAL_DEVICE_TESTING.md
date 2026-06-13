@@ -56,6 +56,7 @@ Pass if the app feels usable without zooming or layout glitches.
 - Scroll through the larger template library.
 - Try category filters such as Animals, Ocean, Magic, Vehicles, Letters, Island, and Seasonal.
 - Confirm Upload your own remains easy to find.
+- Type a custom name/word/phrase and confirm it opens in the selected camera or screen mode.
 
 Pass if browsing feels quick and templates are easy to scan without zooming.
 
@@ -96,6 +97,7 @@ Pass if at least one cleanup mode makes a real family photo easier to trace with
 - In the picker, choose On-screen practice.
 - Open a built-in drawing.
 - Trace over the light guide with a finger, stylus, or mouse.
+- Switch marker colors and brush sizes, then color inside the guide.
 - Use Undo and Clear.
 - Switch back to Camera trace.
 
@@ -197,6 +199,7 @@ Pass if local images stay on device and tracing still works without browser file
 - Choose On-screen practice in the picker.
 - Pick a built-in template.
 - Trace with a finger or stylus.
+- Switch marker colors and brush sizes, then color inside the guide.
 - Use Undo and Clear.
 - Switch to camera tracing for the same picture.
 

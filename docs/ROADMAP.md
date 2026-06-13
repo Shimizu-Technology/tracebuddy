@@ -16,6 +16,7 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Mobile-first React/Vite frontend.
 - Expo Go native mobile MVP.
 - On-screen practice mode for tracing without a paper/camera setup.
+- Custom word/name/phrase tracing and marker color controls.
 - Shared SVG line-art drawing library with category filters.
 - Local image upload.
 - Camera preview with demo fallback.
@@ -52,7 +53,7 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Keep template categories such as animals, ocean, magic/fairy, vehicles, letters, seasonal, and Guam/island themes.
 - Keep difficulty labels: starter, medium, detailed.
 - Add a favorites/recent drawings section stored locally if the larger library needs shortcuts.
-- Add dynamic word/name tracing on top of the on-screen practice surface.
+- Expand dynamic word/name tracing with handwriting-style letter guides and saved favorite names.
 - Add a clearer parent setup mode vs child tracing mode.
 - Continue tuning the mobile controls based on live phone/tablet use.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.

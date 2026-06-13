@@ -1,6 +1,6 @@
 # TraceBuddy Mobile
 
-Expo Go MVP for TraceBuddy's native mobile tracing workflow, including camera-over-paper tracing and on-screen practice.
+Expo Go MVP for TraceBuddy's native mobile tracing workflow, including camera-over-paper tracing, custom word tracing, and on-screen practice with marker colors.
 
 ## Run locally
 
@@ -29,7 +29,7 @@ This app intentionally uses Expo Go-supported modules only:
 - `expo-camera` for the live camera preview
 - `expo-image-picker` for local image selection
 - `expo-keep-awake` for tracing sessions
-- `react-native-svg` for built-in SVG templates and finger/stylus practice strokes
+- `react-native-svg` for built-in SVG templates, custom word guides, and finger/stylus practice strokes
 
 AR, paper tracking, uploaded-image cleanup, and dynamic word/name tracing are deferred until after the native tracing and on-screen practice loops are validated.
 

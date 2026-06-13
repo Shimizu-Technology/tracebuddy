@@ -29,6 +29,8 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Local image upload with optional cleanup modes
 - Camera access with `getUserMedia`
 - On-screen practice mode for finger, stylus, or mouse tracing
+- Custom word/name/phrase tracing
+- Marker color and brush-size controls for tracing or coloring on-screen
 - Demo camera surface when camera is unavailable/blocked
 - Drag-to-position overlay
 - Mobile-friendly floating trace controls

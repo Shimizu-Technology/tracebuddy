@@ -478,6 +478,48 @@ button.active:disabled {
   color: rgba(255, 255, 255, 0.72);
 }
 
+.custom-text-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: end;
+  margin-top: 0.9rem;
+  border: 1px solid rgba(20, 32, 51, 0.09);
+  border-radius: 24px;
+  padding: 0.8rem;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.custom-text-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.custom-text-form input {
+  min-height: 46px;
+  width: 100%;
+  border: 1px solid rgba(20, 32, 51, 0.12);
+  border-radius: 16px;
+  background: #fffdf8;
+  color: var(--ink);
+  padding: 0 0.85rem;
+  font-weight: 800;
+}
+
+.custom-text-form button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--ink);
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 0 1rem;
+}
+
 .category-strip {
   display: flex;
   gap: 0.55rem;
@@ -935,6 +977,40 @@ button.active:disabled {
   gap: 0.8rem;
 }
 
+.marker-control {
+  gap: 0.65rem;
+}
+
+.marker-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.marker-swatches button {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 3px solid #ffffff;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: rgba(20, 32, 51, 0.16) 0 0 0 1px;
+}
+
+.marker-swatches button.active {
+  box-shadow:
+    rgba(20, 32, 51, 0.2) 0 0 0 1px,
+    var(--ink) 0 0 0 4px;
+}
+
+.marker-size-buttons {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.marker-size-buttons button.active {
+  background: var(--ink);
+  color: #ffffff;
+}
+
 .practice-actions .toggle:disabled {
   cursor: not-allowed;
   opacity: 0.48;
@@ -1318,6 +1394,10 @@ input[type='range'] {
     width: 100%;
     min-height: 72px;
     border-radius: 22px;
+  }
+
+  .custom-text-form {
+    grid-template-columns: 1fr;
   }
 
   .picker-heading h1 {

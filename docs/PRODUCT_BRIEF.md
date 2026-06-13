@@ -28,7 +28,7 @@ When a child wants to practice drawing, the parent can open TraceBuddy, pick or 
 ## MVP flow
 
 1. Open TraceBuddy on a phone or tablet.
-2. Pick a built-in line drawing or upload a local image.
+2. Pick a built-in line drawing, type custom words/names/phrases, or upload a local image.
 3. Choose camera tracing over paper or on-screen practice.
 4. Allow camera access when using the paper workflow.
 5. Place the device above real paper with a stand or stable prop.
@@ -88,6 +88,8 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Browser camera access with graceful demo fallback.
 - Native Expo camera trace mode in the mobile MVP.
 - On-screen practice mode in web and mobile for finger/stylus tracing.
+- Custom word/name/phrase guides for early writing practice.
+- Marker color and brush-size controls for on-screen tracing and coloring.
 - Overlay transform controls.
 - Mobile floating controls for trace mode.
 - Experimental paper rectangle detection and tracking.
