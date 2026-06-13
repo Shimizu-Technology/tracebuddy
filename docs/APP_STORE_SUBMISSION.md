@@ -108,13 +108,13 @@ https://tracebuddy-gu.netlify.app
 Recommended copyright:
 
 ```text
-2026 Shimizu Technology
+© 2026 Shimizu Technology
 ```
 
 If Apple requires the seller's legal name, use:
 
 ```text
-2026 Leon Ambrosio Shimizu
+© 2026 Leon Ambrosio Shimizu
 ```
 
 ## Category
@@ -248,10 +248,12 @@ TraceBuddy has no accounts, ads, analytics, backend, cloud uploads, or remote im
 
 Because the app supports iPhone and iPad, App Store Connect may require screenshots for both iPhone and iPad.
 
-Current iPhone screenshot bucket shown by App Store Connect:
+Current iPhone screenshot buckets shown by App Store Connect:
 
+- iPhone 6.9-inch Display
+  - Portrait size: `1320 x 2868`
 - iPhone 6.5-inch Display
-- Accepted portrait sizes include `1242 x 2688` and `1284 x 2778`
+  - Accepted portrait sizes include `1242 x 2688` and `1284 x 2778`
 
 Likely iPad screenshot bucket:
 
@@ -270,13 +272,12 @@ Screenshot captions can be added visually if desired, but keep them honest and r
 
 ## Build selection
 
-Current latest TestFlight build:
+Current latest TestFlight build at time of writing:
 
 - Version/build: `0.1.0 (6)`
 - Commit: `407d041`
-- Build ID: `9ac85864-e99e-4a18-ad2c-e2e1be64fe14`
 
-Before review submission, select the latest processed build in App Store Connect. If no compatible build appears under version `1.0`, create a matching `1.0` build first.
+Before review submission, select the latest processed build in App Store Connect under **TestFlight → Builds**. Do not rely on the version above — always pick the newest eligible build from the App Store Connect build list. If no compatible build appears under version `1.0`, create a matching `1.0` build first.
 
 ## Pre-submit checklist
 
