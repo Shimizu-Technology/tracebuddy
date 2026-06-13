@@ -32,10 +32,28 @@ type PracticePoint = {
   y: number
 }
 
+type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint'
+
+type BrushTool = {
+  id: BrushToolId
+  label: string
+  widthMultiplier: number
+  opacity: number
+  dasharray?: number[]
+}
+
 type PracticeStroke = {
   path: string
   color: string
   width: number
+  opacity: number
+  dasharray?: number[]
+}
+
+type PracticeViewport = {
+  x: number
+  y: number
+  scale: number
 }
 
 type OverlayTransform = {
@@ -61,7 +79,22 @@ const defaultTransform: OverlayTransform = {
   opacity: 0.72,
 }
 
-const markerColors = ['#18243A', '#FF795D', '#2F80ED', '#219653', '#9B51E0', '#F2994A'] as const
+const markerColors = ['#18243A', '#4A5568', '#FF795D', '#E45336', '#F2994A', '#F2C94C', '#219653', '#27AE60', '#2F80ED', '#56CCF2', '#9B51E0', '#EB5757', '#8B5E3C'] as const
+
+const brushTools: BrushTool[] = [
+  { id: 'pencil', label: 'Pencil', widthMultiplier: 0.62, opacity: 0.72 },
+  { id: 'marker', label: 'Marker', widthMultiplier: 1, opacity: 0.9 },
+  { id: 'crayon', label: 'Crayon', widthMultiplier: 1.35, opacity: 0.62, dasharray: [1, 5] },
+  { id: 'paint', label: 'Paint', widthMultiplier: 2.05, opacity: 0.42 },
+]
+
+const brushSizes = [
+  { label: 'Fine', value: 5 },
+  { label: 'Round', value: 9 },
+  { label: 'Fill', value: 16 },
+] as const
+
+const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
 
 const palette = {
   ink: '#18243A',
@@ -561,34 +594,110 @@ function PracticeScreen({
   const [practiceStrokes, setPracticeStrokes] = useState<PracticeStroke[]>([])
   const [activePath, setActivePath] = useState('')
   const [markerColor, setMarkerColor] = useState<string>(markerColors[0])
-  const [markerWidth, setMarkerWidth] = useState(7)
+  const [markerWidth, setMarkerWidth] = useState(9)
+  const [brushToolId, setBrushToolId] = useState<BrushToolId>('marker')
   const [guideOpacity, setGuideOpacity] = useState(0.24)
+  const [viewportLocked, setViewportLocked] = useState(true)
+  const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasSizeRef = useRef(canvasSize)
+  const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
   const activePointCountRef = useRef(0)
-  const activeStrokeStyleRef = useRef({ color: markerColor, width: markerWidth })
+  const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9 })
   const lastPointRef = useRef<PracticePoint | null>(null)
   const drawingActiveRef = useRef(false)
+  const viewportGestureRef = useRef<
+    | { mode: 'pan'; startPoint: PracticePoint; startViewport: PracticeViewport }
+    | { mode: 'pinch'; startDistance: number; startCenter: PracticePoint; startViewport: PracticeViewport }
+    | null
+  >(null)
+
+  const brushTool = useMemo(() => brushTools.find((tool) => tool.id === brushToolId) ?? brushTools[1], [brushToolId])
+  const activeStrokeWidth = markerWidth * brushTool.widthMultiplier
 
   useEffect(() => {
     canvasSizeRef.current = canvasSize
   }, [canvasSize])
 
   useEffect(() => {
-    activeStrokeStyleRef.current = { color: markerColor, width: markerWidth }
-  }, [markerColor, markerWidth])
+    viewportRef.current = viewport
+  }, [viewport])
+
+  const clampPracticeViewport = useCallback((next: PracticeViewport) => {
+    const { width, height } = canvasSizeRef.current
+    const scale = clamp(next.scale, 1, 5)
+    const extraX = Math.max(0, (scale - 1) * width)
+    const extraY = Math.max(0, (scale - 1) * height)
+    const overscroll = 90
+
+    return {
+      x: clamp(next.x, -extraX - overscroll, overscroll),
+      y: clamp(next.y, -extraY - overscroll, overscroll),
+      scale,
+    }
+  }, [])
+
+  const setPracticeViewport = useCallback((update: PracticeViewport | ((current: PracticeViewport) => PracticeViewport)) => {
+    const next = typeof update === 'function' ? update(viewportRef.current) : update
+    const clamped = clampPracticeViewport(next)
+    viewportRef.current = clamped
+    setViewport(clamped)
+  }, [clampPracticeViewport])
 
   const handleCanvasLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout
     const nextSize = { width: Math.max(1, width), height: Math.max(1, height) }
     canvasSizeRef.current = nextSize
     setCanvasSize(nextSize)
+    setPracticeViewport((current) => clampPracticeViewport(current))
+  }, [clampPracticeViewport, setPracticeViewport])
+
+  const pointFromLocation = useCallback((point: PracticePoint): PracticePoint => {
+    const currentViewport = viewportRef.current
+    const { width, height } = canvasSizeRef.current
+    return {
+      x: clamp((point.x - currentViewport.x) / currentViewport.scale, 0, width),
+      y: clamp((point.y - currentViewport.y) / currentViewport.scale, 0, height),
+    }
   }, [])
 
-  const pointFromEvent = useCallback((event: GestureResponderEvent): PracticePoint => ({
-    x: clamp(event.nativeEvent.locationX, 0, canvasSizeRef.current.width),
-    y: clamp(event.nativeEvent.locationY, 0, canvasSizeRef.current.height),
-  }), [])
+  const touchPointsFromEvent = useCallback((event: GestureResponderEvent): PracticePoint[] => {
+    const nativeEvent = event.nativeEvent as typeof event.nativeEvent & { touches?: Array<{ locationX: number; locationY: number }> }
+    const touches = nativeEvent.touches ?? []
+    if (touches.length > 0) return touches.map((touch) => ({ x: touch.locationX, y: touch.locationY }))
+    return [{ x: nativeEvent.locationX, y: nativeEvent.locationY }]
+  }, [])
+
+  const statsFromPoints = useCallback((points: PracticePoint[]) => {
+    if (points.length < 2) return null
+    const [first, second] = points
+    return {
+      distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+      center: {
+        x: (first.x + second.x) / 2,
+        y: (first.y + second.y) / 2,
+      },
+    }
+  }, [])
+
+  const startViewportGesture = useCallback((points: PracticePoint[]) => {
+    const stats = statsFromPoints(points)
+    if (stats) {
+      viewportGestureRef.current = {
+        mode: 'pinch',
+        startDistance: stats.distance,
+        startCenter: stats.center,
+        startViewport: viewportRef.current,
+      }
+      return
+    }
+
+    viewportGestureRef.current = {
+      mode: 'pan',
+      startPoint: points[0] ?? { x: 0, y: 0 },
+      startViewport: viewportRef.current,
+    }
+  }, [statsFromPoints])
 
   const finishPracticeStroke = useCallback(() => {
     if (!drawingActiveRef.current) return
@@ -597,8 +706,8 @@ function PracticeScreen({
     if (path && activePointCountRef.current === 1) path = `${path} l 0.1 0`
 
     if (path) {
-      const { color, width } = activeStrokeStyleRef.current
-      setPracticeStrokes((current) => [...current, { path, color, width }])
+      const { color, width, opacity, dasharray } = activeStrokeStyleRef.current
+      setPracticeStrokes((current) => [...current, { path, color, width, opacity, dasharray }])
     }
 
     activePathRef.current = ''
@@ -608,21 +717,90 @@ function PracticeScreen({
     setActivePath('')
   }, [])
 
+  const resetViewportGestureState = useCallback(() => {
+    viewportGestureRef.current = null
+  }, [])
+
+  const toggleViewportMode = useCallback(() => {
+    finishPracticeStroke()
+    resetViewportGestureState()
+    setViewportLocked((locked) => !locked)
+  }, [finishPracticeStroke, resetViewportGestureState])
+
   const startPracticeStroke = useCallback((event: GestureResponderEvent) => {
-    const point = pointFromEvent(event)
+    const touches = touchPointsFromEvent(event)
+    if (!viewportLocked) {
+      startViewportGesture(touches)
+      return
+    }
+
+    const point = pointFromLocation(touches[0] ?? { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY })
     const path = `M ${point.x} ${point.y}`
     activePathRef.current = path
     activePointCountRef.current = 1
     lastPointRef.current = point
     drawingActiveRef.current = true
-    activeStrokeStyleRef.current = { color: markerColor, width: markerWidth }
+    activeStrokeStyleRef.current = {
+      path,
+      color: markerColor,
+      width: activeStrokeWidth,
+      opacity: brushTool.opacity,
+      dasharray: brushTool.dasharray,
+    }
     setActivePath(path)
-  }, [markerColor, markerWidth, pointFromEvent])
+  }, [activeStrokeWidth, brushTool.dasharray, brushTool.opacity, markerColor, pointFromLocation, startViewportGesture, touchPointsFromEvent, viewportLocked])
 
   const movePracticeStroke = useCallback((event: GestureResponderEvent) => {
+    const touches = touchPointsFromEvent(event)
+
+    if (!viewportLocked) {
+      const gesture = viewportGestureRef.current
+      if (!gesture) {
+        startViewportGesture(touches)
+        return
+      }
+
+      const stats = statsFromPoints(touches)
+      if (stats) {
+        const pinchGesture = gesture.mode === 'pinch'
+          ? gesture
+          : {
+              mode: 'pinch' as const,
+              startDistance: stats.distance,
+              startCenter: stats.center,
+              startViewport: viewportRef.current,
+            }
+        if (gesture.mode !== 'pinch') viewportGestureRef.current = pinchGesture
+
+        const nextScale = clamp(pinchGesture.startViewport.scale * (stats.distance / pinchGesture.startDistance), 1, 5)
+        const contentAtStartCenterX = (pinchGesture.startCenter.x - pinchGesture.startViewport.x) / pinchGesture.startViewport.scale
+        const contentAtStartCenterY = (pinchGesture.startCenter.y - pinchGesture.startViewport.y) / pinchGesture.startViewport.scale
+        setPracticeViewport({
+          x: stats.center.x - contentAtStartCenterX * nextScale,
+          y: stats.center.y - contentAtStartCenterY * nextScale,
+          scale: nextScale,
+        })
+        return
+      }
+
+      if (gesture.mode !== 'pan') {
+        startViewportGesture(touches)
+        return
+      }
+
+      const currentPoint = touches[0]
+      if (!currentPoint) return
+      setPracticeViewport({
+        x: gesture.startViewport.x + currentPoint.x - gesture.startPoint.x,
+        y: gesture.startViewport.y + currentPoint.y - gesture.startPoint.y,
+        scale: gesture.startViewport.scale,
+      })
+      return
+    }
+
     if (!drawingActiveRef.current) return
 
-    const point = pointFromEvent(event)
+    const point = pointFromLocation(touches[0] ?? { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY })
     const lastPoint = lastPointRef.current
     if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 2.5) return
 
@@ -630,7 +808,16 @@ function PracticeScreen({
     activePointCountRef.current += 1
     lastPointRef.current = point
     setActivePath(activePathRef.current)
-  }, [pointFromEvent])
+  }, [pointFromLocation, setPracticeViewport, startViewportGesture, statsFromPoints, touchPointsFromEvent, viewportLocked])
+
+  const finishPracticeGesture = useCallback(() => {
+    if (viewportLocked) {
+      finishPracticeStroke()
+      return
+    }
+
+    resetViewportGestureState()
+  }, [finishPracticeStroke, resetViewportGestureState, viewportLocked])
 
   const undoPracticeStroke = useCallback(() => {
     setPracticeStrokes((current) => current.slice(0, -1))
@@ -646,12 +833,31 @@ function PracticeScreen({
   }, [])
 
   const lightenGuide = useCallback(() => {
-    setGuideOpacity((current) => clamp(current - 0.06, 0.1, 0.55))
+    setGuideOpacity((current) => clamp(current - 0.06, 0.08, 0.66))
   }, [])
 
   const darkenGuide = useCallback(() => {
-    setGuideOpacity((current) => clamp(current + 0.06, 0.1, 0.55))
+    setGuideOpacity((current) => clamp(current + 0.06, 0.08, 0.66))
   }, [])
+
+  const zoomPractice = useCallback((amount: number) => {
+    const { width, height } = canvasSizeRef.current
+    const center = { x: width / 2, y: height / 2 }
+    const startViewport = viewportRef.current
+    const nextScale = clamp(startViewport.scale + amount, 1, 5)
+    const contentX = (center.x - startViewport.x) / startViewport.scale
+    const contentY = (center.y - startViewport.y) / startViewport.scale
+    setPracticeViewport({
+      x: center.x - contentX * nextScale,
+      y: center.y - contentY * nextScale,
+      scale: nextScale,
+    })
+  }, [setPracticeViewport])
+
+  const resetPracticeViewport = useCallback(() => {
+    resetViewportGestureState()
+    setPracticeViewport(defaultPracticeViewport)
+  }, [resetViewportGestureState, setPracticeViewport])
 
   return (
     <View style={styles.practiceShell}>
@@ -662,7 +868,7 @@ function PracticeScreen({
         </Pressable>
         <View style={styles.practiceTitleCard}>
           <Text style={styles.practiceTitle} numberOfLines={1}>{pictureName}</Text>
-          <Text style={styles.practiceSubtitle} numberOfLines={1}>{pictureTheme} · On-screen practice</Text>
+          <Text style={styles.practiceSubtitle} numberOfLines={1}>{pictureTheme} · {viewportLocked ? 'Draw locked' : 'Move and zoom'}</Text>
         </View>
         <Pressable style={styles.practiceHeaderButton} onPress={onCameraTrace} accessibilityRole="button" accessibilityLabel="Switch to camera tracing">
           <Text style={styles.practiceHeaderButtonText}>Camera</Text>
@@ -670,20 +876,25 @@ function PracticeScreen({
       </View>
 
       <View style={styles.practiceStageCard}>
-        <View style={styles.practiceStageIntro}>
-          <Text style={styles.practiceStageEyebrow}>Finger or stylus</Text>
-          <Text style={styles.practiceStageTitle}>Trace, then color it in.</Text>
-          <Text style={styles.practiceStageCopy}>Follow the light guide, switch marker colors, then add color like a tiny coloring book.</Text>
-        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.practiceToolRail}>
+          <Pressable
+            style={[styles.practiceModeButton, viewportLocked && styles.practiceModeButtonActive]}
+            onPress={toggleViewportMode}
+            accessibilityRole="button"
+            accessibilityState={{ selected: viewportLocked }}
+            accessibilityLabel={viewportLocked ? 'Canvas locked for drawing' : 'Canvas unlocked for moving and zooming'}
+          >
+            <Text style={[styles.practiceModeButtonText, viewportLocked && styles.practiceModeButtonTextActive]}>{viewportLocked ? 'Locked' : 'Move'}</Text>
+            <Text style={styles.practiceModeButtonSubtext}>{viewportLocked ? 'Draw mode' : 'Pan + zoom'}</Text>
+          </Pressable>
 
-        <View style={styles.practiceOptionsPanel}>
-          <View style={styles.practiceOptionGroup}>
-            <Text style={styles.practiceOptionLabel}>Marker</Text>
-            <View style={styles.colorSwatches}>
+          <View style={styles.practiceToolGroupCompact}>
+            <Text style={styles.practiceOptionLabel}>Color</Text>
+            <View style={styles.colorSwatchesCompact}>
               {markerColors.map((color) => (
                 <Pressable
                   key={color}
-                  style={[styles.colorSwatch, { backgroundColor: color }, markerColor === color && styles.colorSwatchActive]}
+                  style={[styles.colorSwatchCompact, { backgroundColor: color }, markerColor === color && styles.colorSwatchActive]}
                   onPress={() => setMarkerColor(color)}
                   accessibilityRole="button"
                   accessibilityLabel={`Use marker color ${color}`}
@@ -691,29 +902,58 @@ function PracticeScreen({
               ))}
             </View>
           </View>
-          <View style={styles.practiceOptionGroup}>
+
+          <View style={styles.practiceToolGroupCompact}>
             <Text style={styles.practiceOptionLabel}>Brush</Text>
-            <View style={styles.practiceSegmentedRow}>
-              <Pressable style={[styles.practiceMiniButton, markerWidth === 5 && styles.practiceMiniButtonActive]} onPress={() => setMarkerWidth(5)} accessibilityRole="button">
-                <Text style={[styles.practiceMiniButtonText, markerWidth === 5 && styles.practiceMiniButtonTextActive]}>Thin</Text>
-              </Pressable>
-              <Pressable style={[styles.practiceMiniButton, markerWidth === 10 && styles.practiceMiniButtonActive]} onPress={() => setMarkerWidth(10)} accessibilityRole="button">
-                <Text style={[styles.practiceMiniButtonText, markerWidth === 10 && styles.practiceMiniButtonTextActive]}>Color</Text>
-              </Pressable>
+            <View style={styles.practiceSegmentedRowCompact}>
+              {brushTools.map((tool) => (
+                <Pressable key={tool.id} style={[styles.practiceMiniButtonCompact, brushToolId === tool.id && styles.practiceMiniButtonActive]} onPress={() => setBrushToolId(tool.id)} accessibilityRole="button">
+                  <Text style={[styles.practiceMiniButtonText, brushToolId === tool.id && styles.practiceMiniButtonTextActive]}>{tool.label}</Text>
+                </Pressable>
+              ))}
             </View>
           </View>
-          <View style={styles.practiceOptionGroup}>
-            <Text style={styles.practiceOptionLabel}>Guide</Text>
-            <View style={styles.practiceSegmentedRow}>
-              <Pressable style={styles.practiceMiniButton} onPress={lightenGuide} accessibilityRole="button">
+
+          <View style={styles.practiceToolGroupCompact}>
+            <Text style={styles.practiceOptionLabel}>Size</Text>
+            <View style={styles.practiceSegmentedRowCompact}>
+              {brushSizes.map((size) => (
+                <Pressable key={size.value} style={[styles.practiceMiniButtonCompact, markerWidth === size.value && styles.practiceMiniButtonActive]} onPress={() => setMarkerWidth(size.value)} accessibilityRole="button">
+                  <Text style={[styles.practiceMiniButtonText, markerWidth === size.value && styles.practiceMiniButtonTextActive]}>{size.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.practiceToolGroupCompact}>
+            <Text style={styles.practiceOptionLabel}>Guide {Math.round(guideOpacity * 100)}%</Text>
+            <View style={styles.practiceSegmentedRowCompact}>
+              <Pressable style={styles.practiceMiniButtonCompact} onPress={lightenGuide} accessibilityRole="button">
                 <Text style={styles.practiceMiniButtonText}>Less</Text>
               </Pressable>
-              <Pressable style={styles.practiceMiniButton} onPress={darkenGuide} accessibilityRole="button">
+              <Pressable style={styles.practiceMiniButtonCompact} onPress={darkenGuide} accessibilityRole="button">
                 <Text style={styles.practiceMiniButtonText}>More</Text>
               </Pressable>
             </View>
           </View>
-        </View>
+
+          <View style={styles.practiceToolGroupCompact}>
+            <Text style={styles.practiceOptionLabel}>Zoom {Math.round(viewport.scale * 100)}%</Text>
+            <View style={styles.practiceSegmentedRowCompact}>
+              <Pressable style={[styles.practiceMiniButtonCompact, viewportLocked && styles.practiceMiniButtonDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(-0.35)} accessibilityRole="button">
+                <Text style={styles.practiceMiniButtonText}>−</Text>
+              </Pressable>
+              <Pressable style={[styles.practiceMiniButtonCompact, viewportLocked && styles.practiceMiniButtonDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(0.35)} accessibilityRole="button">
+                <Text style={styles.practiceMiniButtonText}>+</Text>
+              </Pressable>
+              <Pressable style={[styles.practiceMiniButtonCompact, viewport.scale === 1 && viewport.x === 0 && viewport.y === 0 && styles.practiceMiniButtonDisabled]} disabled={viewport.scale === 1 && viewport.x === 0 && viewport.y === 0} onPress={resetPracticeViewport} accessibilityRole="button">
+                <Text style={styles.practiceMiniButtonText}>Reset</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+
+        <Text style={styles.practiceCanvasHint} numberOfLines={2}>{viewportLocked ? 'Draw mode keeps the page steady for coloring.' : 'Move mode: drag with one finger, pinch with two fingers, then lock to color.'}</Text>
 
         <View
           style={styles.practiceCanvas}
@@ -722,38 +962,54 @@ function PracticeScreen({
           onMoveShouldSetResponder={() => true}
           onResponderGrant={startPracticeStroke}
           onResponderMove={movePracticeStroke}
-          onResponderRelease={finishPracticeStroke}
-          onResponderTerminate={finishPracticeStroke}
+          onResponderRelease={finishPracticeGesture}
+          onResponderTerminate={finishPracticeGesture}
         >
-          <View style={[styles.practiceGuide, { opacity: guideOpacity }]} pointerEvents="none">
-            {uploadedImage ? (
-              <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
-            ) : (
-              <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
-            )}
-          </View>
-          <Svg
+          <View
+            style={[
+              styles.practiceTransformLayer,
+              {
+                width: canvasSize.width,
+                height: canvasSize.height,
+                transform: [
+                  { translateX: viewport.x },
+                  { translateY: viewport.y },
+                  { scale: viewport.scale },
+                ],
+              },
+            ]}
             pointerEvents="none"
-            width={canvasSize.width}
-            height={canvasSize.height}
-            viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-            style={styles.practiceInkLayer}
           >
-            {practiceStrokes.map((stroke, index) => (
-              <Path key={`stroke-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            ))}
-            {activePath && (
-              <Path d={activePath} stroke={markerColor} strokeWidth={markerWidth} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            )}
-          </Svg>
+            <View style={[styles.practiceGuide, { opacity: guideOpacity }]} pointerEvents="none">
+              {uploadedImage ? (
+                <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
+              ) : (
+                <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
+              )}
+            </View>
+            <Svg
+              pointerEvents="none"
+              width={canvasSize.width}
+              height={canvasSize.height}
+              viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+              style={styles.practiceInkLayer}
+            >
+              {practiceStrokes.map((stroke, index) => (
+                <Path key={`stroke-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              ))}
+              {activePath && (
+                <Path d={activePath} stroke={markerColor} strokeWidth={activeStrokeWidth} strokeOpacity={brushTool.opacity} strokeDasharray={brushTool.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              )}
+            </Svg>
+          </View>
         </View>
       </View>
 
       <View style={[styles.practiceToolbar, { paddingBottom: insetsBottom + 12 }]}>
-        <Pressable style={styles.practiceToolButton} onPress={undoPracticeStroke} accessibilityRole="button">
+        <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && styles.practiceToolButtonDisabled]} onPress={undoPracticeStroke} disabled={practiceStrokes.length === 0} accessibilityRole="button">
           <Text style={styles.practiceToolButtonText}>Undo</Text>
         </Pressable>
-        <Pressable style={styles.practiceToolButton} onPress={clearPracticeStrokes} accessibilityRole="button">
+        <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && !activePath && styles.practiceToolButtonDisabled]} onPress={clearPracticeStrokes} disabled={practiceStrokes.length === 0 && !activePath} accessibilityRole="button">
           <Text style={styles.practiceToolButtonText}>Clear</Text>
         </Pressable>
         <Pressable style={[styles.practiceToolButton, styles.practiceToolButtonPrimary]} onPress={onCameraTrace} accessibilityRole="button">
@@ -1164,12 +1420,14 @@ const styles = StyleSheet.create({
   },
   practiceStageCard: {
     flex: 1,
-    margin: 12,
-    borderRadius: 34,
+    marginHorizontal: 10,
+    marginTop: 10,
+    marginBottom: 8,
+    borderRadius: 30,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.surface,
-    padding: 14,
+    padding: 10,
     shadowColor: palette.ink,
     shadowOpacity: 0.08,
     shadowRadius: 24,
@@ -1207,6 +1465,48 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 12,
   },
+  practiceToolRail: {
+    alignItems: 'stretch',
+    gap: 8,
+    paddingRight: 4,
+  },
+  practiceModeButton: {
+    minWidth: 96,
+    minHeight: 58,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  practiceModeButtonActive: {
+    borderColor: 'rgba(107,215,183,0.55)',
+    backgroundColor: '#E9FFF7',
+  },
+  practiceModeButtonText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  practiceModeButtonTextActive: {
+    color: '#17634F',
+  },
+  practiceModeButtonSubtext: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  practiceToolGroupCompact: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: palette.paper,
+    borderWidth: 1,
+    borderColor: 'rgba(24,36,58,0.08)',
+    padding: 8,
+    gap: 6,
+  },
   practiceOptionGroup: {
     gap: 8,
   },
@@ -1221,12 +1521,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  colorSwatchesCompact: {
+    flexDirection: 'row',
+    gap: 6,
+  },
   colorSwatch: {
     width: 32,
     height: 32,
     borderRadius: 999,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.9)',
+  },
+  colorSwatchCompact: {
+    width: 25,
+    height: 25,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.95)',
   },
   colorSwatchActive: {
     borderColor: palette.ink,
@@ -1235,6 +1546,10 @@ const styles = StyleSheet.create({
   practiceSegmentedRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  practiceSegmentedRowCompact: {
+    flexDirection: 'row',
+    gap: 6,
   },
   practiceMiniButton: {
     flex: 1,
@@ -1245,6 +1560,19 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  practiceMiniButtonCompact: {
+    minHeight: 30,
+    borderRadius: 999,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  practiceMiniButtonDisabled: {
+    opacity: 0.42,
   },
   practiceMiniButtonActive: {
     backgroundColor: palette.ink,
@@ -1260,12 +1588,26 @@ const styles = StyleSheet.create({
   },
   practiceCanvas: {
     flex: 1,
-    minHeight: 340,
-    borderRadius: 28,
+    minHeight: 430,
+    borderRadius: 26,
     overflow: 'hidden',
     backgroundColor: '#FFFDF7',
     borderWidth: 1,
     borderColor: 'rgba(24,36,58,0.1)',
+  },
+  practiceCanvasHint: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 16,
+    marginVertical: 8,
+    paddingHorizontal: 4,
+  },
+  practiceTransformLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    transformOrigin: 'top left',
   },
   practiceGuide: {
     position: 'absolute',
@@ -1306,6 +1648,9 @@ const styles = StyleSheet.create({
   practiceToolButtonPrimary: {
     backgroundColor: palette.ink,
     borderColor: palette.ink,
+  },
+  practiceToolButtonDisabled: {
+    opacity: 0.42,
   },
   practiceToolButtonText: {
     color: palette.ink,

@@ -17,7 +17,8 @@ TraceBuddy lets a child or parent:
 3. Choose camera tracing over paper or on-screen practice.
 4. Place a semi-transparent drawing over real paper, or trace directly with a finger/stylus on the device.
 5. Use paper detection for automatic alignment or adjust opacity, size, rotation, and position manually.
-6. Lock the overlay and trace on paper, or clear/undo digital practice strokes.
+6. Lock the overlay and trace on paper, or use the locked coloring studio for steady on-screen drawing.
+7. Unlock the digital canvas only when you want to pan or zoom in for detailed coloring.
 
 The MVP is designed for Stassie-style drawing practice: simple, friendly, private, and usable on a phone or iPad with a stand.
 
@@ -28,9 +29,10 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Built-in traceable SVG drawing library with category filters
 - Local image upload with optional cleanup modes
 - Camera access with `getUserMedia`
-- On-screen practice mode for finger, stylus, or mouse tracing
+- On-screen coloring/practice mode for finger, stylus, or mouse tracing
 - Custom word/name/phrase tracing
-- Marker color and brush-size controls for tracing or coloring on-screen
+- Expanded color palette, brush sizes, and pencil/marker/crayon/paint brush styles
+- Locked-by-default digital canvas with optional pan/zoom for detailed coloring
 - Demo camera surface when camera is unavailable/blocked
 - Drag-to-position overlay
 - Mobile-friendly floating trace controls

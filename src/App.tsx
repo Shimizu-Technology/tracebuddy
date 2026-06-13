@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, PointerEvent } from 'react'
+import type { ChangeEvent, PointerEvent, WheelEvent } from 'react'
 import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from './drawings'
 import type { Drawing, DrawingFilterId } from './drawings'
 import './App.css'
@@ -16,10 +16,28 @@ type PracticePoint = {
   y: number
 }
 
+type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint'
+
+type BrushTool = {
+  id: BrushToolId
+  label: string
+  widthMultiplier: number
+  opacity: number
+  dasharray?: string
+}
+
 type PracticeStroke = {
   path: string
   color: string
   width: number
+  opacity: number
+  dasharray?: string
+}
+
+type PracticeViewport = {
+  x: number
+  y: number
+  scale: number
 }
 
 type Transform = {
@@ -81,7 +99,22 @@ type NavigatorWithWakeLock = Navigator & {
   }
 }
 
-const markerColors = ['#18243A', '#FF795D', '#2F80ED', '#219653', '#9B51E0', '#F2994A'] as const
+const markerColors = ['#18243A', '#4A5568', '#FF795D', '#E45336', '#F2994A', '#F2C94C', '#219653', '#27AE60', '#2F80ED', '#56CCF2', '#9B51E0', '#EB5757', '#8B5E3C'] as const
+
+const brushTools: BrushTool[] = [
+  { id: 'pencil', label: 'Pencil', widthMultiplier: 0.62, opacity: 0.72 },
+  { id: 'marker', label: 'Marker', widthMultiplier: 1, opacity: 0.9 },
+  { id: 'crayon', label: 'Crayon', widthMultiplier: 1.35, opacity: 0.62, dasharray: '1 5' },
+  { id: 'paint', label: 'Paint', widthMultiplier: 2.05, opacity: 0.42 },
+]
+
+const brushSizes = [
+  { label: 'Fine', value: 8 },
+  { label: 'Round', value: 12 },
+  { label: 'Fill', value: 22 },
+] as const
+
+const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
 
 const defaultTransform: Transform = {
   x: 0,
@@ -1596,32 +1629,130 @@ function PracticeScreen({
 }) {
   const [strokes, setStrokes] = useState<PracticeStroke[]>([])
   const [activePath, setActivePath] = useState('')
-  const [guideOpacity, setGuideOpacity] = useState(0.28)
+  const [guideOpacity, setGuideOpacity] = useState(0.26)
   const [markerColor, setMarkerColor] = useState<string>(markerColors[0])
-  const [markerWidth, setMarkerWidth] = useState(11)
+  const [markerWidth, setMarkerWidth] = useState(12)
+  const [brushToolId, setBrushToolId] = useState<BrushToolId>('marker')
+  const [viewportLocked, setViewportLocked] = useState(true)
+  const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
   const activePointCountRef = useRef(0)
-  const activeStrokeStyleRef = useRef({ color: markerColor, width: markerWidth })
+  const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9 })
   const lastPointRef = useRef<PracticePoint | null>(null)
   const drawingRef = useRef(false)
+  const activePointersRef = useRef(new Map<number, PracticePoint>())
+  const viewportGestureRef = useRef<
+    | { mode: 'pan'; pointerId: number; startPoint: PracticePoint; startViewport: PracticeViewport }
+    | { mode: 'pinch'; startDistance: number; startCenter: PracticePoint; startViewport: PracticeViewport }
+    | null
+  >(null)
 
-  const pointFromEvent = (event: PointerEvent<HTMLDivElement>): PracticePoint => {
+  const brushTool = useMemo(() => brushTools.find((tool) => tool.id === brushToolId) ?? brushTools[1], [brushToolId])
+  const activeStrokeWidth = markerWidth * brushTool.widthMultiplier
+
+  useEffect(() => {
+    viewportRef.current = viewport
+  }, [viewport])
+
+  const clampPracticeViewport = useCallback((next: PracticeViewport) => {
+    const canvas = canvasRef.current
+    const scale = clamp(next.scale, 1, 5)
+    if (!canvas) return { x: 0, y: 0, scale }
+
+    const rect = canvas.getBoundingClientRect()
+    const extraX = Math.max(0, (scale - 1) * rect.width)
+    const extraY = Math.max(0, (scale - 1) * rect.height)
+    const overscroll = 120
+
+    return {
+      x: clamp(next.x, -extraX - overscroll, overscroll),
+      y: clamp(next.y, -extraY - overscroll, overscroll),
+      scale,
+    }
+  }, [])
+
+  const updatePracticeViewport = useCallback((update: PracticeViewport | ((current: PracticeViewport) => PracticeViewport)) => {
+    const next = typeof update === 'function' ? update(viewportRef.current) : update
+    const clamped = clampPracticeViewport(next)
+    viewportRef.current = clamped
+    setViewport(clamped)
+  }, [clampPracticeViewport])
+
+  const pointFromEvent = useCallback((event: PointerEvent<HTMLDivElement>): PracticePoint => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const currentViewport = viewportRef.current
+    const localX = event.clientX - rect.left
+    const localY = event.clientY - rect.top
+    const contentX = (localX - currentViewport.x) / currentViewport.scale
+    const contentY = (localY - currentViewport.y) / currentViewport.scale
+
+    return {
+      x: clamp((contentX / Math.max(rect.width, 1)) * 1000, 0, 1000),
+      y: clamp((contentY / Math.max(rect.height, 1)) * 1000, 0, 1000),
+    }
+  }, [])
+
+  const viewportPointerFromEvent = useCallback((event: PointerEvent<HTMLDivElement>): PracticePoint => {
     const rect = event.currentTarget.getBoundingClientRect()
     return {
-      x: clamp(((event.clientX - rect.left) / Math.max(rect.width, 1)) * 1000, 0, 1000),
-      y: clamp(((event.clientY - rect.top) / Math.max(rect.height, 1)) * 1000, 0, 1000),
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
     }
-  }
+  }, [])
 
-  const finishStroke = () => {
+  const pointerStats = useCallback(() => {
+    const points = [...activePointersRef.current.values()]
+    if (points.length < 2) return null
+
+    const [first, second] = points
+    return {
+      distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+      center: {
+        x: (first.x + second.x) / 2,
+        y: (first.y + second.y) / 2,
+      },
+    }
+  }, [])
+
+  const restartViewportGesture = useCallback(() => {
+    const pointers = [...activePointersRef.current.entries()]
+    if (pointers.length >= 2) {
+      const stats = pointerStats()
+      if (!stats) return
+      viewportGestureRef.current = {
+        mode: 'pinch',
+        startDistance: stats.distance,
+        startCenter: stats.center,
+        startViewport: viewportRef.current,
+      }
+      return
+    }
+
+    if (pointers.length === 1) {
+      const [pointerId, point] = pointers[0]
+      viewportGestureRef.current = {
+        mode: 'pan',
+        pointerId,
+        startPoint: point,
+        startViewport: viewportRef.current,
+      }
+      return
+    }
+
+    viewportGestureRef.current = null
+  }, [pointerStats])
+
+  const finishStroke = useCallback(() => {
     if (!drawingRef.current) return
 
     let path = activePathRef.current
     if (path && activePointCountRef.current === 1) path = `${path} l 0.1 0`
 
     if (path) {
-      const { color, width } = activeStrokeStyleRef.current
-      setStrokes((current) => [...current, { path, color, width }])
+      const { color, width, opacity, dasharray } = activeStrokeStyleRef.current
+      setStrokes((current) => [...current, { path, color, width, opacity, dasharray }])
     }
 
     activePathRef.current = ''
@@ -1629,21 +1760,99 @@ function PracticeScreen({
     lastPointRef.current = null
     drawingRef.current = false
     setActivePath('')
-  }
+  }, [])
+
+  const resetViewportGestureState = useCallback(() => {
+    const canvas = canvasRef.current
+    activePointersRef.current.forEach((_point, pointerId) => {
+      try {
+        if (canvas?.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId)
+      } catch {
+        // Pointer capture may already be gone when switching modes mid-gesture.
+      }
+    })
+    activePointersRef.current.clear()
+    viewportGestureRef.current = null
+  }, [])
+
+  const toggleViewportMode = useCallback(() => {
+    finishStroke()
+    resetViewportGestureState()
+    setViewportLocked((locked) => !locked)
+  }, [finishStroke, resetViewportGestureState])
 
   const onPracticePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId)
+
+    if (!viewportLocked) {
+      activePointersRef.current.set(event.pointerId, viewportPointerFromEvent(event))
+      restartViewportGesture()
+      return
+    }
+
     const point = pointFromEvent(event)
     const path = `M ${point.x} ${point.y}`
     activePathRef.current = path
     activePointCountRef.current = 1
-    activeStrokeStyleRef.current = { color: markerColor, width: markerWidth }
+    activeStrokeStyleRef.current = {
+      path,
+      color: markerColor,
+      width: activeStrokeWidth,
+      opacity: brushTool.opacity,
+      dasharray: brushTool.dasharray,
+    }
     lastPointRef.current = point
     drawingRef.current = true
     setActivePath(path)
   }
 
   const onPracticePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!viewportLocked) {
+      if (!activePointersRef.current.has(event.pointerId)) return
+      activePointersRef.current.set(event.pointerId, viewportPointerFromEvent(event))
+
+      const gesture = viewportGestureRef.current
+      if (!gesture) return
+
+      if (activePointersRef.current.size >= 2) {
+        const stats = pointerStats()
+        if (!stats) return
+        const pinchGesture = gesture.mode === 'pinch'
+          ? gesture
+          : {
+              mode: 'pinch' as const,
+              startDistance: stats.distance,
+              startCenter: stats.center,
+              startViewport: viewportRef.current,
+            }
+        if (gesture.mode !== 'pinch') viewportGestureRef.current = pinchGesture
+
+        const nextScale = clamp(pinchGesture.startViewport.scale * (stats.distance / pinchGesture.startDistance), 1, 5)
+        const contentAtStartCenterX = (pinchGesture.startCenter.x - pinchGesture.startViewport.x) / pinchGesture.startViewport.scale
+        const contentAtStartCenterY = (pinchGesture.startCenter.y - pinchGesture.startViewport.y) / pinchGesture.startViewport.scale
+        updatePracticeViewport({
+          x: stats.center.x - contentAtStartCenterX * nextScale,
+          y: stats.center.y - contentAtStartCenterY * nextScale,
+          scale: nextScale,
+        })
+        return
+      }
+
+      if (gesture.mode !== 'pan') {
+        restartViewportGesture()
+        return
+      }
+
+      const currentPoint = activePointersRef.current.get(gesture.pointerId)
+      if (!currentPoint) return
+      updatePracticeViewport({
+        x: gesture.startViewport.x + currentPoint.x - gesture.startPoint.x,
+        y: gesture.startViewport.y + currentPoint.y - gesture.startPoint.y,
+        scale: gesture.startViewport.scale,
+      })
+      return
+    }
+
     if (!drawingRef.current) return
     const point = pointFromEvent(event)
     const lastPoint = lastPointRef.current
@@ -1656,12 +1865,37 @@ function PracticeScreen({
   }
 
   const onPracticePointerUp = (event: PointerEvent<HTMLDivElement>) => {
-    finishStroke()
+    if (!viewportLocked) {
+      activePointersRef.current.delete(event.pointerId)
+      restartViewportGesture()
+    } else {
+      finishStroke()
+    }
+
     try {
       event.currentTarget.releasePointerCapture(event.pointerId)
     } catch {
       // Pointer may already be released if the stroke was cancelled.
     }
+  }
+
+  const onPracticeWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (viewportLocked) return
+    event.preventDefault()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const point = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    }
+    const startViewport = viewportRef.current
+    const nextScale = clamp(startViewport.scale * Math.exp(-event.deltaY * 0.0012), 1, 5)
+    const contentX = (point.x - startViewport.x) / startViewport.scale
+    const contentY = (point.y - startViewport.y) / startViewport.scale
+    updatePracticeViewport({
+      x: point.x - contentX * nextScale,
+      y: point.y - contentY * nextScale,
+      scale: nextScale,
+    })
   }
 
   const clearPractice = () => {
@@ -1673,17 +1907,45 @@ function PracticeScreen({
     setStrokes([])
   }
 
+  const resetPracticeViewport = () => {
+    resetViewportGestureState()
+    updatePracticeViewport(defaultPracticeViewport)
+  }
+
+  const zoomPractice = (amount: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const center = { x: rect.width / 2, y: rect.height / 2 }
+    const startViewport = viewportRef.current
+    const nextScale = clamp(startViewport.scale + amount, 1, 5)
+    const contentX = (center.x - startViewport.x) / startViewport.scale
+    const contentY = (center.y - startViewport.y) / startViewport.scale
+    updatePracticeViewport({
+      x: center.x - contentX * nextScale,
+      y: center.y - contentY * nextScale,
+      scale: nextScale,
+    })
+  }
+
+  const activeStrokeStyle = {
+    stroke: markerColor,
+    strokeWidth: activeStrokeWidth,
+    opacity: brushTool.opacity,
+    strokeDasharray: brushTool.dasharray,
+  }
+
   return (
-    <section className="practice-screen">
+    <section className="practice-screen coloring-studio">
       <div className="practice-header">
         <div>
-          <p className="eyebrow">On-screen practice</p>
+          <p className="eyebrow">On-screen coloring studio</p>
           <h1>{pictureName}</h1>
-          <p>{pictureTheme} · Trace with a finger, stylus, or mouse.</p>
+          <p>{pictureTheme} · Draw while locked. Unlock only when you want to move or zoom the page.</p>
         </div>
         <div className="trace-header-actions">
-          <button className="secondary-button compact" type="button" onClick={onPicker}>Change picture</button>
-          <button className="secondary-button compact" type="button" onClick={onCameraTrace}>Camera trace</button>
+          <button className="secondary-button compact" type="button" onClick={onPicker}>Pictures</button>
+          <button className="secondary-button compact" type="button" onClick={onCameraTrace}>Camera</button>
           <label className="secondary-button compact file-button">
             Upload
             <input type="file" accept="image/*" onChange={onUpload} />
@@ -1691,69 +1953,91 @@ function PracticeScreen({
         </div>
       </div>
 
-      <div className="practice-layout">
-        <div className="practice-card">
-          <div className="practice-card-copy">
-            <span>Finger or stylus mode</span>
-            <strong>Trace, then color it in.</strong>
-            <small>Use this when a camera stand or paper setup is not available. Switch marker colors to turn the tracing guide into a tiny coloring page.</small>
-          </div>
+      <div className="practice-studio-shell">
+        <div className="practice-toolbar-ribbon" aria-label="Coloring tools">
+          <button className={viewportLocked ? 'studio-tool mode active' : 'studio-tool mode'} type="button" aria-pressed={viewportLocked} onClick={toggleViewportMode}>
+            <span>{viewportLocked ? 'Locked' : 'Move'}</span>
+            <small>{viewportLocked ? 'Draw mode' : 'Pan + zoom'}</small>
+          </button>
 
-          <div
-            className="practice-canvas"
-            onPointerDown={onPracticePointerDown}
-            onPointerMove={onPracticePointerMove}
-            onPointerUp={onPracticePointerUp}
-            onPointerCancel={onPracticePointerUp}
-          >
-            <img className="practice-guide-image" src={overlaySrc} alt="Tracing guide" draggable={false} style={{ opacity: guideOpacity }} />
-            <svg className="practice-ink" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-              {strokes.map((stroke, index) => (
-                <path key={`stroke-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width }} />
-              ))}
-              {activePath && <path className="active" d={activePath} style={{ stroke: markerColor, strokeWidth: markerWidth }} />}
-            </svg>
-          </div>
-        </div>
-
-        <aside className="practice-controls" aria-label="On-screen practice controls">
-          <div className="control-card setup-control">
-            <span>Practice surface</span>
-            <strong>Draw directly on the device.</strong>
-            <small>This is for tracing inside TraceBuddy, separate from the camera-and-paper workflow.</small>
-          </div>
-
-          <div className="control-card marker-control">
-            <span>Marker color</span>
-            <strong>Trace or color with a marker.</strong>
-            <div className="marker-swatches" role="group" aria-label="Marker color">
+          <div className="studio-tool-group color-tool" aria-label="Marker colors" role="group">
+            <span>Color</span>
+            <div className="compact-swatches">
               {markerColors.map((color) => (
                 <button key={color} type="button" className={markerColor === color ? 'active' : ''} style={{ backgroundColor: color }} aria-label={`Use marker color ${color}`} aria-pressed={markerColor === color} onClick={() => setMarkerColor(color)} />
               ))}
             </div>
-            <div className="stepper-buttons marker-size-buttons">
-              <button type="button" className={markerWidth === 8 ? 'active' : ''} onClick={() => setMarkerWidth(8)}>Thin</button>
-              <button type="button" className={markerWidth === 11 ? 'active' : ''} onClick={() => setMarkerWidth(11)}>Marker</button>
-              <button type="button" className={markerWidth === 18 ? 'active' : ''} onClick={() => setMarkerWidth(18)}>Color</button>
+          </div>
+
+          <div className="studio-tool-group" aria-label="Brush type" role="group">
+            <span>Brush</span>
+            <div className="compact-segmented brush-type-buttons">
+              {brushTools.map((tool) => (
+                <button key={tool.id} type="button" className={brushToolId === tool.id ? 'active' : ''} aria-pressed={brushToolId === tool.id} onClick={() => setBrushToolId(tool.id)}>{tool.label}</button>
+              ))}
             </div>
           </div>
 
-          <Slider label="Guide opacity" value={guideOpacity} min={0.1} max={0.65} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setGuideOpacity} />
-
-          <div className="toggle-grid practice-actions">
-            <button className="toggle" type="button" onClick={() => setStrokes((current) => current.slice(0, -1))} disabled={strokes.length === 0}>
-              Undo
-              <small>Remove last stroke</small>
-            </button>
-            <button className="toggle" type="button" onClick={clearPractice} disabled={strokes.length === 0 && !activePath}>
-              Clear
-              <small>Start again</small>
-            </button>
+          <div className="studio-tool-group" aria-label="Brush size" role="group">
+            <span>Size</span>
+            <div className="compact-segmented size-buttons">
+              {brushSizes.map((size) => (
+                <button key={size.value} type="button" className={markerWidth === size.value ? 'active' : ''} aria-pressed={markerWidth === size.value} onClick={() => setMarkerWidth(size.value)}>{size.label}</button>
+              ))}
+            </div>
           </div>
 
-          <button className="reset-button" type="button" onClick={onCameraTrace}>Switch to camera trace</button>
-          <p className="privacy-note">Coming next: a word and name tracing tool can use this same screen-practice surface for letters and phrases.</p>
-        </aside>
+          <div className="studio-tool-group guide-tool" aria-label="Guide visibility" role="group">
+            <span>Guide {Math.round(guideOpacity * 100)}%</span>
+            <div className="compact-stepper">
+              <button type="button" aria-label="Make guide lighter" onClick={() => setGuideOpacity((current) => clamp(current - 0.05, 0.08, 0.72))}>Less</button>
+              <button type="button" aria-label="Make guide darker" onClick={() => setGuideOpacity((current) => clamp(current + 0.05, 0.08, 0.72))}>More</button>
+            </div>
+          </div>
+
+          <div className="studio-tool-group zoom-tool" aria-label="Canvas zoom" role="group">
+            <span>Zoom {Math.round(viewport.scale * 100)}%</span>
+            <div className="compact-stepper">
+              <button type="button" disabled={viewportLocked} aria-label="Zoom out" onClick={() => zoomPractice(-0.35)}>−</button>
+              <button type="button" disabled={viewportLocked} aria-label="Zoom in" onClick={() => zoomPractice(0.35)}>+</button>
+              <button type="button" disabled={viewport.scale === 1 && viewport.x === 0 && viewport.y === 0} onClick={resetPracticeViewport}>Reset</button>
+            </div>
+          </div>
+
+          <div className="studio-tool-group action-tool" aria-label="Drawing actions" role="group">
+            <span>Actions</span>
+            <div className="compact-stepper">
+              <button type="button" onClick={() => setStrokes((current) => current.slice(0, -1))} disabled={strokes.length === 0}>Undo</button>
+              <button type="button" onClick={clearPractice} disabled={strokes.length === 0 && !activePath}>Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="practice-card studio-card">
+          <div className="practice-status-strip">
+            <span>{viewportLocked ? 'Draw mode: page is locked so little hands can color without bumping the canvas.' : 'Move mode: drag to pan, pinch or scroll to zoom, then lock again to color.'}</span>
+          </div>
+
+          <div
+            ref={canvasRef}
+            className={viewportLocked ? 'practice-canvas locked' : 'practice-canvas unlocked'}
+            onPointerDown={onPracticePointerDown}
+            onPointerMove={onPracticePointerMove}
+            onPointerUp={onPracticePointerUp}
+            onPointerCancel={onPracticePointerUp}
+            onWheel={onPracticeWheel}
+          >
+            <div className="practice-transform-layer" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
+              <img className="practice-guide-image" src={overlaySrc} alt="Tracing guide" draggable={false} style={{ opacity: guideOpacity }} />
+              <svg className="practice-ink" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+                {strokes.map((stroke, index) => (
+                  <path key={`stroke-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width, opacity: stroke.opacity, strokeDasharray: stroke.dasharray }} />
+                ))}
+                {activePath && <path className="active" d={activePath} style={activeStrokeStyle} />}
+              </svg>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )

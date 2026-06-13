@@ -73,9 +73,10 @@ The first mobile app should be intentionally small and reliable:
 - Two-column template picker with category filters.
 - Upload/select a local image from the device photo library.
 - Native camera trace mode.
-- On-screen practice mode for finger/stylus tracing over the selected guide.
+- On-screen coloring/practice mode for finger/stylus tracing over the selected guide.
 - Custom word/name/phrase tracing using the same local guide pipeline.
-- Marker color and brush-size controls for tracing and coloring.
+- Expanded color palette plus pencil/marker/crayon/paint brush styles.
+- Locked-by-default practice canvas with optional pan/zoom for detailed coloring.
 - Manual overlay controls:
   - move by dragging when unlocked
   - nudge controls

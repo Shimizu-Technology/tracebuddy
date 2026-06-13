@@ -2,7 +2,7 @@
 
 ## Summary
 
-TraceBuddy is a mobile-first tracing helper for kids and parents. A phone or iPad camera can show real paper on the table with a semi-transparent line-art overlay, and an on-screen practice mode lets a child trace directly with a finger or stylus when a paper setup is not available.
+TraceBuddy is a mobile-first tracing helper for kids and parents. A phone or iPad camera can show real paper on the table with a semi-transparent line-art overlay, and an on-screen coloring/practice mode lets a child trace or color directly with a finger or stylus when a paper setup is not available.
 
 It is intentionally simple: no account, no backend, no uploads, no analytics, and no native AR anchoring. The product is a practical camera overlay tracing tool with a production-oriented web MVP and an Expo Go mobile MVP for native camera validation.
 
@@ -33,7 +33,8 @@ When a child wants to practice drawing, the parent can open TraceBuddy, pick or 
 4. Allow camera access when using the paper workflow.
 5. Place the device above real paper with a stand or stable prop.
 6. Use Find paper/Track paper for automatic alignment, or adjust opacity, size, rotation, and position manually.
-7. Lock the overlay and trace on paper, or trace directly on the device in practice mode.
+7. Lock the overlay and trace on paper, or use the locked digital canvas to trace/color directly on the device.
+8. Unlock the digital canvas only when the child needs to pan or zoom into details.
 
 ## Success criteria
 
@@ -87,9 +88,10 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Local image upload with optional browser-only cleanup.
 - Browser camera access with graceful demo fallback.
 - Native Expo camera trace mode in the mobile MVP.
-- On-screen practice mode in web and mobile for finger/stylus tracing.
+- On-screen coloring/practice mode in web and mobile for finger/stylus tracing.
 - Custom word/name/phrase guides for early writing practice.
-- Marker color and brush-size controls for on-screen tracing and coloring.
+- Expanded colors, brush sizes, and pencil/marker/crayon/paint styles for on-screen coloring.
+- Locked-by-default digital canvas with optional pan/zoom for detail work.
 - Overlay transform controls.
 - Mobile floating controls for trace mode.
 - Experimental paper rectangle detection and tracking.

@@ -15,8 +15,8 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 
 - Mobile-first React/Vite frontend.
 - Expo Go native mobile MVP.
-- On-screen practice mode for tracing without a paper/camera setup.
-- Custom word/name/phrase tracing and marker color controls.
+- On-screen coloring/practice mode for tracing without a paper/camera setup.
+- Custom word/name/phrase tracing, expanded colors, brush styles, and locked pan/zoom controls.
 - Shared SVG line-art drawing library with category filters.
 - Local image upload.
 - Camera preview with demo fallback.
@@ -66,7 +66,7 @@ Goal: compare the native camera tracing loop against the PWA before adding AR co
 Current Expo Go MVP:
 
 - Native camera trace mode.
-- On-screen practice mode for finger/stylus tracing.
+- On-screen coloring/practice mode for finger/stylus tracing, brush switching, and detail zoom.
 - Shared built-in template library.
 - Two-column mobile template picker with category filters.
 - Local photo library selection.
