@@ -717,6 +717,16 @@ function PracticeScreen({
     setActivePath('')
   }, [])
 
+  const resetViewportGestureState = useCallback(() => {
+    viewportGestureRef.current = null
+  }, [])
+
+  const toggleViewportMode = useCallback(() => {
+    finishPracticeStroke()
+    resetViewportGestureState()
+    setViewportLocked((locked) => !locked)
+  }, [finishPracticeStroke, resetViewportGestureState])
+
   const startPracticeStroke = useCallback((event: GestureResponderEvent) => {
     const touches = touchPointsFromEvent(event)
     if (!viewportLocked) {
@@ -806,8 +816,8 @@ function PracticeScreen({
       return
     }
 
-    viewportGestureRef.current = null
-  }, [finishPracticeStroke, viewportLocked])
+    resetViewportGestureState()
+  }, [finishPracticeStroke, resetViewportGestureState, viewportLocked])
 
   const undoPracticeStroke = useCallback(() => {
     setPracticeStrokes((current) => current.slice(0, -1))
@@ -845,9 +855,9 @@ function PracticeScreen({
   }, [setPracticeViewport])
 
   const resetPracticeViewport = useCallback(() => {
-    viewportGestureRef.current = null
+    resetViewportGestureState()
     setPracticeViewport(defaultPracticeViewport)
-  }, [setPracticeViewport])
+  }, [resetViewportGestureState, setPracticeViewport])
 
   return (
     <View style={styles.practiceShell}>
@@ -869,7 +879,7 @@ function PracticeScreen({
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.practiceToolRail}>
           <Pressable
             style={[styles.practiceModeButton, viewportLocked && styles.practiceModeButtonActive]}
-            onPress={() => setViewportLocked((locked) => !locked)}
+            onPress={toggleViewportMode}
             accessibilityRole="button"
             accessibilityState={{ selected: viewportLocked }}
             accessibilityLabel={viewportLocked ? 'Canvas locked for drawing' : 'Canvas unlocked for moving and zooming'}

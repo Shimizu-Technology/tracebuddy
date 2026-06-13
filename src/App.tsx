@@ -1762,6 +1762,25 @@ function PracticeScreen({
     setActivePath('')
   }, [])
 
+  const resetViewportGestureState = useCallback(() => {
+    const canvas = canvasRef.current
+    activePointersRef.current.forEach((_point, pointerId) => {
+      try {
+        if (canvas?.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId)
+      } catch {
+        // Pointer capture may already be gone when switching modes mid-gesture.
+      }
+    })
+    activePointersRef.current.clear()
+    viewportGestureRef.current = null
+  }, [])
+
+  const toggleViewportMode = useCallback(() => {
+    finishStroke()
+    resetViewportGestureState()
+    setViewportLocked((locked) => !locked)
+  }, [finishStroke, resetViewportGestureState])
+
   const onPracticePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId)
 
@@ -1889,8 +1908,7 @@ function PracticeScreen({
   }
 
   const resetPracticeViewport = () => {
-    activePointersRef.current.clear()
-    viewportGestureRef.current = null
+    resetViewportGestureState()
     updatePracticeViewport(defaultPracticeViewport)
   }
 
@@ -1937,7 +1955,7 @@ function PracticeScreen({
 
       <div className="practice-studio-shell">
         <div className="practice-toolbar-ribbon" aria-label="Coloring tools">
-          <button className={viewportLocked ? 'studio-tool mode active' : 'studio-tool mode'} type="button" aria-pressed={viewportLocked} onClick={() => setViewportLocked((locked) => !locked)}>
+          <button className={viewportLocked ? 'studio-tool mode active' : 'studio-tool mode'} type="button" aria-pressed={viewportLocked} onClick={toggleViewportMode}>
             <span>{viewportLocked ? 'Locked' : 'Move'}</span>
             <small>{viewportLocked ? 'Draw mode' : 'Pan + zoom'}</small>
           </button>
