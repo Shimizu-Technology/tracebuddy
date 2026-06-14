@@ -278,10 +278,10 @@ Screenshot captions can be added visually if desired, but keep them honest and r
 
 Current latest TestFlight build at time of writing:
 
-- Version/build: `0.1.0 (6)`
-- Commit: `407d041`
+- Version/build: `1.0 (7)`
+- Commit: `55db474`
 
-Before review submission, select the latest processed build in App Store Connect under **TestFlight → Builds**. Do not rely on the version above — always pick the newest eligible build from the App Store Connect build list. If no compatible build appears under version `1.0`, create a matching `1.0` build first.
+Before review submission, select the latest processed build in App Store Connect under **TestFlight → Builds**. Do not rely on the version above — always pick the newest eligible build from the App Store Connect build list.
 
 ## Pre-submit checklist
 
