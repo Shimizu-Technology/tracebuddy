@@ -4,7 +4,7 @@
 
 TraceBuddy is a mobile-first tracing helper for kids and parents. A phone or iPad camera can show real paper on the table with a semi-transparent line-art overlay, and an on-screen coloring/practice mode lets a child trace or color directly with a finger or stylus when a paper setup is not available.
 
-It is intentionally simple: no account, no backend, no uploads, no analytics, and no native AR anchoring. The product is a practical camera overlay tracing tool with a production-oriented web MVP and an Expo Go mobile MVP for native camera validation.
+It is intentionally simple: no account, no backend, no uploads, and no analytics. The current product is a practical camera overlay and on-screen coloring tool. A future iOS ARKit mode is planned specifically to anchor the tracing guide to real paper, not to add novelty 3D features.
 
 ## Why we built it
 
@@ -51,8 +51,8 @@ The MVP is successful if:
 
 ## Non-goals for the MVP
 
-- True AR plane detection or anchoring.
-- Production native AR anchoring.
+- Production native AR anchoring in the first App Store release.
+- Blank-paper AR detection without a stable marker or calibration strategy.
 - Account creation.
 - Cloud storage.
 - Uploading photos or camera video.
@@ -67,9 +67,11 @@ A mobile web MVP was faster to test and easier to share. Camera access is availa
 
 The next step is an Expo Go mobile MVP using only Expo Go-supported modules. This gives us a native camera preview, local image picker, keep-awake behavior, and React Native controls without committing to custom native AR work yet.
 
-### Browser paper tracking before native AR
+### Camera tracing now, focused AR later
 
-The app starts with a lightweight browser paper detector instead of native AR. It can find a bright sheet in the camera view and align/track the drawing locally. This is useful for small camera shifts, but physical stability still matters and manual controls remain available when detection fails.
+The app starts with a lightweight camera tracing workflow and browser paper detector instead of native AR. It can find a bright sheet in the camera view and align/track the drawing locally. This is useful for small camera shifts, but physical stability still matters and manual controls remain available when detection fails.
+
+The planned AR direction is full iOS ARKit with a printed TraceBuddy marker/reference image. The goal is to make the selected tracing guide stay attached to the physical worksheet when the device moves. This should be built as an experimental iOS-only AR Trace mode after the first App Store MVP is submitted.
 
 ### Local-first privacy
 
@@ -108,4 +110,4 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Which premade drawing/template categories does Stassie use most?
 - Does the larger library need favorites/recent templates?
 - Does the app need a fullscreen/low-distraction mode after real-device testing?
-- Is a native AR version ever worth the added complexity?
+- Does the planned ARKit marker-anchored mode improve real tracing enough to justify the native complexity?

@@ -6,7 +6,7 @@ TraceBuddy is already usable as a mobile-first PWA, but tracing is a physical ac
 
 - **Primary use is mobile.** The real workflow is phone/tablet camera over paper, with an on-screen practice fallback when a stand or paper setup is not available.
 - **Native camera lifecycle is more predictable.** Expo gives us a first-class camera preview, permission prompts, and screen-awake behavior instead of relying on browser differences.
-- **Expo Go is enough for the next proof.** The first native milestone can use Expo Go-supported modules only: camera, image picker, SVG rendering, keep awake, and React Native controls.
+- **Expo Go was enough for the first proof.** The first native milestone used Expo-supported modules only: camera, image picker, SVG rendering, keep awake, and React Native controls.
 - **It keeps the product local-first.** The mobile MVP should still have no accounts, backend, uploads, analytics, or remote image processing.
 - **It gives us a clean bridge to AR.** Once the native tracing loop feels good, we can move from Expo Go to an Expo development build for AR experiments.
 
@@ -33,19 +33,19 @@ Expo Go is not appropriate for:
 
 ### AR research
 
-The most realistic React Native AR path is ViroReact via `@reactvision/react-viro`. It is actively maintained and supports ARKit on iOS, ARCore on Android, plane detection, anchors, and image-marker tracking.
+The preferred AR path is now a focused iOS ARKit mode implemented with a small custom native view/module. The goal is paper anchoring, not novelty 3D effects.
 
-Important limitation: ViroReact explicitly does **not** work in Expo Go. It requires an Expo development client or prebuild.
+Important limitation: ARKit is not available in Expo Go. It requires EAS/TestFlight builds with native iOS code.
 
 Best AR direction for TraceBuddy:
 
-1. Prove the native non-AR tracing workflow first.
-2. Move to an Expo development build.
-3. Start with a printable TraceBuddy marker/page target with a known physical width.
-4. Anchor selected line art to that marker or paper target.
+1. Submit and validate the non-AR App Store MVP first.
+2. Add an experimental iOS-only AR Trace entry point.
+3. Start with a printable TraceBuddy marker/reference image with a known physical width.
+4. Use ARKit image anchoring to place selected line art relative to that marker or worksheet.
 5. Measure drift, setup friction, battery, device compatibility, and child/parent usability.
 
-Plain-paper AR should remain a later experiment. A marker-based approach is more likely to be stable than asking ARKit/ARCore to infer a blank sheet of paper.
+Plain-paper AR should remain a later experiment. A marker-based ARKit approach is more likely to be stable than asking ARKit to infer a blank sheet of paper.
 
 ## Patterns from other Shimizu Expo apps
 
@@ -95,7 +95,6 @@ The first mobile app should be intentionally small and reliable:
 - Browser paper rectangle detection/tracking parity.
 - ARKit/ARCore AR tracking.
 - Printable marker generation.
-- App-store distribution and TestFlight.
 - Accounts, backend sync, cloud storage, analytics, or remote image processing.
 
 ## Implementation notes

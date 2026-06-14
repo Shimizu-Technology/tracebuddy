@@ -43,8 +43,17 @@ The web app needs network access to load the deployed site the first time. After
 
 The Expo Go mobile app needs network access during development to load the JavaScript bundle from the local Expo server. It does not send camera video or selected images to TraceBuddy servers.
 
+## Future AR Trace mode
+
+A planned iOS ARKit mode would use on-device ARKit processing to recognize a printed TraceBuddy marker and anchor the tracing guide to real paper. The intended privacy boundary remains the same:
+
+- AR camera frames are processed on the device.
+- Camera video is not recorded or uploaded.
+- Selected images and tracing guides stay on the device.
+- No accounts, analytics, ads, or tracking are required.
+
 ## Future changes
 
-If future versions add accounts, uploads, analytics, remote AI processing, or cloud storage, this privacy document must be updated before release.
+If future versions add accounts, uploads, analytics, remote AI processing, cloud storage, or any off-device AR/image processing, this privacy document must be updated before release.
 
 Until then, the intended boundary is simple: camera and selected images stay on the device.
