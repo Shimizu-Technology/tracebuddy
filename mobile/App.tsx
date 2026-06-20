@@ -335,11 +335,42 @@ async function savePreviousWorkSession(session: SavedPracticeSession) {
   ])
 }
 
+function isStoredUploadedImageUri(uri?: string) {
+  return Boolean(uri && uploadedWorkDirectory && uri.startsWith(uploadedWorkDirectory))
+}
+
+async function cleanupUploadedImageIfUnused(deletedSession: SavedPracticeSession | null, remainingIds: string[]) {
+  const uploadedUri = deletedSession?.source.uploadedImage?.uri
+  if (!uploadedUri || !isStoredUploadedImageUri(uploadedUri)) return
+
+  const remainingEntries = await AsyncStorage.multiGet(remainingIds.map(previousWorkSessionKey))
+  const stillReferenced = remainingEntries.some(([, rawSession]) => {
+    if (!rawSession) return false
+    try {
+      return normalizeSavedPracticeSession(JSON.parse(rawSession))?.source.uploadedImage?.uri === uploadedUri
+    } catch {
+      return false
+    }
+  })
+
+  if (stillReferenced) return
+  await FileSystem.deleteAsync(uploadedUri, { idempotent: true }).catch(() => undefined)
+}
+
 async function deletePreviousWorkSession(sessionId: string) {
   const currentIds = await readPreviousWorkIds()
+  const rawDeletedSession = await AsyncStorage.getItem(previousWorkSessionKey(sessionId)).catch(() => null)
+  const deletedSession = (() => {
+    try {
+      return rawDeletedSession ? normalizeSavedPracticeSession(JSON.parse(rawDeletedSession)) : null
+    } catch {
+      return null
+    }
+  })()
   const ids = currentIds.filter((id) => id !== sessionId)
   await AsyncStorage.multiRemove([previousWorkSessionKey(sessionId)])
   await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
+  await cleanupUploadedImageIfUnused(deletedSession, ids)
 }
 
 function uploadedImageFileName(sourceUri: string, fallbackName?: string) {
@@ -350,7 +381,8 @@ function uploadedImageFileName(sourceUri: string, fallbackName?: string) {
 }
 
 async function persistUploadedImage(sourceUri: string, fallbackName?: string) {
-  if (!FileSystem.documentDirectory) return sourceUri
+  if (!FileSystem.documentDirectory) return null
+  if (sourceUri.startsWith(uploadedWorkDirectory)) return sourceUri
 
   try {
     await FileSystem.makeDirectoryAsync(uploadedWorkDirectory, { intermediates: true })
@@ -358,7 +390,7 @@ async function persistUploadedImage(sourceUri: string, fallbackName?: string) {
     await FileSystem.copyAsync({ from: sourceUri, to: destinationUri })
     return destinationUri
   } catch {
-    return sourceUri
+    return null
   }
 }
 
@@ -488,6 +520,11 @@ function TraceBuddyMobile() {
       if (!result.canceled && result.assets.length > 0) {
         const asset = result.assets[0]
         const persistedUri = await persistUploadedImage(asset.uri, asset.fileName ?? 'local-image.jpg')
+        if (!persistedUri) {
+          Alert.alert('Could not save image', 'TraceBuddy could not copy this image into local app storage. Try choosing it again or use a built-in template.')
+          return
+        }
+
         setUploadedImage({
           uri: persistedUri,
           name: asset.fileName ?? 'Local image',
@@ -936,7 +973,9 @@ function PreviousWorkSection({
           <Text style={styles.previousWorkEyebrow}>Saved on this phone</Text>
           <Text style={styles.previousWorkTitle}>Previous work</Text>
         </View>
-        <Text style={styles.previousWorkCount}>{sessions.length}</Text>
+        <View style={styles.previousWorkCount}>
+          <Text style={styles.previousWorkCountText}>{sessions.length}</Text>
+        </View>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previousWorkRail}>
         {sessions.map((session) => (
@@ -947,7 +986,7 @@ function PreviousWorkSection({
               ) : (
                 <SvgXml xml={session.source.drawingSvg ?? drawingFromPracticeSource(session.source).drawing.svg} width="100%" height="100%" />
               )}
-              <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${session.canvasWidth} ${session.canvasHeight}`} style={styles.previousWorkInk}>
+              <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${session.canvasWidth} ${session.canvasHeight}`} preserveAspectRatio="xMidYMid meet" style={styles.previousWorkInk}>
                 {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-16).map((stroke, index) => (
                   <Path key={`${session.sessionId}-preview-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
                 ))}
@@ -1986,12 +2025,15 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 999,
     backgroundColor: palette.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  previousWorkCountText: {
     color: '#FFFFFF',
     textAlign: 'center',
-    textAlignVertical: 'center',
     fontSize: 13,
     fontWeight: '900',
-    overflow: 'hidden',
   },
   previousWorkRail: {
     gap: 10,

@@ -1597,7 +1597,7 @@ function PickerScreen({
               <article key={session.sessionId} className="previous-work-card">
                 <button type="button" className="previous-work-preview" onClick={() => onResumeWork(session)} aria-label={`Resume ${session.title}`}>
                   <img src={session.source.kind === 'upload' && session.source.uploadedImage ? session.source.uploadedImage.processedSrc : drawingImageSrc(drawingFromPracticeSource(session.source))} alt="" aria-hidden="true" />
-                  <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+                  <svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
                     {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-18).map((stroke, index) => (
                       <path key={`${session.sessionId}-preview-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width, opacity: stroke.opacity, strokeDasharray: stroke.dasharray }} />
                     ))}
