@@ -2265,8 +2265,20 @@ function PracticeScreen({
   const brushTool = useMemo(() => brushTools.find((tool) => tool.id === brushToolId) ?? brushTools[1], [brushToolId])
   const activeStrokeWidth = (markerWidth * brushTool.widthMultiplier) / Math.max(viewport.scale, 1)
   const practiceSource = useMemo(() => makePracticeSource(selectedDrawing, uploadedImage), [selectedDrawing, uploadedImage])
-  const sourceResetKey = `${initialSession?.sessionId ?? 'fresh'}|${practiceSource.kind}|${practiceSource.drawingId}|${practiceSource.uploadedImage?.processedSrc ?? ''}`
+  const sourceResetKey = JSON.stringify({
+    sessionId: initialSession?.sessionId ?? 'fresh',
+    kind: practiceSource.kind,
+    drawingId: practiceSource.drawingId,
+    drawingName: practiceSource.drawingName,
+    drawingTheme: practiceSource.drawingTheme,
+    imageId: practiceSource.uploadedImage?.imageId ?? '',
+  })
+  const practiceSourceRef = useRef(practiceSource)
   const topGuideOpacity = Math.max(guideOpacity, 0.48)
+
+  useEffect(() => {
+    practiceSourceRef.current = practiceSource
+  }, [practiceSource])
 
   useEffect(() => {
     viewportRef.current = viewport
@@ -2293,18 +2305,19 @@ function PracticeScreen({
       const nextMarkerColor = initialSession?.markerColor ?? markerColors[0]
       const nextMarkerWidth = initialSession?.markerWidth ?? 12
       const nextBrushToolId = initialSession?.brushToolId ?? 'marker'
+      const resetPracticeSource = practiceSourceRef.current
 
       setStrokes(nextStrokes)
       setSessionId(initialSession?.sessionId ?? null)
       setSessionCreatedAt(initialSession?.createdAt ?? new Date().toISOString())
-      setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(practiceSource))
+      setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(resetPracticeSource))
       setGuideOpacity(nextGuideOpacity)
       setGuideOnTop(nextGuideOnTop)
       setMarkerColor(nextMarkerColor)
       setMarkerWidth(nextMarkerWidth)
       setBrushToolId(nextBrushToolId)
       lastSavedSignatureRef.current = makePracticeSaveSignature({
-        source: practiceSource,
+        source: resetPracticeSource,
         strokes: nextStrokes,
         guideOpacity: nextGuideOpacity,
         guideOnTop: nextGuideOnTop,
@@ -2320,7 +2333,7 @@ function PracticeScreen({
     return () => {
       cancelled = true
     }
-  }, [initialSession, practiceSource, sourceResetKey])
+  }, [initialSession, sourceResetKey])
 
   useEffect(() => {
     if (!autosaveReadyRef.current) return
