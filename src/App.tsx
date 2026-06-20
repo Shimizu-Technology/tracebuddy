@@ -243,7 +243,10 @@ function openUploadedImageDb() {
       if (!db.objectStoreNames.contains(uploadedImageStoreName)) db.createObjectStore(uploadedImageStoreName, { keyPath: 'imageId' })
     }
     request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error ?? new Error('Could not open image storage'))
+    request.onerror = () => {
+      uploadedImageDbPromise = null
+      reject(request.error ?? new Error('Could not open image storage'))
+    }
   })
 
   return uploadedImageDbPromise
