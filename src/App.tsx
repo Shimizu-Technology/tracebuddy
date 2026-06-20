@@ -153,6 +153,7 @@ const brushSizes = [
 const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
 const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
 const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
+const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
 const uploadedImageDbName = 'tracebuddy-uploaded-images'
 const uploadedImageStoreName = 'uploaded-images'
 const practiceAutosaveDelayMs = 450
@@ -359,6 +360,82 @@ function previousWorkSessionKey(sessionId: string) {
   return `${previousWorkSessionPrefix}${sessionId}`
 }
 
+function legacyPracticeSessionId(storageKey: string) {
+  const suffix = storageKey.slice(legacyPracticeAutosavePrefix.length).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 150) || createPracticeSessionId()
+  return `legacy-${suffix}`
+}
+
+function legacyPracticeSource(pictureName: string, pictureTheme: string, storageKey: string): PracticeSource {
+  const libraryDrawing = drawings.find((drawing) => drawing.name === pictureName && drawing.theme === pictureTheme)
+  if (libraryDrawing) return makePracticeSource(libraryDrawing, null)
+
+  const customDrawing = createTextDrawing(pictureName)
+  return {
+    kind: 'custom',
+    drawingId: `${legacyPracticeSessionId(storageKey)}-source`,
+    drawingName: pictureName,
+    drawingTheme: pictureTheme.startsWith('Local upload') ? 'Legacy upload · image unavailable' : pictureTheme,
+    drawingSvg: customDrawing.svg,
+  }
+}
+
+function normalizeLegacyPracticeAutosave(value: unknown, storageKey: string): SavedPracticeSession | null {
+  if (!value || typeof value !== 'object') return null
+  const session = value as {
+    pictureName?: unknown
+    pictureTheme?: unknown
+    updatedAt?: unknown
+    strokes?: unknown
+    guideOpacity?: unknown
+    guideOnTop?: unknown
+    markerColor?: unknown
+    markerWidth?: unknown
+    brushToolId?: unknown
+  }
+  if (typeof session.pictureName !== 'string' || typeof session.pictureTheme !== 'string') return null
+
+  const strokes = Array.isArray(session.strokes)
+    ? session.strokes.map(normalizeSavedPracticeStroke).filter((stroke): stroke is PracticeStroke => Boolean(stroke))
+    : []
+  if (strokes.length === 0) return null
+
+  const source = legacyPracticeSource(session.pictureName, session.pictureTheme, storageKey)
+  const updatedAt = typeof session.updatedAt === 'string' ? session.updatedAt : new Date().toISOString()
+
+  return {
+    version: 2,
+    sessionId: legacyPracticeSessionId(storageKey),
+    title: makePracticeSessionTitle(source),
+    source,
+    createdAt: updatedAt,
+    updatedAt,
+    strokes,
+    guideOpacity: typeof session.guideOpacity === 'number' ? clamp(session.guideOpacity, 0.08, 0.72) : 0.26,
+    guideOnTop: typeof session.guideOnTop === 'boolean' ? session.guideOnTop : true,
+    markerColor: typeof session.markerColor === 'string' ? session.markerColor : markerColors[0],
+    markerWidth: typeof session.markerWidth === 'number' ? session.markerWidth : 12,
+    brushToolId: typeof session.brushToolId === 'string' && brushTools.some((tool) => tool.id === session.brushToolId) ? session.brushToolId as BrushToolId : 'marker',
+  }
+}
+
+function migrateLegacyPracticeAutosaves() {
+  const legacyKeys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(legacyPracticeAutosavePrefix)))
+
+  legacyKeys.forEach((key) => {
+    try {
+      const rawSession = window.localStorage.getItem(key)
+      const migratedSession = rawSession ? normalizeLegacyPracticeAutosave(JSON.parse(rawSession), key) : null
+      if (!migratedSession) return
+
+      savePreviousWorkSession(migratedSession)
+      window.localStorage.removeItem(key)
+    } catch {
+      // Leave the legacy autosave in place if migration cannot complete.
+    }
+  })
+}
+
 function normalizePracticeSource(value: unknown): PracticeSource | null {
   if (!value || typeof value !== 'object') return null
   const source = value as Partial<PracticeSource>
@@ -433,6 +510,7 @@ async function hydrateUploadedImageSession(session: SavedPracticeSession) {
 }
 
 async function loadPreviousWorkSessions() {
+  migrateLegacyPracticeAutosaves()
   const ids = readPreviousWorkIds()
   const sessions = ids
     .map((id) => {

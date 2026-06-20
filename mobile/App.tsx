@@ -130,6 +130,7 @@ const brushSizes = [
 const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
 const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
 const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
+const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
 const uploadedWorkDirectory = `${FileSystem.documentDirectory ?? ''}tracebuddy-uploads/`
 const practiceAutosaveDelayMs = 450
 
@@ -243,6 +244,112 @@ function makePracticeSaveSignature(session: Pick<SavedPracticeSession, 'source' 
   return JSON.stringify(session)
 }
 
+function legacyPracticeSessionId(storageKey: string) {
+  const suffix = storageKey.slice(legacyPracticeAutosavePrefix.length).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 150) || createPracticeSessionId()
+  return `legacy-${suffix}`
+}
+
+function isLegacyUploadAutosaveKey(storageKey: string) {
+  return storageKey.slice(legacyPracticeAutosavePrefix.length).startsWith('uploaded_')
+}
+
+function scaleLegacyPracticePath(path: string, scaleX: number, scaleY: number) {
+  let coordinateIndex = 0
+  return path.replace(/-?\d+(?:\.\d+)?/g, (match) => {
+    const value = Number(match)
+    if (!Number.isFinite(value)) return match
+    const scaled = value * (coordinateIndex % 2 === 0 ? scaleX : scaleY)
+    coordinateIndex += 1
+    return String(Math.round(scaled * 100) / 100)
+  })
+}
+
+function scaleLegacyPracticeStroke(stroke: PracticeStroke, scaleX: number, scaleY: number): PracticeStroke {
+  return {
+    ...stroke,
+    path: scaleLegacyPracticePath(stroke.path, scaleX, scaleY),
+    width: clamp(stroke.width * Math.min(scaleX, scaleY), 0.5, 80),
+  }
+}
+
+function legacyPracticeSource(drawingId: string, drawingName: string, storageKey: string): PracticeSource {
+  const libraryDrawing = !isLegacyUploadAutosaveKey(storageKey) ? drawings.find((drawing) => drawing.id === drawingId) : null
+  if (libraryDrawing) return makePracticeSource(libraryDrawing, null)
+
+  const customDrawing = createTextDrawing(drawingName)
+  return {
+    kind: 'custom',
+    drawingId: `${legacyPracticeSessionId(storageKey)}-source`,
+    drawingName,
+    drawingTheme: isLegacyUploadAutosaveKey(storageKey) ? 'Legacy upload · image unavailable' : 'Saved practice',
+    drawingSvg: customDrawing.svg,
+  }
+}
+
+function normalizeLegacyPracticeAutosave(value: unknown, storageKey: string, legacyCanvasSize: { width: number; height: number }): SavedPracticeSession | null {
+  if (!value || typeof value !== 'object') return null
+  const session = value as {
+    drawingId?: unknown
+    drawingName?: unknown
+    updatedAt?: unknown
+    strokes?: unknown
+    guideOpacity?: unknown
+    guideOnTop?: unknown
+    markerColor?: unknown
+    markerWidth?: unknown
+    brushToolId?: unknown
+  }
+  if (typeof session.drawingId !== 'string' || typeof session.drawingName !== 'string') return null
+
+  const scaleX = 1000 / Math.max(1, legacyCanvasSize.width)
+  const scaleY = 1000 / Math.max(1, legacyCanvasSize.height)
+  const strokes = Array.isArray(session.strokes)
+    ? session.strokes
+        .map(normalizeSavedPracticeStroke)
+        .filter((stroke): stroke is PracticeStroke => Boolean(stroke))
+        .map((stroke) => scaleLegacyPracticeStroke(stroke, scaleX, scaleY))
+    : []
+  if (strokes.length === 0) return null
+
+  const source = legacyPracticeSource(session.drawingId, session.drawingName, storageKey)
+  const updatedAt = typeof session.updatedAt === 'string' ? session.updatedAt : new Date().toISOString()
+
+  return {
+    version: 2,
+    sessionId: legacyPracticeSessionId(storageKey),
+    title: makePracticeSessionTitle(source),
+    source,
+    createdAt: updatedAt,
+    updatedAt,
+    strokes,
+    canvasWidth: 1000,
+    canvasHeight: 1000,
+    guideOpacity: typeof session.guideOpacity === 'number' ? clamp(session.guideOpacity, 0.08, 0.66) : 0.24,
+    guideOnTop: typeof session.guideOnTop === 'boolean' ? session.guideOnTop : true,
+    markerColor: typeof session.markerColor === 'string' ? session.markerColor : markerColors[0],
+    markerWidth: typeof session.markerWidth === 'number' ? session.markerWidth : 9,
+    brushToolId: typeof session.brushToolId === 'string' && brushTools.some((tool) => tool.id === session.brushToolId) ? session.brushToolId as BrushToolId : 'marker',
+  }
+}
+
+async function migrateLegacyPracticeAutosaves(legacyCanvasSize: { width: number; height: number }) {
+  const keys = await AsyncStorage.getAllKeys()
+  const legacyKeys = keys.filter((key) => key.startsWith(legacyPracticeAutosavePrefix))
+
+  for (const key of legacyKeys) {
+    try {
+      const rawSession = await AsyncStorage.getItem(key)
+      const migratedSession = rawSession ? normalizeLegacyPracticeAutosave(JSON.parse(rawSession), key, legacyCanvasSize) : null
+      if (!migratedSession) continue
+
+      await savePreviousWorkSession(migratedSession)
+      await AsyncStorage.removeItem(key)
+    } catch {
+      // Leave the legacy autosave in place if migration cannot complete.
+    }
+  }
+}
+
 function normalizePracticeSource(value: unknown): PracticeSource | null {
   if (!value || typeof value !== 'object') return null
   const source = value as Partial<PracticeSource>
@@ -305,7 +412,8 @@ async function readPreviousWorkIds() {
   }
 }
 
-async function loadPreviousWorkSessions() {
+async function loadPreviousWorkSessions(legacyCanvasSize: { width: number; height: number }) {
+  await migrateLegacyPracticeAutosaves(legacyCanvasSize)
   const ids = await readPreviousWorkIds()
   if (ids.length === 0) return []
 
@@ -421,8 +529,12 @@ function TraceBuddyMobile() {
   const transformRef = useRef(defaultTransform)
 
   const refreshPreviousWork = useCallback(() => {
-    void loadPreviousWorkSessions().then(setPreviousWorkSessions).catch(() => setPreviousWorkSessions([]))
-  }, [])
+    const legacyCanvasSize = {
+      width: Math.max(1, width - 20),
+      height: Math.max(430, height - 280),
+    }
+    void loadPreviousWorkSessions(legacyCanvasSize).then(setPreviousWorkSessions).catch(() => setPreviousWorkSessions([]))
+  }, [height, width])
 
   useEffect(() => {
     refreshPreviousWork()
