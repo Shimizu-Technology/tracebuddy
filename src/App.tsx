@@ -16,13 +16,15 @@ type PracticePoint = {
   y: number
 }
 
-type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint'
+type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint' | 'eraser'
+type PracticeStrokeMode = 'draw' | 'erase'
 
 type BrushTool = {
   id: BrushToolId
   label: string
   widthMultiplier: number
   opacity: number
+  mode: PracticeStrokeMode
   dasharray?: string
 }
 
@@ -31,7 +33,21 @@ type PracticeStroke = {
   color: string
   width: number
   opacity: number
+  mode: PracticeStrokeMode
   dasharray?: string
+}
+
+type SavedPracticeSession = {
+  version: 1
+  pictureName: string
+  pictureTheme: string
+  updatedAt: string
+  strokes: PracticeStroke[]
+  guideOpacity: number
+  guideOnTop: boolean
+  markerColor: string
+  markerWidth: number
+  brushToolId: BrushToolId
 }
 
 type PracticeViewport = {
@@ -102,10 +118,11 @@ type NavigatorWithWakeLock = Navigator & {
 const markerColors = ['#18243A', '#4A5568', '#FF795D', '#E45336', '#F2994A', '#F2C94C', '#219653', '#27AE60', '#2F80ED', '#56CCF2', '#9B51E0', '#EB5757', '#8B5E3C'] as const
 
 const brushTools: BrushTool[] = [
-  { id: 'pencil', label: 'Pencil', widthMultiplier: 0.62, opacity: 0.72 },
-  { id: 'marker', label: 'Marker', widthMultiplier: 1, opacity: 0.9 },
-  { id: 'crayon', label: 'Crayon', widthMultiplier: 1.35, opacity: 0.62, dasharray: '1 5' },
-  { id: 'paint', label: 'Paint', widthMultiplier: 2.05, opacity: 0.42 },
+  { id: 'pencil', label: 'Pencil', widthMultiplier: 0.62, opacity: 0.72, mode: 'draw' },
+  { id: 'marker', label: 'Marker', widthMultiplier: 1, opacity: 0.9, mode: 'draw' },
+  { id: 'crayon', label: 'Crayon', widthMultiplier: 1.35, opacity: 0.62, mode: 'draw', dasharray: '1 5' },
+  { id: 'paint', label: 'Paint', widthMultiplier: 2.05, opacity: 0.42, mode: 'draw' },
+  { id: 'eraser', label: 'Eraser', widthMultiplier: 2.2, opacity: 1, mode: 'erase' },
 ]
 
 const brushSizes = [
@@ -115,6 +132,8 @@ const brushSizes = [
 ] as const
 
 const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
+const practiceAutosavePrefix = 'tracebuddy.practice.v1.'
+const practiceAutosaveDelayMs = 450
 
 const defaultTransform: Transform = {
   x: 0,
@@ -146,6 +165,48 @@ const UPLOAD_CLEANUP_ERROR_MESSAGE = 'Could not clean this image. Try the origin
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function pointsToSvgPath(points: PracticePoint[]) {
+  if (points.length === 0) return ''
+  const [first, ...rest] = points
+  return rest.reduce((path, point) => `${path} L ${point.x} ${point.y}`, `M ${first.x} ${first.y}`)
+}
+
+function simplifyPracticePoints(points: PracticePoint[], minDistance: number) {
+  if (points.length <= 2) return points
+
+  const simplified: PracticePoint[] = [points[0]]
+  for (const point of points.slice(1, -1)) {
+    const previous = simplified[simplified.length - 1]
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) >= minDistance) simplified.push(point)
+  }
+
+  const last = points[points.length - 1]
+  const previous = simplified[simplified.length - 1]
+  if (last !== previous) simplified.push(last)
+  return simplified
+}
+
+function makePracticeAutosaveKey(pictureName: string, pictureTheme: string) {
+  const sourceId = `${pictureName}-${pictureTheme}`.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 160)
+  return `${practiceAutosavePrefix}${sourceId}`
+}
+
+function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | null {
+  if (!value || typeof value !== 'object') return null
+  const stroke = value as Partial<PracticeStroke>
+  if (typeof stroke.path !== 'string' || !stroke.path.startsWith('M ')) return null
+  if (typeof stroke.width !== 'number' || !Number.isFinite(stroke.width)) return null
+
+  return {
+    path: stroke.path,
+    color: typeof stroke.color === 'string' ? stroke.color : markerColors[0],
+    width: clamp(stroke.width, 0.5, 120),
+    opacity: typeof stroke.opacity === 'number' ? clamp(stroke.opacity, 0.05, 1) : 0.9,
+    mode: stroke.mode === 'erase' ? 'erase' : 'draw',
+    dasharray: typeof stroke.dasharray === 'string' ? stroke.dasharray : undefined,
+  }
 }
 
 function lerp(start: number, end: number, amount: number) {
@@ -1629,17 +1690,22 @@ function PracticeScreen({
 }) {
   const [strokes, setStrokes] = useState<PracticeStroke[]>([])
   const [activePath, setActivePath] = useState('')
+  const [activeStrokeRender, setActiveStrokeRender] = useState<PracticeStroke | null>(null)
   const [guideOpacity, setGuideOpacity] = useState(0.26)
   const [markerColor, setMarkerColor] = useState<string>(markerColors[0])
   const [markerWidth, setMarkerWidth] = useState(12)
   const [brushToolId, setBrushToolId] = useState<BrushToolId>('marker')
+  const [guideOnTop, setGuideOnTop] = useState(true)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
+  const activePointsRef = useRef<PracticePoint[]>([])
   const activePointCountRef = useRef(0)
-  const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9 })
+  const activePathFrameRef = useRef<number | null>(null)
+  const autosaveReadyRef = useRef(false)
+  const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9, mode: 'draw' })
   const lastPointRef = useRef<PracticePoint | null>(null)
   const drawingRef = useRef(false)
   const activePointersRef = useRef(new Map<number, PracticePoint>())
@@ -1650,11 +1716,120 @@ function PracticeScreen({
   >(null)
 
   const brushTool = useMemo(() => brushTools.find((tool) => tool.id === brushToolId) ?? brushTools[1], [brushToolId])
-  const activeStrokeWidth = markerWidth * brushTool.widthMultiplier
+  const activeStrokeWidth = (markerWidth * brushTool.widthMultiplier) / Math.max(viewport.scale, 1)
+  const practiceAutosaveKey = useMemo(() => makePracticeAutosaveKey(pictureName, pictureTheme), [pictureName, pictureTheme])
+  const topGuideOpacity = Math.max(guideOpacity, 0.48)
 
   useEffect(() => {
     viewportRef.current = viewport
   }, [viewport])
+
+  useEffect(() => {
+    let cancelled = false
+    autosaveReadyRef.current = false
+
+    async function loadSavedPracticeSession() {
+      try {
+        await Promise.resolve()
+        if (cancelled) return
+
+        activePathRef.current = ''
+        activePointsRef.current = []
+        activePointCountRef.current = 0
+        lastPointRef.current = null
+        drawingRef.current = false
+        setActivePath('')
+        setActiveStrokeRender(null)
+        setStrokes([])
+
+        const rawSession = window.localStorage.getItem(practiceAutosaveKey)
+        if (!rawSession) return
+
+        const savedSession = JSON.parse(rawSession) as Partial<SavedPracticeSession>
+        const savedStrokes = Array.isArray(savedSession.strokes)
+          ? savedSession.strokes.map(normalizeSavedPracticeStroke).filter((stroke): stroke is PracticeStroke => Boolean(stroke))
+          : []
+
+        setStrokes(savedStrokes)
+        if (typeof savedSession.guideOpacity === 'number') setGuideOpacity(clamp(savedSession.guideOpacity, 0.08, 0.72))
+        if (typeof savedSession.guideOnTop === 'boolean') setGuideOnTop(savedSession.guideOnTop)
+        if (typeof savedSession.markerColor === 'string') setMarkerColor(savedSession.markerColor)
+        if (typeof savedSession.markerWidth === 'number') setMarkerWidth(savedSession.markerWidth)
+        if (savedSession.brushToolId && brushTools.some((tool) => tool.id === savedSession.brushToolId)) setBrushToolId(savedSession.brushToolId)
+      } catch {
+        // Ignore malformed local saves so a corrupt draft never blocks drawing.
+      } finally {
+        if (!cancelled) autosaveReadyRef.current = true
+      }
+    }
+
+    void loadSavedPracticeSession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [practiceAutosaveKey])
+
+  useEffect(() => {
+    if (!autosaveReadyRef.current) return
+
+    const timeout = window.setTimeout(() => {
+      if (strokes.length === 0 && !activePathRef.current) {
+        try {
+          window.localStorage.removeItem(practiceAutosaveKey)
+        } catch {
+          // Ignore storage failures; there is no visible drawing to save.
+        }
+        return
+      }
+
+      const savedSession: SavedPracticeSession = {
+        version: 1,
+        pictureName,
+        pictureTheme,
+        updatedAt: new Date().toISOString(),
+        strokes,
+        guideOpacity,
+        guideOnTop,
+        markerColor,
+        markerWidth,
+        brushToolId,
+      }
+
+      try {
+        window.localStorage.setItem(practiceAutosaveKey, JSON.stringify(savedSession))
+      } catch {
+        // Keep drawing usable if browser storage is unavailable or full.
+      }
+    }, practiceAutosaveDelayMs)
+
+    return () => window.clearTimeout(timeout)
+  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, pictureName, pictureTheme, practiceAutosaveKey, strokes])
+
+  const drawStrokeElements = useMemo(() => strokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode !== 'erase').map(({ stroke, index }) => (
+    <path key={`stroke-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width, opacity: stroke.opacity, strokeDasharray: stroke.dasharray }} />
+  )), [strokes])
+
+  const eraserStrokeElements = useMemo(() => strokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode === 'erase').map(({ stroke, index }) => (
+    <path key={`erase-${index}`} d={stroke.path} stroke="#000000" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+  )), [strokes])
+
+  const scheduleActivePathUpdate = useCallback(() => {
+    if (activePathFrameRef.current !== null) return
+
+    activePathFrameRef.current = window.requestAnimationFrame(() => {
+      activePathFrameRef.current = null
+      setActivePath(activePathRef.current)
+    })
+  }, [])
+
+  const cancelActivePathUpdate = useCallback(() => {
+    if (activePathFrameRef.current === null) return
+    window.cancelAnimationFrame(activePathFrameRef.current)
+    activePathFrameRef.current = null
+  }, [])
+
+  useEffect(() => () => cancelActivePathUpdate(), [cancelActivePathUpdate])
 
   const clampPracticeViewport = useCallback((next: PracticeViewport) => {
     const canvas = canvasRef.current
@@ -1747,20 +1922,24 @@ function PracticeScreen({
   const finishStroke = useCallback(() => {
     if (!drawingRef.current) return
 
-    let path = activePathRef.current
-    if (path && activePointCountRef.current === 1) path = `${path} l 0.1 0`
+    const { color, width, opacity, mode, dasharray } = activeStrokeStyleRef.current
+    const simplifiedPoints = simplifyPracticePoints(activePointsRef.current, clamp(width * 0.18, 1.25, 5))
+    let path = pointsToSvgPath(simplifiedPoints)
+    if (path && simplifiedPoints.length === 1) path = `${path} l 0.1 0`
 
     if (path) {
-      const { color, width, opacity, dasharray } = activeStrokeStyleRef.current
-      setStrokes((current) => [...current, { path, color, width, opacity, dasharray }])
+      setStrokes((current) => [...current, { path, color, width, opacity, mode, dasharray }])
     }
 
+    cancelActivePathUpdate()
     activePathRef.current = ''
+    activePointsRef.current = []
     activePointCountRef.current = 0
     lastPointRef.current = null
     drawingRef.current = false
     setActivePath('')
-  }, [])
+    setActiveStrokeRender(null)
+  }, [cancelActivePathUpdate])
 
   const resetViewportGestureState = useCallback(() => {
     const canvas = canvasRef.current
@@ -1794,13 +1973,17 @@ function PracticeScreen({
     const path = `M ${point.x} ${point.y}`
     activePathRef.current = path
     activePointCountRef.current = 1
-    activeStrokeStyleRef.current = {
+    activePointsRef.current = [point]
+    const strokeStyle: PracticeStroke = {
       path,
-      color: markerColor,
+      color: brushTool.mode === 'erase' ? '#000000' : markerColor,
       width: activeStrokeWidth,
       opacity: brushTool.opacity,
+      mode: brushTool.mode,
       dasharray: brushTool.dasharray,
     }
+    activeStrokeStyleRef.current = strokeStyle
+    setActiveStrokeRender(strokeStyle)
     lastPointRef.current = point
     drawingRef.current = true
     setActivePath(path)
@@ -1856,12 +2039,14 @@ function PracticeScreen({
     if (!drawingRef.current) return
     const point = pointFromEvent(event)
     const lastPoint = lastPointRef.current
-    if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 3) return
+    const minPointDistance = clamp(activeStrokeStyleRef.current.width * 0.2, 1.25, 6)
+    if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < minPointDistance) return
 
+    activePointsRef.current.push(point)
     activePathRef.current = `${activePathRef.current} L ${point.x} ${point.y}`
     activePointCountRef.current += 1
     lastPointRef.current = point
-    setActivePath(activePathRef.current)
+    scheduleActivePathUpdate()
   }
 
   const onPracticePointerUp = (event: PointerEvent<HTMLDivElement>) => {
@@ -1899,12 +2084,25 @@ function PracticeScreen({
   }
 
   const clearPractice = () => {
+    cancelActivePathUpdate()
     activePathRef.current = ''
+    activePointsRef.current = []
     activePointCountRef.current = 0
     lastPointRef.current = null
     drawingRef.current = false
     setActivePath('')
+    setActiveStrokeRender(null)
     setStrokes([])
+    try {
+      window.localStorage.removeItem(practiceAutosaveKey)
+    } catch {
+      // Ignore storage failures; the visible drawing has already been cleared.
+    }
+  }
+
+  const confirmClearPractice = () => {
+    if (strokes.length === 0 && !activePath) return
+    if (window.confirm('Clear all coloring saved on this device for this picture?')) clearPractice()
   }
 
   const resetPracticeViewport = () => {
@@ -1929,10 +2127,10 @@ function PracticeScreen({
   }
 
   const activeStrokeStyle = {
-    stroke: markerColor,
-    strokeWidth: activeStrokeWidth,
-    opacity: brushTool.opacity,
-    strokeDasharray: brushTool.dasharray,
+    stroke: activeStrokeRender?.color,
+    strokeWidth: activeStrokeRender?.width,
+    opacity: activeStrokeRender?.opacity,
+    strokeDasharray: activeStrokeRender?.dasharray,
   }
 
   return (
@@ -1995,6 +2193,13 @@ function PracticeScreen({
             </div>
           </div>
 
+          <div className="studio-tool-group" aria-label="Outline layer" role="group">
+            <span>Lines</span>
+            <div className="compact-stepper">
+              <button type="button" className={guideOnTop ? 'active' : ''} aria-pressed={guideOnTop} onClick={() => setGuideOnTop((current) => !current)}>{guideOnTop ? 'On top' : 'Behind'}</button>
+            </div>
+          </div>
+
           <div className="studio-tool-group zoom-tool" aria-label="Canvas zoom" role="group">
             <span>Zoom {Math.round(viewport.scale * 100)}%</span>
             <div className="compact-stepper">
@@ -2008,14 +2213,14 @@ function PracticeScreen({
             <span>Actions</span>
             <div className="compact-stepper">
               <button type="button" onClick={() => setStrokes((current) => current.slice(0, -1))} disabled={strokes.length === 0}>Undo</button>
-              <button type="button" onClick={clearPractice} disabled={strokes.length === 0 && !activePath}>Clear</button>
+              <button type="button" onClick={confirmClearPractice} disabled={strokes.length === 0 && !activePath}>Clear all</button>
             </div>
           </div>
         </div>
 
         <div className="practice-card studio-card">
           <div className="practice-status-strip">
-            <span>{viewportLocked ? 'Draw mode: page is locked so little hands can color without bumping the canvas.' : 'Move mode: drag to pan, pinch or scroll to zoom, then lock again to color.'}</span>
+            <span>{viewportLocked ? 'Draw mode: page is locked, lines stay visible, and coloring autosaves on this device.' : 'Move mode: drag to pan, pinch or scroll to zoom, then lock again to color.'}</span>
           </div>
 
           <div
@@ -2030,11 +2235,19 @@ function PracticeScreen({
             <div className="practice-transform-layer" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
               <img className="practice-guide-image" src={overlaySrc} alt="Tracing guide" draggable={false} style={{ opacity: guideOpacity }} />
               <svg className="practice-ink" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-                {strokes.map((stroke, index) => (
-                  <path key={`stroke-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width, opacity: stroke.opacity, strokeDasharray: stroke.dasharray }} />
-                ))}
-                {activePath && <path className="active" d={activePath} style={activeStrokeStyle} />}
+                <defs>
+                  <mask id="practice-ink-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000">
+                    <rect x="0" y="0" width="1000" height="1000" fill="#ffffff" />
+                    {eraserStrokeElements}
+                    {activePath && activeStrokeRender?.mode === 'erase' && <path d={activePath} stroke="#000000" strokeWidth={activeStrokeRender.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />}
+                  </mask>
+                </defs>
+                <g mask="url(#practice-ink-mask)">
+                  {drawStrokeElements}
+                  {activePath && activeStrokeRender?.mode === 'draw' && <path className="active" d={activePath} style={activeStrokeStyle} />}
+                </g>
               </svg>
+              {guideOnTop && <img className="practice-guide-image on-top" src={overlaySrc} alt="" draggable={false} aria-hidden="true" style={{ opacity: topGuideOpacity }} />}
             </div>
           </div>
         </div>

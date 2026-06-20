@@ -75,8 +75,11 @@ The first mobile app should be intentionally small and reliable:
 - Native camera trace mode.
 - On-screen coloring/practice mode for finger/stylus tracing over the selected guide.
 - Custom word/name/phrase tracing using the same local guide pipeline.
-- Expanded color palette plus pencil/marker/crayon/paint brush styles.
+- Expanded color palette plus pencil/marker/crayon/paint brush styles and eraser support.
 - Locked-by-default practice canvas with optional pan/zoom for detailed coloring.
+- Lines-on-top option so tracing outlines remain visible while coloring.
+- Local autosave for practice/coloring sessions on the device.
+- Clear-all confirmation before deleting a child's work.
 - Manual overlay controls:
   - move by dragging when unlocked
   - nudge controls
