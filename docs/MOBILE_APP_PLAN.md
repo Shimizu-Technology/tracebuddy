@@ -97,7 +97,7 @@ The first mobile app should be intentionally small and reliable:
 
 The local Previous Work section is now part of practice mode.
 
-- Saves stay device-local with `AsyncStorage` on mobile and local browser storage on web.
+- Saves stay device-local with `AsyncStorage` on mobile and local browser storage on web; web uploaded-image blobs live in IndexedDB while session metadata stays in `localStorage`.
 - Saved work is stored as multiple sessions instead of one autosave slot per template.
 - Each session keeps source metadata, strokes, brush/guide settings, and last-edited time.
 - The picker shows visual previews and actions for Resume, Duplicate/Copy, Start fresh, and Delete.

@@ -37,13 +37,20 @@ type PracticeStroke = {
   dasharray?: string
 }
 
+type UploadedImageReference = {
+  imageId: string
+  fileName: string
+  originalSrc?: string
+  processedSrc?: string
+}
+
 type PracticeSource = {
   kind: 'drawing' | 'custom' | 'upload'
   drawingId: string
   drawingName: string
   drawingTheme: string
   drawingSvg?: string
-  uploadedImage?: UploadedImageState
+  uploadedImage?: UploadedImageReference
 }
 
 type SavedPracticeSession = {
@@ -80,6 +87,7 @@ type Transform = {
 type TransformUpdate = Partial<Transform> | ((current: Transform) => Partial<Transform>)
 
 type UploadedImageState = {
+  imageId: string
   originalSrc: string
   processedSrc: string
   fileName: string
@@ -145,6 +153,8 @@ const brushSizes = [
 const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
 const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
 const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
+const uploadedImageDbName = 'tracebuddy-uploaded-images'
+const uploadedImageStoreName = 'uploaded-images'
 const practiceAutosaveDelayMs = 450
 
 const defaultTransform: Transform = {
@@ -220,6 +230,90 @@ function createPracticeSessionId() {
   return `work-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+let uploadedImageDbPromise: Promise<IDBDatabase> | null = null
+
+function openUploadedImageDb() {
+  if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB unavailable'))
+  if (uploadedImageDbPromise) return uploadedImageDbPromise
+
+  uploadedImageDbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+    const request = window.indexedDB.open(uploadedImageDbName, 1)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(uploadedImageStoreName)) db.createObjectStore(uploadedImageStoreName, { keyPath: 'imageId' })
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('Could not open image storage'))
+  })
+
+  return uploadedImageDbPromise
+}
+
+async function saveUploadedImageRecord(image: UploadedImageState) {
+  const db = await openUploadedImageDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+    tx.objectStore(uploadedImageStoreName).put({ ...image, updatedAt: new Date().toISOString() })
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error ?? new Error('Could not save uploaded image'))
+  })
+}
+
+async function loadUploadedImageRecord(imageId: string) {
+  const db = await openUploadedImageDb()
+  return new Promise<UploadedImageState | null>((resolve, reject) => {
+    const tx = db.transaction(uploadedImageStoreName, 'readonly')
+    const request = tx.objectStore(uploadedImageStoreName).get(imageId)
+    request.onsuccess = () => {
+      const result = request.result as Partial<UploadedImageState> | undefined
+      resolve(result && typeof result.imageId === 'string' && typeof result.originalSrc === 'string' && typeof result.processedSrc === 'string' && typeof result.fileName === 'string'
+        ? { imageId: result.imageId, originalSrc: result.originalSrc, processedSrc: result.processedSrc, fileName: result.fileName }
+        : null)
+    }
+    request.onerror = () => reject(request.error ?? new Error('Could not load uploaded image'))
+  })
+}
+
+async function deleteUploadedImageRecordIfUnused(imageId: string, remainingIds: string[]) {
+  const remainingSessions = remainingIds
+    .map((id) => {
+      try {
+        const rawSession = window.localStorage.getItem(previousWorkSessionKey(id))
+        return rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
+      } catch {
+        return null
+      }
+    })
+    .filter((session): session is SavedPracticeSession => Boolean(session))
+
+  if (remainingSessions.some((session) => session.source.uploadedImage?.imageId === imageId)) return
+
+  try {
+    const db = await openUploadedImageDb()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+      tx.objectStore(uploadedImageStoreName).delete(imageId)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Could not delete uploaded image'))
+    })
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+function serializePracticeSource(source: PracticeSource): PracticeSource {
+  if (source.kind !== 'upload') return source
+  const image = source.uploadedImage
+  return {
+    ...source,
+    uploadedImage: image?.imageId ? { imageId: image.imageId, fileName: image.fileName } : undefined,
+  }
+}
+
+function makePracticeSaveSignature(session: Pick<SavedPracticeSession, 'source' | 'strokes' | 'guideOpacity' | 'guideOnTop' | 'markerColor' | 'markerWidth' | 'brushToolId'>) {
+  return JSON.stringify({ ...session, source: serializePracticeSource(session.source) })
+}
+
 function makePracticeSource(drawing: Drawing, uploadedImage: UploadedImageState | null): PracticeSource {
   if (uploadedImage) {
     return {
@@ -274,11 +368,12 @@ function normalizePracticeSource(value: unknown): PracticeSource | null {
     drawingName: source.drawingName,
     drawingTheme: source.drawingTheme,
     drawingSvg: typeof source.drawingSvg === 'string' ? source.drawingSvg : undefined,
-    uploadedImage: source.kind === 'upload' && source.uploadedImage && typeof source.uploadedImage === 'object' && typeof source.uploadedImage.originalSrc === 'string' && typeof source.uploadedImage.processedSrc === 'string'
+    uploadedImage: source.kind === 'upload' && source.uploadedImage && typeof source.uploadedImage === 'object' && typeof source.uploadedImage.imageId === 'string'
       ? {
-          originalSrc: source.uploadedImage.originalSrc,
-          processedSrc: source.uploadedImage.processedSrc,
+          imageId: source.uploadedImage.imageId,
           fileName: typeof source.uploadedImage.fileName === 'string' ? source.uploadedImage.fileName : source.drawingName,
+          originalSrc: typeof source.uploadedImage.originalSrc === 'string' ? source.uploadedImage.originalSrc : undefined,
+          processedSrc: typeof source.uploadedImage.processedSrc === 'string' ? source.uploadedImage.processedSrc : undefined,
         }
       : undefined,
   }
@@ -321,7 +416,20 @@ function readPreviousWorkIds() {
   }
 }
 
-function loadPreviousWorkSessions() {
+async function hydrateUploadedImageSession(session: SavedPracticeSession) {
+  const imageRef = session.source.uploadedImage
+  if (session.source.kind !== 'upload' || !imageRef?.imageId || imageRef.originalSrc) return session
+
+  try {
+    const uploadedImage = await loadUploadedImageRecord(imageRef.imageId)
+    if (!uploadedImage) return session
+    return { ...session, source: { ...session.source, uploadedImage } }
+  } catch {
+    return session
+  }
+}
+
+async function loadPreviousWorkSessions() {
   const ids = readPreviousWorkIds()
   const sessions = ids
     .map((id) => {
@@ -335,7 +443,8 @@ function loadPreviousWorkSessions() {
     .filter((session): session is SavedPracticeSession => Boolean(session))
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
 
-  const validIds = sessions.map((session) => session.sessionId)
+  const hydratedSessions = await Promise.all(sessions.map(hydrateUploadedImageSession))
+  const validIds = hydratedSessions.map((session) => session.sessionId)
   if (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index])) {
     try {
       window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: validIds }))
@@ -344,20 +453,30 @@ function loadPreviousWorkSessions() {
     }
   }
 
-  return sessions
+  return hydratedSessions
 }
 
 function savePreviousWorkSession(session: SavedPracticeSession) {
   const currentIds = readPreviousWorkIds()
   const ids = [session.sessionId, ...currentIds.filter((id) => id !== session.sessionId)]
-  window.localStorage.setItem(previousWorkSessionKey(session.sessionId), JSON.stringify(session))
+  const serializedSession = { ...session, source: serializePracticeSource(session.source) }
+  window.localStorage.setItem(previousWorkSessionKey(session.sessionId), JSON.stringify(serializedSession))
   window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
 }
 
 function deletePreviousWorkSession(sessionId: string) {
+  const rawSession = window.localStorage.getItem(previousWorkSessionKey(sessionId))
+  const deletedSession = (() => {
+    try {
+      return rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
+    } catch {
+      return null
+    }
+  })()
   const ids = readPreviousWorkIds().filter((id) => id !== sessionId)
   window.localStorage.removeItem(previousWorkSessionKey(sessionId))
   window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
+  if (deletedSession?.source.uploadedImage?.imageId) void deleteUploadedImageRecordIfUnused(deletedSession.source.uploadedImage.imageId, ids)
 }
 
 function formatPreviousWorkDate(value: string) {
@@ -831,8 +950,17 @@ function App() {
   const pictureTheme = uploadedImage ? `Local upload · ${uploadCleanupMode === 'original' ? 'Original image' : uploadCleanupMode === 'background' ? 'Background cleanup' : 'Line-art cleanup'}` : selectedDrawing.theme
 
   useEffect(() => {
-    const task = window.setTimeout(() => setPreviousWorkSessions(loadPreviousWorkSessions()), 0)
-    return () => window.clearTimeout(task)
+    let cancelled = false
+    const task = window.setTimeout(() => {
+      void loadPreviousWorkSessions().then((sessions) => {
+        if (!cancelled) setPreviousWorkSessions(sessions)
+      })
+    }, 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(task)
+    }
   }, [])
 
   const stopStream = useCallback((stream: MediaStream) => {
@@ -1155,6 +1283,14 @@ function App() {
     return () => window.clearTimeout(task)
   }, [backgroundTolerance, outlineDetail, uploadCleanupMode, uploadedImage?.originalSrc])
 
+  useEffect(() => {
+    if (!uploadedImage) return
+    void saveUploadedImageRecord(uploadedImage).catch(() => {
+      setUploadCleanupStatus('error')
+      setUploadCleanupMessage('Could not save this uploaded image locally. Clear older Previous Work or try a smaller image.')
+    })
+  }, [uploadedImage])
+
   function resetPaperDetection() {
     paperLockEnabledRef.current = false
     setPaperDetection(null)
@@ -1200,27 +1336,46 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  function applyPracticeSource(source: PracticeSource) {
+  async function uploadedImageFromSource(source: PracticeSource) {
+    if (source.kind !== 'upload') return null
+    const imageRef = source.uploadedImage
+    if (!imageRef?.imageId) return null
+    if (imageRef.originalSrc && imageRef.processedSrc) return { imageId: imageRef.imageId, originalSrc: imageRef.originalSrc, processedSrc: imageRef.processedSrc, fileName: imageRef.fileName }
+    return loadUploadedImageRecord(imageRef.imageId)
+  }
+
+  async function applyPracticeSource(source: PracticeSource) {
+    const resolvedUploadedImage = await uploadedImageFromSource(source)
+    if (source.kind === 'upload' && !resolvedUploadedImage) {
+      window.alert('This uploaded image is no longer available in this browser. The saved strokes are still local, but the image preview cannot be restored.')
+      return false
+    }
+
     setSelectedDrawing(drawingFromPracticeSource(source))
-    setUploadedImage(source.kind === 'upload' ? source.uploadedImage ?? null : null)
+    setUploadedImage(resolvedUploadedImage)
     resetUploadCleanup()
     resetPaperDetection()
     setTransform(defaultTransform)
     setTraceSurface('screen')
+    return true
   }
 
   function openPreviousWork(session: SavedPracticeSession) {
-    applyPracticeSource(session.source)
-    setActivePracticeSession(session)
-    setMode('practice')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    void applyPracticeSource(session.source).then((ready) => {
+      if (!ready) return
+      setActivePracticeSession(session)
+      setMode('practice')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
   }
 
   function startFreshFromPreviousWork(session: SavedPracticeSession) {
-    applyPracticeSource(session.source)
-    setActivePracticeSession(null)
-    setMode('practice')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    void applyPracticeSource(session.source).then((ready) => {
+      if (!ready) return
+      setActivePracticeSession(null)
+      setMode('practice')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
   }
 
   function duplicatePreviousWork(session: SavedPracticeSession) {
@@ -1324,20 +1479,33 @@ function App() {
 
     const reader = new FileReader()
     reader.onload = () => {
-      const originalSrc = String(reader.result)
-      resetUploadCleanup()
-      setUploadedImage({
-        originalSrc,
-        processedSrc: originalSrc,
-        fileName: file.name || 'Uploaded picture',
-      })
-      setActivePracticeSession(null)
-      resetPaperDetection()
-      setTransform(defaultTransform)
-      setTraceSurface(targetMode === 'practice' ? 'screen' : 'camera')
-      setMode(targetMode)
-      input.value = ''
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      void (async () => {
+        const originalSrc = String(reader.result)
+        const nextUploadedImage: UploadedImageState = {
+          imageId: createPracticeSessionId(),
+          originalSrc,
+          processedSrc: originalSrc,
+          fileName: file.name || 'Uploaded picture',
+        }
+
+        try {
+          await saveUploadedImageRecord(nextUploadedImage)
+        } catch {
+          input.value = ''
+          window.alert('TraceBuddy could not save this upload locally. Try a smaller image, clear older Previous Work, or choose a built-in template.')
+          return
+        }
+
+        resetUploadCleanup()
+        setUploadedImage(nextUploadedImage)
+        setActivePracticeSession(null)
+        resetPaperDetection()
+        setTransform(defaultTransform)
+        setTraceSurface(targetMode === 'practice' ? 'screen' : 'camera')
+        setMode(targetMode)
+        input.value = ''
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      })()
     }
     reader.onerror = () => {
       input.value = ''
@@ -1596,7 +1764,7 @@ function PickerScreen({
             {previousWorkSessions.map((session) => (
               <article key={session.sessionId} className="previous-work-card">
                 <button type="button" className="previous-work-preview" onClick={() => onResumeWork(session)} aria-label={`Resume ${session.title}`}>
-                  <img src={session.source.kind === 'upload' && session.source.uploadedImage ? session.source.uploadedImage.processedSrc : drawingImageSrc(drawingFromPracticeSource(session.source))} alt="" aria-hidden="true" />
+                  <img src={session.source.kind === 'upload' && session.source.uploadedImage?.processedSrc ? session.source.uploadedImage.processedSrc : drawingImageSrc(drawingFromPracticeSource(session.source))} alt="" aria-hidden="true" />
                   <svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
                     {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-18).map((stroke, index) => (
                       <path key={`${session.sessionId}-preview-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width, opacity: stroke.opacity, strokeDasharray: stroke.dasharray }} />
@@ -2002,6 +2170,7 @@ function PracticeScreen({
   const activePointCountRef = useRef(0)
   const activePathFrameRef = useRef<number | null>(null)
   const autosaveReadyRef = useRef(false)
+  const lastSavedSignatureRef = useRef('')
   const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9, mode: 'draw' })
   const lastPointRef = useRef<PracticePoint | null>(null)
   const drawingRef = useRef(false)
@@ -2037,15 +2206,31 @@ function PracticeScreen({
       drawingRef.current = false
       setActivePath('')
       setActiveStrokeRender(null)
-      setStrokes(initialSession?.strokes ?? [])
+      const nextStrokes = initialSession?.strokes ?? []
+      const nextGuideOpacity = initialSession?.guideOpacity ?? 0.26
+      const nextGuideOnTop = initialSession?.guideOnTop ?? true
+      const nextMarkerColor = initialSession?.markerColor ?? markerColors[0]
+      const nextMarkerWidth = initialSession?.markerWidth ?? 12
+      const nextBrushToolId = initialSession?.brushToolId ?? 'marker'
+
+      setStrokes(nextStrokes)
       setSessionId(initialSession?.sessionId ?? null)
       setSessionCreatedAt(initialSession?.createdAt ?? new Date().toISOString())
       setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(practiceSource))
-      setGuideOpacity(initialSession?.guideOpacity ?? 0.26)
-      setGuideOnTop(initialSession?.guideOnTop ?? true)
-      setMarkerColor(initialSession?.markerColor ?? markerColors[0])
-      setMarkerWidth(initialSession?.markerWidth ?? 12)
-      setBrushToolId(initialSession?.brushToolId ?? 'marker')
+      setGuideOpacity(nextGuideOpacity)
+      setGuideOnTop(nextGuideOnTop)
+      setMarkerColor(nextMarkerColor)
+      setMarkerWidth(nextMarkerWidth)
+      setBrushToolId(nextBrushToolId)
+      lastSavedSignatureRef.current = makePracticeSaveSignature({
+        source: practiceSource,
+        strokes: nextStrokes,
+        guideOpacity: nextGuideOpacity,
+        guideOnTop: nextGuideOnTop,
+        markerColor: nextMarkerColor,
+        markerWidth: nextMarkerWidth,
+        brushToolId: nextBrushToolId,
+      })
       autosaveReadyRef.current = true
     }
 
@@ -2095,8 +2280,12 @@ function PracticeScreen({
         brushToolId,
       }
 
+      const nextSignature = makePracticeSaveSignature(savedSession)
+      if (nextSignature === lastSavedSignatureRef.current) return
+
       try {
         savePreviousWorkSession(savedSession)
+        lastSavedSignatureRef.current = nextSignature
         onSessionSaved(savedSession)
       } catch {
         // Keep drawing usable if browser storage is unavailable or full.

@@ -239,6 +239,10 @@ function previousWorkSessionKey(sessionId: string) {
   return `${previousWorkSessionPrefix}${sessionId}`
 }
 
+function makePracticeSaveSignature(session: Pick<SavedPracticeSession, 'source' | 'strokes' | 'canvasWidth' | 'canvasHeight' | 'guideOpacity' | 'guideOnTop' | 'markerColor' | 'markerWidth' | 'brushToolId'>) {
+  return JSON.stringify(session)
+}
+
 function normalizePracticeSource(value: unknown): PracticeSource | null {
   if (!value || typeof value !== 'object') return null
   const source = value as Partial<PracticeSource>
@@ -1064,6 +1068,7 @@ function PracticeScreen({
   const activePointCountRef = useRef(0)
   const activePathFrameRef = useRef<number | null>(null)
   const autosaveReadyRef = useRef(false)
+  const lastSavedSignatureRef = useRef('')
   const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9, mode: 'draw' })
   const lastPointRef = useRef<PracticePoint | null>(null)
   const drawingActiveRef = useRef(false)
@@ -1101,18 +1106,36 @@ function PracticeScreen({
       activePointCountRef.current = 0
       lastPointRef.current = null
       drawingActiveRef.current = false
+      const nextStrokes = initialSession?.strokes ?? []
+      const nextGuideOpacity = initialSession?.guideOpacity ?? 0.24
+      const nextGuideOnTop = initialSession?.guideOnTop ?? true
+      const nextMarkerColor = initialSession?.markerColor ?? markerColors[0]
+      const nextMarkerWidth = initialSession?.markerWidth ?? 9
+      const nextBrushToolId = initialSession?.brushToolId ?? 'marker'
+
       setActivePath('')
       setActiveStrokeRender(null)
-      setPracticeStrokes(initialSession?.strokes ?? [])
+      setPracticeStrokes(nextStrokes)
       setSessionId(initialSession?.sessionId ?? null)
       setSessionCreatedAt(initialSession?.createdAt ?? new Date().toISOString())
       setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(practiceSource))
-      setGuideOpacity(initialSession?.guideOpacity ?? 0.24)
-      setGuideOnTop(initialSession?.guideOnTop ?? true)
-      setMarkerColor(initialSession?.markerColor ?? markerColors[0])
-      setMarkerWidth(initialSession?.markerWidth ?? 9)
-      setBrushToolId(initialSession?.brushToolId ?? 'marker')
+      setGuideOpacity(nextGuideOpacity)
+      setGuideOnTop(nextGuideOnTop)
+      setMarkerColor(nextMarkerColor)
+      setMarkerWidth(nextMarkerWidth)
+      setBrushToolId(nextBrushToolId)
       setActivePanel(null)
+      lastSavedSignatureRef.current = makePracticeSaveSignature({
+        source: practiceSource,
+        strokes: nextStrokes,
+        canvasWidth: initialSession?.canvasWidth ?? 1000,
+        canvasHeight: initialSession?.canvasHeight ?? 1000,
+        guideOpacity: nextGuideOpacity,
+        guideOnTop: nextGuideOnTop,
+        markerColor: nextMarkerColor,
+        markerWidth: nextMarkerWidth,
+        brushToolId: nextBrushToolId,
+      })
       autosaveReadyRef.current = true
     }
 
@@ -1163,8 +1186,14 @@ function PracticeScreen({
         brushToolId,
       }
 
+      const nextSignature = makePracticeSaveSignature(savedSession)
+      if (nextSignature === lastSavedSignatureRef.current) return
+
       void savePreviousWorkSession(savedSession)
-        .then(() => onSessionSaved(savedSession))
+        .then(() => {
+          lastSavedSignatureRef.current = nextSignature
+          onSessionSaved(savedSession)
+        })
         .catch(() => undefined)
     }, practiceAutosaveDelayMs)
 
