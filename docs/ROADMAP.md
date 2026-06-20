@@ -53,11 +53,27 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Keep template categories such as animals, ocean, magic/fairy, vehicles, letters, seasonal, and Guam/island themes.
 - Keep difficulty labels: starter, medium, detailed.
 - Add a favorites/recent drawings section stored locally if the larger library needs shortcuts.
+- Add a local Previous Work gallery for saved coloring sessions.
 - Expand dynamic word/name tracing with handwriting-style letter guides and saved favorite names.
 - Add a clearer parent setup mode vs child tracing mode.
 - Continue tuning the mobile controls based on live phone/tablet use.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.
 - Improve print/export options for built-in line art if useful.
+
+## Next: local Previous Work gallery
+
+Goal: let kids revisit finished or in-progress coloring without overwriting the original template.
+
+Recommended scope:
+
+- Keep the current autosave/resume behavior for quick recovery.
+- Add a local-only Previous Work page or section from the picker.
+- Store multiple practice sessions per template/custom word/uploaded image on the device.
+- Show simple thumbnails/previews, title, template name, and last-edited date.
+- Support Resume/Edit, Duplicate, Start fresh, and Delete.
+- Preserve privacy: no accounts, backend sync, uploads, analytics, or remote image processing.
+- For uploaded images, copy the selected file into app-local storage before relying on it in long-lived saved sessions.
+- Consider a small migration path from the current single autosave key to the richer session list.
 
 ## Phase 3: Expo mobile validation
 

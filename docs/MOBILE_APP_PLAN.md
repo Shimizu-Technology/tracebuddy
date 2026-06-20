@@ -75,8 +75,11 @@ The first mobile app should be intentionally small and reliable:
 - Native camera trace mode.
 - On-screen coloring/practice mode for finger/stylus tracing over the selected guide.
 - Custom word/name/phrase tracing using the same local guide pipeline.
-- Expanded color palette plus pencil/marker/crayon/paint brush styles.
+- Expanded color palette plus pencil/marker/crayon/paint brush styles and eraser support.
 - Locked-by-default practice canvas with optional pan/zoom for detailed coloring.
+- Lines-on-top option so tracing outlines remain visible while coloring.
+- Local autosave for practice/coloring sessions on the device.
+- Clear-all confirmation before deleting a child's work.
 - Manual overlay controls:
   - move by dragging when unlocked
   - nudge controls
@@ -88,6 +91,18 @@ The first mobile app should be intentionally small and reliable:
 - Floating bottom-sheet controls for mobile tracing.
 - Keep the screen awake during trace mode.
 - Local-only privacy model.
+
+## Next mobile practice improvement: Previous Work
+
+A local Previous Work section should be the next larger practice-mode improvement after the current coloring tools land.
+
+- Keep saves device-local with `AsyncStorage` and no backend.
+- Move beyond one autosave slot per template by storing multiple named sessions.
+- Add thumbnails/previews so a child can recognize prior work visually.
+- Provide actions for Resume/Edit, Duplicate, Start fresh, and Delete.
+- Preserve the original template as a clean starting point even when previous work exists.
+- For uploaded images, copy the selected image into app-local storage before saving long-lived sessions.
+- Mirror the concept on web with `localStorage`/IndexedDB if the PWA needs the same gallery.
 
 ## Deferred from the Expo Go MVP
 

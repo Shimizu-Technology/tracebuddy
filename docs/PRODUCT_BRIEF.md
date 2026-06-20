@@ -92,8 +92,11 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Native Expo camera trace mode in the mobile MVP.
 - On-screen coloring/practice mode in web and mobile for finger/stylus tracing.
 - Custom word/name/phrase guides for early writing practice.
-- Expanded colors, brush sizes, and pencil/marker/crayon/paint styles for on-screen coloring.
+- Expanded colors, brush sizes, pencil/marker/crayon/paint styles, and eraser support for on-screen coloring.
 - Locked-by-default digital canvas with optional pan/zoom for detail work.
+- Lines-on-top option so template outlines stay visible while coloring.
+- Local autosave for on-screen coloring sessions.
+- Clear-all confirmation to prevent accidental work loss.
 - Overlay transform controls.
 - Mobile floating controls for trace mode.
 - Experimental paper rectangle detection and tracking.

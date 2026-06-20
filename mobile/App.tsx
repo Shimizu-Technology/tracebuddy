@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native'
 import {
   Alert,
@@ -18,7 +19,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
-import Svg, { Circle, Path, Rect, SvgXml } from 'react-native-svg'
+import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg'
 
 import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from '@tracebuddy/shared'
 import type { Drawing, DrawingFilterId } from '@tracebuddy/shared'
@@ -32,13 +33,16 @@ type PracticePoint = {
   y: number
 }
 
-type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint'
+type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint' | 'eraser'
+type PracticeStrokeMode = 'draw' | 'erase'
+type PracticePanelId = 'tool' | 'size' | 'view'
 
 type BrushTool = {
   id: BrushToolId
   label: string
   widthMultiplier: number
   opacity: number
+  mode: PracticeStrokeMode
   dasharray?: number[]
 }
 
@@ -47,7 +51,21 @@ type PracticeStroke = {
   color: string
   width: number
   opacity: number
+  mode: PracticeStrokeMode
   dasharray?: number[]
+}
+
+type SavedPracticeSession = {
+  version: 1
+  drawingId: string
+  drawingName: string
+  updatedAt: string
+  strokes: PracticeStroke[]
+  guideOpacity: number
+  guideOnTop: boolean
+  markerColor: string
+  markerWidth: number
+  brushToolId: BrushToolId
 }
 
 type PracticeViewport = {
@@ -82,10 +100,11 @@ const defaultTransform: OverlayTransform = {
 const markerColors = ['#18243A', '#4A5568', '#FF795D', '#E45336', '#F2994A', '#F2C94C', '#219653', '#27AE60', '#2F80ED', '#56CCF2', '#9B51E0', '#EB5757', '#8B5E3C'] as const
 
 const brushTools: BrushTool[] = [
-  { id: 'pencil', label: 'Pencil', widthMultiplier: 0.62, opacity: 0.72 },
-  { id: 'marker', label: 'Marker', widthMultiplier: 1, opacity: 0.9 },
-  { id: 'crayon', label: 'Crayon', widthMultiplier: 1.35, opacity: 0.62, dasharray: [1, 5] },
-  { id: 'paint', label: 'Paint', widthMultiplier: 2.05, opacity: 0.42 },
+  { id: 'pencil', label: 'Pencil', widthMultiplier: 0.62, opacity: 0.72, mode: 'draw' },
+  { id: 'marker', label: 'Marker', widthMultiplier: 1, opacity: 0.9, mode: 'draw' },
+  { id: 'crayon', label: 'Crayon', widthMultiplier: 1.35, opacity: 0.62, mode: 'draw', dasharray: [1, 5] },
+  { id: 'paint', label: 'Paint', widthMultiplier: 2.05, opacity: 0.42, mode: 'draw' },
+  { id: 'eraser', label: 'Eraser', widthMultiplier: 2.2, opacity: 1, mode: 'erase' },
 ]
 
 const brushSizes = [
@@ -95,6 +114,8 @@ const brushSizes = [
 ] as const
 
 const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
+const practiceAutosavePrefix = 'tracebuddy.practice.v1.'
+const practiceAutosaveDelayMs = 450
 
 const palette = {
   ink: '#18243A',
@@ -112,6 +133,49 @@ const palette = {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function pointsToSvgPath(points: PracticePoint[]) {
+  if (points.length === 0) return ''
+  const [first, ...rest] = points
+  return rest.reduce((path, point) => `${path} L ${point.x} ${point.y}`, `M ${first.x} ${first.y}`)
+}
+
+function simplifyPracticePoints(points: PracticePoint[], minDistance: number) {
+  if (points.length <= 2) return points
+
+  const simplified: PracticePoint[] = [points[0]]
+  for (const point of points.slice(1, -1)) {
+    const previous = simplified[simplified.length - 1]
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) >= minDistance) simplified.push(point)
+  }
+
+  const last = points[points.length - 1]
+  const previous = simplified[simplified.length - 1]
+  if (last !== previous) simplified.push(last)
+  return simplified
+}
+
+function makePracticeAutosaveKey(drawingId: string, uploadedImageUri?: string) {
+  const sourceId = uploadedImageUri ? `uploaded|${uploadedImageUri}` : `drawing|${drawingId}`
+  const safeSourceId = sourceId.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180)
+  return `${practiceAutosavePrefix}${safeSourceId}`
+}
+
+function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | null {
+  if (!value || typeof value !== 'object') return null
+  const stroke = value as Partial<PracticeStroke>
+  if (typeof stroke.path !== 'string' || !stroke.path.startsWith('M ')) return null
+  if (typeof stroke.width !== 'number' || !Number.isFinite(stroke.width)) return null
+
+  return {
+    path: stroke.path,
+    color: typeof stroke.color === 'string' ? stroke.color : markerColors[0],
+    width: clamp(stroke.width, 0.5, 80),
+    opacity: typeof stroke.opacity === 'number' ? clamp(stroke.opacity, 0.05, 1) : 0.9,
+    mode: stroke.mode === 'erase' ? 'erase' : 'draw',
+    dasharray: Array.isArray(stroke.dasharray) && stroke.dasharray.every((item) => typeof item === 'number') ? stroke.dasharray : undefined,
+  }
 }
 
 function TraceBuddyMobile() {
@@ -593,17 +657,23 @@ function PracticeScreen({
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 })
   const [practiceStrokes, setPracticeStrokes] = useState<PracticeStroke[]>([])
   const [activePath, setActivePath] = useState('')
+  const [activeStrokeRender, setActiveStrokeRender] = useState<PracticeStroke | null>(null)
   const [markerColor, setMarkerColor] = useState<string>(markerColors[0])
   const [markerWidth, setMarkerWidth] = useState(9)
   const [brushToolId, setBrushToolId] = useState<BrushToolId>('marker')
   const [guideOpacity, setGuideOpacity] = useState(0.24)
+  const [guideOnTop, setGuideOnTop] = useState(true)
+  const [activePanel, setActivePanel] = useState<PracticePanelId | null>(null)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasSizeRef = useRef(canvasSize)
   const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
+  const activePointsRef = useRef<PracticePoint[]>([])
   const activePointCountRef = useRef(0)
-  const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9 })
+  const activePathFrameRef = useRef<number | null>(null)
+  const autosaveReadyRef = useRef(false)
+  const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9, mode: 'draw' })
   const lastPointRef = useRef<PracticePoint | null>(null)
   const drawingActiveRef = useRef(false)
   const viewportGestureRef = useRef<
@@ -613,7 +683,10 @@ function PracticeScreen({
   >(null)
 
   const brushTool = useMemo(() => brushTools.find((tool) => tool.id === brushToolId) ?? brushTools[1], [brushToolId])
-  const activeStrokeWidth = markerWidth * brushTool.widthMultiplier
+  const activeStrokeWidth = (markerWidth * brushTool.widthMultiplier) / Math.max(viewport.scale, 1)
+  const practiceAutosaveKey = useMemo(() => makePracticeAutosaveKey(selectedDrawing.id, uploadedImage?.uri), [selectedDrawing.id, uploadedImage?.uri])
+  const topGuideOpacity = Math.max(guideOpacity, 0.48)
+  const selectedBrushSize = useMemo(() => brushSizes.find((size) => size.value === markerWidth) ?? brushSizes[1], [markerWidth])
 
   useEffect(() => {
     canvasSizeRef.current = canvasSize
@@ -622,6 +695,156 @@ function PracticeScreen({
   useEffect(() => {
     viewportRef.current = viewport
   }, [viewport])
+
+  useEffect(() => {
+    let cancelled = false
+    autosaveReadyRef.current = false
+
+    async function loadSavedPracticeSession() {
+      try {
+        await Promise.resolve()
+        if (cancelled) return
+
+        activePathRef.current = ''
+        activePointsRef.current = []
+        activePointCountRef.current = 0
+        lastPointRef.current = null
+        drawingActiveRef.current = false
+        setActivePath('')
+        setActiveStrokeRender(null)
+        setPracticeStrokes([])
+
+        const rawSession = await AsyncStorage.getItem(practiceAutosaveKey)
+        if (cancelled || !rawSession) return
+
+        const savedSession = JSON.parse(rawSession) as Partial<SavedPracticeSession>
+        const savedStrokes = Array.isArray(savedSession.strokes)
+          ? savedSession.strokes.map(normalizeSavedPracticeStroke).filter((stroke): stroke is PracticeStroke => Boolean(stroke))
+          : []
+
+        setPracticeStrokes(savedStrokes)
+        if (typeof savedSession.guideOpacity === 'number') setGuideOpacity(clamp(savedSession.guideOpacity, 0.08, 0.66))
+        if (typeof savedSession.guideOnTop === 'boolean') setGuideOnTop(savedSession.guideOnTop)
+        if (typeof savedSession.markerColor === 'string') setMarkerColor(savedSession.markerColor)
+        if (typeof savedSession.markerWidth === 'number') setMarkerWidth(savedSession.markerWidth)
+        if (savedSession.brushToolId && brushTools.some((tool) => tool.id === savedSession.brushToolId)) setBrushToolId(savedSession.brushToolId)
+      } catch {
+        // Ignore malformed local saves so a corrupt draft never blocks drawing.
+      } finally {
+        if (!cancelled) autosaveReadyRef.current = true
+      }
+    }
+
+    void loadSavedPracticeSession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [practiceAutosaveKey])
+
+  useEffect(() => {
+    if (!autosaveReadyRef.current) return
+
+    const timeout = setTimeout(() => {
+      if (practiceStrokes.length === 0 && !activePathRef.current) {
+        void AsyncStorage.removeItem(practiceAutosaveKey).catch(() => undefined)
+        return
+      }
+
+      const savedSession: SavedPracticeSession = {
+        version: 1,
+        drawingId: selectedDrawing.id,
+        drawingName: selectedDrawing.name,
+        updatedAt: new Date().toISOString(),
+        strokes: practiceStrokes,
+        guideOpacity,
+        guideOnTop,
+        markerColor,
+        markerWidth,
+        brushToolId,
+      }
+
+      void AsyncStorage.setItem(practiceAutosaveKey, JSON.stringify(savedSession)).catch(() => undefined)
+    }, practiceAutosaveDelayMs)
+
+    return () => clearTimeout(timeout)
+  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, practiceAutosaveKey, practiceStrokes, selectedDrawing.id, selectedDrawing.name])
+
+  const committedStrokeLayers = useMemo(() => {
+    const eraserStrokes = practiceStrokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode === 'erase')
+    const drawGroups: Array<{ strokes: Array<{ stroke: PracticeStroke; index: number }>; endIndex: number }> = []
+    let currentGroup: Array<{ stroke: PracticeStroke; index: number }> = []
+
+    const flushDrawGroup = () => {
+      if (currentGroup.length === 0) return
+      drawGroups.push({ strokes: currentGroup, endIndex: currentGroup[currentGroup.length - 1].index })
+      currentGroup = []
+    }
+
+    practiceStrokes.forEach((stroke, index) => {
+      if (stroke.mode === 'erase') {
+        flushDrawGroup()
+        return
+      }
+
+      currentGroup.push({ stroke, index })
+    })
+    flushDrawGroup()
+
+    const activeEraserStroke = activePath && activeStrokeRender?.mode === 'erase' ? { ...activeStrokeRender, path: activePath } : null
+    const maskStrokesByGroup = drawGroups.map((group) => [
+      ...eraserStrokes.filter(({ index }) => index > group.endIndex).map(({ stroke }) => stroke),
+      ...(activeEraserStroke ? [activeEraserStroke] : []),
+    ])
+
+    return (
+      <>
+        {maskStrokesByGroup.some((maskStrokes) => maskStrokes.length > 0) && (
+          <Defs>
+            {maskStrokesByGroup.map((maskStrokes, groupIndex) => maskStrokes.length > 0 && (
+              <Mask key={`mask-${groupIndex}`} id={`practice-ink-mask-${groupIndex}`} x={0} y={0} width={canvasSize.width} height={canvasSize.height} maskUnits="userSpaceOnUse">
+                <Rect x={0} y={0} width={canvasSize.width} height={canvasSize.height} fill="#FFFFFF" />
+                {maskStrokes.map((stroke, maskIndex) => (
+                  <Path key={`mask-stroke-${groupIndex}-${maskIndex}`} d={stroke.path} stroke="#000000" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                ))}
+              </Mask>
+            ))}
+          </Defs>
+        )}
+        {drawGroups.map((group, groupIndex) => {
+          const maskStrokes = maskStrokesByGroup[groupIndex]
+          const groupPaths = group.strokes.map(({ stroke, index }) => (
+            <Path key={`stroke-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          ))
+
+          return maskStrokes.length > 0 ? (
+            <G key={`draw-group-${groupIndex}`} mask={`url(#practice-ink-mask-${groupIndex})`}>
+              {groupPaths}
+            </G>
+          ) : (
+            <G key={`draw-group-${groupIndex}`}>{groupPaths}</G>
+          )
+        })}
+      </>
+    )
+  }, [activePath, activeStrokeRender, canvasSize.height, canvasSize.width, practiceStrokes])
+
+  const scheduleActivePathUpdate = useCallback(() => {
+    if (activePathFrameRef.current !== null) return
+
+    activePathFrameRef.current = requestAnimationFrame(() => {
+      activePathFrameRef.current = null
+      setActivePath(activePathRef.current)
+    })
+  }, [])
+
+  const cancelActivePathUpdate = useCallback(() => {
+    if (activePathFrameRef.current === null) return
+    cancelAnimationFrame(activePathFrameRef.current)
+    activePathFrameRef.current = null
+  }, [])
+
+  useEffect(() => () => cancelActivePathUpdate(), [cancelActivePathUpdate])
 
   const clampPracticeViewport = useCallback((next: PracticeViewport) => {
     const { width, height } = canvasSizeRef.current
@@ -702,20 +925,24 @@ function PracticeScreen({
   const finishPracticeStroke = useCallback(() => {
     if (!drawingActiveRef.current) return
 
-    let path = activePathRef.current
-    if (path && activePointCountRef.current === 1) path = `${path} l 0.1 0`
+    const { color, width, opacity, mode, dasharray } = activeStrokeStyleRef.current
+    const simplifiedPoints = simplifyPracticePoints(activePointsRef.current, clamp(width * 0.18, 1.25, 5))
+    let path = pointsToSvgPath(simplifiedPoints)
+    if (path && simplifiedPoints.length === 1) path = `${path} l 0.1 0`
 
     if (path) {
-      const { color, width, opacity, dasharray } = activeStrokeStyleRef.current
-      setPracticeStrokes((current) => [...current, { path, color, width, opacity, dasharray }])
+      setPracticeStrokes((current) => [...current, { path, color, width, opacity, mode, dasharray }])
     }
 
+    cancelActivePathUpdate()
     activePathRef.current = ''
+    activePointsRef.current = []
     activePointCountRef.current = 0
     lastPointRef.current = null
     drawingActiveRef.current = false
     setActivePath('')
-  }, [])
+    setActiveStrokeRender(null)
+  }, [cancelActivePathUpdate])
 
   const resetViewportGestureState = useCallback(() => {
     viewportGestureRef.current = null
@@ -728,6 +955,7 @@ function PracticeScreen({
   }, [finishPracticeStroke, resetViewportGestureState])
 
   const startPracticeStroke = useCallback((event: GestureResponderEvent) => {
+    setActivePanel(null)
     const touches = touchPointsFromEvent(event)
     if (!viewportLocked) {
       startViewportGesture(touches)
@@ -740,15 +968,19 @@ function PracticeScreen({
     activePointCountRef.current = 1
     lastPointRef.current = point
     drawingActiveRef.current = true
-    activeStrokeStyleRef.current = {
+    activePointsRef.current = [point]
+    const strokeStyle: PracticeStroke = {
       path,
-      color: markerColor,
+      color: brushTool.mode === 'erase' ? '#000000' : markerColor,
       width: activeStrokeWidth,
       opacity: brushTool.opacity,
+      mode: brushTool.mode,
       dasharray: brushTool.dasharray,
     }
+    activeStrokeStyleRef.current = strokeStyle
+    setActiveStrokeRender(strokeStyle)
     setActivePath(path)
-  }, [activeStrokeWidth, brushTool.dasharray, brushTool.opacity, markerColor, pointFromLocation, startViewportGesture, touchPointsFromEvent, viewportLocked])
+  }, [activeStrokeWidth, brushTool.dasharray, brushTool.mode, brushTool.opacity, markerColor, pointFromLocation, startViewportGesture, touchPointsFromEvent, viewportLocked])
 
   const movePracticeStroke = useCallback((event: GestureResponderEvent) => {
     const touches = touchPointsFromEvent(event)
@@ -802,13 +1034,15 @@ function PracticeScreen({
 
     const point = pointFromLocation(touches[0] ?? { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY })
     const lastPoint = lastPointRef.current
-    if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 2.5) return
+    const minPointDistance = clamp(activeStrokeStyleRef.current.width * 0.2, 1.25, 6)
+    if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < minPointDistance) return
 
+    activePointsRef.current.push(point)
     activePathRef.current = `${activePathRef.current} L ${point.x} ${point.y}`
     activePointCountRef.current += 1
     lastPointRef.current = point
-    setActivePath(activePathRef.current)
-  }, [pointFromLocation, setPracticeViewport, startViewportGesture, statsFromPoints, touchPointsFromEvent, viewportLocked])
+    scheduleActivePathUpdate()
+  }, [pointFromLocation, scheduleActivePathUpdate, setPracticeViewport, startViewportGesture, statsFromPoints, touchPointsFromEvent, viewportLocked])
 
   const finishPracticeGesture = useCallback(() => {
     if (viewportLocked) {
@@ -824,13 +1058,26 @@ function PracticeScreen({
   }, [])
 
   const clearPracticeStrokes = useCallback(() => {
+    cancelActivePathUpdate()
     activePathRef.current = ''
+    activePointsRef.current = []
     activePointCountRef.current = 0
     lastPointRef.current = null
     drawingActiveRef.current = false
     setActivePath('')
+    setActiveStrokeRender(null)
     setPracticeStrokes([])
-  }, [])
+    void AsyncStorage.removeItem(practiceAutosaveKey).catch(() => undefined)
+  }, [cancelActivePathUpdate, practiceAutosaveKey])
+
+  const confirmClearPracticeStrokes = useCallback(() => {
+    if (practiceStrokes.length === 0 && !activePath) return
+
+    Alert.alert('Clear drawing?', 'This removes all coloring saved on this phone for this picture.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear all', style: 'destructive', onPress: clearPracticeStrokes },
+    ])
+  }, [activePath, clearPracticeStrokes, practiceStrokes.length])
 
   const lightenGuide = useCallback(() => {
     setGuideOpacity((current) => clamp(current - 0.06, 0.08, 0.66))
@@ -859,6 +1106,10 @@ function PracticeScreen({
     setPracticeViewport(defaultPracticeViewport)
   }, [resetViewportGestureState, setPracticeViewport])
 
+  const togglePracticePanel = useCallback((panel: PracticePanelId) => {
+    setActivePanel((current) => (current === panel ? null : panel))
+  }, [])
+
   return (
     <View style={styles.practiceShell}>
       <StatusBar style="dark" />
@@ -876,7 +1127,7 @@ function PracticeScreen({
       </View>
 
       <View style={styles.practiceStageCard}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.practiceToolScroller} contentContainerStyle={styles.practiceToolRail}>
+        <View style={styles.practiceRibbon}>
           <Pressable
             style={[styles.practiceModeButton, viewportLocked && styles.practiceModeButtonActive]}
             onPress={toggleViewportMode}
@@ -885,75 +1136,131 @@ function PracticeScreen({
             accessibilityLabel={viewportLocked ? 'Canvas locked for drawing' : 'Canvas unlocked for moving and zooming'}
           >
             <Text style={[styles.practiceModeButtonText, viewportLocked && styles.practiceModeButtonTextActive]}>{viewportLocked ? 'Locked' : 'Move'}</Text>
-            <Text style={styles.practiceModeButtonSubtext}>{viewportLocked ? 'Draw mode' : 'Pan + zoom'}</Text>
+            <Text style={styles.practiceModeButtonSubtext}>{viewportLocked ? 'Draw' : 'Pan + zoom'}</Text>
           </Pressable>
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Color</Text>
-            <View style={styles.colorSwatchesCompact}>
-              {markerColors.map((color) => (
-                <Pressable
-                  key={color}
-                  style={[styles.colorSwatchCompact, { backgroundColor: color }, markerColor === color && styles.colorSwatchActive]}
-                  onPress={() => setMarkerColor(color)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Use marker color ${color}`}
-                />
-              ))}
+          <Pressable
+            style={[styles.practiceRibbonButton, styles.practiceRibbonButtonTool, activePanel === 'tool' && styles.practiceRibbonButtonActive]}
+            onPress={() => togglePracticePanel('tool')}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: activePanel === 'tool' }}
+            accessibilityLabel={`Open color and brush tools. Current brush ${brushTool.label}.`}
+          >
+            <View style={[styles.practiceRibbonColorDot, { backgroundColor: markerColor }]} />
+            <View style={styles.practiceRibbonCopy}>
+              <Text style={[styles.practiceRibbonLabel, activePanel === 'tool' && styles.practiceRibbonLabelActive]}>Tool</Text>
+              <Text style={[styles.practiceRibbonValue, activePanel === 'tool' && styles.practiceRibbonValueActive]} numberOfLines={1}>{brushTool.label}</Text>
             </View>
-          </View>
+          </Pressable>
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Brush</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              {brushTools.map((tool) => (
-                <Pressable key={tool.id} style={[styles.practiceMiniButtonCompact, brushToolId === tool.id && styles.practiceMiniButtonActive]} onPress={() => setBrushToolId(tool.id)} accessibilityRole="button">
-                  <Text style={[styles.practiceMiniButtonText, brushToolId === tool.id && styles.practiceMiniButtonTextActive]}>{tool.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <Pressable
+            style={[styles.practiceRibbonButton, activePanel === 'size' && styles.practiceRibbonButtonActive]}
+            onPress={() => togglePracticePanel('size')}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: activePanel === 'size' }}
+            accessibilityLabel={`Open brush size tools. Current size ${selectedBrushSize.label}.`}
+          >
+            <Text style={[styles.practiceRibbonLabel, activePanel === 'size' && styles.practiceRibbonLabelActive]}>Size</Text>
+            <Text style={[styles.practiceRibbonValue, activePanel === 'size' && styles.practiceRibbonValueActive]} numberOfLines={1}>{selectedBrushSize.label}</Text>
+          </Pressable>
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Size</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              {brushSizes.map((size) => (
-                <Pressable key={size.value} style={[styles.practiceMiniButtonCompact, markerWidth === size.value && styles.practiceMiniButtonActive]} onPress={() => setMarkerWidth(size.value)} accessibilityRole="button">
-                  <Text style={[styles.practiceMiniButtonText, markerWidth === size.value && styles.practiceMiniButtonTextActive]}>{size.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <Pressable
+            style={[styles.practiceRibbonButton, activePanel === 'view' && styles.practiceRibbonButtonActive]}
+            onPress={() => togglePracticePanel('view')}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: activePanel === 'view' }}
+            accessibilityLabel="Open lines, guide, and zoom tools"
+          >
+            <Text style={[styles.practiceRibbonLabel, activePanel === 'view' && styles.practiceRibbonLabelActive]}>View</Text>
+            <Text style={[styles.practiceRibbonValue, activePanel === 'view' && styles.practiceRibbonValueActive]} numberOfLines={1}>{guideOnTop ? 'Lines top' : 'Behind'}</Text>
+          </Pressable>
+        </View>
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Guide {Math.round(guideOpacity * 100)}%</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              <Pressable style={styles.practiceMiniButtonCompact} onPress={lightenGuide} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>Less</Text>
-              </Pressable>
-              <Pressable style={styles.practiceMiniButtonCompact} onPress={darkenGuide} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>More</Text>
-              </Pressable>
-            </View>
-          </View>
+        {activePanel && (
+          <View style={styles.practiceRibbonPanel} pointerEvents="box-none">
+            {activePanel === 'tool' && (
+              <View style={styles.practicePanelCard}>
+                <View style={styles.practicePanelHeader}>
+                  <Text style={styles.practicePanelTitle}>Choose color and brush</Text>
+                  <Pressable style={styles.practicePanelClose} onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close tools">
+                    <Text style={styles.practicePanelCloseText}>Done</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.practicePanelSwatches}>
+                  {markerColors.map((color) => (
+                    <Pressable
+                      key={color}
+                      style={[styles.practicePanelSwatch, { backgroundColor: color }, markerColor === color && styles.practicePanelSwatchActive]}
+                      onPress={() => setMarkerColor(color)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: markerColor === color }}
+                      accessibilityLabel={`Use marker color ${color}`}
+                    />
+                  ))}
+                </View>
+                <View style={styles.practicePanelButtonGrid}>
+                  {brushTools.map((tool) => (
+                    <Pressable key={tool.id} style={[styles.practicePanelChoice, brushToolId === tool.id && styles.practicePanelChoiceActive]} onPress={() => setBrushToolId(tool.id)} accessibilityRole="button" accessibilityState={{ selected: brushToolId === tool.id }}>
+                      <Text style={[styles.practicePanelChoiceText, brushToolId === tool.id && styles.practicePanelChoiceTextActive]}>{tool.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Zoom {Math.round(viewport.scale * 100)}%</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              <Pressable style={[styles.practiceMiniButtonCompact, viewportLocked && styles.practiceMiniButtonDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(-0.35)} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>−</Text>
-              </Pressable>
-              <Pressable style={[styles.practiceMiniButtonCompact, viewportLocked && styles.practiceMiniButtonDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(0.35)} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>+</Text>
-              </Pressable>
-              <Pressable style={[styles.practiceMiniButtonCompact, viewport.scale === 1 && viewport.x === 0 && viewport.y === 0 && styles.practiceMiniButtonDisabled]} disabled={viewport.scale === 1 && viewport.x === 0 && viewport.y === 0} onPress={resetPracticeViewport} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>Reset</Text>
-              </Pressable>
-            </View>
-          </View>
-        </ScrollView>
+            {activePanel === 'size' && (
+              <View style={styles.practicePanelCard}>
+                <View style={styles.practicePanelHeader}>
+                  <Text style={styles.practicePanelTitle}>Brush size</Text>
+                  <Pressable style={styles.practicePanelClose} onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close size tools">
+                    <Text style={styles.practicePanelCloseText}>Done</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.practicePanelButtonGrid}>
+                  {brushSizes.map((size) => (
+                    <Pressable key={size.value} style={[styles.practicePanelChoice, markerWidth === size.value && styles.practicePanelChoiceActive]} onPress={() => setMarkerWidth(size.value)} accessibilityRole="button" accessibilityState={{ selected: markerWidth === size.value }}>
+                      <Text style={[styles.practicePanelChoiceText, markerWidth === size.value && styles.practicePanelChoiceTextActive]}>{size.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
 
-        <Text style={styles.practiceCanvasHint} numberOfLines={1}>{viewportLocked ? 'Locked: draw and color without moving the page.' : 'Move: drag or pinch, then lock to draw.'}</Text>
+            {activePanel === 'view' && (
+              <View style={styles.practicePanelCard}>
+                <View style={styles.practicePanelHeader}>
+                  <Text style={styles.practicePanelTitle}>Lines, guide, and zoom</Text>
+                  <Pressable style={styles.practicePanelClose} onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close view tools">
+                    <Text style={styles.practicePanelCloseText}>Done</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.practicePanelButtonGrid}>
+                  <Pressable style={[styles.practicePanelChoice, guideOnTop && styles.practicePanelChoiceActive]} onPress={() => setGuideOnTop((current) => !current)} accessibilityRole="button" accessibilityState={{ selected: guideOnTop }}>
+                    <Text style={[styles.practicePanelChoiceText, guideOnTop && styles.practicePanelChoiceTextActive]}>{guideOnTop ? 'Lines on top' : 'Lines behind'}</Text>
+                  </Pressable>
+                  <Pressable style={styles.practicePanelChoice} onPress={lightenGuide} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Guide less</Text>
+                  </Pressable>
+                  <Pressable style={styles.practicePanelChoice} onPress={darkenGuide} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Guide more</Text>
+                  </Pressable>
+                  <Pressable style={[styles.practicePanelChoice, viewportLocked && styles.practicePanelChoiceDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(-0.35)} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Zoom out</Text>
+                  </Pressable>
+                  <Pressable style={[styles.practicePanelChoice, viewportLocked && styles.practicePanelChoiceDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(0.35)} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Zoom in</Text>
+                  </Pressable>
+                  <Pressable style={[styles.practicePanelChoice, viewport.scale === 1 && viewport.x === 0 && viewport.y === 0 && styles.practicePanelChoiceDisabled]} disabled={viewport.scale === 1 && viewport.x === 0 && viewport.y === 0} onPress={resetPracticeViewport} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Reset view</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.practicePanelFootnote}>{viewportLocked ? 'Switch to Move before zooming or panning.' : `Zoom ${Math.round(viewport.scale * 100)}% · Guide ${Math.round(guideOpacity * 100)}%`}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        <Text style={styles.practiceCanvasHint} numberOfLines={1}>{viewportLocked ? 'Locked: color safely. Tap Tool for colors and brushes.' : 'Move: drag or pinch, then lock to draw.'}</Text>
 
         <View
           style={styles.practiceCanvas}
@@ -994,13 +1301,20 @@ function PracticeScreen({
               viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
               style={styles.practiceInkLayer}
             >
-              {practiceStrokes.map((stroke, index) => (
-                <Path key={`stroke-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              ))}
-              {activePath && (
-                <Path d={activePath} stroke={markerColor} strokeWidth={activeStrokeWidth} strokeOpacity={brushTool.opacity} strokeDasharray={brushTool.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              {committedStrokeLayers}
+              {activePath && activeStrokeRender?.mode === 'draw' && (
+                <Path d={activePath} stroke={activeStrokeRender.color} strokeWidth={activeStrokeRender.width} strokeOpacity={activeStrokeRender.opacity} strokeDasharray={activeStrokeRender.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
               )}
             </Svg>
+            {guideOnTop && (
+              <View style={[styles.practiceGuide, { opacity: topGuideOpacity }]} pointerEvents="none">
+                {uploadedImage ? (
+                  <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
+                ) : (
+                  <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
+                )}
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -1009,8 +1323,8 @@ function PracticeScreen({
         <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && styles.practiceToolButtonDisabled]} onPress={undoPracticeStroke} disabled={practiceStrokes.length === 0} accessibilityRole="button">
           <Text style={styles.practiceToolButtonText}>Undo</Text>
         </Pressable>
-        <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && !activePath && styles.practiceToolButtonDisabled]} onPress={clearPracticeStrokes} disabled={practiceStrokes.length === 0 && !activePath} accessibilityRole="button">
-          <Text style={styles.practiceToolButtonText}>Clear</Text>
+        <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && !activePath && styles.practiceToolButtonDisabled]} onPress={confirmClearPracticeStrokes} disabled={practiceStrokes.length === 0 && !activePath} accessibilityRole="button">
+          <Text style={styles.practiceToolButtonText}>Clear all</Text>
         </Pressable>
         <Pressable style={[styles.practiceToolButton, styles.practiceToolButtonPrimary]} onPress={onCameraTrace} accessibilityRole="button">
           <Text style={[styles.practiceToolButtonText, styles.practiceToolButtonPrimaryText]}>Use camera</Text>
@@ -1464,6 +1778,162 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 10,
     marginBottom: 12,
+  },
+  practiceRibbon: {
+    height: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 8,
+  },
+  practiceRibbonButton: {
+    flex: 1,
+    minWidth: 0,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: palette.paper,
+    borderWidth: 1,
+    borderColor: 'rgba(24,36,58,0.08)',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  practiceRibbonButtonTool: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  practiceRibbonButtonActive: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  practiceRibbonColorDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  practiceRibbonCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  practiceRibbonLabel: {
+    color: palette.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.55,
+    textTransform: 'uppercase',
+  },
+  practiceRibbonLabelActive: {
+    color: 'rgba(255,255,255,0.68)',
+  },
+  practiceRibbonValue: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  practiceRibbonValueActive: {
+    color: '#FFFFFF',
+  },
+  practiceRibbonPanel: {
+    position: 'absolute',
+    top: 76,
+    left: 8,
+    right: 8,
+    zIndex: 12,
+  },
+  practicePanelCard: {
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,250,242,0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(24,36,58,0.12)',
+    padding: 12,
+    gap: 10,
+    shadowColor: palette.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  practicePanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  practicePanelTitle: {
+    flex: 1,
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: -0.2,
+  },
+  practicePanelClose: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  practicePanelCloseText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  practicePanelSwatches: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  practicePanelSwatch: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  practicePanelSwatchActive: {
+    borderColor: palette.ink,
+    transform: [{ scale: 1.08 }],
+  },
+  practicePanelButtonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  practicePanelChoice: {
+    minHeight: 40,
+    borderRadius: 999,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 13,
+  },
+  practicePanelChoiceActive: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  practicePanelChoiceDisabled: {
+    opacity: 0.42,
+  },
+  practicePanelChoiceText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  practicePanelChoiceTextActive: {
+    color: '#FFFFFF',
+  },
+  practicePanelFootnote: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    lineHeight: 15,
   },
   practiceToolScroller: {
     flexGrow: 0,
