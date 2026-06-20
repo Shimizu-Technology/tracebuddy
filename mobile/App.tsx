@@ -770,13 +770,64 @@ function PracticeScreen({
     return () => clearTimeout(timeout)
   }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, practiceAutosaveKey, practiceStrokes, selectedDrawing.id, selectedDrawing.name])
 
-  const drawStrokeElements = useMemo(() => practiceStrokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode !== 'erase').map(({ stroke, index }) => (
-    <Path key={`stroke-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-  )), [practiceStrokes])
+  const committedStrokeLayers = useMemo(() => {
+    const eraserStrokes = practiceStrokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode === 'erase')
+    const drawGroups: Array<{ strokes: Array<{ stroke: PracticeStroke; index: number }>; endIndex: number }> = []
+    let currentGroup: Array<{ stroke: PracticeStroke; index: number }> = []
 
-  const eraserStrokeElements = useMemo(() => practiceStrokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode === 'erase').map(({ stroke, index }) => (
-    <Path key={`erase-${index}`} d={stroke.path} stroke="#000000" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-  )), [practiceStrokes])
+    const flushDrawGroup = () => {
+      if (currentGroup.length === 0) return
+      drawGroups.push({ strokes: currentGroup, endIndex: currentGroup[currentGroup.length - 1].index })
+      currentGroup = []
+    }
+
+    practiceStrokes.forEach((stroke, index) => {
+      if (stroke.mode === 'erase') {
+        flushDrawGroup()
+        return
+      }
+
+      currentGroup.push({ stroke, index })
+    })
+    flushDrawGroup()
+
+    const activeEraserStroke = activePath && activeStrokeRender?.mode === 'erase' ? { ...activeStrokeRender, path: activePath } : null
+    const maskStrokesByGroup = drawGroups.map((group) => [
+      ...eraserStrokes.filter(({ index }) => index > group.endIndex).map(({ stroke }) => stroke),
+      ...(activeEraserStroke ? [activeEraserStroke] : []),
+    ])
+
+    return (
+      <>
+        {maskStrokesByGroup.some((maskStrokes) => maskStrokes.length > 0) && (
+          <Defs>
+            {maskStrokesByGroup.map((maskStrokes, groupIndex) => maskStrokes.length > 0 && (
+              <Mask key={`mask-${groupIndex}`} id={`practice-ink-mask-${groupIndex}`} x={0} y={0} width={canvasSize.width} height={canvasSize.height} maskUnits="userSpaceOnUse">
+                <Rect x={0} y={0} width={canvasSize.width} height={canvasSize.height} fill="#FFFFFF" />
+                {maskStrokes.map((stroke, maskIndex) => (
+                  <Path key={`mask-stroke-${groupIndex}-${maskIndex}`} d={stroke.path} stroke="#000000" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                ))}
+              </Mask>
+            ))}
+          </Defs>
+        )}
+        {drawGroups.map((group, groupIndex) => {
+          const maskStrokes = maskStrokesByGroup[groupIndex]
+          const groupPaths = group.strokes.map(({ stroke, index }) => (
+            <Path key={`stroke-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          ))
+
+          return maskStrokes.length > 0 ? (
+            <G key={`draw-group-${groupIndex}`} mask={`url(#practice-ink-mask-${groupIndex})`}>
+              {groupPaths}
+            </G>
+          ) : (
+            <G key={`draw-group-${groupIndex}`}>{groupPaths}</G>
+          )
+        })}
+      </>
+    )
+  }, [activePath, activeStrokeRender, canvasSize.height, canvasSize.width, practiceStrokes])
 
   const scheduleActivePathUpdate = useCallback(() => {
     if (activePathFrameRef.current !== null) return
@@ -1250,21 +1301,10 @@ function PracticeScreen({
               viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
               style={styles.practiceInkLayer}
             >
-              <Defs>
-                <Mask id="practice-ink-mask" x={0} y={0} width={canvasSize.width} height={canvasSize.height} maskUnits="userSpaceOnUse">
-                  <Rect x={0} y={0} width={canvasSize.width} height={canvasSize.height} fill="#FFFFFF" />
-                  {eraserStrokeElements}
-                  {activePath && activeStrokeRender?.mode === 'erase' && (
-                    <Path d={activePath} stroke="#000000" strokeWidth={activeStrokeRender.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  )}
-                </Mask>
-              </Defs>
-              <G mask="url(#practice-ink-mask)">
-                {drawStrokeElements}
-                {activePath && activeStrokeRender?.mode === 'draw' && (
-                  <Path d={activePath} stroke={activeStrokeRender.color} strokeWidth={activeStrokeRender.width} strokeOpacity={activeStrokeRender.opacity} strokeDasharray={activeStrokeRender.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                )}
-              </G>
+              {committedStrokeLayers}
+              {activePath && activeStrokeRender?.mode === 'draw' && (
+                <Path d={activePath} stroke={activeStrokeRender.color} strokeWidth={activeStrokeRender.width} strokeOpacity={activeStrokeRender.opacity} strokeDasharray={activeStrokeRender.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              )}
             </Svg>
             {guideOnTop && (
               <View style={[styles.practiceGuide, { opacity: topGuideOpacity }]} pointerEvents="none">

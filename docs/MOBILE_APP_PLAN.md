@@ -92,6 +92,18 @@ The first mobile app should be intentionally small and reliable:
 - Keep the screen awake during trace mode.
 - Local-only privacy model.
 
+## Next mobile practice improvement: Previous Work
+
+A local Previous Work section should be the next larger practice-mode improvement after the current coloring tools land.
+
+- Keep saves device-local with `AsyncStorage` and no backend.
+- Move beyond one autosave slot per template by storing multiple named sessions.
+- Add thumbnails/previews so a child can recognize prior work visually.
+- Provide actions for Resume/Edit, Duplicate, Start fresh, and Delete.
+- Preserve the original template as a clean starting point even when previous work exists.
+- For uploaded images, copy the selected image into app-local storage before saving long-lived sessions.
+- Mirror the concept on web with `localStorage`/IndexedDB if the PWA needs the same gallery.
+
 ## Deferred from the Expo Go MVP
 
 - Browser uploaded-image cleanup parity.
