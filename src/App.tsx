@@ -253,6 +253,10 @@ function openUploadedImageDb() {
   return uploadedImageDbPromise
 }
 
+function uploadedImageRecordSignature(image: UploadedImageState) {
+  return JSON.stringify([image.imageId, image.fileName, image.originalSrc, image.processedSrc])
+}
+
 async function saveUploadedImageRecord(image: UploadedImageState) {
   const db = await openUploadedImageDb()
   await new Promise<void>((resolve, reject) => {
@@ -1024,6 +1028,7 @@ function App() {
   const modeRef = useRef<AppMode>(mode)
   const paperLockEnabledRef = useRef(false)
   const uploadCleanupRequestRef = useRef(0)
+  const uploadedImageSaveSignatureRef = useRef('')
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
 
   const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
@@ -1365,11 +1370,22 @@ function App() {
   }, [backgroundTolerance, outlineDetail, uploadCleanupMode, uploadedImage?.originalSrc])
 
   useEffect(() => {
-    if (!uploadedImage) return
-    void saveUploadedImageRecord(uploadedImage).catch(() => {
-      setUploadCleanupStatus('error')
-      setUploadCleanupMessage('Could not save this uploaded image locally. Clear older Previous Work or try a smaller image.')
-    })
+    if (!uploadedImage) {
+      uploadedImageSaveSignatureRef.current = ''
+      return
+    }
+
+    const saveSignature = uploadedImageRecordSignature(uploadedImage)
+    if (saveSignature === uploadedImageSaveSignatureRef.current) return
+
+    void saveUploadedImageRecord(uploadedImage)
+      .then(() => {
+        uploadedImageSaveSignatureRef.current = saveSignature
+      })
+      .catch(() => {
+        setUploadCleanupStatus('error')
+        setUploadCleanupMessage('Could not save this uploaded image locally. Clear older Previous Work or try a smaller image.')
+      })
   }, [uploadedImage])
 
   function resetPaperDetection() {
@@ -1432,6 +1448,7 @@ function App() {
       return false
     }
 
+    uploadedImageSaveSignatureRef.current = resolvedUploadedImage ? uploadedImageRecordSignature(resolvedUploadedImage) : ''
     setSelectedDrawing(drawingFromPracticeSource(source))
     setUploadedImage(resolvedUploadedImage)
     resetUploadCleanup()
@@ -1571,6 +1588,7 @@ function App() {
 
         try {
           await saveUploadedImageRecord(nextUploadedImage)
+          uploadedImageSaveSignatureRef.current = uploadedImageRecordSignature(nextUploadedImage)
         } catch {
           input.value = ''
           window.alert('TraceBuddy could not save this upload locally. Try a smaller image, clear older Previous Work, or choose a built-in template.')

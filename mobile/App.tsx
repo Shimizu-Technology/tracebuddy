@@ -442,13 +442,23 @@ async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { w
   return loadPreviousWorkSessions()
 }
 
+let previousWorkWriteQueue = Promise.resolve()
+
+function queuePreviousWorkWrite<T>(operation: () => Promise<T>) {
+  const result = previousWorkWriteQueue.then(operation, operation)
+  previousWorkWriteQueue = result.then(() => undefined, () => undefined)
+  return result
+}
+
 async function savePreviousWorkSession(session: SavedPracticeSession) {
-  const currentIds = await readPreviousWorkIds()
-  const ids = [session.sessionId, ...currentIds.filter((id) => id !== session.sessionId)]
-  await AsyncStorage.multiSet([
-    [previousWorkSessionKey(session.sessionId), JSON.stringify(session)],
-    [previousWorkIndexKey, JSON.stringify({ version: 1, ids })],
-  ])
+  return queuePreviousWorkWrite(async () => {
+    const currentIds = await readPreviousWorkIds()
+    const ids = [session.sessionId, ...currentIds.filter((id) => id !== session.sessionId)]
+    await AsyncStorage.multiSet([
+      [previousWorkSessionKey(session.sessionId), JSON.stringify(session)],
+      [previousWorkIndexKey, JSON.stringify({ version: 1, ids })],
+    ])
+  })
 }
 
 function isStoredUploadedImageUri(uri?: string) {
@@ -474,19 +484,21 @@ async function cleanupUploadedImageIfUnused(deletedSession: SavedPracticeSession
 }
 
 async function deletePreviousWorkSession(sessionId: string) {
-  const currentIds = await readPreviousWorkIds()
-  const rawDeletedSession = await AsyncStorage.getItem(previousWorkSessionKey(sessionId)).catch(() => null)
-  const deletedSession = (() => {
-    try {
-      return rawDeletedSession ? normalizeSavedPracticeSession(JSON.parse(rawDeletedSession)) : null
-    } catch {
-      return null
-    }
-  })()
-  const ids = currentIds.filter((id) => id !== sessionId)
-  await AsyncStorage.multiRemove([previousWorkSessionKey(sessionId)])
-  await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
-  await cleanupUploadedImageIfUnused(deletedSession, ids)
+  return queuePreviousWorkWrite(async () => {
+    const currentIds = await readPreviousWorkIds()
+    const rawDeletedSession = await AsyncStorage.getItem(previousWorkSessionKey(sessionId)).catch(() => null)
+    const deletedSession = (() => {
+      try {
+        return rawDeletedSession ? normalizeSavedPracticeSession(JSON.parse(rawDeletedSession)) : null
+      } catch {
+        return null
+      }
+    })()
+    const ids = currentIds.filter((id) => id !== sessionId)
+    await AsyncStorage.multiRemove([previousWorkSessionKey(sessionId)])
+    await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
+    await cleanupUploadedImageIfUnused(deletedSession, ids)
+  })
 }
 
 function uploadedImageFileName(sourceUri: string, fallbackName?: string) {
@@ -1109,16 +1121,18 @@ function PreviousWorkSection({
         {sessions.map((session) => (
           <View key={session.sessionId} style={styles.previousWorkCard}>
             <Pressable style={styles.previousWorkPreview} onPress={() => onResume(session)} accessibilityRole="button" accessibilityLabel={`Resume ${session.title}`}>
-              {session.source.kind === 'upload' && session.source.uploadedImage ? (
-                <Image source={{ uri: session.source.uploadedImage.uri }} style={styles.previousWorkGuideImage} resizeMode="contain" />
-              ) : (
-                <SvgXml xml={session.source.drawingSvg ?? drawingFromPracticeSource(session.source).drawing.svg} width="100%" height="100%" />
-              )}
-              <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${session.canvasWidth} ${session.canvasHeight}`} preserveAspectRatio="xMidYMid meet" style={styles.previousWorkInk}>
-                {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-16).map((stroke, index) => (
-                  <Path key={`${session.sessionId}-preview-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                ))}
-              </Svg>
+              <View style={styles.previousWorkPreviewContent} pointerEvents="none">
+                {session.source.kind === 'upload' && session.source.uploadedImage ? (
+                  <Image source={{ uri: session.source.uploadedImage.uri }} style={styles.previousWorkGuideImage} resizeMode="contain" />
+                ) : (
+                  <SvgXml xml={session.source.drawingSvg ?? drawingFromPracticeSource(session.source).drawing.svg} width="100%" height="100%" />
+                )}
+                <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${session.canvasWidth} ${session.canvasHeight}`} preserveAspectRatio="xMidYMid meet" style={styles.previousWorkInk}>
+                  {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-16).map((stroke, index) => (
+                    <Path key={`${session.sessionId}-preview-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                  ))}
+                </Svg>
+              </View>
             </Pressable>
             <Text style={styles.previousWorkName} numberOfLines={1}>{session.title}</Text>
             <Text style={styles.previousWorkMeta} numberOfLines={1}>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes</Text>
@@ -2205,9 +2219,15 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: palette.paper,
     overflow: 'hidden',
+  },
+  previousWorkPreviewContent: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    bottom: 8,
+    left: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
   },
   previousWorkGuideImage: {
     width: '100%',
