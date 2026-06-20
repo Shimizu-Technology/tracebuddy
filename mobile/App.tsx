@@ -35,6 +35,7 @@ type PracticePoint = {
 
 type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint' | 'eraser'
 type PracticeStrokeMode = 'draw' | 'erase'
+type PracticePanelId = 'tool' | 'size' | 'view'
 
 type BrushTool = {
   id: BrushToolId
@@ -156,7 +157,7 @@ function simplifyPracticePoints(points: PracticePoint[], minDistance: number) {
 }
 
 function makePracticeAutosaveKey(drawingId: string, uploadedImageUri?: string) {
-  const sourceId = uploadedImageUri ? `uploaded-${uploadedImageUri}` : `drawing-${drawingId}`
+  const sourceId = uploadedImageUri ? `uploaded|${uploadedImageUri}` : `drawing|${drawingId}`
   const safeSourceId = sourceId.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180)
   return `${practiceAutosavePrefix}${safeSourceId}`
 }
@@ -662,6 +663,7 @@ function PracticeScreen({
   const [brushToolId, setBrushToolId] = useState<BrushToolId>('marker')
   const [guideOpacity, setGuideOpacity] = useState(0.24)
   const [guideOnTop, setGuideOnTop] = useState(true)
+  const [activePanel, setActivePanel] = useState<PracticePanelId | null>(null)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasSizeRef = useRef(canvasSize)
@@ -684,6 +686,7 @@ function PracticeScreen({
   const activeStrokeWidth = (markerWidth * brushTool.widthMultiplier) / Math.max(viewport.scale, 1)
   const practiceAutosaveKey = useMemo(() => makePracticeAutosaveKey(selectedDrawing.id, uploadedImage?.uri), [selectedDrawing.id, uploadedImage?.uri])
   const topGuideOpacity = Math.max(guideOpacity, 0.48)
+  const selectedBrushSize = useMemo(() => brushSizes.find((size) => size.value === markerWidth) ?? brushSizes[1], [markerWidth])
 
   useEffect(() => {
     canvasSizeRef.current = canvasSize
@@ -901,6 +904,7 @@ function PracticeScreen({
   }, [finishPracticeStroke, resetViewportGestureState])
 
   const startPracticeStroke = useCallback((event: GestureResponderEvent) => {
+    setActivePanel(null)
     const touches = touchPointsFromEvent(event)
     if (!viewportLocked) {
       startViewportGesture(touches)
@@ -1051,6 +1055,10 @@ function PracticeScreen({
     setPracticeViewport(defaultPracticeViewport)
   }, [resetViewportGestureState, setPracticeViewport])
 
+  const togglePracticePanel = useCallback((panel: PracticePanelId) => {
+    setActivePanel((current) => (current === panel ? null : panel))
+  }, [])
+
   return (
     <View style={styles.practiceShell}>
       <StatusBar style="dark" />
@@ -1068,7 +1076,7 @@ function PracticeScreen({
       </View>
 
       <View style={styles.practiceStageCard}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.practiceToolScroller} contentContainerStyle={styles.practiceToolRail}>
+        <View style={styles.practiceRibbon}>
           <Pressable
             style={[styles.practiceModeButton, viewportLocked && styles.practiceModeButtonActive]}
             onPress={toggleViewportMode}
@@ -1077,84 +1085,131 @@ function PracticeScreen({
             accessibilityLabel={viewportLocked ? 'Canvas locked for drawing' : 'Canvas unlocked for moving and zooming'}
           >
             <Text style={[styles.practiceModeButtonText, viewportLocked && styles.practiceModeButtonTextActive]}>{viewportLocked ? 'Locked' : 'Move'}</Text>
-            <Text style={styles.practiceModeButtonSubtext}>{viewportLocked ? 'Draw mode' : 'Pan + zoom'}</Text>
+            <Text style={styles.practiceModeButtonSubtext}>{viewportLocked ? 'Draw' : 'Pan + zoom'}</Text>
           </Pressable>
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Color</Text>
-            <View style={styles.colorSwatchesCompact}>
-              {markerColors.map((color) => (
-                <Pressable
-                  key={color}
-                  style={[styles.colorSwatchCompact, { backgroundColor: color }, markerColor === color && styles.colorSwatchActive]}
-                  onPress={() => setMarkerColor(color)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Use marker color ${color}`}
-                />
-              ))}
+          <Pressable
+            style={[styles.practiceRibbonButton, styles.practiceRibbonButtonTool, activePanel === 'tool' && styles.practiceRibbonButtonActive]}
+            onPress={() => togglePracticePanel('tool')}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: activePanel === 'tool' }}
+            accessibilityLabel={`Open color and brush tools. Current brush ${brushTool.label}.`}
+          >
+            <View style={[styles.practiceRibbonColorDot, { backgroundColor: markerColor }]} />
+            <View style={styles.practiceRibbonCopy}>
+              <Text style={[styles.practiceRibbonLabel, activePanel === 'tool' && styles.practiceRibbonLabelActive]}>Tool</Text>
+              <Text style={[styles.practiceRibbonValue, activePanel === 'tool' && styles.practiceRibbonValueActive]} numberOfLines={1}>{brushTool.label}</Text>
             </View>
-          </View>
+          </Pressable>
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Brush</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              {brushTools.map((tool) => (
-                <Pressable key={tool.id} style={[styles.practiceMiniButtonCompact, brushToolId === tool.id && styles.practiceMiniButtonActive]} onPress={() => setBrushToolId(tool.id)} accessibilityRole="button">
-                  <Text style={[styles.practiceMiniButtonText, brushToolId === tool.id && styles.practiceMiniButtonTextActive]}>{tool.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <Pressable
+            style={[styles.practiceRibbonButton, activePanel === 'size' && styles.practiceRibbonButtonActive]}
+            onPress={() => togglePracticePanel('size')}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: activePanel === 'size' }}
+            accessibilityLabel={`Open brush size tools. Current size ${selectedBrushSize.label}.`}
+          >
+            <Text style={[styles.practiceRibbonLabel, activePanel === 'size' && styles.practiceRibbonLabelActive]}>Size</Text>
+            <Text style={[styles.practiceRibbonValue, activePanel === 'size' && styles.practiceRibbonValueActive]} numberOfLines={1}>{selectedBrushSize.label}</Text>
+          </Pressable>
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Size</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              {brushSizes.map((size) => (
-                <Pressable key={size.value} style={[styles.practiceMiniButtonCompact, markerWidth === size.value && styles.practiceMiniButtonActive]} onPress={() => setMarkerWidth(size.value)} accessibilityRole="button">
-                  <Text style={[styles.practiceMiniButtonText, markerWidth === size.value && styles.practiceMiniButtonTextActive]}>{size.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <Pressable
+            style={[styles.practiceRibbonButton, activePanel === 'view' && styles.practiceRibbonButtonActive]}
+            onPress={() => togglePracticePanel('view')}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: activePanel === 'view' }}
+            accessibilityLabel="Open lines, guide, and zoom tools"
+          >
+            <Text style={[styles.practiceRibbonLabel, activePanel === 'view' && styles.practiceRibbonLabelActive]}>View</Text>
+            <Text style={[styles.practiceRibbonValue, activePanel === 'view' && styles.practiceRibbonValueActive]} numberOfLines={1}>{guideOnTop ? 'Lines top' : 'Behind'}</Text>
+          </Pressable>
+        </View>
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Guide {Math.round(guideOpacity * 100)}%</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              <Pressable style={styles.practiceMiniButtonCompact} onPress={lightenGuide} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>Less</Text>
-              </Pressable>
-              <Pressable style={styles.practiceMiniButtonCompact} onPress={darkenGuide} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>More</Text>
-              </Pressable>
-            </View>
-          </View>
+        {activePanel && (
+          <View style={styles.practiceRibbonPanel} pointerEvents="box-none">
+            {activePanel === 'tool' && (
+              <View style={styles.practicePanelCard}>
+                <View style={styles.practicePanelHeader}>
+                  <Text style={styles.practicePanelTitle}>Choose color and brush</Text>
+                  <Pressable style={styles.practicePanelClose} onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close tools">
+                    <Text style={styles.practicePanelCloseText}>Done</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.practicePanelSwatches}>
+                  {markerColors.map((color) => (
+                    <Pressable
+                      key={color}
+                      style={[styles.practicePanelSwatch, { backgroundColor: color }, markerColor === color && styles.practicePanelSwatchActive]}
+                      onPress={() => setMarkerColor(color)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: markerColor === color }}
+                      accessibilityLabel={`Use marker color ${color}`}
+                    />
+                  ))}
+                </View>
+                <View style={styles.practicePanelButtonGrid}>
+                  {brushTools.map((tool) => (
+                    <Pressable key={tool.id} style={[styles.practicePanelChoice, brushToolId === tool.id && styles.practicePanelChoiceActive]} onPress={() => setBrushToolId(tool.id)} accessibilityRole="button" accessibilityState={{ selected: brushToolId === tool.id }}>
+                      <Text style={[styles.practicePanelChoiceText, brushToolId === tool.id && styles.practicePanelChoiceTextActive]}>{tool.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Lines</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              <Pressable style={[styles.practiceMiniButtonCompact, guideOnTop && styles.practiceMiniButtonActive]} onPress={() => setGuideOnTop((current) => !current)} accessibilityRole="button" accessibilityState={{ selected: guideOnTop }}>
-                <Text style={[styles.practiceMiniButtonText, guideOnTop && styles.practiceMiniButtonTextActive]}>{guideOnTop ? 'On top' : 'Behind'}</Text>
-              </Pressable>
-            </View>
-          </View>
+            {activePanel === 'size' && (
+              <View style={styles.practicePanelCard}>
+                <View style={styles.practicePanelHeader}>
+                  <Text style={styles.practicePanelTitle}>Brush size</Text>
+                  <Pressable style={styles.practicePanelClose} onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close size tools">
+                    <Text style={styles.practicePanelCloseText}>Done</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.practicePanelButtonGrid}>
+                  {brushSizes.map((size) => (
+                    <Pressable key={size.value} style={[styles.practicePanelChoice, markerWidth === size.value && styles.practicePanelChoiceActive]} onPress={() => setMarkerWidth(size.value)} accessibilityRole="button" accessibilityState={{ selected: markerWidth === size.value }}>
+                      <Text style={[styles.practicePanelChoiceText, markerWidth === size.value && styles.practicePanelChoiceTextActive]}>{size.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
 
-          <View style={styles.practiceToolGroupCompact}>
-            <Text style={styles.practiceOptionLabel}>Zoom {Math.round(viewport.scale * 100)}%</Text>
-            <View style={styles.practiceSegmentedRowCompact}>
-              <Pressable style={[styles.practiceMiniButtonCompact, viewportLocked && styles.practiceMiniButtonDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(-0.35)} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>−</Text>
-              </Pressable>
-              <Pressable style={[styles.practiceMiniButtonCompact, viewportLocked && styles.practiceMiniButtonDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(0.35)} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>+</Text>
-              </Pressable>
-              <Pressable style={[styles.practiceMiniButtonCompact, viewport.scale === 1 && viewport.x === 0 && viewport.y === 0 && styles.practiceMiniButtonDisabled]} disabled={viewport.scale === 1 && viewport.x === 0 && viewport.y === 0} onPress={resetPracticeViewport} accessibilityRole="button">
-                <Text style={styles.practiceMiniButtonText}>Reset</Text>
-              </Pressable>
-            </View>
+            {activePanel === 'view' && (
+              <View style={styles.practicePanelCard}>
+                <View style={styles.practicePanelHeader}>
+                  <Text style={styles.practicePanelTitle}>Lines, guide, and zoom</Text>
+                  <Pressable style={styles.practicePanelClose} onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close view tools">
+                    <Text style={styles.practicePanelCloseText}>Done</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.practicePanelButtonGrid}>
+                  <Pressable style={[styles.practicePanelChoice, guideOnTop && styles.practicePanelChoiceActive]} onPress={() => setGuideOnTop((current) => !current)} accessibilityRole="button" accessibilityState={{ selected: guideOnTop }}>
+                    <Text style={[styles.practicePanelChoiceText, guideOnTop && styles.practicePanelChoiceTextActive]}>{guideOnTop ? 'Lines on top' : 'Lines behind'}</Text>
+                  </Pressable>
+                  <Pressable style={styles.practicePanelChoice} onPress={lightenGuide} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Guide less</Text>
+                  </Pressable>
+                  <Pressable style={styles.practicePanelChoice} onPress={darkenGuide} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Guide more</Text>
+                  </Pressable>
+                  <Pressable style={[styles.practicePanelChoice, viewportLocked && styles.practicePanelChoiceDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(-0.35)} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Zoom out</Text>
+                  </Pressable>
+                  <Pressable style={[styles.practicePanelChoice, viewportLocked && styles.practicePanelChoiceDisabled]} disabled={viewportLocked} onPress={() => zoomPractice(0.35)} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Zoom in</Text>
+                  </Pressable>
+                  <Pressable style={[styles.practicePanelChoice, viewport.scale === 1 && viewport.x === 0 && viewport.y === 0 && styles.practicePanelChoiceDisabled]} disabled={viewport.scale === 1 && viewport.x === 0 && viewport.y === 0} onPress={resetPracticeViewport} accessibilityRole="button">
+                    <Text style={styles.practicePanelChoiceText}>Reset view</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.practicePanelFootnote}>{viewportLocked ? 'Switch to Move before zooming or panning.' : `Zoom ${Math.round(viewport.scale * 100)}% · Guide ${Math.round(guideOpacity * 100)}%`}</Text>
+              </View>
+            )}
           </View>
-        </ScrollView>
+        )}
 
-        <Text style={styles.practiceCanvasHint} numberOfLines={1}>{viewportLocked ? 'Locked: color safely. Autosaves on this phone.' : 'Move: drag or pinch, then lock to draw.'}</Text>
+        <Text style={styles.practiceCanvasHint} numberOfLines={1}>{viewportLocked ? 'Locked: color safely. Tap Tool for colors and brushes.' : 'Move: drag or pinch, then lock to draw.'}</Text>
 
         <View
           style={styles.practiceCanvas}
@@ -1211,9 +1266,13 @@ function PracticeScreen({
                 )}
               </G>
             </Svg>
-            {guideOnTop && !uploadedImage && (
+            {guideOnTop && (
               <View style={[styles.practiceGuide, { opacity: topGuideOpacity }]} pointerEvents="none">
-                <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
+                {uploadedImage ? (
+                  <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
+                ) : (
+                  <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
+                )}
               </View>
             )}
           </View>
@@ -1679,6 +1738,162 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 10,
     marginBottom: 12,
+  },
+  practiceRibbon: {
+    height: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 8,
+  },
+  practiceRibbonButton: {
+    flex: 1,
+    minWidth: 0,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: palette.paper,
+    borderWidth: 1,
+    borderColor: 'rgba(24,36,58,0.08)',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  practiceRibbonButtonTool: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  practiceRibbonButtonActive: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  practiceRibbonColorDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  practiceRibbonCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  practiceRibbonLabel: {
+    color: palette.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.55,
+    textTransform: 'uppercase',
+  },
+  practiceRibbonLabelActive: {
+    color: 'rgba(255,255,255,0.68)',
+  },
+  practiceRibbonValue: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  practiceRibbonValueActive: {
+    color: '#FFFFFF',
+  },
+  practiceRibbonPanel: {
+    position: 'absolute',
+    top: 76,
+    left: 8,
+    right: 8,
+    zIndex: 12,
+  },
+  practicePanelCard: {
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,250,242,0.98)',
+    borderWidth: 1,
+    borderColor: 'rgba(24,36,58,0.12)',
+    padding: 12,
+    gap: 10,
+    shadowColor: palette.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  practicePanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  practicePanelTitle: {
+    flex: 1,
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: -0.2,
+  },
+  practicePanelClose: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  practicePanelCloseText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  practicePanelSwatches: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  practicePanelSwatch: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  practicePanelSwatchActive: {
+    borderColor: palette.ink,
+    transform: [{ scale: 1.08 }],
+  },
+  practicePanelButtonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  practicePanelChoice: {
+    minHeight: 40,
+    borderRadius: 999,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 13,
+  },
+  practicePanelChoiceActive: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  practicePanelChoiceDisabled: {
+    opacity: 0.42,
+  },
+  practicePanelChoiceText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  practicePanelChoiceTextActive: {
+    color: '#FFFFFF',
+  },
+  practicePanelFootnote: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    lineHeight: 15,
   },
   practiceToolScroller: {
     flexGrow: 0,

@@ -189,7 +189,7 @@ function simplifyPracticePoints(points: PracticePoint[], minDistance: number) {
 }
 
 function makePracticeAutosaveKey(pictureName: string, pictureTheme: string) {
-  const sourceId = `${pictureName}-${pictureTheme}`.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 160)
+  const sourceId = `${pictureName}|${pictureTheme}`.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 160)
   return `${practiceAutosavePrefix}${sourceId}`
 }
 
