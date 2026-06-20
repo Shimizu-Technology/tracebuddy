@@ -1474,7 +1474,7 @@ function App() {
       savePreviousWorkSession(copiedSession)
       setPreviousWorkSessions((current) => [copiedSession, ...current.filter((item) => item.sessionId !== copiedSession.sessionId)])
     } catch {
-      // Ignore quota failures; current drawing remains usable.
+      window.alert('TraceBuddy could not duplicate this work in this browser. Clear older Previous Work or try again in a moment.')
     }
   }
 

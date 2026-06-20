@@ -412,8 +412,7 @@ async function readPreviousWorkIds() {
   }
 }
 
-async function loadPreviousWorkSessions(legacyCanvasSize: { width: number; height: number }) {
-  await migrateLegacyPracticeAutosaves(legacyCanvasSize)
+async function loadPreviousWorkSessions() {
   const ids = await readPreviousWorkIds()
   if (ids.length === 0) return []
 
@@ -436,6 +435,11 @@ async function loadPreviousWorkSessions(legacyCanvasSize: { width: number; heigh
   }
 
   return sessions
+}
+
+async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { width: number; height: number }) {
+  await migrateLegacyPracticeAutosaves(legacyCanvasSize)
+  return loadPreviousWorkSessions()
 }
 
 async function savePreviousWorkSession(session: SavedPracticeSession) {
@@ -527,14 +531,22 @@ function TraceBuddyMobile() {
   const overlayDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: defaultTransform.x, y: defaultTransform.y, pageX: 0, pageY: 0 })
   const transformRef = useRef(defaultTransform)
+  const legacyMigrationCompleteRef = useRef(false)
+  const legacyMigrationCanvasSizeRef = useRef({
+    width: Math.max(1, width - 20),
+    height: Math.max(430, height - 280),
+  })
 
   const refreshPreviousWork = useCallback(() => {
-    const legacyCanvasSize = {
-      width: Math.max(1, width - 20),
-      height: Math.max(430, height - 280),
-    }
-    void loadPreviousWorkSessions(legacyCanvasSize).then(setPreviousWorkSessions).catch(() => setPreviousWorkSessions([]))
-  }, [height, width])
+    const loadTask = legacyMigrationCompleteRef.current
+      ? loadPreviousWorkSessions()
+      : loadPreviousWorkSessionsWithLegacyMigration(legacyMigrationCanvasSizeRef.current).then((sessions) => {
+          legacyMigrationCompleteRef.current = true
+          return sessions
+        })
+
+    void loadTask.then(setPreviousWorkSessions).catch(() => setPreviousWorkSessions([]))
+  }, [])
 
   useEffect(() => {
     refreshPreviousWork()
