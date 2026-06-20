@@ -35,6 +35,7 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Locked-by-default digital canvas with optional pan/zoom for detailed coloring
 - Lines-on-top coloring option so template outlines remain visible
 - Local autosave for on-screen coloring sessions
+- Previous Work gallery for resuming, duplicating, deleting, or starting fresh from saved coloring
 - Clear-all confirmation to protect kids' work
 - Demo camera surface when camera is unavailable/blocked
 - Drag-to-position overlay

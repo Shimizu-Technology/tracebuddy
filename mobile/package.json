@@ -16,6 +16,7 @@
     "@tracebuddy/shared": "file:../shared",
     "expo": "~56.0.12",
     "expo-camera": "~56.0.8",
+    "expo-file-system": "~56.0.8",
     "expo-image-picker": "~56.0.18",
     "expo-keep-awake": "~56.0.3",
     "expo-splash-screen": "~56.0.10",

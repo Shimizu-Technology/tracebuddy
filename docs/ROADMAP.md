@@ -19,6 +19,7 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Custom word/name/phrase tracing, expanded colors, brush styles, and locked pan/zoom controls.
 - Shared SVG line-art drawing library with category filters.
 - Local image upload.
+- Previous Work gallery for saved on-screen coloring sessions.
 - Camera preview with demo fallback.
 - Overlay drag, opacity, scale, rotation, nudge, lock, and reset.
 - Mobile-friendly floating trace controls.
@@ -53,27 +54,32 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Keep template categories such as animals, ocean, magic/fairy, vehicles, letters, seasonal, and Guam/island themes.
 - Keep difficulty labels: starter, medium, detailed.
 - Add a favorites/recent drawings section stored locally if the larger library needs shortcuts.
-- Add a local Previous Work gallery for saved coloring sessions.
+- Continue polishing the local Previous Work gallery as real saved sessions accumulate.
 - Expand dynamic word/name tracing with handwriting-style letter guides and saved favorite names.
 - Add a clearer parent setup mode vs child tracing mode.
 - Continue tuning the mobile controls based on live phone/tablet use.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.
 - Improve print/export options for built-in line art if useful.
 
-## Next: local Previous Work gallery
+## Previous Work gallery
 
 Goal: let kids revisit finished or in-progress coloring without overwriting the original template.
 
-Recommended scope:
+Implemented scope:
 
-- Keep the current autosave/resume behavior for quick recovery.
-- Add a local-only Previous Work page or section from the picker.
-- Store multiple practice sessions per template/custom word/uploaded image on the device.
-- Show simple thumbnails/previews, title, template name, and last-edited date.
-- Support Resume/Edit, Duplicate, Start fresh, and Delete.
-- Preserve privacy: no accounts, backend sync, uploads, analytics, or remote image processing.
-- For uploaded images, copy the selected file into app-local storage before relying on it in long-lived saved sessions.
-- Consider a small migration path from the current single autosave key to the richer session list.
+- Local-only Previous Work section from the picker.
+- Multiple saved practice sessions per template/custom word/uploaded image.
+- Visual previews, title, stroke count, and last-edited date.
+- Resume/Edit, Duplicate/Copy, Start fresh, and Delete actions.
+- Original templates remain clean starting points even when previous work exists.
+- Privacy preserved: no accounts, backend sync, uploads, analytics, or remote image processing.
+- Mobile uploaded images are copied into app-local storage before being referenced by long-lived saved sessions.
+
+Future polish:
+
+- Better thumbnail generation for very large or complex drawings.
+- Optional rename/favorite controls if the saved-work list grows.
+- Migration/import for older single-slot autosaves if real users need it.
 
 ## Phase 3: Expo mobile validation
 

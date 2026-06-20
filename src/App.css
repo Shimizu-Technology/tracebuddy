@@ -520,6 +520,121 @@ button.active:disabled {
   padding: 0 1rem;
 }
 
+.previous-work-section {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0 0 1.2rem;
+  border: 1px solid rgba(20, 32, 51, 0.1);
+  border-radius: 30px;
+  background: rgba(255, 253, 248, 0.88);
+  padding: 1rem;
+  box-shadow: rgba(20, 32, 51, 0.08) 0 22px 60px -42px;
+}
+
+.previous-work-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.previous-work-heading h2 {
+  margin: 0.12rem 0 0;
+  color: var(--ink);
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  letter-spacing: -0.055em;
+}
+
+.previous-work-heading > span {
+  display: grid;
+  min-width: 2.2rem;
+  height: 2.2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #ffffff;
+  font-weight: 950;
+}
+
+.previous-work-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  gap: 0.72rem;
+}
+
+.previous-work-card {
+  display: grid;
+  gap: 0.42rem;
+  border: 1px solid rgba(20, 32, 51, 0.1);
+  border-radius: 24px;
+  background: #ffffff;
+  padding: 0.62rem;
+}
+
+.previous-work-preview {
+  position: relative;
+  min-height: 132px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 18px;
+  background: #fff8ef;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.previous-work-preview img,
+.previous-work-preview svg {
+  position: absolute;
+  inset: 0.5rem;
+  width: calc(100% - 1rem);
+  height: calc(100% - 1rem);
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.previous-work-preview path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.previous-work-card strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.previous-work-card > small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.previous-work-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.previous-work-actions button {
+  min-height: 32px;
+  border: 1px solid rgba(20, 32, 51, 0.1);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.previous-work-actions button:first-child {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+}
+
 .category-strip {
   display: flex;
   gap: 0.55rem;

@@ -37,10 +37,21 @@ type PracticeStroke = {
   dasharray?: string
 }
 
+type PracticeSource = {
+  kind: 'drawing' | 'custom' | 'upload'
+  drawingId: string
+  drawingName: string
+  drawingTheme: string
+  drawingSvg?: string
+  uploadedImage?: UploadedImageState
+}
+
 type SavedPracticeSession = {
-  version: 1
-  pictureName: string
-  pictureTheme: string
+  version: 2
+  sessionId: string
+  title: string
+  source: PracticeSource
+  createdAt: string
   updatedAt: string
   strokes: PracticeStroke[]
   guideOpacity: number
@@ -132,7 +143,8 @@ const brushSizes = [
 ] as const
 
 const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
-const practiceAutosavePrefix = 'tracebuddy.practice.v1.'
+const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
+const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 const practiceAutosaveDelayMs = 450
 
 const defaultTransform: Transform = {
@@ -188,11 +200,6 @@ function simplifyPracticePoints(points: PracticePoint[], minDistance: number) {
   return simplified
 }
 
-function makePracticeAutosaveKey(pictureName: string, pictureTheme: string) {
-  const sourceId = `${pictureName}|${pictureTheme}`.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 160)
-  return `${practiceAutosavePrefix}${sourceId}`
-}
-
 function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | null {
   if (!value || typeof value !== 'object') return null
   const stroke = value as Partial<PracticeStroke>
@@ -207,6 +214,156 @@ function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | null {
     mode: stroke.mode === 'erase' ? 'erase' : 'draw',
     dasharray: typeof stroke.dasharray === 'string' ? stroke.dasharray : undefined,
   }
+}
+
+function createPracticeSessionId() {
+  return `work-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function makePracticeSource(drawing: Drawing, uploadedImage: UploadedImageState | null): PracticeSource {
+  if (uploadedImage) {
+    return {
+      kind: 'upload',
+      drawingId: drawing.id,
+      drawingName: uploadedImage.fileName,
+      drawingTheme: 'Local upload',
+      drawingSvg: drawing.svg,
+      uploadedImage,
+    }
+  }
+
+  const isCustom = drawing.id.startsWith('custom-text-')
+  return {
+    kind: isCustom ? 'custom' : 'drawing',
+    drawingId: drawing.id,
+    drawingName: drawing.name,
+    drawingTheme: drawing.theme,
+    drawingSvg: isCustom ? drawing.svg : undefined,
+  }
+}
+
+function drawingFromPracticeSource(source: PracticeSource) {
+  const libraryDrawing = drawings.find((drawing) => drawing.id === source.drawingId)
+  return libraryDrawing ?? {
+    id: source.drawingId,
+    name: source.drawingName,
+    theme: source.drawingTheme,
+    category: 'letters' as const,
+    difficulty: 'Starter' as const,
+    svg: source.drawingSvg ?? drawings[0].svg,
+  }
+}
+
+function makePracticeSessionTitle(source: PracticeSource) {
+  return source.kind === 'custom' ? `${source.drawingName} practice` : source.drawingName
+}
+
+function previousWorkSessionKey(sessionId: string) {
+  return `${previousWorkSessionPrefix}${sessionId}`
+}
+
+function normalizePracticeSource(value: unknown): PracticeSource | null {
+  if (!value || typeof value !== 'object') return null
+  const source = value as Partial<PracticeSource>
+  if (source.kind !== 'drawing' && source.kind !== 'custom' && source.kind !== 'upload') return null
+  if (typeof source.drawingId !== 'string' || typeof source.drawingName !== 'string' || typeof source.drawingTheme !== 'string') return null
+
+  return {
+    kind: source.kind,
+    drawingId: source.drawingId,
+    drawingName: source.drawingName,
+    drawingTheme: source.drawingTheme,
+    drawingSvg: typeof source.drawingSvg === 'string' ? source.drawingSvg : undefined,
+    uploadedImage: source.kind === 'upload' && source.uploadedImage && typeof source.uploadedImage === 'object' && typeof source.uploadedImage.originalSrc === 'string' && typeof source.uploadedImage.processedSrc === 'string'
+      ? {
+          originalSrc: source.uploadedImage.originalSrc,
+          processedSrc: source.uploadedImage.processedSrc,
+          fileName: typeof source.uploadedImage.fileName === 'string' ? source.uploadedImage.fileName : source.drawingName,
+        }
+      : undefined,
+  }
+}
+
+function normalizeSavedPracticeSession(value: unknown): SavedPracticeSession | null {
+  if (!value || typeof value !== 'object') return null
+  const session = value as Partial<SavedPracticeSession>
+  const source = normalizePracticeSource(session.source)
+  if (!source || typeof session.sessionId !== 'string') return null
+
+  const strokes = Array.isArray(session.strokes)
+    ? session.strokes.map(normalizeSavedPracticeStroke).filter((stroke): stroke is PracticeStroke => Boolean(stroke))
+    : []
+
+  return {
+    version: 2,
+    sessionId: session.sessionId,
+    title: typeof session.title === 'string' ? session.title : makePracticeSessionTitle(source),
+    source,
+    createdAt: typeof session.createdAt === 'string' ? session.createdAt : new Date().toISOString(),
+    updatedAt: typeof session.updatedAt === 'string' ? session.updatedAt : new Date().toISOString(),
+    strokes,
+    guideOpacity: typeof session.guideOpacity === 'number' ? clamp(session.guideOpacity, 0.08, 0.72) : 0.26,
+    guideOnTop: typeof session.guideOnTop === 'boolean' ? session.guideOnTop : true,
+    markerColor: typeof session.markerColor === 'string' ? session.markerColor : markerColors[0],
+    markerWidth: typeof session.markerWidth === 'number' ? session.markerWidth : 12,
+    brushToolId: session.brushToolId && brushTools.some((tool) => tool.id === session.brushToolId) ? session.brushToolId : 'marker',
+  }
+}
+
+function readPreviousWorkIds() {
+  try {
+    const rawIndex = window.localStorage.getItem(previousWorkIndexKey)
+    if (!rawIndex) return []
+    const parsed = JSON.parse(rawIndex) as { ids?: unknown }
+    return Array.isArray(parsed.ids) ? parsed.ids.filter((id): id is string => typeof id === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function loadPreviousWorkSessions() {
+  const ids = readPreviousWorkIds()
+  const sessions = ids
+    .map((id) => {
+      try {
+        const rawSession = window.localStorage.getItem(previousWorkSessionKey(id))
+        return rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
+      } catch {
+        return null
+      }
+    })
+    .filter((session): session is SavedPracticeSession => Boolean(session))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+
+  const validIds = sessions.map((session) => session.sessionId)
+  if (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index])) {
+    try {
+      window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: validIds }))
+    } catch {
+      // Ignore storage cleanup failures.
+    }
+  }
+
+  return sessions
+}
+
+function savePreviousWorkSession(session: SavedPracticeSession) {
+  const currentIds = readPreviousWorkIds()
+  const ids = [session.sessionId, ...currentIds.filter((id) => id !== session.sessionId)]
+  window.localStorage.setItem(previousWorkSessionKey(session.sessionId), JSON.stringify(session))
+  window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
+}
+
+function deletePreviousWorkSession(sessionId: string) {
+  const ids = readPreviousWorkIds().filter((id) => id !== sessionId)
+  window.localStorage.removeItem(previousWorkSessionKey(sessionId))
+  window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
+}
+
+function formatPreviousWorkDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Saved work'
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 function lerp(start: number, end: number, amount: number) {
@@ -641,6 +798,8 @@ function App() {
   const [mode, setMode] = useState<AppMode>('welcome')
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImageState | null>(null)
+  const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
+  const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [uploadCleanupMode, setUploadCleanupMode] = useState<UploadCleanupMode>('original')
   const [backgroundTolerance, setBackgroundTolerance] = useState(48)
@@ -670,6 +829,11 @@ function App() {
   const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
   const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
   const pictureTheme = uploadedImage ? `Local upload · ${uploadCleanupMode === 'original' ? 'Original image' : uploadCleanupMode === 'background' ? 'Background cleanup' : 'Line-art cleanup'}` : selectedDrawing.theme
+
+  useEffect(() => {
+    const task = window.setTimeout(() => setPreviousWorkSessions(loadPreviousWorkSessions()), 0)
+    return () => window.clearTimeout(task)
+  }, [])
 
   const stopStream = useCallback((stream: MediaStream) => {
     stream.getTracks().forEach((track) => track.stop())
@@ -1009,6 +1173,7 @@ function App() {
   }
 
   function openTrace(drawing?: Drawing) {
+    setActivePracticeSession(null)
     if (drawing) {
       setSelectedDrawing(drawing)
       setUploadedImage(null)
@@ -1022,6 +1187,7 @@ function App() {
   }
 
   function openPractice(drawing?: Drawing) {
+    setActivePracticeSession(null)
     if (drawing) {
       setSelectedDrawing(drawing)
       setUploadedImage(null)
@@ -1033,6 +1199,69 @@ function App() {
     setMode('practice')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  function applyPracticeSource(source: PracticeSource) {
+    setSelectedDrawing(drawingFromPracticeSource(source))
+    setUploadedImage(source.kind === 'upload' ? source.uploadedImage ?? null : null)
+    resetUploadCleanup()
+    resetPaperDetection()
+    setTransform(defaultTransform)
+    setTraceSurface('screen')
+  }
+
+  function openPreviousWork(session: SavedPracticeSession) {
+    applyPracticeSource(session.source)
+    setActivePracticeSession(session)
+    setMode('practice')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function startFreshFromPreviousWork(session: SavedPracticeSession) {
+    applyPracticeSource(session.source)
+    setActivePracticeSession(null)
+    setMode('practice')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function duplicatePreviousWork(session: SavedPracticeSession) {
+    const now = new Date().toISOString()
+    const copiedSession: SavedPracticeSession = {
+      ...session,
+      sessionId: createPracticeSessionId(),
+      title: `${session.title} copy`,
+      createdAt: now,
+      updatedAt: now,
+      strokes: session.strokes.map((stroke) => ({ ...stroke })),
+    }
+
+    try {
+      savePreviousWorkSession(copiedSession)
+      setPreviousWorkSessions((current) => [copiedSession, ...current.filter((item) => item.sessionId !== copiedSession.sessionId)])
+    } catch {
+      // Ignore quota failures; current drawing remains usable.
+    }
+  }
+
+  function deletePreviousWork(session: SavedPracticeSession) {
+    if (!window.confirm(`Delete ${session.title} from this browser?`)) return
+
+    try {
+      deletePreviousWorkSession(session.sessionId)
+      setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
+      if (activePracticeSession?.sessionId === session.sessionId) setActivePracticeSession(null)
+    } catch {
+      // Ignore storage failures.
+    }
+  }
+
+  const handlePracticeSessionSaved = useCallback((session: SavedPracticeSession) => {
+    setPreviousWorkSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
+  }, [])
+
+  const handlePracticeSessionDeleted = useCallback((sessionId: string) => {
+    setActivePracticeSession(null)
+    setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== sessionId))
+  }, [])
 
   function openSelectedSurface(drawing: Drawing) {
     if (traceSurface === 'screen') {
@@ -1102,6 +1331,7 @@ function App() {
         processedSrc: originalSrc,
         fileName: file.name || 'Uploaded picture',
       })
+      setActivePracticeSession(null)
       resetPaperDetection()
       setTransform(defaultTransform)
       setTraceSurface(targetMode === 'practice' ? 'screen' : 'camera')
@@ -1168,9 +1398,14 @@ function App() {
           selectedDrawing={selectedDrawing}
           traceSurface={traceSurface}
           onTraceSurfaceChange={setTraceSurface}
+          previousWorkSessions={previousWorkSessions}
           onSelect={openSelectedSurface}
           onTextSubmit={openTextSurface}
           onUpload={(event) => onUpload(event, traceSurface === 'screen' ? 'practice' : 'trace')}
+          onResumeWork={openPreviousWork}
+          onStartFreshWork={startFreshFromPreviousWork}
+          onDuplicateWork={duplicatePreviousWork}
+          onDeleteWork={deletePreviousWork}
         />
       )}
       {mode === 'trace' && (
@@ -1215,6 +1450,11 @@ function App() {
           pictureName={pictureName}
           pictureTheme={pictureTheme}
           overlaySrc={overlaySrc}
+          selectedDrawing={selectedDrawing}
+          uploadedImage={uploadedImage}
+          initialSession={activePracticeSession}
+          onSessionSaved={handlePracticeSessionSaved}
+          onSessionDeleted={handlePracticeSessionDeleted}
           onPicker={() => setMode('picker')}
           onCameraTrace={() => openTrace()}
           onUpload={(event) => onUpload(event, 'practice')}
@@ -1271,16 +1511,26 @@ function PickerScreen({
   selectedDrawing,
   traceSurface,
   onTraceSurfaceChange,
+  previousWorkSessions,
   onSelect,
   onTextSubmit,
   onUpload,
+  onResumeWork,
+  onStartFreshWork,
+  onDuplicateWork,
+  onDeleteWork,
 }: {
   selectedDrawing: Drawing
   traceSurface: TraceSurface
   onTraceSurfaceChange: (surface: TraceSurface) => void
+  previousWorkSessions: SavedPracticeSession[]
   onSelect: (drawing: Drawing) => void
   onTextSubmit: (value: string) => void
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
+  onResumeWork: (session: SavedPracticeSession) => void
+  onStartFreshWork: (session: SavedPracticeSession) => void
+  onDuplicateWork: (session: SavedPracticeSession) => void
+  onDeleteWork: (session: SavedPracticeSession) => void
 }) {
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
   const [customText, setCustomText] = useState('')
@@ -1332,6 +1582,40 @@ function PickerScreen({
           <input type="file" accept="image/*" onChange={onUpload} />
         </label>
       </div>
+
+      {previousWorkSessions.length > 0 && (
+        <section className="previous-work-section" aria-labelledby="previous-work-title">
+          <div className="previous-work-heading">
+            <div>
+              <p className="eyebrow">Saved in this browser</p>
+              <h2 id="previous-work-title">Previous work</h2>
+            </div>
+            <span>{previousWorkSessions.length}</span>
+          </div>
+          <div className="previous-work-grid">
+            {previousWorkSessions.map((session) => (
+              <article key={session.sessionId} className="previous-work-card">
+                <button type="button" className="previous-work-preview" onClick={() => onResumeWork(session)} aria-label={`Resume ${session.title}`}>
+                  <img src={session.source.kind === 'upload' && session.source.uploadedImage ? session.source.uploadedImage.processedSrc : drawingImageSrc(drawingFromPracticeSource(session.source))} alt="" aria-hidden="true" />
+                  <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+                    {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-18).map((stroke, index) => (
+                      <path key={`${session.sessionId}-preview-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width, opacity: stroke.opacity, strokeDasharray: stroke.dasharray }} />
+                    ))}
+                  </svg>
+                </button>
+                <strong>{session.title}</strong>
+                <small>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes</small>
+                <div className="previous-work-actions">
+                  <button type="button" onClick={() => onResumeWork(session)}>Resume</button>
+                  <button type="button" onClick={() => onStartFreshWork(session)}>Fresh</button>
+                  <button type="button" onClick={() => onDuplicateWork(session)}>Copy</button>
+                  <button type="button" onClick={() => onDeleteWork(session)}>Delete</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="category-strip" aria-label="Template categories">
         {drawingCategories.map((category) => (
@@ -1677,6 +1961,11 @@ function PracticeScreen({
   pictureName,
   pictureTheme,
   overlaySrc,
+  selectedDrawing,
+  uploadedImage,
+  initialSession,
+  onSessionSaved,
+  onSessionDeleted,
   onPicker,
   onCameraTrace,
   onUpload,
@@ -1684,18 +1973,26 @@ function PracticeScreen({
   pictureName: string
   pictureTheme: string
   overlaySrc: string
+  selectedDrawing: Drawing
+  uploadedImage: UploadedImageState | null
+  initialSession: SavedPracticeSession | null
+  onSessionSaved: (session: SavedPracticeSession) => void
+  onSessionDeleted: (sessionId: string) => void
   onPicker: () => void
   onCameraTrace: () => void
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
 }) {
-  const [strokes, setStrokes] = useState<PracticeStroke[]>([])
+  const [strokes, setStrokes] = useState<PracticeStroke[]>(initialSession?.strokes ?? [])
   const [activePath, setActivePath] = useState('')
   const [activeStrokeRender, setActiveStrokeRender] = useState<PracticeStroke | null>(null)
-  const [guideOpacity, setGuideOpacity] = useState(0.26)
-  const [markerColor, setMarkerColor] = useState<string>(markerColors[0])
-  const [markerWidth, setMarkerWidth] = useState(12)
-  const [brushToolId, setBrushToolId] = useState<BrushToolId>('marker')
-  const [guideOnTop, setGuideOnTop] = useState(true)
+  const [sessionId, setSessionId] = useState<string | null>(initialSession?.sessionId ?? null)
+  const [sessionCreatedAt, setSessionCreatedAt] = useState(initialSession?.createdAt ?? new Date().toISOString())
+  const [sessionTitle, setSessionTitle] = useState(initialSession?.title ?? makePracticeSessionTitle(makePracticeSource(selectedDrawing, uploadedImage)))
+  const [guideOpacity, setGuideOpacity] = useState(initialSession?.guideOpacity ?? 0.26)
+  const [markerColor, setMarkerColor] = useState<string>(initialSession?.markerColor ?? markerColors[0])
+  const [markerWidth, setMarkerWidth] = useState(initialSession?.markerWidth ?? 12)
+  const [brushToolId, setBrushToolId] = useState<BrushToolId>(initialSession?.brushToolId ?? 'marker')
+  const [guideOnTop, setGuideOnTop] = useState(initialSession?.guideOnTop ?? true)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasRef = useRef<HTMLDivElement | null>(null)
@@ -1717,7 +2014,8 @@ function PracticeScreen({
 
   const brushTool = useMemo(() => brushTools.find((tool) => tool.id === brushToolId) ?? brushTools[1], [brushToolId])
   const activeStrokeWidth = (markerWidth * brushTool.widthMultiplier) / Math.max(viewport.scale, 1)
-  const practiceAutosaveKey = useMemo(() => makePracticeAutosaveKey(pictureName, pictureTheme), [pictureName, pictureTheme])
+  const practiceSource = useMemo(() => makePracticeSource(selectedDrawing, uploadedImage), [selectedDrawing, uploadedImage])
+  const sourceResetKey = `${initialSession?.sessionId ?? 'fresh'}|${practiceSource.kind}|${practiceSource.drawingId}|${practiceSource.uploadedImage?.processedSrc ?? ''}`
   const topGuideOpacity = Math.max(guideOpacity, 0.48)
 
   useEffect(() => {
@@ -1728,66 +2026,67 @@ function PracticeScreen({
     let cancelled = false
     autosaveReadyRef.current = false
 
-    async function loadSavedPracticeSession() {
-      try {
-        await Promise.resolve()
-        if (cancelled) return
+    async function resetPracticeSession() {
+      await Promise.resolve()
+      if (cancelled) return
 
-        activePathRef.current = ''
-        activePointsRef.current = []
-        activePointCountRef.current = 0
-        lastPointRef.current = null
-        drawingRef.current = false
-        setActivePath('')
-        setActiveStrokeRender(null)
-        setStrokes([])
-
-        const rawSession = window.localStorage.getItem(practiceAutosaveKey)
-        if (!rawSession) return
-
-        const savedSession = JSON.parse(rawSession) as Partial<SavedPracticeSession>
-        const savedStrokes = Array.isArray(savedSession.strokes)
-          ? savedSession.strokes.map(normalizeSavedPracticeStroke).filter((stroke): stroke is PracticeStroke => Boolean(stroke))
-          : []
-
-        setStrokes(savedStrokes)
-        if (typeof savedSession.guideOpacity === 'number') setGuideOpacity(clamp(savedSession.guideOpacity, 0.08, 0.72))
-        if (typeof savedSession.guideOnTop === 'boolean') setGuideOnTop(savedSession.guideOnTop)
-        if (typeof savedSession.markerColor === 'string') setMarkerColor(savedSession.markerColor)
-        if (typeof savedSession.markerWidth === 'number') setMarkerWidth(savedSession.markerWidth)
-        if (savedSession.brushToolId && brushTools.some((tool) => tool.id === savedSession.brushToolId)) setBrushToolId(savedSession.brushToolId)
-      } catch {
-        // Ignore malformed local saves so a corrupt draft never blocks drawing.
-      } finally {
-        if (!cancelled) autosaveReadyRef.current = true
-      }
+      activePathRef.current = ''
+      activePointsRef.current = []
+      activePointCountRef.current = 0
+      lastPointRef.current = null
+      drawingRef.current = false
+      setActivePath('')
+      setActiveStrokeRender(null)
+      setStrokes(initialSession?.strokes ?? [])
+      setSessionId(initialSession?.sessionId ?? null)
+      setSessionCreatedAt(initialSession?.createdAt ?? new Date().toISOString())
+      setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(practiceSource))
+      setGuideOpacity(initialSession?.guideOpacity ?? 0.26)
+      setGuideOnTop(initialSession?.guideOnTop ?? true)
+      setMarkerColor(initialSession?.markerColor ?? markerColors[0])
+      setMarkerWidth(initialSession?.markerWidth ?? 12)
+      setBrushToolId(initialSession?.brushToolId ?? 'marker')
+      autosaveReadyRef.current = true
     }
 
-    void loadSavedPracticeSession()
+    void resetPracticeSession()
 
     return () => {
       cancelled = true
     }
-  }, [practiceAutosaveKey])
+  }, [initialSession, practiceSource, sourceResetKey])
 
   useEffect(() => {
     if (!autosaveReadyRef.current) return
 
-    const timeout = window.setTimeout(() => {
-      if (strokes.length === 0 && !activePathRef.current) {
+    if (strokes.length === 0) {
+      if (!sessionId) return
+      const deleteTimeout = window.setTimeout(() => {
         try {
-          window.localStorage.removeItem(practiceAutosaveKey)
+          deletePreviousWorkSession(sessionId)
+          setSessionId(null)
+          setSessionCreatedAt(new Date().toISOString())
+          onSessionDeleted(sessionId)
         } catch {
-          // Ignore storage failures; there is no visible drawing to save.
+          // Ignore storage failures; the visible drawing remains clear.
         }
-        return
-      }
+      }, practiceAutosaveDelayMs)
+
+      return () => window.clearTimeout(deleteTimeout)
+    }
+
+    const timeout = window.setTimeout(() => {
+      const now = new Date().toISOString()
+      const nextSessionId = sessionId ?? createPracticeSessionId()
+      if (!sessionId) setSessionId(nextSessionId)
 
       const savedSession: SavedPracticeSession = {
-        version: 1,
-        pictureName,
-        pictureTheme,
-        updatedAt: new Date().toISOString(),
+        version: 2,
+        sessionId: nextSessionId,
+        title: sessionTitle,
+        source: practiceSource,
+        createdAt: sessionCreatedAt,
+        updatedAt: now,
         strokes,
         guideOpacity,
         guideOnTop,
@@ -1797,14 +2096,15 @@ function PracticeScreen({
       }
 
       try {
-        window.localStorage.setItem(practiceAutosaveKey, JSON.stringify(savedSession))
+        savePreviousWorkSession(savedSession)
+        onSessionSaved(savedSession)
       } catch {
         // Keep drawing usable if browser storage is unavailable or full.
       }
     }, practiceAutosaveDelayMs)
 
     return () => window.clearTimeout(timeout)
-  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, pictureName, pictureTheme, practiceAutosaveKey, strokes])
+  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, onSessionDeleted, onSessionSaved, practiceSource, sessionCreatedAt, sessionId, sessionTitle, strokes])
 
   const committedStrokeLayers = useMemo(() => {
     const eraserStrokes = strokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode === 'erase')
@@ -2144,16 +2444,22 @@ function PracticeScreen({
     setActivePath('')
     setActiveStrokeRender(null)
     setStrokes([])
-    try {
-      window.localStorage.removeItem(practiceAutosaveKey)
-    } catch {
-      // Ignore storage failures; the visible drawing has already been cleared.
+    const deletedSessionId = sessionId
+    setSessionId(null)
+    setSessionCreatedAt(new Date().toISOString())
+    if (deletedSessionId) {
+      try {
+        deletePreviousWorkSession(deletedSessionId)
+        onSessionDeleted(deletedSessionId)
+      } catch {
+        // Ignore storage failures; the visible drawing has already been cleared.
+      }
     }
   }
 
   const confirmClearPractice = () => {
     if (strokes.length === 0 && !activePath) return
-    if (window.confirm('Clear all coloring saved on this device for this picture?')) clearPractice()
+    if (window.confirm('Clear all coloring saved in this work?')) clearPractice()
   }
 
   const resetPracticeViewport = () => {

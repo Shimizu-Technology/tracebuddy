@@ -79,6 +79,7 @@ The first mobile app should be intentionally small and reliable:
 - Locked-by-default practice canvas with optional pan/zoom for detailed coloring.
 - Lines-on-top option so tracing outlines remain visible while coloring.
 - Local autosave for practice/coloring sessions on the device.
+- Previous Work gallery for resuming, duplicating, deleting, or starting fresh from saved coloring.
 - Clear-all confirmation before deleting a child's work.
 - Manual overlay controls:
   - move by dragging when unlocked
@@ -92,17 +93,16 @@ The first mobile app should be intentionally small and reliable:
 - Keep the screen awake during trace mode.
 - Local-only privacy model.
 
-## Next mobile practice improvement: Previous Work
+## Previous Work implementation notes
 
-A local Previous Work section should be the next larger practice-mode improvement after the current coloring tools land.
+The local Previous Work section is now part of practice mode.
 
-- Keep saves device-local with `AsyncStorage` and no backend.
-- Move beyond one autosave slot per template by storing multiple named sessions.
-- Add thumbnails/previews so a child can recognize prior work visually.
-- Provide actions for Resume/Edit, Duplicate, Start fresh, and Delete.
-- Preserve the original template as a clean starting point even when previous work exists.
-- For uploaded images, copy the selected image into app-local storage before saving long-lived sessions.
-- Mirror the concept on web with `localStorage`/IndexedDB if the PWA needs the same gallery.
+- Saves stay device-local with `AsyncStorage` on mobile and local browser storage on web.
+- Saved work is stored as multiple sessions instead of one autosave slot per template.
+- Each session keeps source metadata, strokes, brush/guide settings, and last-edited time.
+- The picker shows visual previews and actions for Resume, Duplicate/Copy, Start fresh, and Delete.
+- Starting fresh preserves the original template as a clean starting point even when previous work exists.
+- Uploaded mobile images are copied into app-local storage before being used for long-lived saved sessions.
 
 ## Deferred from the Expo Go MVP
 
