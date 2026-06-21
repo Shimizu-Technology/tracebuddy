@@ -1414,10 +1414,12 @@ function PracticeScreen({
   const [guideOpacity, setGuideOpacity] = useState(initialSession?.guideOpacity ?? 0.24)
   const [guideOnTop, setGuideOnTop] = useState(initialSession?.guideOnTop ?? true)
   const [activePanel, setActivePanel] = useState<PracticePanelId | null>(null)
+  const [practiceRibbonHeight, setPracticeRibbonHeight] = useState(0)
   const [isSavingImage, setIsSavingImage] = useState(false)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasSizeRef = useRef(canvasSize)
+  const canvasOriginRef = useRef({ x: 0, y: 0, ready: false })
   const practiceCanvasRef = useRef<View | null>(null)
   const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
@@ -1684,13 +1686,27 @@ function PracticeScreen({
     setViewport(clamped)
   }, [clampPracticeViewport])
 
+  const measurePracticeCanvas = useCallback(() => {
+    requestAnimationFrame(() => {
+      practiceCanvasRef.current?.measureInWindow((x, y) => {
+        canvasOriginRef.current = { x, y, ready: true }
+      })
+    })
+  }, [])
+
   const handleCanvasLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout
     const nextSize = { width: Math.max(1, width), height: Math.max(1, height) }
     canvasSizeRef.current = nextSize
     setCanvasSize(nextSize)
+    measurePracticeCanvas()
     setPracticeViewport((current) => clampPracticeViewport(current))
-  }, [clampPracticeViewport, setPracticeViewport])
+  }, [clampPracticeViewport, measurePracticeCanvas, setPracticeViewport])
+
+  const handlePracticeRibbonLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.ceil(event.nativeEvent.layout.height)
+    setPracticeRibbonHeight((current) => (current === nextHeight ? current : nextHeight))
+  }, [])
 
   const pointFromLocation = useCallback((point: PracticePoint): PracticePoint => {
     const currentViewport = viewportRef.current
@@ -1704,10 +1720,19 @@ function PracticeScreen({
   }, [])
 
   const touchPointsFromEvent = useCallback((event: GestureResponderEvent): PracticePoint[] => {
-    const nativeEvent = event.nativeEvent as typeof event.nativeEvent & { touches?: Array<{ locationX: number; locationY: number }> }
+    type NativeTouchPoint = { locationX: number; locationY: number; pageX?: number; pageY?: number }
+    const nativeEvent = event.nativeEvent as typeof event.nativeEvent & NativeTouchPoint & { touches?: NativeTouchPoint[] }
+    const toCanvasPoint = (touch: NativeTouchPoint) => {
+      const origin = canvasOriginRef.current
+      if (origin.ready && typeof touch.pageX === 'number' && typeof touch.pageY === 'number') {
+        return { x: touch.pageX - origin.x, y: touch.pageY - origin.y }
+      }
+      return { x: touch.locationX, y: touch.locationY }
+    }
+
     const touches = nativeEvent.touches ?? []
-    if (touches.length > 0) return touches.map((touch) => ({ x: touch.locationX, y: touch.locationY }))
-    return [{ x: nativeEvent.locationX, y: nativeEvent.locationY }]
+    if (touches.length > 0) return touches.map(toCanvasPoint)
+    return [toCanvasPoint(nativeEvent)]
   }, [])
 
   const statsFromPoints = useCallback((points: PracticePoint[]) => {
@@ -1775,6 +1800,7 @@ function PracticeScreen({
 
   const startPracticeStroke = useCallback((event: GestureResponderEvent) => {
     setActivePanel(null)
+    measurePracticeCanvas()
     const touches = touchPointsFromEvent(event)
     if (!viewportLocked) {
       startViewportGesture(touches)
@@ -1799,7 +1825,7 @@ function PracticeScreen({
     activeStrokeStyleRef.current = strokeStyle
     setActiveStrokeRender(strokeStyle)
     setActivePath(path)
-  }, [activeStrokeWidth, brushTool.dasharray, brushTool.mode, brushTool.opacity, markerColor, pointFromLocation, startViewportGesture, touchPointsFromEvent, viewportLocked])
+  }, [activeStrokeWidth, brushTool.dasharray, brushTool.mode, brushTool.opacity, markerColor, measurePracticeCanvas, pointFromLocation, startViewportGesture, touchPointsFromEvent, viewportLocked])
 
   const movePracticeStroke = useCallback((event: GestureResponderEvent) => {
     const touches = touchPointsFromEvent(event)
@@ -2070,6 +2096,8 @@ function PracticeScreen({
     }
   }, [isSavingImage])
 
+  const practiceRibbonPanelTop = practiceRibbonHeight + 12
+
   return (
     <View style={styles.practiceShell}>
       <StatusBar style="dark" />
@@ -2087,7 +2115,7 @@ function PracticeScreen({
       </View>
 
       <View style={styles.practiceStageCard}>
-        <View style={styles.practiceRibbon}>
+        <View style={styles.practiceRibbon} onLayout={handlePracticeRibbonLayout}>
           <Pressable
             style={[styles.practiceModeButton, viewportLocked && styles.practiceModeButtonActive]}
             onPress={toggleViewportMode}
@@ -2095,60 +2123,64 @@ function PracticeScreen({
             accessibilityState={{ selected: viewportLocked }}
             accessibilityLabel={viewportLocked ? 'Canvas locked for drawing' : 'Canvas unlocked for moving and zooming'}
           >
-            <Text style={[styles.practiceModeButtonText, viewportLocked && styles.practiceModeButtonTextActive]}>{viewportLocked ? 'Locked' : 'Move'}</Text>
-            <Text style={styles.practiceModeButtonSubtext}>{viewportLocked ? 'Draw' : 'Pan + zoom'}</Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.practiceRibbonButton, styles.practiceRibbonButtonTool, activePanel === 'tool' && styles.practiceRibbonButtonActive]}
-            onPress={() => togglePracticePanel('tool')}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: activePanel === 'tool' }}
-            accessibilityLabel={`Open color and brush tools. Current brush ${brushTool.label}.`}
-          >
-            <View style={[styles.practiceRibbonColorDot, { backgroundColor: markerColor }]} />
-            <View style={styles.practiceRibbonCopy}>
-              <Text style={[styles.practiceRibbonLabel, activePanel === 'tool' && styles.practiceRibbonLabelActive]}>Tool</Text>
-              <Text style={[styles.practiceRibbonValue, activePanel === 'tool' && styles.practiceRibbonValueActive]} numberOfLines={1}>{brushTool.label}</Text>
+            <View style={styles.practiceModeIconBubble}>
+              <PracticeRibbonIcon kind={viewportLocked ? 'draw' : 'move'} color={viewportLocked ? '#17634F' : palette.ink} />
+            </View>
+            <View style={styles.practiceModeCopy}>
+              <Text style={[styles.practiceModeButtonText, viewportLocked && styles.practiceModeButtonTextActive]}>{viewportLocked ? 'Draw mode' : 'Move mode'}</Text>
+              <Text style={styles.practiceModeButtonSubtext}>{viewportLocked ? 'Color with finger or stylus' : 'Pan and zoom the page'}</Text>
             </View>
           </Pressable>
 
-          <Pressable
-            style={[styles.practiceRibbonButton, activePanel === 'size' && styles.practiceRibbonButtonActive]}
-            onPress={() => togglePracticePanel('size')}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: activePanel === 'size' }}
-            accessibilityLabel={`Open brush size tools. Current size ${selectedBrushSize.label}.`}
-          >
-            <Text style={[styles.practiceRibbonLabel, activePanel === 'size' && styles.practiceRibbonLabelActive]}>Size</Text>
-            <Text style={[styles.practiceRibbonValue, activePanel === 'size' && styles.practiceRibbonValueActive]} numberOfLines={1}>{selectedBrushSize.label}</Text>
-          </Pressable>
+          <View style={styles.practiceToolGrid}>
+            <Pressable
+              style={[styles.practiceRibbonButton, activePanel === 'tool' && styles.practiceRibbonButtonActive]}
+              onPress={() => togglePracticePanel('tool')}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: activePanel === 'tool' }}
+              accessibilityLabel={`Open color and brush tools. Current brush ${brushTool.label}.`}
+            >
+              <PracticeRibbonIcon kind="tool" color={activePanel === 'tool' ? '#FFFFFF' : palette.ink} markerColor={markerColor} />
+              <Text style={[styles.practiceRibbonLabel, activePanel === 'tool' && styles.practiceRibbonLabelActive]}>Tool</Text>
+            </Pressable>
 
-          <Pressable
-            style={[styles.practiceRibbonButton, activePanel === 'add' && styles.practiceRibbonButtonActive]}
-            onPress={() => togglePracticePanel('add')}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: activePanel === 'add' }}
-            accessibilityLabel="Open shapes and image tools"
-          >
-            <Text style={[styles.practiceRibbonLabel, activePanel === 'add' && styles.practiceRibbonLabelActive]}>Add</Text>
-            <Text style={[styles.practiceRibbonValue, activePanel === 'add' && styles.practiceRibbonValueActive]} numberOfLines={1}>{selectedSticker ? selectedSticker.label : 'Shapes'}</Text>
-          </Pressable>
+            <Pressable
+              style={[styles.practiceRibbonButton, activePanel === 'size' && styles.practiceRibbonButtonActive]}
+              onPress={() => togglePracticePanel('size')}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: activePanel === 'size' }}
+              accessibilityLabel={`Open brush size tools. Current size ${selectedBrushSize.label}.`}
+            >
+              <PracticeRibbonIcon kind="size" color={activePanel === 'size' ? '#FFFFFF' : palette.ink} />
+              <Text style={[styles.practiceRibbonLabel, activePanel === 'size' && styles.practiceRibbonLabelActive]}>Size</Text>
+            </Pressable>
 
-          <Pressable
-            style={[styles.practiceRibbonButton, activePanel === 'view' && styles.practiceRibbonButtonActive]}
-            onPress={() => togglePracticePanel('view')}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: activePanel === 'view' }}
-            accessibilityLabel="Open lines, guide, and zoom tools"
-          >
-            <Text style={[styles.practiceRibbonLabel, activePanel === 'view' && styles.practiceRibbonLabelActive]}>View</Text>
-            <Text style={[styles.practiceRibbonValue, activePanel === 'view' && styles.practiceRibbonValueActive]} numberOfLines={1}>{guideOnTop ? 'Lines top' : 'Behind'}</Text>
-          </Pressable>
+            <Pressable
+              style={[styles.practiceRibbonButton, activePanel === 'add' && styles.practiceRibbonButtonActive]}
+              onPress={() => togglePracticePanel('add')}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: activePanel === 'add' }}
+              accessibilityLabel="Open shapes and image tools"
+            >
+              <PracticeRibbonIcon kind="add" color={activePanel === 'add' ? '#FFFFFF' : palette.ink} />
+              <Text style={[styles.practiceRibbonLabel, activePanel === 'add' && styles.practiceRibbonLabelActive]}>Add</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.practiceRibbonButton, activePanel === 'view' && styles.practiceRibbonButtonActive]}
+              onPress={() => togglePracticePanel('view')}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: activePanel === 'view' }}
+              accessibilityLabel="Open lines, guide, and zoom tools"
+            >
+              <PracticeRibbonIcon kind="view" color={activePanel === 'view' ? '#FFFFFF' : palette.ink} />
+              <Text style={[styles.practiceRibbonLabel, activePanel === 'view' && styles.practiceRibbonLabelActive]}>View</Text>
+            </Pressable>
+          </View>
         </View>
 
         {activePanel && (
-          <View style={styles.practiceRibbonPanel} pointerEvents="box-none">
+          <View style={[styles.practiceRibbonPanel, { top: practiceRibbonPanelTop }]} pointerEvents="box-none">
             {activePanel === 'tool' && (
               <View style={styles.practicePanelCard}>
                 <View style={styles.practicePanelHeader}>
@@ -2380,6 +2412,63 @@ function ControlValue({ value }: { value: string }) {
     <View style={styles.controlValue}>
       <Text style={styles.controlValueText}>{value}</Text>
     </View>
+  )
+}
+
+function PracticeRibbonIcon({ kind, color, markerColor }: { kind: 'draw' | 'move' | 'tool' | 'size' | 'add' | 'view'; color: string; markerColor?: string }) {
+  if (kind === 'draw') {
+    return (
+      <Svg width={28} height={28} viewBox="0 0 28 28" fill="none">
+        <Path d="M8 7h9.5l2.5 2.5V21H8V7Z" stroke={color} strokeWidth={2.2} strokeLinejoin="round" />
+        <Path d="M17.5 7v3h3" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M11 18c2.7-4.2 5.2-4.5 6.8-1.1" stroke={color} strokeWidth={2.4} strokeLinecap="round" />
+      </Svg>
+    )
+  }
+
+  if (kind === 'move') {
+    return (
+      <Svg width={28} height={28} viewBox="0 0 28 28" fill="none">
+        <Path d="M14 5v18M14 5l-3 3M14 5l3 3M14 23l-3-3M14 23l3-3M5 14h18M5 14l3-3M5 14l3 3M23 14l-3-3M23 14l-3 3" stroke={color} strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    )
+  }
+
+  if (kind === 'tool') {
+    return (
+      <Svg width={30} height={30} viewBox="0 0 30 30" fill="none">
+        <Circle cx={10} cy={20} r={5.4} fill={markerColor ?? color} stroke="#FFFFFF" strokeWidth={1.7} />
+        <Path d="M14.5 18.5 23 10c1.2-1.2 1.2-3 0-4.1-1.1-1.1-3-1.1-4.1.1l-8.5 8.5" stroke={color} strokeWidth={2.4} strokeLinecap="round" />
+        <Path d="m17 8 5 5" stroke={color} strokeWidth={2.4} strokeLinecap="round" />
+      </Svg>
+    )
+  }
+
+  if (kind === 'size') {
+    return (
+      <Svg width={30} height={30} viewBox="0 0 30 30" fill="none">
+        <Path d="M7 9h16" stroke={color} strokeWidth={2} strokeLinecap="round" />
+        <Path d="M7 15h16" stroke={color} strokeWidth={3.4} strokeLinecap="round" />
+        <Path d="M7 22h16" stroke={color} strokeWidth={5.2} strokeLinecap="round" />
+      </Svg>
+    )
+  }
+
+  if (kind === 'add') {
+    return (
+      <Svg width={30} height={30} viewBox="0 0 30 30" fill="none">
+        <Rect x={5} y={7} width={14} height={14} rx={4} stroke={color} strokeWidth={2.2} />
+        <Path d="M21 14v8M17 18h8" stroke={color} strokeWidth={2.4} strokeLinecap="round" />
+        <Path d="m9 18 3-3 2 2 2-2" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    )
+  }
+
+  return (
+    <Svg width={30} height={30} viewBox="0 0 30 30" fill="none">
+      <Path d="M4 15s4-7 11-7 11 7 11 7-4 7-11 7S4 15 4 15Z" stroke={color} strokeWidth={2.2} strokeLinejoin="round" />
+      <Circle cx={15} cy={15} r={3.6} stroke={color} strokeWidth={2.2} />
+    </Svg>
   )
 }
 
@@ -2932,65 +3021,41 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   practiceRibbon: {
-    height: 62,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    gap: 8,
     zIndex: 8,
+  },
+  practiceToolGrid: {
+    flexDirection: 'row',
+    gap: 8,
   },
   practiceRibbonButton: {
     flex: 1,
     minWidth: 0,
-    height: 56,
-    borderRadius: 18,
+    minHeight: 68,
+    borderRadius: 20,
     backgroundColor: palette.paper,
     borderWidth: 1,
     borderColor: 'rgba(24,36,58,0.08)',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-  },
-  practiceRibbonButtonTool: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    gap: 4,
   },
   practiceRibbonButtonActive: {
     backgroundColor: palette.ink,
     borderColor: palette.ink,
   },
-  practiceRibbonColorDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  practiceRibbonCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
   practiceRibbonLabel: {
-    color: palette.muted,
-    fontSize: 9,
+    color: palette.ink,
+    fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 0.55,
-    textTransform: 'uppercase',
+    letterSpacing: 0.25,
   },
   practiceRibbonLabelActive: {
-    color: 'rgba(255,255,255,0.68)',
-  },
-  practiceRibbonValue: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-  practiceRibbonValueActive: {
     color: '#FFFFFF',
   },
   practiceRibbonPanel: {
     position: 'absolute',
-    top: 76,
     left: 8,
     right: 8,
     zIndex: 12,
@@ -3139,22 +3204,35 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   practiceModeButton: {
-    minWidth: 92,
-    height: 58,
-    borderRadius: 18,
+    minHeight: 58,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.surface,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
+    gap: 10,
   },
   practiceModeButtonActive: {
     borderColor: 'rgba(107,215,183,0.55)',
     backgroundColor: '#E9FFF7',
   },
+  practiceModeIconBubble: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  practiceModeCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   practiceModeButtonText: {
     color: palette.ink,
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '900',
   },
   practiceModeButtonTextActive: {
@@ -3162,7 +3240,7 @@ const styles = StyleSheet.create({
   },
   practiceModeButtonSubtext: {
     color: palette.muted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
     marginTop: 2,
   },
