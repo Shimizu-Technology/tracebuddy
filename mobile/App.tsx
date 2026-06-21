@@ -860,6 +860,42 @@ function TraceBuddyMobile() {
     overlayDraggingRef.current = false
   }, [])
 
+  const practiceImageFileExists = useCallback(async (uri?: string) => {
+    if (!uri) return false
+    try {
+      const info = await FileSystem.getInfoAsync(uri)
+      return info.exists
+    } catch {
+      return false
+    }
+  }, [])
+
+  const preparePracticeSourceForOpen = useCallback(async (source: PracticeSource) => {
+    if (source.kind !== 'upload') return source
+    const uploadedImageUri = source.uploadedImage?.uri
+    const imageExists = await practiceImageFileExists(uploadedImageUri)
+    if (imageExists) return source
+
+    Alert.alert('Image missing', 'TraceBuddy could not find the uploaded image for this saved work. The saved card remains on this phone, but it cannot be reopened until the image file is available.')
+    return null
+  }, [practiceImageFileExists])
+
+  const preparePracticeSessionForOpen = useCallback(async (session: SavedPracticeSession) => {
+    const source = await preparePracticeSourceForOpen(session.source)
+    if (!source) return null
+
+    const checkedStickers = await Promise.all(session.stickers.map(async (sticker) => {
+      if (sticker.kind !== 'image') return { sticker, keep: true }
+      return { sticker, keep: await practiceImageFileExists(sticker.uri) }
+    }))
+    const availableStickers = checkedStickers.filter(({ keep }) => keep).map(({ sticker }) => sticker)
+    if (availableStickers.length !== session.stickers.length) {
+      Alert.alert('Some added images are missing', 'This work will open without one or more added photo pieces that are no longer available on this phone.')
+    }
+
+    return { ...session, source, stickers: availableStickers }
+  }, [practiceImageFileExists, preparePracticeSourceForOpen])
+
   const applyPracticeSource = useCallback((source: PracticeSource) => {
     const { drawing, uploadedImage: savedUploadedImage } = drawingFromPracticeSource(source)
     setSelectedDrawing(drawing)
@@ -869,16 +905,22 @@ function TraceBuddyMobile() {
   }, [resetOverlay])
 
   const openPreviousWorkSession = useCallback((session: SavedPracticeSession) => {
-    applyPracticeSource(session.source)
-    setActivePracticeSession(session)
-    setMode('practice')
-  }, [applyPracticeSource])
+    void preparePracticeSessionForOpen(session).then((readySession) => {
+      if (!readySession) return
+      applyPracticeSource(readySession.source)
+      setActivePracticeSession(readySession)
+      setMode('practice')
+    })
+  }, [applyPracticeSource, preparePracticeSessionForOpen])
 
   const startFreshFromPreviousWork = useCallback((session: SavedPracticeSession) => {
-    applyPracticeSource(session.source)
-    setActivePracticeSession(null)
-    setMode('practice')
-  }, [applyPracticeSource])
+    void preparePracticeSourceForOpen(session.source).then((source) => {
+      if (!source) return
+      applyPracticeSource(source)
+      setActivePracticeSession(null)
+      setMode('practice')
+    })
+  }, [applyPracticeSource, preparePracticeSourceForOpen])
 
   const duplicatePreviousWorkSession = useCallback((session: SavedPracticeSession) => {
     const now = new Date().toISOString()
@@ -1974,7 +2016,7 @@ function PracticeScreen({
       }
 
       setSelectedStickerId(null)
-      await new Promise((resolve) => requestAnimationFrame(resolve))
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
       const uri = await captureRef(practiceCanvasRef, { format: 'png', quality: 1, result: 'tmpfile' })
       if (restoreStickerId) setSelectedStickerId(restoreStickerId)
       await MediaLibrary.saveToLibraryAsync(uri)
@@ -2230,7 +2272,7 @@ function PracticeScreen({
               )}
             </View>
             {stickers.map((sticker) => (
-              <PracticeStickerView key={sticker.stickerId} sticker={sticker} selected={selectedStickerId === sticker.stickerId} frameStyle={sizedStickerFrame(sticker, canvasSize)} />
+              <PracticeStickerView key={sticker.stickerId} sticker={sticker} selected={!isSavingImage && selectedStickerId === sticker.stickerId} frameStyle={sizedStickerFrame(sticker, canvasSize)} />
             ))}
             <Svg
               pointerEvents="none"
