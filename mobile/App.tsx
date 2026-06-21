@@ -1444,10 +1444,21 @@ function PracticeScreen({
   const selectedSticker = useMemo(() => stickers.find((sticker) => sticker.stickerId === selectedStickerId) ?? null, [selectedStickerId, stickers])
   const selectedStickerIdRef = useRef<string | null>(selectedStickerId)
   const savedStickerUrisRef = useRef(storedUploadedImageUrisFromStickers(initialSession?.stickers ?? []))
+  const stickersRef = useRef(stickers)
+
+  const cleanupUnsavedStickerUris = useCallback(() => {
+    const savedUris = savedStickerUrisRef.current
+    const unsavedUris = storedUploadedImageUrisFromStickers(stickersRef.current).filter((uri) => !savedUris.includes(uri))
+    if (unsavedUris.length > 0) void cleanupStoredImageUrisIfUnused(unsavedUris)
+  }, [])
 
   useEffect(() => {
     selectedStickerIdRef.current = selectedStickerId
   }, [selectedStickerId])
+
+  useEffect(() => {
+    stickersRef.current = stickers
+  }, [stickers])
 
   useEffect(() => {
     canvasSizeRef.current = canvasSize
@@ -1512,8 +1523,9 @@ function PracticeScreen({
 
     return () => {
       cancelled = true
+      cleanupUnsavedStickerUris()
     }
-  }, [initialSession, practiceSource, sourceResetKey])
+  }, [cleanupUnsavedStickerUris, initialSession, practiceSource, sourceResetKey])
 
   useEffect(() => {
     if (!autosaveReadyRef.current) return
@@ -1884,6 +1896,7 @@ function PracticeScreen({
       void deletePreviousWorkSession(deletedSessionId)
         .then(() => {
           savedStickerUrisRef.current = []
+          if (removedStickerUris.length > 0) void cleanupStoredImageUrisIfUnused(removedStickerUris)
           onSessionDeleted(deletedSessionId)
         })
         .catch(() => undefined)
@@ -2028,7 +2041,7 @@ function PracticeScreen({
     const removedSticker = stickers.find((sticker) => sticker.stickerId === selectedStickerId)
     setStickers((current) => current.filter((sticker) => sticker.stickerId !== selectedStickerId))
     setSelectedStickerId(null)
-    if (removedSticker?.kind === 'image' && removedSticker.uri) void cleanupStoredImageUrisIfUnused([removedSticker.uri])
+    if (removedSticker?.kind === 'image' && removedSticker.uri && !savedStickerUrisRef.current.includes(removedSticker.uri)) void cleanupStoredImageUrisIfUnused([removedSticker.uri])
   }, [selectedStickerId, stickers])
 
   const savePracticeImage = useCallback(async () => {

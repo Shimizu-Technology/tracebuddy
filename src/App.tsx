@@ -516,15 +516,17 @@ async function hydrateUploadedImageSession(session: SavedPracticeSession) {
 async function loadPreviousWorkSessions() {
   migrateLegacyPracticeAutosaves()
   const ids = readPreviousWorkIds()
-  const sessions = ids
-    .map((id) => {
-      try {
-        const rawSession = window.localStorage.getItem(previousWorkSessionKey(id))
-        return rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
-      } catch {
-        return null
-      }
-    })
+  const entries = ids.map((id) => {
+    try {
+      const rawSession = window.localStorage.getItem(previousWorkSessionKey(id))
+      return { id, session: rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null }
+    } catch {
+      return { id, session: null }
+    }
+  })
+  const invalidIds = entries.filter(({ session }) => !session).map(({ id }) => id)
+  const sessions = entries
+    .map(({ session }) => session)
     .filter((session): session is SavedPracticeSession => Boolean(session))
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
 
@@ -532,6 +534,7 @@ async function loadPreviousWorkSessions() {
   const validIds = hydratedSessions.map((session) => session.sessionId)
   if (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index])) {
     try {
+      invalidIds.forEach((id) => window.localStorage.removeItem(previousWorkSessionKey(id)))
       window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: validIds }))
     } catch {
       // Ignore storage cleanup failures.
