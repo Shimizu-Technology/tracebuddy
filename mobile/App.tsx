@@ -1414,6 +1414,7 @@ function PracticeScreen({
   const [guideOpacity, setGuideOpacity] = useState(initialSession?.guideOpacity ?? 0.24)
   const [guideOnTop, setGuideOnTop] = useState(initialSession?.guideOnTop ?? true)
   const [activePanel, setActivePanel] = useState<PracticePanelId | null>(null)
+  const [practiceRibbonHeight, setPracticeRibbonHeight] = useState(0)
   const [isSavingImage, setIsSavingImage] = useState(false)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
@@ -1701,6 +1702,11 @@ function PracticeScreen({
     measurePracticeCanvas()
     setPracticeViewport((current) => clampPracticeViewport(current))
   }, [clampPracticeViewport, measurePracticeCanvas, setPracticeViewport])
+
+  const handlePracticeRibbonLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.ceil(event.nativeEvent.layout.height)
+    setPracticeRibbonHeight((current) => (current === nextHeight ? current : nextHeight))
+  }, [])
 
   const pointFromLocation = useCallback((point: PracticePoint): PracticePoint => {
     const currentViewport = viewportRef.current
@@ -2090,6 +2096,8 @@ function PracticeScreen({
     }
   }, [isSavingImage])
 
+  const practiceRibbonPanelTop = practiceRibbonHeight + 12
+
   return (
     <View style={styles.practiceShell}>
       <StatusBar style="dark" />
@@ -2107,7 +2115,7 @@ function PracticeScreen({
       </View>
 
       <View style={styles.practiceStageCard}>
-        <View style={styles.practiceRibbon}>
+        <View style={styles.practiceRibbon} onLayout={handlePracticeRibbonLayout}>
           <Pressable
             style={[styles.practiceModeButton, viewportLocked && styles.practiceModeButtonActive]}
             onPress={toggleViewportMode}
@@ -2172,7 +2180,7 @@ function PracticeScreen({
         </View>
 
         {activePanel && (
-          <View style={styles.practiceRibbonPanel} pointerEvents="box-none">
+          <View style={[styles.practiceRibbonPanel, { top: practiceRibbonPanelTop }]} pointerEvents="box-none">
             {activePanel === 'tool' && (
               <View style={styles.practicePanelCard}>
                 <View style={styles.practicePanelHeader}>
@@ -2413,7 +2421,7 @@ function PracticeRibbonIcon({ kind, color, markerColor }: { kind: 'draw' | 'move
       <Svg width={28} height={28} viewBox="0 0 28 28" fill="none">
         <Path d="M8 7h9.5l2.5 2.5V21H8V7Z" stroke={color} strokeWidth={2.2} strokeLinejoin="round" />
         <Path d="M17.5 7v3h3" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-        <Path d="M11 18c2.7-4.2 5.2-4.5 6.8-1.1" stroke={palette.coral} strokeWidth={2.4} strokeLinecap="round" />
+        <Path d="M11 18c2.7-4.2 5.2-4.5 6.8-1.1" stroke={color} strokeWidth={2.4} strokeLinecap="round" />
       </Svg>
     )
   }
@@ -2429,7 +2437,7 @@ function PracticeRibbonIcon({ kind, color, markerColor }: { kind: 'draw' | 'move
   if (kind === 'tool') {
     return (
       <Svg width={30} height={30} viewBox="0 0 30 30" fill="none">
-        <Circle cx={10} cy={20} r={5.4} fill={markerColor ?? palette.coral} stroke="#FFFFFF" strokeWidth={1.7} />
+        <Circle cx={10} cy={20} r={5.4} fill={markerColor ?? color} stroke="#FFFFFF" strokeWidth={1.7} />
         <Path d="M14.5 18.5 23 10c1.2-1.2 1.2-3 0-4.1-1.1-1.1-3-1.1-4.1.1l-8.5 8.5" stroke={color} strokeWidth={2.4} strokeLinecap="round" />
         <Path d="m17 8 5 5" stroke={color} strokeWidth={2.4} strokeLinecap="round" />
       </Svg>
@@ -2450,7 +2458,7 @@ function PracticeRibbonIcon({ kind, color, markerColor }: { kind: 'draw' | 'move
     return (
       <Svg width={30} height={30} viewBox="0 0 30 30" fill="none">
         <Rect x={5} y={7} width={14} height={14} rx={4} stroke={color} strokeWidth={2.2} />
-        <Path d="M21 14v8M17 18h8" stroke={palette.coral} strokeWidth={2.4} strokeLinecap="round" />
+        <Path d="M21 14v8M17 18h8" stroke={color} strokeWidth={2.4} strokeLinecap="round" />
         <Path d="m9 18 3-3 2 2 2-2" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
     )
@@ -2459,7 +2467,7 @@ function PracticeRibbonIcon({ kind, color, markerColor }: { kind: 'draw' | 'move
   return (
     <Svg width={30} height={30} viewBox="0 0 30 30" fill="none">
       <Path d="M4 15s4-7 11-7 11 7 11 7-4 7-11 7S4 15 4 15Z" stroke={color} strokeWidth={2.2} strokeLinejoin="round" />
-      <Circle cx={15} cy={15} r={3.6} stroke={palette.coral} strokeWidth={2.2} />
+      <Circle cx={15} cy={15} r={3.6} stroke={color} strokeWidth={2.2} />
     </Svg>
   )
 }
@@ -3048,7 +3056,6 @@ const styles = StyleSheet.create({
   },
   practiceRibbonPanel: {
     position: 'absolute',
-    top: 138,
     left: 8,
     right: 8,
     zIndex: 12,
