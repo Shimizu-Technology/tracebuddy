@@ -1503,7 +1503,7 @@ function App() {
       setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
       if (activePracticeSession?.sessionId === session.sessionId) setActivePracticeSession(null)
     } catch {
-      // Ignore storage failures.
+      window.alert('TraceBuddy could not delete this work from this browser. Try again in a moment.')
     }
   }
 

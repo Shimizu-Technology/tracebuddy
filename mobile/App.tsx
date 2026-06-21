@@ -501,10 +501,23 @@ async function deletePreviousWorkSession(sessionId: string) {
   })
 }
 
+function uploadedImageExtension(value?: string) {
+  if (!value) return null
+  const cleanValue = value.split(/[?#]/)[0]
+  const rawFileName = cleanValue.split('/').pop() ?? ''
+  const fileName = (() => {
+    try {
+      return decodeURIComponent(rawFileName)
+    } catch {
+      return rawFileName
+    }
+  })()
+  const extension = /[^/.]\.([a-zA-Z0-9]{1,8})$/.exec(fileName)?.[1]?.toLowerCase()
+  return extension ?? null
+}
+
 function uploadedImageFileName(sourceUri: string, fallbackName?: string) {
-  const fallbackExtension = fallbackName?.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)
-  const sourceExtension = sourceUri.split('?')[0].split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)
-  const extension = fallbackExtension || sourceExtension || 'jpg'
+  const extension = uploadedImageExtension(fallbackName) ?? uploadedImageExtension(sourceUri) ?? 'jpg'
   return `${createPracticeSessionId()}.${extension}`
 }
 
@@ -1137,18 +1150,18 @@ function PreviousWorkSection({
             <Text style={styles.previousWorkName} numberOfLines={1}>{session.title}</Text>
             <Text style={styles.previousWorkMeta} numberOfLines={1}>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes</Text>
             <View style={styles.previousWorkActions}>
-              <Pressable style={[styles.previousWorkAction, styles.previousWorkActionPrimary]} onPress={() => onResume(session)} accessibilityRole="button">
+              <Pressable style={[styles.previousWorkAction, styles.previousWorkActionPrimary]} onPress={() => onResume(session)} accessibilityRole="button" accessibilityLabel={`Resume ${session.title}`}>
                 <Text style={[styles.previousWorkActionText, styles.previousWorkActionTextPrimary]}>Resume</Text>
               </Pressable>
-              <Pressable style={styles.previousWorkAction} onPress={() => onStartFresh(session)} accessibilityRole="button">
+              <Pressable style={styles.previousWorkAction} onPress={() => onStartFresh(session)} accessibilityRole="button" accessibilityLabel={`Start fresh from ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Fresh</Text>
               </Pressable>
             </View>
             <View style={styles.previousWorkActions}>
-              <Pressable style={styles.previousWorkAction} onPress={() => onDuplicate(session)} accessibilityRole="button">
+              <Pressable style={styles.previousWorkAction} onPress={() => onDuplicate(session)} accessibilityRole="button" accessibilityLabel={`Copy ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Copy</Text>
               </Pressable>
-              <Pressable style={styles.previousWorkAction} onPress={() => onDelete(session)} accessibilityRole="button">
+              <Pressable style={styles.previousWorkAction} onPress={() => onDelete(session)} accessibilityRole="button" accessibilityLabel={`Delete ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Delete</Text>
               </Pressable>
             </View>
