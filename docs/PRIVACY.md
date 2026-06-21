@@ -12,9 +12,9 @@ TraceBuddy does not record, upload, or transmit camera video. Custom words/phras
 
 ### Uploaded images
 
-Parents can upload or select a local image from the device. The image is read by the browser or Expo app and stored in app state for the current session.
+Parents can upload or select a local image from the device. The image is read by the browser or Expo app and stays on the device. Web saved-work image data is stored locally in IndexedDB; mobile saved-work images are copied into app-local file storage so Previous Work sessions do not depend on temporary picker URLs.
 
-Optional cleanup modes in the web app also run locally in the browser using canvas processing. TraceBuddy can create a temporary transparent background or line-art version for the overlay, but it does not upload the image, save it to a server, or send it to an AI service. The first Expo Go MVP does not port cleanup yet; selected images remain local app state.
+Optional cleanup modes in the web app also run locally in the browser using canvas processing. TraceBuddy can create a temporary transparent background or line-art version for the overlay, but it does not upload the image, save it to a server, or send it to an AI service. Mobile selected images remain local app files.
 
 ### Paper detection
 
@@ -32,6 +32,10 @@ The service worker caches the app shell so TraceBuddy can load more reliably aft
 - Built-in drawing assets bundled with the app.
 
 The service worker does not cache camera video or uploaded image files.
+
+### Saved drawings
+
+When a parent or child taps Save image in mobile practice mode, TraceBuddy asks the operating system for permission to add the finished drawing image to the device Photos library. This happens only after the user chooses Save image.
 
 ## Permissions
 

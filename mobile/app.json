@@ -13,7 +13,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "TraceBuddy uses your camera to show paper under the tracing overlay. Photos and drawings stay on this device.",
-        "NSPhotoLibraryUsageDescription": "TraceBuddy lets you choose a local photo or drawing to trace. Images stay on this device."
+        "NSPhotoLibraryUsageDescription": "TraceBuddy lets you choose a local photo or drawing to trace. Images stay on this device.",
+        "NSPhotoLibraryAddUsageDescription": "TraceBuddy saves finished drawings to Photos only when you choose Save image."
       }
     },
     "android": {
@@ -43,6 +44,14 @@
         "expo-image-picker",
         {
           "photosPermission": "TraceBuddy lets you choose a local photo or drawing to trace. Images stay on this device."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "TraceBuddy saves finished drawings to Photos only when you choose Save image.",
+          "savePhotosPermission": "TraceBuddy saves finished drawings to Photos only when you choose Save image.",
+          "isAccessMediaLocationEnabled": false
         }
       ],
       [

@@ -31,10 +31,13 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Camera access with `getUserMedia`
 - On-screen coloring/practice mode for finger, stylus, or mouse tracing
 - Custom word/name/phrase tracing
-- Expanded color palette, brush sizes, pencil/marker/crayon/paint brush styles, and an eraser
+- Expanded color palette including pinks, brush sizes, pencil/marker/crayon/paint brush styles, and an eraser
 - Locked-by-default digital canvas with optional pan/zoom for detailed coloring
 - Lines-on-top coloring option so template outlines remain visible
+- Mobile practice add-ons for built-in shapes and local photo/image stickers
+- Save finished mobile practice drawings to the device Photos library
 - Local autosave for on-screen coloring sessions
+- Previous Work gallery for resuming, duplicating, deleting, or starting fresh from saved coloring
 - Clear-all confirmation to protect kids' work
 - Demo camera surface when camera is unavailable/blocked
 - Drag-to-position overlay
