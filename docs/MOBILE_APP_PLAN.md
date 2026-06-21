@@ -75,9 +75,11 @@ The first mobile app should be intentionally small and reliable:
 - Native camera trace mode.
 - On-screen coloring/practice mode for finger/stylus tracing over the selected guide.
 - Custom word/name/phrase tracing using the same local guide pipeline.
-- Expanded color palette plus pencil/marker/crayon/paint brush styles and eraser support.
+- Expanded color palette with pinks plus pencil/marker/crayon/paint brush styles and eraser support.
 - Locked-by-default practice canvas with optional pan/zoom for detailed coloring.
 - Lines-on-top option so tracing outlines remain visible while coloring.
+- Mobile Add tools for built-in shapes and local photo/image stickers.
+- Save finished mobile practice drawings to the device Photos library.
 - Local autosave for practice/coloring sessions on the device.
 - Previous Work gallery for resuming, duplicating, deleting, or starting fresh from saved coloring.
 - Clear-all confirmation before deleting a child's work.
@@ -100,7 +102,7 @@ The local Previous Work section is now part of practice mode.
 - Saves stay device-local with `AsyncStorage` on mobile and local browser storage on web; web uploaded-image blobs live in IndexedDB while session metadata stays in `localStorage`.
 - Older single-template practice autosaves (`tracebuddy.practice.v1.*`) are migrated into Previous Work on first launch instead of being silently discarded.
 - Saved work is stored as multiple sessions instead of one autosave slot per template.
-- Each session keeps source metadata, strokes, brush/guide settings, and last-edited time.
+- Each session keeps source metadata, strokes, added shape/photo stickers, brush/guide settings, and last-edited time.
 - The picker shows visual previews and actions for Resume, Duplicate/Copy, Start fresh, and Delete.
 - Starting fresh preserves the original template as a clean starting point even when previous work exists.
 - Uploaded mobile images are copied into app-local storage before being used for long-lived saved sessions.

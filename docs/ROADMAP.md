@@ -16,9 +16,11 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Mobile-first React/Vite frontend.
 - Expo Go native mobile MVP.
 - On-screen coloring/practice mode for tracing without a paper/camera setup.
-- Custom word/name/phrase tracing, expanded colors, brush styles, and locked pan/zoom controls.
+- Custom word/name/phrase tracing, expanded colors including pinks, brush styles, and locked pan/zoom controls.
 - Shared SVG line-art drawing library with category filters.
 - Local image upload.
+- Mobile practice add-ons for built-in shapes and local photo/image stickers.
+- Save finished mobile practice drawings to the device Photos library.
 - Previous Work gallery for saved on-screen coloring sessions.
 - Camera preview with demo fallback.
 - Overlay drag, opacity, scale, rotation, nudge, lock, and reset.
@@ -69,8 +71,8 @@ Implemented scope:
 
 - Local-only Previous Work section from the picker.
 - Multiple saved practice sessions per template/custom word/uploaded image.
-- Visual previews, title, stroke count, and last-edited date.
-- Resume/Edit, Duplicate/Copy, Start fresh, and Delete actions.
+- Visual previews, title, stroke count, added stickers, and last-edited date.
+- Resume/Edit, Duplicate/Copy, Start fresh, Save image, and Delete actions.
 - Original templates remain clean starting points even when previous work exists.
 - Privacy preserved: no accounts, backend sync, uploads, analytics, or remote image processing.
 - Mobile uploaded images are copied into app-local storage before being referenced by long-lived saved sessions.

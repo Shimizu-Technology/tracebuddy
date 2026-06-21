@@ -18,9 +18,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as ImagePicker from 'expo-image-picker'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
+import * as MediaLibrary from 'expo-media-library'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg'
+import { captureRef } from 'react-native-view-shot'
 
 import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from '@tracebuddy/shared'
 import type { Drawing, DrawingFilterId } from '@tracebuddy/shared'
@@ -36,7 +38,7 @@ type PracticePoint = {
 
 type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint' | 'eraser'
 type PracticeStrokeMode = 'draw' | 'erase'
-type PracticePanelId = 'tool' | 'size' | 'view'
+type PracticePanelId = 'tool' | 'size' | 'add' | 'view'
 
 type BrushTool = {
   id: BrushToolId
@@ -56,6 +58,20 @@ type PracticeStroke = {
   dasharray?: number[]
 }
 
+type PracticeSticker = {
+  stickerId: string
+  kind: 'shape' | 'image'
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  opacity: number
+  svg?: string
+  uri?: string
+}
+
 type PracticeSource = {
   kind: 'drawing' | 'custom' | 'upload'
   drawingId: string
@@ -73,6 +89,7 @@ type SavedPracticeSession = {
   createdAt: string
   updatedAt: string
   strokes: PracticeStroke[]
+  stickers: PracticeSticker[]
   canvasWidth: number
   canvasHeight: number
   guideOpacity: number
@@ -111,7 +128,7 @@ const defaultTransform: OverlayTransform = {
   opacity: 0.72,
 }
 
-const markerColors = ['#18243A', '#4A5568', '#FF795D', '#E45336', '#F2994A', '#F2C94C', '#219653', '#27AE60', '#2F80ED', '#56CCF2', '#9B51E0', '#EB5757', '#8B5E3C'] as const
+const markerColors = ['#18243A', '#4A5568', '#FF795D', '#FF4FA3', '#F7A8C8', '#D946EF', '#E45336', '#F2994A', '#F2C94C', '#219653', '#27AE60', '#2F80ED', '#56CCF2', '#9B51E0', '#EB5757', '#8B5E3C'] as const
 
 const brushTools: BrushTool[] = [
   { id: 'pencil', label: 'Pencil', widthMultiplier: 0.62, opacity: 0.72, mode: 'draw' },
@@ -125,6 +142,39 @@ const brushSizes = [
   { label: 'Fine', value: 5 },
   { label: 'Round', value: 9 },
   { label: 'Fill', value: 16 },
+] as const
+
+const practiceStickerShapes = [
+  {
+    id: 'heart',
+    label: 'Heart',
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 84C29 68 15 55 15 37c0-12 8-21 19-21 7 0 13 4 16 10 3-6 9-10 16-10 11 0 19 9 19 21 0 18-14 31-35 47Z" fill="#F7A8C8" stroke="#18243A" stroke-width="5" stroke-linejoin="round"/></svg>',
+  },
+  {
+    id: 'star',
+    label: 'Star',
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="m50 10 11 26 28 3-21 18 6 28-24-15-24 15 6-28-21-18 28-3 11-26Z" fill="#F2C94C" stroke="#18243A" stroke-width="5" stroke-linejoin="round"/></svg>',
+  },
+  {
+    id: 'flower',
+    label: 'Flower',
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="#FFB6D9" stroke="#18243A" stroke-width="4" stroke-linejoin="round"><ellipse cx="50" cy="23" rx="13" ry="18"/><ellipse cx="77" cy="50" rx="18" ry="13"/><ellipse cx="50" cy="77" rx="13" ry="18"/><ellipse cx="23" cy="50" rx="18" ry="13"/></g><circle cx="50" cy="50" r="15" fill="#F2C94C" stroke="#18243A" stroke-width="4"/></svg>',
+  },
+  {
+    id: 'rainbow',
+    label: 'Rainbow',
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M14 72a36 36 0 0 1 72 0" fill="none" stroke="#FF4FA3" stroke-width="12" stroke-linecap="round"/><path d="M27 72a23 23 0 0 1 46 0" fill="none" stroke="#F2C94C" stroke-width="12" stroke-linecap="round"/><path d="M40 72a10 10 0 0 1 20 0" fill="none" stroke="#56CCF2" stroke-width="12" stroke-linecap="round"/><path d="M10 72h80" stroke="#18243A" stroke-width="5" stroke-linecap="round"/></svg>',
+  },
+  {
+    id: 'cloud',
+    label: 'Cloud',
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M28 72h43c11 0 19-7 19-17s-8-18-19-18h-2C66 26 56 18 44 18c-15 0-27 12-27 27v1C8 49 3 56 3 64c0 10 9 18 25 18Z" fill="#CFE8F7" stroke="#18243A" stroke-width="5" stroke-linejoin="round"/></svg>',
+  },
+  {
+    id: 'sparkle',
+    label: 'Sparkle',
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 8 61 38 92 50 61 62 50 92 39 62 8 50 39 38 50 8Z" fill="#DDF4E7" stroke="#18243A" stroke-width="5" stroke-linejoin="round"/><path d="M76 12v16M68 20h16M22 72v14M15 79h14" stroke="#FF4FA3" stroke-width="5" stroke-linecap="round"/></svg>',
+  },
 ] as const
 
 const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
@@ -189,6 +239,31 @@ function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | null {
   }
 }
 
+function normalizeSavedPracticeSticker(value: unknown): PracticeSticker | null {
+  if (!value || typeof value !== 'object') return null
+  const sticker = value as Partial<PracticeSticker>
+  if (typeof sticker.stickerId !== 'string' || typeof sticker.label !== 'string') return null
+  if (sticker.kind !== 'shape' && sticker.kind !== 'image') return null
+  if (typeof sticker.x !== 'number' || typeof sticker.y !== 'number' || typeof sticker.width !== 'number' || typeof sticker.height !== 'number') return null
+  if (!Number.isFinite(sticker.x) || !Number.isFinite(sticker.y) || !Number.isFinite(sticker.width) || !Number.isFinite(sticker.height)) return null
+  if (sticker.kind === 'shape' && typeof sticker.svg !== 'string') return null
+  if (sticker.kind === 'image' && typeof sticker.uri !== 'string') return null
+
+  return {
+    stickerId: sticker.stickerId,
+    kind: sticker.kind,
+    label: sticker.label,
+    x: clamp(sticker.x, -200, 1200),
+    y: clamp(sticker.y, -200, 1200),
+    width: clamp(sticker.width, 24, 1000),
+    height: clamp(sticker.height, 24, 1000),
+    rotation: typeof sticker.rotation === 'number' && Number.isFinite(sticker.rotation) ? sticker.rotation : 0,
+    opacity: typeof sticker.opacity === 'number' ? clamp(sticker.opacity, 0.08, 1) : 0.88,
+    svg: sticker.kind === 'shape' ? sticker.svg : undefined,
+    uri: sticker.kind === 'image' ? sticker.uri : undefined,
+  }
+}
+
 function createPracticeSessionId() {
   return `work-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -240,7 +315,7 @@ function previousWorkSessionKey(sessionId: string) {
   return `${previousWorkSessionPrefix}${sessionId}`
 }
 
-function makePracticeSaveSignature(session: Pick<SavedPracticeSession, 'source' | 'strokes' | 'canvasWidth' | 'canvasHeight' | 'guideOpacity' | 'guideOnTop' | 'markerColor' | 'markerWidth' | 'brushToolId'>) {
+function makePracticeSaveSignature(session: Pick<SavedPracticeSession, 'source' | 'strokes' | 'stickers' | 'canvasWidth' | 'canvasHeight' | 'guideOpacity' | 'guideOnTop' | 'markerColor' | 'markerWidth' | 'brushToolId'>) {
   return JSON.stringify(session)
 }
 
@@ -322,6 +397,7 @@ function normalizeLegacyPracticeAutosave(value: unknown, storageKey: string, leg
     createdAt: updatedAt,
     updatedAt,
     strokes,
+    stickers: [],
     canvasWidth: 1000,
     canvasHeight: 1000,
     guideOpacity: typeof session.guideOpacity === 'number' ? clamp(session.guideOpacity, 0.08, 0.66) : 0.24,
@@ -382,6 +458,9 @@ function normalizeSavedPracticeSession(value: unknown): SavedPracticeSession | n
   const strokes = Array.isArray(session.strokes)
     ? session.strokes.map(normalizeSavedPracticeStroke).filter((stroke): stroke is PracticeStroke => Boolean(stroke))
     : []
+  const stickers = Array.isArray(session.stickers)
+    ? session.stickers.map(normalizeSavedPracticeSticker).filter((sticker): sticker is PracticeSticker => Boolean(sticker))
+    : []
 
   return {
     version: 2,
@@ -391,6 +470,7 @@ function normalizeSavedPracticeSession(value: unknown): SavedPracticeSession | n
     createdAt: typeof session.createdAt === 'string' ? session.createdAt : new Date().toISOString(),
     updatedAt: typeof session.updatedAt === 'string' ? session.updatedAt : new Date().toISOString(),
     strokes,
+    stickers,
     canvasWidth: typeof session.canvasWidth === 'number' && Number.isFinite(session.canvasWidth) ? Math.max(1, session.canvasWidth) : 1000,
     canvasHeight: typeof session.canvasHeight === 'number' && Number.isFinite(session.canvasHeight) ? Math.max(1, session.canvasHeight) : 1000,
     guideOpacity: typeof session.guideOpacity === 'number' ? clamp(session.guideOpacity, 0.08, 0.66) : 0.24,
@@ -465,22 +545,40 @@ function isStoredUploadedImageUri(uri?: string) {
   return Boolean(uri && uploadedWorkDirectory && uri.startsWith(uploadedWorkDirectory))
 }
 
-async function cleanupUploadedImageIfUnused(deletedSession: SavedPracticeSession | null, remainingIds: string[]) {
-  const uploadedUri = deletedSession?.source.uploadedImage?.uri
-  if (!uploadedUri || !isStoredUploadedImageUri(uploadedUri)) return
+function storedUploadedImageUrisFromStickers(stickers: PracticeSticker[]) {
+  return stickers
+    .filter((sticker) => sticker.kind === 'image')
+    .map((sticker) => sticker.uri)
+    .filter((uri): uri is string => Boolean(uri && isStoredUploadedImageUri(uri)))
+}
 
-  const remainingEntries = await AsyncStorage.multiGet(remainingIds.map(previousWorkSessionKey))
-  const stillReferenced = remainingEntries.some(([, rawSession]) => {
-    if (!rawSession) return false
+function storedUploadedImageUrisFromSession(session: SavedPracticeSession | null) {
+  if (!session) return []
+  const uris = [session.source.uploadedImage?.uri, ...storedUploadedImageUrisFromStickers(session.stickers)]
+  return uris.filter((uri): uri is string => Boolean(uri && isStoredUploadedImageUri(uri)))
+}
+
+async function cleanupStoredImageUrisIfUnused(candidateUris: string[], sessionIds?: string[]) {
+  const storedUris = Array.from(new Set(candidateUris.filter(isStoredUploadedImageUri)))
+  if (storedUris.length === 0) return
+
+  const ids = sessionIds ?? await readPreviousWorkIds()
+  const entries = await AsyncStorage.multiGet(ids.map(previousWorkSessionKey))
+  const referencedUris = new Set<string>()
+  entries.forEach(([, rawSession]) => {
+    if (!rawSession) return
     try {
-      return normalizeSavedPracticeSession(JSON.parse(rawSession))?.source.uploadedImage?.uri === uploadedUri
+      storedUploadedImageUrisFromSession(normalizeSavedPracticeSession(JSON.parse(rawSession))).forEach((uri) => referencedUris.add(uri))
     } catch {
-      return false
+      // Ignore malformed sessions during best-effort file cleanup.
     }
   })
 
-  if (stillReferenced) return
-  await FileSystem.deleteAsync(uploadedUri, { idempotent: true }).catch(() => undefined)
+  await Promise.all(storedUris.filter((uri) => !referencedUris.has(uri)).map((uri) => FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => undefined)))
+}
+
+async function cleanupUploadedImageIfUnused(deletedSession: SavedPracticeSession | null, remainingIds: string[]) {
+  await cleanupStoredImageUrisIfUnused(storedUploadedImageUrisFromSession(deletedSession), remainingIds)
 }
 
 async function deletePreviousWorkSession(sessionId: string) {
@@ -791,6 +889,7 @@ function TraceBuddyMobile() {
       createdAt: now,
       updatedAt: now,
       strokes: session.strokes.map((stroke) => ({ ...stroke, dasharray: stroke.dasharray ? [...stroke.dasharray] : undefined })),
+      stickers: session.stickers.map((sticker) => ({ ...sticker })),
     }
 
     void savePreviousWorkSession(copiedSession)
@@ -1104,6 +1203,36 @@ function formatPreviousWorkDate(value: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+function PracticeStickerView({ sticker, selected, frameStyle }: { sticker: PracticeSticker; selected?: boolean; frameStyle: object }) {
+  return (
+    <View style={[styles.practiceStickerFrame, frameStyle, { opacity: sticker.opacity, transform: [{ rotate: `${sticker.rotation}deg` }] }, selected && styles.practiceStickerFrameSelected]} pointerEvents="none">
+      {sticker.kind === 'image' && sticker.uri ? (
+        <Image source={{ uri: sticker.uri }} style={styles.practiceStickerImage} resizeMode="contain" />
+      ) : sticker.svg ? (
+        <SvgXml xml={sticker.svg} width="100%" height="100%" />
+      ) : null}
+    </View>
+  )
+}
+
+function percentageStickerFrame(sticker: PracticeSticker) {
+  return {
+    left: `${sticker.x / 10}%`,
+    top: `${sticker.y / 10}%`,
+    width: `${sticker.width / 10}%`,
+    height: `${sticker.height / 10}%`,
+  }
+}
+
+function sizedStickerFrame(sticker: PracticeSticker, canvasSize: { width: number; height: number }) {
+  return {
+    left: (sticker.x / 1000) * canvasSize.width,
+    top: (sticker.y / 1000) * canvasSize.height,
+    width: (sticker.width / 1000) * canvasSize.width,
+    height: (sticker.height / 1000) * canvasSize.height,
+  }
+}
+
 function PreviousWorkSection({
   sessions,
   onResume,
@@ -1140,6 +1269,9 @@ function PreviousWorkSection({
                 ) : (
                   <SvgXml xml={session.source.drawingSvg ?? drawingFromPracticeSource(session.source).drawing.svg} width="100%" height="100%" />
                 )}
+                {session.stickers.map((sticker) => (
+                  <PracticeStickerView key={`${session.sessionId}-${sticker.stickerId}`} sticker={sticker} frameStyle={percentageStickerFrame(sticker)} />
+                ))}
                 <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${session.canvasWidth} ${session.canvasHeight}`} preserveAspectRatio="xMidYMid meet" style={styles.previousWorkInk}>
                   {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-16).map((stroke, index) => (
                     <Path key={`${session.sessionId}-preview-${index}`} d={stroke.path} stroke={stroke.color} strokeWidth={stroke.width} strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -1148,7 +1280,7 @@ function PreviousWorkSection({
               </View>
             </Pressable>
             <Text style={styles.previousWorkName} numberOfLines={1}>{session.title}</Text>
-            <Text style={styles.previousWorkMeta} numberOfLines={1}>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes</Text>
+            <Text style={styles.previousWorkMeta} numberOfLines={1}>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes{session.stickers.length > 0 ? ` · ${session.stickers.length} pieces` : ''}</Text>
             <View style={styles.previousWorkActions}>
               <Pressable style={[styles.previousWorkAction, styles.previousWorkActionPrimary]} onPress={() => onResume(session)} accessibilityRole="button" accessibilityLabel={`Resume ${session.title}`}>
                 <Text style={[styles.previousWorkActionText, styles.previousWorkActionTextPrimary]}>Resume</Text>
@@ -1199,6 +1331,8 @@ function PracticeScreen({
 }) {
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 })
   const [practiceStrokes, setPracticeStrokes] = useState<PracticeStroke[]>(initialSession?.strokes ?? [])
+  const [stickers, setStickers] = useState<PracticeSticker[]>(initialSession?.stickers ?? [])
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(initialSession?.stickers?.[0]?.stickerId ?? null)
   const [activePath, setActivePath] = useState('')
   const [activeStrokeRender, setActiveStrokeRender] = useState<PracticeStroke | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(initialSession?.sessionId ?? null)
@@ -1210,9 +1344,11 @@ function PracticeScreen({
   const [guideOpacity, setGuideOpacity] = useState(initialSession?.guideOpacity ?? 0.24)
   const [guideOnTop, setGuideOnTop] = useState(initialSession?.guideOnTop ?? true)
   const [activePanel, setActivePanel] = useState<PracticePanelId | null>(null)
+  const [isSavingImage, setIsSavingImage] = useState(false)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasSizeRef = useRef(canvasSize)
+  const practiceCanvasRef = useRef<View | null>(null)
   const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
   const activePointsRef = useRef<PracticePoint[]>([])
@@ -1235,6 +1371,13 @@ function PracticeScreen({
   const sourceResetKey = `${initialSession?.sessionId ?? 'fresh'}|${practiceSource.kind}|${practiceSource.drawingId}|${practiceSource.uploadedImage?.uri ?? ''}`
   const topGuideOpacity = Math.max(guideOpacity, 0.48)
   const selectedBrushSize = useMemo(() => brushSizes.find((size) => size.value === markerWidth) ?? brushSizes[1], [markerWidth])
+  const selectedSticker = useMemo(() => stickers.find((sticker) => sticker.stickerId === selectedStickerId) ?? null, [selectedStickerId, stickers])
+  const selectedStickerIdRef = useRef<string | null>(selectedStickerId)
+  const savedStickerUrisRef = useRef(storedUploadedImageUrisFromStickers(initialSession?.stickers ?? []))
+
+  useEffect(() => {
+    selectedStickerIdRef.current = selectedStickerId
+  }, [selectedStickerId])
 
   useEffect(() => {
     canvasSizeRef.current = canvasSize
@@ -1258,6 +1401,7 @@ function PracticeScreen({
       lastPointRef.current = null
       drawingActiveRef.current = false
       const nextStrokes = initialSession?.strokes ?? []
+      const nextStickers = initialSession?.stickers ?? []
       const nextGuideOpacity = initialSession?.guideOpacity ?? 0.24
       const nextGuideOnTop = initialSession?.guideOnTop ?? true
       const nextMarkerColor = initialSession?.markerColor ?? markerColors[0]
@@ -1267,6 +1411,8 @@ function PracticeScreen({
       setActivePath('')
       setActiveStrokeRender(null)
       setPracticeStrokes(nextStrokes)
+      setStickers(nextStickers)
+      setSelectedStickerId(nextStickers[0]?.stickerId ?? null)
       setSessionId(initialSession?.sessionId ?? null)
       setSessionCreatedAt(initialSession?.createdAt ?? new Date().toISOString())
       setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(practiceSource))
@@ -1276,9 +1422,11 @@ function PracticeScreen({
       setMarkerWidth(nextMarkerWidth)
       setBrushToolId(nextBrushToolId)
       setActivePanel(null)
+      savedStickerUrisRef.current = storedUploadedImageUrisFromStickers(nextStickers)
       lastSavedSignatureRef.current = makePracticeSaveSignature({
         source: practiceSource,
         strokes: nextStrokes,
+        stickers: nextStickers,
         canvasWidth: initialSession?.canvasWidth ?? 1000,
         canvasHeight: initialSession?.canvasHeight ?? 1000,
         guideOpacity: nextGuideOpacity,
@@ -1300,13 +1448,14 @@ function PracticeScreen({
   useEffect(() => {
     if (!autosaveReadyRef.current) return
 
-    if (practiceStrokes.length === 0) {
+    if (practiceStrokes.length === 0 && stickers.length === 0) {
       if (!sessionId) return
       const deleteTimeout = setTimeout(() => {
         void deletePreviousWorkSession(sessionId)
           .then(() => {
             setSessionId(null)
             setSessionCreatedAt(new Date().toISOString())
+            savedStickerUrisRef.current = []
             onSessionDeleted(sessionId)
           })
           .catch(() => undefined)
@@ -1328,6 +1477,7 @@ function PracticeScreen({
         createdAt: sessionCreatedAt,
         updatedAt: now,
         strokes: practiceStrokes,
+        stickers,
         canvasWidth: 1000,
         canvasHeight: 1000,
         guideOpacity,
@@ -1342,6 +1492,10 @@ function PracticeScreen({
 
       void savePreviousWorkSession(savedSession)
         .then(() => {
+          const nextStickerUris = storedUploadedImageUrisFromStickers(stickers)
+          const removedStickerUris = savedStickerUrisRef.current.filter((uri) => !nextStickerUris.includes(uri))
+          savedStickerUrisRef.current = nextStickerUris
+          if (removedStickerUris.length > 0) void cleanupStoredImageUrisIfUnused(removedStickerUris)
           lastSavedSignatureRef.current = nextSignature
           onSessionSaved(savedSession)
         })
@@ -1349,7 +1503,7 @@ function PracticeScreen({
     }, practiceAutosaveDelayMs)
 
     return () => clearTimeout(timeout)
-  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, onSessionDeleted, onSessionSaved, practiceSource, practiceStrokes, sessionCreatedAt, sessionId, sessionTitle])
+  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, onSessionDeleted, onSessionSaved, practiceSource, practiceStrokes, sessionCreatedAt, sessionId, sessionTitle, stickers])
 
   const committedStrokeLayers = useMemo(() => {
     const eraserStrokes = practiceStrokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode === 'erase')
@@ -1649,25 +1803,34 @@ function PracticeScreen({
     drawingActiveRef.current = false
     setActivePath('')
     setActiveStrokeRender(null)
+    const removedStickerUris = storedUploadedImageUrisFromStickers(stickers)
     setPracticeStrokes([])
+    setStickers([])
+    setSelectedStickerId(null)
     const deletedSessionId = sessionId
     setSessionId(null)
     setSessionCreatedAt(new Date().toISOString())
     if (deletedSessionId) {
       void deletePreviousWorkSession(deletedSessionId)
-        .then(() => onSessionDeleted(deletedSessionId))
+        .then(() => {
+          savedStickerUrisRef.current = []
+          onSessionDeleted(deletedSessionId)
+        })
         .catch(() => undefined)
+    } else if (removedStickerUris.length > 0) {
+      savedStickerUrisRef.current = []
+      void cleanupStoredImageUrisIfUnused(removedStickerUris)
     }
-  }, [cancelActivePathUpdate, onSessionDeleted, sessionId])
+  }, [cancelActivePathUpdate, onSessionDeleted, sessionId, stickers])
 
   const confirmClearPracticeStrokes = useCallback(() => {
-    if (practiceStrokes.length === 0 && !activePath) return
+    if (practiceStrokes.length === 0 && stickers.length === 0 && !activePath) return
 
-    Alert.alert('Clear drawing?', 'This removes all coloring saved in this work.', [
+    Alert.alert('Clear drawing?', 'This removes all coloring and added pieces saved in this work.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear all', style: 'destructive', onPress: clearPracticeStrokes },
     ])
-  }, [activePath, clearPracticeStrokes, practiceStrokes.length])
+  }, [activePath, clearPracticeStrokes, practiceStrokes.length, stickers.length])
 
   const lightenGuide = useCallback(() => {
     setGuideOpacity((current) => clamp(current - 0.06, 0.08, 0.66))
@@ -1699,6 +1862,130 @@ function PracticeScreen({
   const togglePracticePanel = useCallback((panel: PracticePanelId) => {
     setActivePanel((current) => (current === panel ? null : panel))
   }, [])
+
+  const addSticker = useCallback((sticker: PracticeSticker) => {
+    setStickers((current) => [...current, sticker])
+    setSelectedStickerId(sticker.stickerId)
+    setActivePanel('add')
+  }, [])
+
+  const addShapeSticker = useCallback((shape: (typeof practiceStickerShapes)[number]) => {
+    addSticker({
+      stickerId: createPracticeSessionId(),
+      kind: 'shape',
+      label: shape.label,
+      svg: shape.svg,
+      x: 350,
+      y: 350,
+      width: 300,
+      height: 300,
+      rotation: 0,
+      opacity: 0.9,
+    })
+  }, [addSticker])
+
+  const addImageSticker = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Photo permission needed', 'Allow photo access to add a local image to this drawing.')
+        return
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+        allowsMultipleSelection: false,
+      })
+
+      if (result.canceled || result.assets.length === 0) return
+      const asset = result.assets[0]
+      const storedUri = await persistUploadedImage(asset.uri, asset.fileName ?? 'Added image')
+      if (!storedUri) {
+        Alert.alert('Could not add image', 'TraceBuddy could not copy this image into local app storage. Try choosing it again.')
+        return
+      }
+
+      const aspectRatio = asset.width && asset.height ? asset.width / Math.max(asset.height, 1) : 1
+      const width = aspectRatio >= 1 ? 360 : Math.max(180, 300 * aspectRatio)
+      const height = aspectRatio >= 1 ? Math.max(180, 300 / aspectRatio) : 360
+      addSticker({
+        stickerId: createPracticeSessionId(),
+        kind: 'image',
+        label: asset.fileName ?? 'Added image',
+        uri: storedUri,
+        x: clamp(500 - width / 2, 40, 760),
+        y: clamp(500 - height / 2, 40, 760),
+        width,
+        height,
+        rotation: 0,
+        opacity: 0.92,
+      })
+    } catch {
+      Alert.alert('Could not open photos', 'Try again or add a built-in shape instead.')
+    }
+  }, [addSticker])
+
+  const updateSelectedSticker = useCallback((update: (sticker: PracticeSticker) => PracticeSticker) => {
+    if (!selectedStickerId) return
+    setStickers((current) => current.map((sticker) => (sticker.stickerId === selectedStickerId ? update(sticker) : sticker)))
+  }, [selectedStickerId])
+
+  const moveSelectedSticker = useCallback((dx: number, dy: number) => {
+    updateSelectedSticker((sticker) => ({ ...sticker, x: clamp(sticker.x + dx, -120, 1020), y: clamp(sticker.y + dy, -120, 1020) }))
+  }, [updateSelectedSticker])
+
+  const resizeSelectedSticker = useCallback((factor: number) => {
+    updateSelectedSticker((sticker) => {
+      const nextWidth = clamp(sticker.width * factor, 48, 900)
+      const nextHeight = clamp(sticker.height * factor, 48, 900)
+      return {
+        ...sticker,
+        x: sticker.x + (sticker.width - nextWidth) / 2,
+        y: sticker.y + (sticker.height - nextHeight) / 2,
+        width: nextWidth,
+        height: nextHeight,
+      }
+    })
+  }, [updateSelectedSticker])
+
+  const rotateSelectedSticker = useCallback((degrees: number) => {
+    updateSelectedSticker((sticker) => ({ ...sticker, rotation: sticker.rotation + degrees }))
+  }, [updateSelectedSticker])
+
+  const removeSelectedSticker = useCallback(() => {
+    if (!selectedStickerId) return
+    const removedSticker = stickers.find((sticker) => sticker.stickerId === selectedStickerId)
+    setStickers((current) => current.filter((sticker) => sticker.stickerId !== selectedStickerId))
+    setSelectedStickerId(null)
+    if (removedSticker?.kind === 'image' && removedSticker.uri) void cleanupStoredImageUrisIfUnused([removedSticker.uri])
+  }, [selectedStickerId, stickers])
+
+  const savePracticeImage = useCallback(async () => {
+    if (!practiceCanvasRef.current || isSavingImage) return
+    const restoreStickerId = selectedStickerIdRef.current
+
+    try {
+      setIsSavingImage(true)
+      const permission = await MediaLibrary.requestPermissionsAsync(true)
+      if (!permission.granted) {
+        Alert.alert('Photo permission needed', 'Allow TraceBuddy to save drawings to Photos.')
+        return
+      }
+
+      setSelectedStickerId(null)
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      const uri = await captureRef(practiceCanvasRef, { format: 'png', quality: 1, result: 'tmpfile' })
+      if (restoreStickerId) setSelectedStickerId(restoreStickerId)
+      await MediaLibrary.saveToLibraryAsync(uri)
+      Alert.alert('Saved image', 'Your drawing was saved to Photos.')
+    } catch {
+      if (restoreStickerId) setSelectedStickerId(restoreStickerId)
+      Alert.alert('Could not save image', 'Try again in a moment or take a screenshot for now.')
+    } finally {
+      setIsSavingImage(false)
+    }
+  }, [isSavingImage])
 
   return (
     <View style={styles.practiceShell}>
@@ -1752,6 +2039,17 @@ function PracticeScreen({
           >
             <Text style={[styles.practiceRibbonLabel, activePanel === 'size' && styles.practiceRibbonLabelActive]}>Size</Text>
             <Text style={[styles.practiceRibbonValue, activePanel === 'size' && styles.practiceRibbonValueActive]} numberOfLines={1}>{selectedBrushSize.label}</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.practiceRibbonButton, activePanel === 'add' && styles.practiceRibbonButtonActive]}
+            onPress={() => togglePracticePanel('add')}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: activePanel === 'add' }}
+            accessibilityLabel="Open shapes and image tools"
+          >
+            <Text style={[styles.practiceRibbonLabel, activePanel === 'add' && styles.practiceRibbonLabelActive]}>Add</Text>
+            <Text style={[styles.practiceRibbonValue, activePanel === 'add' && styles.practiceRibbonValueActive]} numberOfLines={1}>{selectedSticker ? selectedSticker.label : 'Shapes'}</Text>
           </Pressable>
 
           <Pressable
@@ -1816,6 +2114,51 @@ function PracticeScreen({
               </View>
             )}
 
+            {activePanel === 'add' && (
+              <View style={styles.practicePanelCard}>
+                <View style={styles.practicePanelHeader}>
+                  <Text style={styles.practicePanelTitle}>Add shapes and images</Text>
+                  <Pressable style={styles.practicePanelClose} onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close add tools">
+                    <Text style={styles.practicePanelCloseText}>Done</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.practicePanelButtonGrid}>
+                  {practiceStickerShapes.map((shape) => (
+                    <Pressable key={shape.id} style={styles.practicePanelChoice} onPress={() => addShapeSticker(shape)} accessibilityRole="button" accessibilityLabel={`Add ${shape.label}`}>
+                      <Text style={styles.practicePanelChoiceText}>{shape.label}</Text>
+                    </Pressable>
+                  ))}
+                  <Pressable style={[styles.practicePanelChoice, styles.practicePanelChoiceAccent]} onPress={addImageSticker} accessibilityRole="button" accessibilityLabel="Add an image from photos">
+                    <Text style={[styles.practicePanelChoiceText, styles.practicePanelChoiceTextAccent]}>Photo</Text>
+                  </Pressable>
+                </View>
+                {stickers.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.practiceStickerSelectRail}>
+                    {stickers.map((sticker) => (
+                      <Pressable key={sticker.stickerId} style={[styles.practiceStickerSelectChip, selectedStickerId === sticker.stickerId && styles.practiceStickerSelectChipActive]} onPress={() => setSelectedStickerId(sticker.stickerId)} accessibilityRole="button" accessibilityState={{ selected: selectedStickerId === sticker.stickerId }}>
+                        <Text style={[styles.practiceStickerSelectText, selectedStickerId === sticker.stickerId && styles.practiceStickerSelectTextActive]} numberOfLines={1}>{sticker.label}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )}
+                {selectedSticker ? (
+                  <View style={styles.practicePanelButtonGrid}>
+                    <Pressable style={styles.practicePanelChoice} onPress={() => moveSelectedSticker(0, -28)} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Up</Text></Pressable>
+                    <Pressable style={styles.practicePanelChoice} onPress={() => moveSelectedSticker(-28, 0)} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Left</Text></Pressable>
+                    <Pressable style={styles.practicePanelChoice} onPress={() => moveSelectedSticker(28, 0)} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Right</Text></Pressable>
+                    <Pressable style={styles.practicePanelChoice} onPress={() => moveSelectedSticker(0, 28)} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Down</Text></Pressable>
+                    <Pressable style={styles.practicePanelChoice} onPress={() => resizeSelectedSticker(0.86)} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Smaller</Text></Pressable>
+                    <Pressable style={styles.practicePanelChoice} onPress={() => resizeSelectedSticker(1.16)} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Bigger</Text></Pressable>
+                    <Pressable style={styles.practicePanelChoice} onPress={() => rotateSelectedSticker(-15)} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Turn left</Text></Pressable>
+                    <Pressable style={styles.practicePanelChoice} onPress={() => rotateSelectedSticker(15)} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Turn right</Text></Pressable>
+                    <Pressable style={[styles.practicePanelChoice, styles.practicePanelChoiceDanger]} onPress={removeSelectedSticker} accessibilityRole="button"><Text style={[styles.practicePanelChoiceText, styles.practicePanelChoiceTextDanger]}>Remove</Text></Pressable>
+                  </View>
+                ) : (
+                  <Text style={styles.practicePanelFootnote}>Add a shape or photo, then use these controls to place it.</Text>
+                )}
+              </View>
+            )}
+
             {activePanel === 'view' && (
               <View style={styles.practicePanelCard}>
                 <View style={styles.practicePanelHeader}>
@@ -1850,9 +2193,11 @@ function PracticeScreen({
           </View>
         )}
 
-        <Text style={styles.practiceCanvasHint} numberOfLines={1}>{viewportLocked ? 'Locked: color safely. Tap Tool for colors and brushes.' : 'Move: drag or pinch, then lock to draw.'}</Text>
+        <Text style={styles.practiceCanvasHint} numberOfLines={1}>{viewportLocked ? 'Locked: color safely. Tap Add for shapes or photos, Tool for colors.' : 'Move: drag or pinch, then lock to draw.'}</Text>
 
         <View
+          ref={practiceCanvasRef}
+          collapsable={false}
           style={styles.practiceCanvas}
           onLayout={handleCanvasLayout}
           onStartShouldSetResponder={() => true}
@@ -1884,6 +2229,9 @@ function PracticeScreen({
                 <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
               )}
             </View>
+            {stickers.map((sticker) => (
+              <PracticeStickerView key={sticker.stickerId} sticker={sticker} selected={selectedStickerId === sticker.stickerId} frameStyle={sizedStickerFrame(sticker, canvasSize)} />
+            ))}
             <Svg
               pointerEvents="none"
               width={canvasSize.width}
@@ -1913,11 +2261,14 @@ function PracticeScreen({
         <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && styles.practiceToolButtonDisabled]} onPress={undoPracticeStroke} disabled={practiceStrokes.length === 0} accessibilityRole="button">
           <Text style={styles.practiceToolButtonText}>Undo</Text>
         </Pressable>
-        <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && !activePath && styles.practiceToolButtonDisabled]} onPress={confirmClearPracticeStrokes} disabled={practiceStrokes.length === 0 && !activePath} accessibilityRole="button">
-          <Text style={styles.practiceToolButtonText}>Clear all</Text>
+        <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && stickers.length === 0 && !activePath && styles.practiceToolButtonDisabled]} onPress={confirmClearPracticeStrokes} disabled={practiceStrokes.length === 0 && stickers.length === 0 && !activePath} accessibilityRole="button">
+          <Text style={styles.practiceToolButtonText}>Clear</Text>
+        </Pressable>
+        <Pressable style={[styles.practiceToolButton, isSavingImage && styles.practiceToolButtonDisabled]} onPress={savePracticeImage} disabled={isSavingImage} accessibilityRole="button" accessibilityLabel="Save drawing image to Photos">
+          <Text style={styles.practiceToolButtonText}>{isSavingImage ? 'Saving' : 'Save image'}</Text>
         </Pressable>
         <Pressable style={[styles.practiceToolButton, styles.practiceToolButtonPrimary]} onPress={onCameraTrace} accessibilityRole="button">
-          <Text style={[styles.practiceToolButtonText, styles.practiceToolButtonPrimaryText]}>Use camera</Text>
+          <Text style={[styles.practiceToolButtonText, styles.practiceToolButtonPrimaryText]}>Camera</Text>
         </Pressable>
       </View>
     </View>
@@ -2636,6 +2987,14 @@ const styles = StyleSheet.create({
     backgroundColor: palette.ink,
     borderColor: palette.ink,
   },
+  practicePanelChoiceAccent: {
+    backgroundColor: palette.mint,
+    borderColor: 'rgba(23,99,79,0.22)',
+  },
+  practicePanelChoiceDanger: {
+    backgroundColor: '#FFF1F0',
+    borderColor: 'rgba(228,83,54,0.24)',
+  },
   practicePanelChoiceDisabled: {
     opacity: 0.42,
   },
@@ -2645,6 +3004,38 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   practicePanelChoiceTextActive: {
+    color: '#FFFFFF',
+  },
+  practicePanelChoiceTextAccent: {
+    color: '#17634F',
+  },
+  practicePanelChoiceTextDanger: {
+    color: palette.coralDark,
+  },
+  practiceStickerSelectRail: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  practiceStickerSelectChip: {
+    minHeight: 34,
+    maxWidth: 140,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  practiceStickerSelectChipActive: {
+    backgroundColor: palette.ink,
+    borderColor: palette.ink,
+  },
+  practiceStickerSelectText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  practiceStickerSelectTextActive: {
     color: '#FFFFFF',
   },
   practicePanelFootnote: {
@@ -2826,6 +3217,21 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
+  },
+  practiceStickerFrame: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  practiceStickerFrameSelected: {
+    borderWidth: 2,
+    borderColor: palette.coral,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,121,93,0.08)',
+  },
+  practiceStickerImage: {
+    width: '100%',
+    height: '100%',
   },
   practiceToolbar: {
     paddingHorizontal: 12,
