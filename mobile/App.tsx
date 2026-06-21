@@ -328,15 +328,43 @@ function isLegacyUploadAutosaveKey(storageKey: string) {
   return storageKey.slice(legacyPracticeAutosavePrefix.length).startsWith('uploaded_')
 }
 
+function scaleLegacyPathValue(value: number, axis: 'x' | 'y' | 'none', scaleX: number, scaleY: number) {
+  const scaled = axis === 'x' ? value * scaleX : axis === 'y' ? value * scaleY : value
+  return String(Math.round(scaled * 100) / 100)
+}
+
+function legacyPathAxisForCommand(command: string, valueIndex: number): 'x' | 'y' | 'none' {
+  const commandType = command.toUpperCase()
+  if (commandType === 'H') return 'x'
+  if (commandType === 'V') return 'y'
+  if (commandType === 'A') {
+    const arcAxes: Array<'x' | 'y' | 'none'> = ['x', 'y', 'none', 'none', 'none', 'x', 'y']
+    return arcAxes[valueIndex % arcAxes.length]
+  }
+  if (commandType === 'Z') return 'none'
+  return valueIndex % 2 === 0 ? 'x' : 'y'
+}
+
 function scaleLegacyPracticePath(path: string, scaleX: number, scaleY: number) {
-  let coordinateIndex = 0
-  return path.replace(/-?\d+(?:\.\d+)?/g, (match) => {
-    const value = Number(match)
-    if (!Number.isFinite(value)) return match
-    const scaled = value * (coordinateIndex % 2 === 0 ? scaleX : scaleY)
-    coordinateIndex += 1
-    return String(Math.round(scaled * 100) / 100)
-  })
+  const tokens = path.match(/[a-zA-Z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi)
+  if (!tokens) return path
+
+  let activeCommand = ''
+  let commandValueIndex = 0
+
+  return tokens.map((token) => {
+    if (/^[a-zA-Z]$/.test(token)) {
+      activeCommand = token
+      commandValueIndex = 0
+      return token
+    }
+
+    const value = Number(token)
+    if (!Number.isFinite(value)) return token
+    const axis = legacyPathAxisForCommand(activeCommand, commandValueIndex)
+    commandValueIndex += 1
+    return scaleLegacyPathValue(value, axis, scaleX, scaleY)
+  }).join(' ')
 }
 
 function scaleLegacyPracticeStroke(stroke: PracticeStroke, scaleX: number, scaleY: number): PracticeStroke {
@@ -1374,7 +1402,7 @@ function PracticeScreen({
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 })
   const [practiceStrokes, setPracticeStrokes] = useState<PracticeStroke[]>(initialSession?.strokes ?? [])
   const [stickers, setStickers] = useState<PracticeSticker[]>(initialSession?.stickers ?? [])
-  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(initialSession?.stickers?.[0]?.stickerId ?? null)
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null)
   const [activePath, setActivePath] = useState('')
   const [activeStrokeRender, setActiveStrokeRender] = useState<PracticeStroke | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(initialSession?.sessionId ?? null)
@@ -1454,7 +1482,7 @@ function PracticeScreen({
       setActiveStrokeRender(null)
       setPracticeStrokes(nextStrokes)
       setStickers(nextStickers)
-      setSelectedStickerId(nextStickers[0]?.stickerId ?? null)
+      setSelectedStickerId(null)
       setSessionId(initialSession?.sessionId ?? null)
       setSessionCreatedAt(initialSession?.createdAt ?? new Date().toISOString())
       setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(practiceSource))
