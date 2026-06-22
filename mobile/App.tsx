@@ -1419,7 +1419,6 @@ function PracticeScreen({
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasSizeRef = useRef(canvasSize)
-  const canvasOriginRef = useRef({ x: 0, y: 0, ready: false })
   const practiceCanvasRef = useRef<View | null>(null)
   const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
@@ -1686,22 +1685,13 @@ function PracticeScreen({
     setViewport(clamped)
   }, [clampPracticeViewport])
 
-  const measurePracticeCanvas = useCallback(() => {
-    requestAnimationFrame(() => {
-      practiceCanvasRef.current?.measureInWindow((x, y) => {
-        canvasOriginRef.current = { x, y, ready: true }
-      })
-    })
-  }, [])
-
   const handleCanvasLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout
     const nextSize = { width: Math.max(1, width), height: Math.max(1, height) }
     canvasSizeRef.current = nextSize
     setCanvasSize(nextSize)
-    measurePracticeCanvas()
     setPracticeViewport((current) => clampPracticeViewport(current))
-  }, [clampPracticeViewport, measurePracticeCanvas, setPracticeViewport])
+  }, [clampPracticeViewport, setPracticeViewport])
 
   const handlePracticeRibbonLayout = useCallback((event: LayoutChangeEvent) => {
     const nextHeight = Math.ceil(event.nativeEvent.layout.height)
@@ -1709,6 +1699,9 @@ function PracticeScreen({
   }, [])
 
   const pointFromLocation = useCallback((point: PracticePoint): PracticePoint => {
+    // Match the ink SVG's preserveAspectRatio="none" coordinate system: x and y
+    // are normalized independently so the stroke appears under the finger across
+    // the full rectangular practice canvas, not just a centered square.
     const currentViewport = viewportRef.current
     const { width, height } = canvasSizeRef.current
     const contentX = (point.x - currentViewport.x) / currentViewport.scale
@@ -1720,14 +1713,14 @@ function PracticeScreen({
   }, [])
 
   const touchPointsFromEvent = useCallback((event: GestureResponderEvent): PracticePoint[] => {
-    type NativeTouchPoint = { locationX: number; locationY: number; pageX?: number; pageY?: number }
+    type NativeTouchPoint = { locationX?: number; locationY?: number }
     const nativeEvent = event.nativeEvent as typeof event.nativeEvent & NativeTouchPoint & { touches?: NativeTouchPoint[] }
-    const toCanvasPoint = (touch: NativeTouchPoint) => {
-      const origin = canvasOriginRef.current
-      if (origin.ready && typeof touch.pageX === 'number' && typeof touch.pageY === 'number') {
-        return { x: touch.pageX - origin.x, y: touch.pageY - origin.y }
+    const fallbackPoint = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }
+    const toCanvasPoint = (touch: NativeTouchPoint): PracticePoint => {
+      if (typeof touch.locationX === 'number' && typeof touch.locationY === 'number') {
+        return { x: touch.locationX, y: touch.locationY }
       }
-      return { x: touch.locationX, y: touch.locationY }
+      return fallbackPoint
     }
 
     const touches = nativeEvent.touches ?? []
@@ -1800,7 +1793,6 @@ function PracticeScreen({
 
   const startPracticeStroke = useCallback((event: GestureResponderEvent) => {
     setActivePanel(null)
-    measurePracticeCanvas()
     const touches = touchPointsFromEvent(event)
     if (!viewportLocked) {
       startViewportGesture(touches)
@@ -1825,7 +1817,7 @@ function PracticeScreen({
     activeStrokeStyleRef.current = strokeStyle
     setActiveStrokeRender(strokeStyle)
     setActivePath(path)
-  }, [activeStrokeWidth, brushTool.dasharray, brushTool.mode, brushTool.opacity, markerColor, measurePracticeCanvas, pointFromLocation, startViewportGesture, touchPointsFromEvent, viewportLocked])
+  }, [activeStrokeWidth, brushTool.dasharray, brushTool.mode, brushTool.opacity, markerColor, pointFromLocation, startViewportGesture, touchPointsFromEvent, viewportLocked])
 
   const movePracticeStroke = useCallback((event: GestureResponderEvent) => {
     const touches = touchPointsFromEvent(event)
@@ -2352,6 +2344,7 @@ function PracticeScreen({
               width={canvasSize.width}
               height={canvasSize.height}
               viewBox="0 0 1000 1000"
+              preserveAspectRatio="none"
               style={styles.practiceInkLayer}
             >
               {committedStrokeLayers}
