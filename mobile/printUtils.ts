@@ -1,3 +1,4 @@
+/** Returns whether an iOS print-sheet rejection represents a user dismissal. */
 export function isDismissedPrintSheet(error: unknown, platform: string) {
   if (platform !== 'ios') return false
 

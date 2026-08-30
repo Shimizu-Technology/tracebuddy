@@ -264,7 +264,7 @@ TraceBuddy 1.2 is a major family-focused update:
 • Twelve no-score Together activities for kids and grown-ups
 • Printable/shareable worksheets and finished-drawing keepsakes
 • A 30-second parent setup coach, saved alignment, and low-distraction child trace mode
-• More reliable local Previous Work, upload cleanup, and offline behavior
+• More reliable local Previous Work, local image cleanup, and offline behavior
 
 Please try Pictures, Learn, Together, camera tracing over paper, on-screen practice, worksheet sharing, and Save image. Everything remains local to the device.
 ```

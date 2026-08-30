@@ -1442,6 +1442,7 @@ function TraceBuddyMobile() {
     resetOverlay()
   }, [maybeOpenParentSetup, resetOverlay, saveDrawingPreferences, uploadedImage])
 
+  /** Opens the native print sheet while treating an explicit iOS dismissal as cancellation. */
   const printDrawingWorksheet = useCallback(async (drawing: Drawing, options: WorksheetOptions = {}) => {
     if (worksheetActionInProgressRef.current) return
     worksheetActionInProgressRef.current = true
