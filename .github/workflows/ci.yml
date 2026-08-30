@@ -30,6 +30,11 @@ jobs:
       - run: npm ci
       - run: npm --prefix mobile ci
       - run: npm run check
+      - run: npm run drawings:validate
+      - name: Verify generated drawing contact sheets
+        run: |
+          npm run drawings:contact-sheets
+          git diff --exit-code -- artifacts/drawings/contact-sheet-160.svg artifacts/drawings/contact-sheet-420.svg
       - run: npm audit --audit-level=high
       - run: npm --prefix mobile audit --audit-level=high
       - name: Run browser regressions against a production preview
