@@ -28,6 +28,7 @@ async function countUploadedImages(page) {
     const db = await new Promise((resolveDb, reject) => {
       request.onsuccess = () => resolveDb(request.result)
       request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
     })
     if (!db.objectStoreNames.contains('uploaded-images')) return 0
     const transaction = db.transaction('uploaded-images', 'readonly')
@@ -72,6 +73,18 @@ try {
   await page.waitForFunction(() => document.querySelector('.practice-save-status')?.classList.contains('error'), { timeout: 3_000 })
   console.log('Visible storage error passed')
 
+  const unsavedDialogHandled = new Promise((resolveDialog) => {
+    page.once('dialog', async (dialog) => {
+      await dialog.dismiss()
+      resolveDialog()
+    })
+  })
+  await clickByText(page, 'Pictures')
+  await unsavedDialogHandled
+  await waitForSelector(page, '.practice-screen')
+  assert(await page.$('.picker-screen') === null, 'Dismissing the unsaved-work warning should keep Practice open')
+  console.log('Unsaved navigation warning passed')
+
   await page.evaluate(() => {
     Storage.prototype.setItem = window.__traceBuddyOriginalSetItem
     delete window.__traceBuddyOriginalSetItem
@@ -89,6 +102,7 @@ try {
     const db = await new Promise((resolveDb, reject) => {
       request.onsuccess = () => resolveDb(request.result)
       request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
     })
     await new Promise((resolveWrite, reject) => {
       const transaction = db.transaction('uploaded-images', 'readwrite')
@@ -142,9 +156,16 @@ try {
   await clickByText(page, 'Clear local work')
   await page.waitForFunction(async () => {
     const request = indexedDB.open('tracebuddy-uploaded-images', 1)
-    const db = await new Promise((resolveDb) => { request.onsuccess = () => resolveDb(request.result) })
+    const db = await new Promise((resolveDb, reject) => {
+      request.onsuccess = () => resolveDb(request.result)
+      request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
+    })
     const countRequest = db.transaction('uploaded-images', 'readonly').objectStore('uploaded-images').count()
-    return new Promise((resolveCount) => { countRequest.onsuccess = () => resolveCount(countRequest.result === 0) })
+    return new Promise((resolveCount, reject) => {
+      countRequest.onsuccess = () => resolveCount(countRequest.result === 0)
+      countRequest.onerror = () => reject(countRequest.error)
+    })
   }, { timeout: 3_000 })
   page.off('dialog', acceptClearDialogs)
   console.log('Bulk clear passed')
@@ -156,6 +177,7 @@ try {
     const db = await new Promise((resolveDb, reject) => {
       request.onsuccess = () => resolveDb(request.result)
       request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
     })
     await new Promise((resolveWrite, reject) => {
       const transaction = db.transaction('uploaded-images', 'readwrite')
@@ -209,6 +231,7 @@ try {
     const db = await new Promise((resolveDb, reject) => {
       request.onsuccess = () => resolveDb(request.result)
       request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
     })
     await new Promise((resolveWrite, reject) => {
       const transaction = db.transaction('uploaded-images', 'readwrite')
@@ -240,7 +263,14 @@ try {
   assert(await countUploadedImages(page) === 1, 'Could not seed a referenced upload record')
   await page.reload({ waitUntil: 'networkidle0' })
   await waitForSelector(page, '.hero-screen')
-  await new Promise((resolve) => setTimeout(resolve, 250))
+  await page.waitForFunction(() => {
+    try {
+      const index = JSON.parse(localStorage.getItem('tracebuddy.previousWork.v1.index') ?? '{}')
+      return Array.isArray(index.ids) && index.ids.includes('preserved-corrupt-index')
+    } catch {
+      return false
+    }
+  }, { timeout: 3_000 })
   assert(await countUploadedImages(page) === 1, 'Corrupt index cleanup deleted an image referenced by an unindexed session')
   console.log('Corrupt-index preservation passed')
 
@@ -256,6 +286,7 @@ try {
     const db = await new Promise((resolveDb, reject) => {
       request.onsuccess = () => resolveDb(request.result)
       request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
     })
     await new Promise((resolveWrite, reject) => {
       const transaction = db.transaction('uploaded-images', 'readwrite')
@@ -272,17 +303,18 @@ try {
     const db = await new Promise((resolveDb, reject) => {
       request.onsuccess = () => resolveDb(request.result)
       request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
     })
     const transaction = db.transaction('uploaded-images', 'readonly')
     const countRequest = transaction.objectStore('uploaded-images').count()
-    return new Promise((resolveCount) => {
+    return new Promise((resolveCount, reject) => {
       countRequest.onsuccess = () => resolveCount(countRequest.result === 0)
-      countRequest.onerror = () => resolveCount(false)
+      countRequest.onerror = () => reject(countRequest.error)
     })
   }, { timeout: 3_000 })
   console.log('Startup orphan upload cleanup passed')
 
-  console.log('Storage checks passed: active-stroke flush, visible retry, complete bulk clear, active-guide preservation, corrupt-index preservation, and orphan cleanup.')
+  console.log('Storage checks passed: active-stroke flush, visible retry, unsaved-navigation warning, complete bulk clear, active-guide preservation, corrupt-index preservation, and orphan cleanup.')
 } finally {
   await closeBrowser(browser)
 }

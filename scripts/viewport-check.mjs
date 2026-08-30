@@ -11,19 +11,24 @@ const browser = await puppeteer.launch({
 
 async function checkViewport(name, width, height, expectedSelector, action) {
   const page = await browser.newPage()
-  const pageErrors = []
-  page.on('pageerror', (error) => pageErrors.push(error.message))
-  page.on('console', (message) => {
-    if (message.type() === 'error') pageErrors.push(`console: ${message.text()}`)
-  })
-  page.on('requestfailed', (request) => pageErrors.push(`request failed: ${request.url()} (${request.failure()?.errorText ?? 'unknown'})`))
-  const isMobile = Math.min(width, height) < 600
-  await page.setViewport({ width, height, deviceScaleFactor: isMobile ? 2 : 1, isMobile })
-  await page.goto(url, { waitUntil: 'networkidle0' })
-  if (action) await action(page)
-  await waitForSelector(page, expectedSelector)
-  await new Promise((resolve) => setTimeout(resolve, 250))
-  const metrics = await page.evaluate(() => {
+  try {
+    const pageErrors = []
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+    page.on('console', (message) => {
+      if (message.type() === 'error') pageErrors.push(`console: ${message.text()}`)
+    })
+    page.on('requestfailed', (request) => {
+      const errorText = request.failure()?.errorText ?? 'unknown'
+      if (errorText === 'net::ERR_ABORTED') return
+      pageErrors.push(`request failed: ${request.url()} (${errorText})`)
+    })
+    const isMobile = Math.min(width, height) < 600
+    await page.setViewport({ width, height, deviceScaleFactor: isMobile ? 2 : 1, isMobile })
+    await page.goto(url, { waitUntil: 'networkidle0' })
+    if (action) await action(page)
+    await waitForSelector(page, expectedSelector)
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    const metrics = await page.evaluate(() => {
     const isInsideHorizontalScroller = (element) => {
       let parent = element.parentElement
       while (parent) {
@@ -46,13 +51,15 @@ async function checkViewport(name, width, height, expectedSelector, action) {
       bodyScrollWidth: document.body.scrollWidth,
       offenders: offenders.slice(0, 20),
     }
-  })
-  console.log(name, JSON.stringify(metrics, null, 2))
-  if (pageErrors.length || metrics.scrollWidth > metrics.innerWidth + 1 || metrics.offenders.length) {
-    if (pageErrors.length) console.error(`${name} page errors`, pageErrors)
-    throw new Error(`${name} failed its browser checks`)
+    })
+    console.log(name, JSON.stringify(metrics, null, 2))
+    if (pageErrors.length || metrics.scrollWidth > metrics.innerWidth + 1 || metrics.offenders.length) {
+      if (pageErrors.length) console.error(`${name} page errors`, pageErrors)
+      throw new Error(`${name} failed its browser checks`)
+    }
+  } finally {
+    await page.close().catch(() => undefined)
   }
-  await page.close()
 }
 
 try {

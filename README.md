@@ -108,12 +108,19 @@ The mobile MVP uses native camera, local image picker, keep-awake, shared built-
 npm run check
 ```
 
-With a production preview running, browser checks can be run with:
+Build first, then start a production preview in one terminal:
 
 ```bash
-npm run check:viewports
-npm run check:storage
-npm run check:offline
+npm run build
+npm run preview
+```
+
+In another terminal, run the browser checks against that preview:
+
+```bash
+CHECK_URL=http://127.0.0.1:4173 npm run check:viewports
+CHECK_URL=http://127.0.0.1:4173 npm run check:storage
+CHECK_URL=http://127.0.0.1:4173 npm run check:offline
 ```
 
 Or against another local port:

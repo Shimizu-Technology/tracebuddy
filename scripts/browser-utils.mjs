@@ -36,7 +36,7 @@ export async function waitForSelector(page, selector) {
 
 export async function closeBrowser(browser) {
   const browserProcess = browser.process()
-  const ownedProcessIds = browserProcess ? browserProcessTree(browserProcess.pid) : []
+  const ownedProcessIds = browserProcess ? safeBrowserProcessTree(browserProcess.pid) : []
   await Promise.race([
     browser.close(),
     new Promise((resolveTimeout) => setTimeout(resolveTimeout, 2_000)),
@@ -45,6 +45,14 @@ export async function closeBrowser(browser) {
   ownedProcessIds.forEach((processId) => signalProcess(processId, 'SIGTERM'))
   await new Promise((resolveTimeout) => setTimeout(resolveTimeout, 500))
   ownedProcessIds.forEach((processId) => signalProcess(processId, 'SIGKILL'))
+}
+
+function safeBrowserProcessTree(rootProcessId) {
+  try {
+    return browserProcessTree(rootProcessId)
+  } catch {
+    return []
+  }
 }
 
 function browserProcessTree(rootProcessId) {

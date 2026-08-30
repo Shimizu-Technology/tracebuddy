@@ -6,7 +6,8 @@ const STATIC_SHELL = ['/manifest.webmanifest', '/favicon.svg']
 const VITE_ASSET_PREFIX = '/assets/'
 const EMBEDDED_BUILD_ID = '__TRACEBUDDY_BUILD_ID__'
 const LOCAL_TEST_BUILD_ID = new URL(self.location.href).searchParams.get('build')?.replace(/[^a-zA-Z0-9_-]/g, '')
-const BUILD_ID = self.location.hostname === '127.0.0.1' && LOCAL_TEST_BUILD_ID?.startsWith('offline-upgrade-') ? LOCAL_TEST_BUILD_ID : EMBEDDED_BUILD_ID
+const IS_LOCAL_TEST_HOST = self.location.hostname === '127.0.0.1' || self.location.hostname === 'localhost'
+const BUILD_ID = IS_LOCAL_TEST_HOST && LOCAL_TEST_BUILD_ID?.startsWith('offline-upgrade-') ? LOCAL_TEST_BUILD_ID : EMBEDDED_BUILD_ID
 const BUILD_CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`
 
 const OFFLINE_HTML = `<!doctype html>

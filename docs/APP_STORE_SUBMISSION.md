@@ -6,13 +6,12 @@ This document collects the App Store Connect copy, decisions, and release checkl
 
 Do not rely on build numbers recorded in documentation. Before every release:
 
-1. Run `eas build:version:get --platform ios`; the remote EAS version state is authoritative for production builds.
-2. Compare that state with the local version declaration in `mobile/app.json` and the EAS production profile.
+1. Check `expo.version` in `mobile/app.json`; this is the public version customers see in the App Store.
+2. Run `eas build:version:get --platform ios`; with `appVersionSource: "remote"`, this remote iOS build number is authoritative for production builds.
 3. Confirm the newest processed build in App Store Connect matches the version page that will receive it.
 4. Test that exact build on a real device before App Review submission.
 
-EAS is configured with remote app-version management and automatic production build-number increments.
-Use `eas build:version:get --platform ios` before building and `eas build:version:set --platform ios` only when the intended public version or remote build state must change.
+EAS is configured with remote build-number management and `autoIncrement: true` for production. `eas build:version:set --platform ios` changes that remote build-number state; it does not change the public `expo.version`. Edit `expo.version` deliberately when preparing a new public App Store version.
 
 ## Public app name
 

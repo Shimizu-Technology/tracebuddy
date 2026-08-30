@@ -250,6 +250,10 @@ function openUploadedImageDb() {
       uploadedImageDbPromise = null
       reject(request.error ?? new Error('Could not open image storage'))
     }
+    request.onblocked = () => {
+      uploadedImageDbPromise = null
+      reject(new Error('Image storage upgrade was blocked'))
+    }
   })
 
   return uploadedImageDbPromise
@@ -287,13 +291,24 @@ async function loadUploadedImageRecord(imageId: string) {
 function readAllStoredPracticeSessionsForCleanup() {
   const sessionKeys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
     .filter((key): key is string => Boolean(key?.startsWith(previousWorkSessionPrefix)))
+  const sessions: SavedPracticeSession[] = []
+  let inspectionFailed = false
 
-  return sessionKeys.map((key) => {
-    const rawSession = window.localStorage.getItem(key)
-    const session = rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
-    if (!session) throw new Error(`Could not safely inspect ${key}`)
-    return session
+  sessionKeys.forEach((key) => {
+    try {
+      const rawSession = window.localStorage.getItem(key)
+      const session = rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
+      if (!session) {
+        inspectionFailed = true
+        return
+      }
+      sessions.push(session)
+    } catch {
+      inspectionFailed = true
+    }
   })
+
+  return { sessions, inspectionFailed }
 }
 
 async function deleteUploadedImageRecordIfUnused(imageId: string, preserve = false) {
@@ -304,7 +319,8 @@ async function deleteUploadedImageRecordIfUnused(imageId: string, preserve = fal
   activeUploadedImageIds.delete(imageId)
 
   try {
-    const storedSessions = readAllStoredPracticeSessionsForCleanup()
+    const { sessions: storedSessions, inspectionFailed } = readAllStoredPracticeSessionsForCleanup()
+    if (inspectionFailed) return false
     if (storedSessions.some((session) => session.source.uploadedImage?.imageId === imageId)) return true
 
     const db = await openUploadedImageDb()
@@ -323,7 +339,9 @@ async function deleteUploadedImageRecordIfUnused(imageId: string, preserve = fal
 async function cleanupOrphanedUploadedImageRecords() {
   try {
     const referencedImageIds = new Set(activeUploadedImageIds)
-    readAllStoredPracticeSessionsForCleanup().forEach((session) => {
+    const { sessions: storedSessions, inspectionFailed } = readAllStoredPracticeSessionsForCleanup()
+    if (inspectionFailed) return
+    storedSessions.forEach((session) => {
       if (session.source.uploadedImage?.imageId) referencedImageIds.add(session.source.uploadedImage.imageId)
     })
     const db = await openUploadedImageDb()
@@ -538,6 +556,22 @@ function readPreviousWorkIds() {
   return parsed.ids
 }
 
+function recoverPreviousWorkIdsFromSessions() {
+  return Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(previousWorkSessionPrefix)))
+    .map((key) => {
+      try {
+        const rawSession = window.localStorage.getItem(key)
+        return rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
+      } catch {
+        return null
+      }
+    })
+    .filter((session): session is SavedPracticeSession => Boolean(session))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .map((session) => session.sessionId)
+}
+
 async function hydrateUploadedImageSession(session: SavedPracticeSession) {
   const imageRef = session.source.uploadedImage
   if (session.source.kind !== 'upload' || !imageRef?.imageId || imageRef.originalSrc) return session
@@ -553,7 +587,15 @@ async function hydrateUploadedImageSession(session: SavedPracticeSession) {
 
 async function loadPreviousWorkSessions() {
   migrateLegacyPracticeAutosaves()
-  const ids = readPreviousWorkIds()
+  const ids = (() => {
+    try {
+      return readPreviousWorkIds()
+    } catch {
+      const recoveredIds = recoverPreviousWorkIdsFromSessions()
+      window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds }))
+      return recoveredIds
+    }
+  })()
   const entries = ids.map((id) => {
     try {
       const rawSession = window.localStorage.getItem(previousWorkSessionKey(id))
@@ -1754,7 +1796,7 @@ function App() {
       return
     }
     void saveHandler().then((saved) => {
-      if (saved) action()
+      if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Leave this drawing without saving them?')) action()
     })
   }
 
@@ -2593,7 +2635,7 @@ function PracticeScreen({
 
   function leavePractice(action: () => void) {
     void savePracticeSessionNow().then((saved) => {
-      if (saved) action()
+      if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Leave this drawing without saving them?')) action()
     })
   }
 
@@ -3011,7 +3053,7 @@ function PracticeScreen({
             <input type="file" accept="image/*" onChange={(event) => {
               const input = event.currentTarget
               void savePracticeSessionNow().then((saved) => {
-                if (saved) onUpload(input)
+                if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Replace this drawing without saving them?')) onUpload(input)
               })
             }} />
           </label>

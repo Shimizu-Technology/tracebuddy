@@ -521,8 +521,30 @@ async function readPreviousWorkIds() {
   return parsed.ids
 }
 
+async function recoverPreviousWorkIdsFromSessions() {
+  const keys = await AsyncStorage.getAllKeys()
+  const sessionKeys = keys.filter((key) => key.startsWith(previousWorkSessionPrefix))
+  const entries = await AsyncStorage.multiGet(sessionKeys)
+  return entries
+    .map(([, rawSession]) => {
+      if (!rawSession) return null
+      try {
+        return normalizeSavedPracticeSession(JSON.parse(rawSession))
+      } catch {
+        return null
+      }
+    })
+    .filter((session): session is SavedPracticeSession => Boolean(session))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .map((session) => session.sessionId)
+}
+
 async function loadPreviousWorkSessions() {
-  const ids = await readPreviousWorkIds()
+  const ids = await readPreviousWorkIds().catch(async () => {
+    const recoveredIds = await recoverPreviousWorkIdsFromSessions()
+    await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds }))
+    return recoveredIds
+  })
   if (ids.length === 0) return []
 
   const entries = await AsyncStorage.multiGet(ids.map(previousWorkSessionKey))
@@ -1673,14 +1695,13 @@ function PracticeScreen({
 
   const retryPendingImageCleanup = useCallback(async () => {
     const pendingUris = pendingImageCleanupUrisRef.current
-    if (pendingUris.length === 0) return false
+    if (pendingUris.length === 0) return
 
     try {
       await cleanupStoredImageUrisIfUnused(pendingUris)
       pendingImageCleanupUrisRef.current = pendingImageCleanupUrisRef.current.filter((uri) => !pendingUris.includes(uri))
-      return false
     } catch {
-      return true
+      // Keep the URIs so a later save or Clear local work can retry cleanup.
     }
   }, [])
 
@@ -1801,13 +1822,15 @@ function PracticeScreen({
     }
   }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, materializeActivePracticeStroke, onSessionDeleted, onSessionSaved, practiceSource, rememberPendingImageCleanup, retryPendingImageCleanup, sessionTitle])
 
+  const stickerRevision = useMemo(() => JSON.stringify(stickers), [stickers])
+
   useEffect(() => {
     if (!autosaveReadyRef.current || (practiceStrokes.length === 0 && stickers.length === 0 && !persistedSessionRef.current)) return
     setSaveStatus('saving')
     const timeout = setTimeout(() => void savePracticeSessionNow(), practiceAutosaveDelayMs)
 
     return () => clearTimeout(timeout)
-  }, [practiceStrokes.length, savePracticeSessionNow, stickers.length])
+  }, [practiceStrokes.length, savePracticeSessionNow, stickerRevision, stickers.length])
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -1820,7 +1843,14 @@ function PracticeScreen({
 
   const leavePractice = useCallback((action: () => void) => {
     void savePracticeSessionNow().then((saved) => {
-      if (saved) action()
+      if (saved) {
+        action()
+        return
+      }
+      Alert.alert('Latest changes are not saved', 'Leave this drawing without saving them?', [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Leave', style: 'destructive', onPress: action },
+      ])
     })
   }, [savePracticeSessionNow])
 
