@@ -1179,6 +1179,7 @@ function App() {
   const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
   const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>(loadDrawingPreferences)
   const [drawingPreferencesMessage, setDrawingPreferencesMessage] = useState('')
+  const [drawingPreferencesClearInProgress, setDrawingPreferencesClearInProgress] = useState(false)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [uploadCleanupMode, setUploadCleanupMode] = useState<UploadCleanupMode>('original')
   const [backgroundTolerance, setBackgroundTolerance] = useState(48)
@@ -1208,12 +1209,14 @@ function App() {
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
   const practiceSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
   const drawingPreferencesRef = useRef(drawingPreferences)
+  const drawingPreferencesClearInProgressRef = useRef(false)
 
   const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
   const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
   const pictureTheme = uploadedImage ? `Local upload · ${uploadCleanupMode === 'original' ? 'Original image' : uploadCleanupMode === 'background' ? 'Background cleanup' : 'Line-art cleanup'}` : selectedDrawing.theme
 
   const saveDrawingPreferences = useCallback((nextPreferences: DrawingPreferences) => {
+    if (drawingPreferencesClearInProgressRef.current) return
     const normalizedPreferences = normalizeDrawingPreferences(nextPreferences)
     drawingPreferencesRef.current = normalizedPreferences
     setDrawingPreferences(normalizedPreferences)
@@ -1744,8 +1747,11 @@ function App() {
   }
 
   function deleteAllPreviousWork() {
+    if (drawingPreferencesClearInProgressRef.current) return
     if (!window.confirm('Delete all Previous Work, favorites, recent picks, and locally stored uploaded images from this browser?')) return
 
+    drawingPreferencesClearInProgressRef.current = true
+    setDrawingPreferencesClearInProgress(true)
     uploadOperationGenerationRef.current += 1
     resetUploadCleanup()
     setUploadedImage(null)
@@ -1761,6 +1767,10 @@ function App() {
         if (imageCleanupPending) window.alert('Saved drawings were cleared, but this browser could not finish removing stored image files. Use Clear local work again to retry.')
       })
       .catch(() => window.alert('TraceBuddy could not clear all local work. Try again in a moment.'))
+      .finally(() => {
+        drawingPreferencesClearInProgressRef.current = false
+        setDrawingPreferencesClearInProgress(false)
+      })
   }
 
   const handlePracticeSessionSaved = useCallback((session: SavedPracticeSession) => {
@@ -1979,6 +1989,7 @@ function App() {
           previousWorkSessions={previousWorkSessions}
           drawingPreferences={drawingPreferences}
           drawingPreferencesMessage={drawingPreferencesMessage}
+          drawingPreferencesClearInProgress={drawingPreferencesClearInProgress}
           onSelect={openSelectedSurface}
           onToggleFavorite={favoriteDrawing}
           onTextSubmit={openTextSurface}
@@ -2099,6 +2110,7 @@ function PickerScreen({
   previousWorkSessions,
   drawingPreferences,
   drawingPreferencesMessage,
+  drawingPreferencesClearInProgress,
   onSelect,
   onToggleFavorite,
   onTextSubmit,
@@ -2115,6 +2127,7 @@ function PickerScreen({
   previousWorkSessions: SavedPracticeSession[]
   drawingPreferences: DrawingPreferences
   drawingPreferencesMessage: string
+  drawingPreferencesClearInProgress: boolean
   onSelect: (drawing: Drawing) => void
   onToggleFavorite: (drawingId: string) => void
   onTextSubmit: (value: string) => void
@@ -2268,7 +2281,7 @@ function PickerScreen({
             <strong>Recent</strong>
             <div>
               {recentDrawings.map((drawing) => (
-                <button key={drawing.id} type="button" onClick={() => onSelect(drawing)}>{drawing.name}</button>
+                <button key={drawing.id} type="button" disabled={drawingPreferencesClearInProgress} onClick={() => onSelect(drawing)}>{drawing.name}</button>
               ))}
             </div>
           </div>
@@ -2295,6 +2308,7 @@ function PickerScreen({
             key={drawing.id}
             className={`drawing-card ${selectedDrawing.id === drawing.id ? 'selected' : ''}`}
             data-drawing-id={drawing.id}
+            data-drawing-category={drawing.category}
           >
             <button type="button" className="drawing-card-action" onClick={() => onSelect(drawing)}>
               <img src={drawingImageSrc(drawing)} alt={`${drawing.name} tracing line art`} />
@@ -2310,6 +2324,7 @@ function PickerScreen({
               aria-label={`${favoriteIds.has(drawing.id) ? 'Remove' : 'Add'} ${drawing.name} ${favoriteIds.has(drawing.id) ? 'from' : 'to'} favorites`}
               aria-pressed={favoriteIds.has(drawing.id)}
               data-favorite-button={drawing.id}
+              disabled={drawingPreferencesClearInProgress}
               onClick={() => onToggleFavorite(drawing.id)}
             >
               <span aria-hidden="true">♥</span>

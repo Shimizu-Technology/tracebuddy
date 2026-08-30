@@ -65,7 +65,7 @@ try {
   await clickByText(page, 'Starter')
   const combinedFilterValid = await page.$$eval('[data-drawing-id]', (cards) => cards.length > 0 && cards.every((card) => {
     const difficulty = card.querySelector('.difficulty-badge')?.textContent?.trim()
-    return difficulty === 'Starter'
+    return difficulty === 'Starter' && card.getAttribute('data-drawing-category') === 'island'
   }))
   assert(combinedFilterValid, 'Combined category and difficulty filters returned an invalid result')
 

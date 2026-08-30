@@ -800,6 +800,7 @@ function TraceBuddyMobile() {
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>({ ...emptyDrawingPreferences })
   const [drawingPreferencesMessage, setDrawingPreferencesMessage] = useState('')
+  const [drawingPreferencesClearInProgress, setDrawingPreferencesClearInProgress] = useState(false)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [customText, setCustomText] = useState('')
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
@@ -816,6 +817,7 @@ function TraceBuddyMobile() {
   const legacyMigrationCompleteRef = useRef(false)
   const drawingPreferencesRef = useRef(drawingPreferences)
   const drawingPreferencesInteractionRef = useRef(false)
+  const drawingPreferencesClearInProgressRef = useRef(false)
   const legacyMigrationCanvasSizeRef = useRef({
     width: Math.max(1, width - 20),
     height: Math.max(430, height - 280),
@@ -860,6 +862,7 @@ function TraceBuddyMobile() {
   }, [])
 
   const saveDrawingPreferences = useCallback((nextPreferences: DrawingPreferences) => {
+    if (drawingPreferencesClearInProgressRef.current) return
     const normalizedPreferences = normalizeDrawingPreferences(nextPreferences)
     drawingPreferencesInteractionRef.current = true
     drawingPreferencesRef.current = normalizedPreferences
@@ -1181,6 +1184,9 @@ function TraceBuddyMobile() {
         text: 'Clear all',
         style: 'destructive',
         onPress: () => {
+          if (drawingPreferencesClearInProgressRef.current) return
+          drawingPreferencesClearInProgressRef.current = true
+          setDrawingPreferencesClearInProgress(true)
           void deleteAllPreviousWorkSessions()
             .then(({ imageCleanupPending }) => {
               setPreviousWorkSessions([])
@@ -1194,6 +1200,10 @@ function TraceBuddyMobile() {
               if (imageCleanupPending) Alert.alert('Drawings cleared', 'Saved drawings were removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work again to retry cleanup.')
             })
             .catch(() => Alert.alert('Could not clear local work', 'Try again in a moment.'))
+            .finally(() => {
+              drawingPreferencesClearInProgressRef.current = false
+              setDrawingPreferencesClearInProgress(false)
+            })
         },
       },
     ])
@@ -1337,7 +1347,7 @@ function TraceBuddyMobile() {
                     <Text style={styles.recentPicksLabel}>RECENT</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentPicksStrip}>
                       {recentDrawings.map((drawing) => (
-                        <Pressable key={drawing.id} style={styles.recentPick} onPress={() => openTraceWithDrawing(drawing)} accessibilityRole="button" accessibilityLabel={`Trace recent picture ${drawing.name}`}>
+                        <Pressable key={drawing.id} style={styles.recentPick} disabled={drawingPreferencesClearInProgress} onPress={() => openTraceWithDrawing(drawing)} accessibilityRole="button" accessibilityLabel={`Trace recent picture ${drawing.name}`}>
                           <Text style={styles.recentPickText}>{drawing.name}</Text>
                         </Pressable>
                       ))}
@@ -1401,6 +1411,7 @@ function TraceBuddyMobile() {
               </Pressable>
               <Pressable
                 style={[styles.favoriteButton, favoriteIds.has(item.id) && styles.favoriteButtonActive]}
+                disabled={drawingPreferencesClearInProgress}
                 onPress={() => toggleFavorite(item.id)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: favoriteIds.has(item.id) }}
