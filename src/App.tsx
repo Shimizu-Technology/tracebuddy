@@ -1591,9 +1591,17 @@ function App() {
   async function applyPracticeSource(source: PracticeSource) {
     const operationGeneration = uploadOperationGenerationRef.current + 1
     uploadOperationGenerationRef.current = operationGeneration
-    const resolvedUploadedImage = await uploadedImageFromSource(source)
+    let resolvedUploadedImage: UploadedImageState | null
+    try {
+      resolvedUploadedImage = await uploadedImageFromSource(source)
+    } catch {
+      if (uploadOperationGenerationRef.current === operationGeneration) setUploadedImageGeneration(operationGeneration)
+      window.alert('TraceBuddy could not read this saved image from local storage. Try again in a moment or clear local work to repair storage.')
+      return false
+    }
     if (uploadOperationGenerationRef.current !== operationGeneration) return false
     if (source.kind === 'upload' && !resolvedUploadedImage) {
+      setUploadedImageGeneration(operationGeneration)
       window.alert('This uploaded image is no longer available in this browser. The saved strokes are still local, but the image preview cannot be restored.')
       return false
     }
@@ -1754,6 +1762,10 @@ function App() {
     }
     const operationGeneration = uploadOperationGenerationRef.current + 1
     uploadOperationGenerationRef.current = operationGeneration
+    const restoreCurrentImageGeneration = () => {
+      if (uploadOperationGenerationRef.current === operationGeneration) setUploadedImageGeneration(operationGeneration)
+      input.value = ''
+    }
 
     const reader = new FileReader()
     reader.onload = () => {
@@ -1784,7 +1796,7 @@ function App() {
           uploadedImageSaveSignatureRef.current = uploadedImageRecordSignature(nextUploadedImage)
         } catch {
           activeUploadedImageIds.delete(nextUploadedImage.imageId)
-          input.value = ''
+          restoreCurrentImageGeneration()
           window.alert('TraceBuddy could not save this upload locally. Try a smaller image, clear older Previous Work, or choose a built-in template.')
           return
         }
@@ -1805,10 +1817,14 @@ function App() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })()
     }
-    reader.onerror = () => {
-      input.value = ''
+    reader.onerror = restoreCurrentImageGeneration
+    reader.onabort = restoreCurrentImageGeneration
+    try {
+      reader.readAsDataURL(file)
+    } catch {
+      restoreCurrentImageGeneration()
+      window.alert('TraceBuddy could not read this image. Try another image file or choose a built-in template.')
     }
-    reader.readAsDataURL(file)
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
