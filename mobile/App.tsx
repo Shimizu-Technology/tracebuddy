@@ -453,18 +453,19 @@ function normalizeLegacyPracticeAutosave(value: unknown, storageKey: string, leg
   }
 }
 
-async function migrateLegacyPracticeAutosaves(legacyCanvasSize: { width: number; height: number }) {
+async function migrateLegacyPracticeAutosaves(legacyCanvasSize: { width: number; height: number }, isCurrent: () => boolean = () => true) {
   const keys = await AsyncStorage.getAllKeys()
   const legacyKeys = keys.filter((key) => key.startsWith(legacyPracticeAutosavePrefix))
 
   for (const key of legacyKeys) {
+    if (!isCurrent()) return
     try {
       const rawSession = await AsyncStorage.getItem(key)
       const migratedSession = rawSession ? normalizeLegacyPracticeAutosave(JSON.parse(rawSession), key, legacyCanvasSize) : null
-      if (!migratedSession) continue
+      if (!migratedSession || !isCurrent()) continue
 
       await savePreviousWorkSession(migratedSession)
-      await AsyncStorage.removeItem(key)
+      if (isCurrent()) await AsyncStorage.removeItem(key)
     } catch {
       // Leave the legacy autosave in place if migration cannot complete.
     }
@@ -554,10 +555,10 @@ async function recoverPreviousWorkIdsFromSessions() {
     .map((session) => session.sessionId)
 }
 
-async function loadPreviousWorkSessions() {
+async function loadPreviousWorkSessions(isCurrent: () => boolean = () => true) {
   const ids = await readPreviousWorkIds().catch(async () => {
     const recoveredIds = await recoverPreviousWorkIdsFromSessions()
-    await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds })).catch(() => undefined)
+    if (isCurrent()) await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds })).catch(() => undefined)
     return recoveredIds
   })
   if (ids.length === 0) return []
@@ -576,16 +577,16 @@ async function loadPreviousWorkSessions() {
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
 
   const validIds = sessions.map((session) => session.sessionId)
-  if (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index])) {
+  if (isCurrent() && (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index]))) {
     await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: validIds })).catch(() => undefined)
   }
 
   return sessions
 }
 
-async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { width: number; height: number }) {
-  await migrateLegacyPracticeAutosaves(legacyCanvasSize)
-  return loadPreviousWorkSessions()
+async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { width: number; height: number }, isCurrent: () => boolean = () => true) {
+  await migrateLegacyPracticeAutosaves(legacyCanvasSize, isCurrent)
+  return loadPreviousWorkSessions(isCurrent)
 }
 
 let previousWorkWriteQueue = Promise.resolve()
@@ -818,25 +819,31 @@ function TraceBuddyMobile() {
   const drawingPreferencesRef = useRef(drawingPreferences)
   const drawingPreferencesInteractionRef = useRef(false)
   const drawingPreferencesClearInProgressRef = useRef(false)
+  const previousWorkOperationGenerationRef = useRef(0)
   const legacyMigrationCanvasSizeRef = useRef({
     width: Math.max(1, width - 20),
     height: Math.max(430, height - 280),
   })
 
   const refreshPreviousWork = useCallback(() => {
+    const operationGeneration = previousWorkOperationGenerationRef.current
+    const isCurrent = () => operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current
     const loadTask = legacyMigrationCompleteRef.current
-      ? loadPreviousWorkSessions()
-      : loadPreviousWorkSessionsWithLegacyMigration(legacyMigrationCanvasSizeRef.current).then((sessions) => {
+      ? loadPreviousWorkSessions(isCurrent)
+      : loadPreviousWorkSessionsWithLegacyMigration(legacyMigrationCanvasSizeRef.current, isCurrent).then((sessions) => {
           legacyMigrationCompleteRef.current = true
           return sessions
         })
 
     void loadTask
       .then((sessions) => {
+        if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
         setPreviousWorkSessions(sessions)
         void cleanupOrphanedStoredImages()
       })
-      .catch(() => setPreviousWorkSessions([]))
+      .catch(() => {
+        if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) setPreviousWorkSessions([])
+      })
   }, [])
 
   useEffect(() => {
@@ -1123,8 +1130,10 @@ function TraceBuddyMobile() {
   }, [resetOverlay])
 
   const openPreviousWorkSession = useCallback((session: SavedPracticeSession) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     void preparePracticeSessionForOpen(session).then((readySession) => {
-      if (!readySession) return
+      if (!readySession || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       applyPracticeSource(readySession.source)
       setActivePracticeSession(readySession)
       setMode('practice')
@@ -1132,8 +1141,10 @@ function TraceBuddyMobile() {
   }, [applyPracticeSource, preparePracticeSessionForOpen])
 
   const startFreshFromPreviousWork = useCallback((session: SavedPracticeSession) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     void preparePracticeSourceForOpen(session.source).then((source) => {
-      if (!source) return
+      if (!source || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       applyPracticeSource(source)
       setActivePracticeSession(null)
       setMode('practice')
@@ -1141,6 +1152,8 @@ function TraceBuddyMobile() {
   }, [applyPracticeSource, preparePracticeSourceForOpen])
 
   const duplicatePreviousWorkSession = useCallback((session: SavedPracticeSession) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     const now = new Date().toISOString()
     const copiedSession: SavedPracticeSession = {
       ...session,
@@ -1153,25 +1166,37 @@ function TraceBuddyMobile() {
     }
 
     void savePreviousWorkSession(copiedSession)
-      .then(() => setPreviousWorkSessions((current) => [copiedSession, ...current.filter((item) => item.sessionId !== copiedSession.sessionId)]))
-      .catch(() => Alert.alert('Could not duplicate work', 'Try again in a moment.'))
+      .then(() => {
+        if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) {
+          setPreviousWorkSessions((current) => [copiedSession, ...current.filter((item) => item.sessionId !== copiedSession.sessionId)])
+        }
+      })
+      .catch(() => {
+        if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) Alert.alert('Could not duplicate work', 'Try again in a moment.')
+      })
   }, [])
 
   const deletePreviousWork = useCallback((session: SavedPracticeSession) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     Alert.alert('Delete previous work?', `Remove ${session.title} from this phone.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: () => {
+          if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
           const preservedGuideUris = [uploadedImage?.uri].filter((uri): uri is string => Boolean(uri))
           void deletePreviousWorkSession(session.sessionId, preservedGuideUris)
             .then(({ imageCleanupPending }) => {
+              if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
               setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
               if (activePracticeSession?.sessionId === session.sessionId) setActivePracticeSession(null)
               if (imageCleanupPending) Alert.alert('Work deleted', 'The saved drawing was removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work to retry cleanup.')
             })
-            .catch(() => Alert.alert('Could not delete work', 'Try again in a moment.'))
+            .catch(() => {
+              if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) Alert.alert('Could not delete work', 'Try again in a moment.')
+            })
         },
       },
     ])
@@ -1187,6 +1212,8 @@ function TraceBuddyMobile() {
           if (drawingPreferencesClearInProgressRef.current) return
           drawingPreferencesClearInProgressRef.current = true
           setDrawingPreferencesClearInProgress(true)
+          previousWorkOperationGenerationRef.current += 1
+          let clearFailed = false
           void deleteAllPreviousWorkSessions()
             .then(({ imageCleanupPending }) => {
               setPreviousWorkSessions([])
@@ -1199,15 +1226,19 @@ function TraceBuddyMobile() {
               setMode('picker')
               if (imageCleanupPending) Alert.alert('Drawings cleared', 'Saved drawings were removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work again to retry cleanup.')
             })
-            .catch(() => Alert.alert('Could not clear local work', 'Try again in a moment.'))
+            .catch(() => {
+              clearFailed = true
+              Alert.alert('Could not clear local work', 'Try again in a moment.')
+            })
             .finally(() => {
               drawingPreferencesClearInProgressRef.current = false
               setDrawingPreferencesClearInProgress(false)
+              if (clearFailed) refreshPreviousWork()
             })
         },
       },
     ])
-  }, [])
+  }, [refreshPreviousWork])
 
   const handlePracticeSessionSaved = useCallback((session: SavedPracticeSession) => {
     setPreviousWorkSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
@@ -1288,6 +1319,7 @@ function TraceBuddyMobile() {
 
               <PreviousWorkSection
                 sessions={previousWorkSessions}
+                disabled={drawingPreferencesClearInProgress}
                 onResume={openPreviousWorkSession}
                 onStartFresh={startFreshFromPreviousWork}
                 onDuplicate={duplicatePreviousWorkSession}
@@ -1615,6 +1647,7 @@ function sizedStickerFrame(sticker: PracticeSticker, canvasSize: { width: number
 
 function PreviousWorkSection({
   sessions,
+  disabled,
   onResume,
   onStartFresh,
   onDuplicate,
@@ -1622,6 +1655,7 @@ function PreviousWorkSection({
   onDeleteAll,
 }: {
   sessions: SavedPracticeSession[]
+  disabled: boolean
   onResume: (session: SavedPracticeSession) => void
   onStartFresh: (session: SavedPracticeSession) => void
   onDuplicate: (session: SavedPracticeSession) => void
@@ -1639,8 +1673,8 @@ function PreviousWorkSection({
           <View style={styles.previousWorkCount}>
             <Text style={styles.previousWorkCountText}>{sessions.length}</Text>
           </View>
-          <Pressable style={styles.previousWorkClear} onPress={onDeleteAll} accessibilityRole="button" accessibilityLabel="Clear all local Previous Work">
-            <Text style={styles.previousWorkClearText}>Clear local work</Text>
+          <Pressable style={[styles.previousWorkClear, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={onDeleteAll} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel="Clear all local Previous Work">
+            <Text style={styles.previousWorkClearText}>{disabled ? 'Clearing...' : 'Clear local work'}</Text>
           </Pressable>
         </View>
       </View>
@@ -1650,7 +1684,7 @@ function PreviousWorkSection({
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previousWorkRail}>
         {sessions.map((session) => (
           <View key={session.sessionId} style={styles.previousWorkCard}>
-            <Pressable style={styles.previousWorkPreview} onPress={() => onResume(session)} accessibilityRole="button" accessibilityLabel={`Resume ${session.title}`}>
+            <Pressable style={[styles.previousWorkPreview, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onResume(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Resume ${session.title}`}>
               <View style={styles.previousWorkPreviewContent} pointerEvents="none">
                 {session.source.kind === 'upload' && session.source.uploadedImage ? (
                   <Image source={{ uri: session.source.uploadedImage.uri }} style={styles.previousWorkGuideImage} resizeMode="contain" />
@@ -1670,18 +1704,18 @@ function PreviousWorkSection({
             <Text style={styles.previousWorkName} numberOfLines={1}>{session.title}</Text>
             <Text style={styles.previousWorkMeta} numberOfLines={1}>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes{session.stickers.length > 0 ? ` · ${session.stickers.length} pieces` : ''}</Text>
             <View style={styles.previousWorkActions}>
-              <Pressable style={[styles.previousWorkAction, styles.previousWorkActionPrimary]} onPress={() => onResume(session)} accessibilityRole="button" accessibilityLabel={`Resume ${session.title}`}>
+              <Pressable style={[styles.previousWorkAction, styles.previousWorkActionPrimary, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onResume(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Resume ${session.title}`}>
                 <Text style={[styles.previousWorkActionText, styles.previousWorkActionTextPrimary]}>Resume</Text>
               </Pressable>
-              <Pressable style={styles.previousWorkAction} onPress={() => onStartFresh(session)} accessibilityRole="button" accessibilityLabel={`Start fresh from ${session.title}`}>
+              <Pressable style={[styles.previousWorkAction, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onStartFresh(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Start fresh from ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Fresh</Text>
               </Pressable>
             </View>
             <View style={styles.previousWorkActions}>
-              <Pressable style={styles.previousWorkAction} onPress={() => onDuplicate(session)} accessibilityRole="button" accessibilityLabel={`Copy ${session.title}`}>
+              <Pressable style={[styles.previousWorkAction, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onDuplicate(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Copy ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Copy</Text>
               </Pressable>
-              <Pressable style={styles.previousWorkAction} onPress={() => onDelete(session)} accessibilityRole="button" accessibilityLabel={`Delete ${session.title}`}>
+              <Pressable style={[styles.previousWorkAction, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onDelete(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Delete ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Delete</Text>
               </Pressable>
             </View>
@@ -3307,6 +3341,9 @@ const styles = StyleSheet.create({
   },
   previousWorkActionTextPrimary: {
     color: '#FFFFFF',
+  },
+  previousWorkActionDisabled: {
+    opacity: 0.42,
   },
   discoveryPanel: {
     gap: 10,

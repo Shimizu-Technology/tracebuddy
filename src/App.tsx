@@ -735,9 +735,15 @@ function formatPreviousWorkDate(value: string) {
 function loadDrawingPreferences() {
   try {
     const rawPreferences = window.localStorage.getItem(drawingPreferencesKey)
-    return normalizeDrawingPreferences(rawPreferences ? JSON.parse(rawPreferences) : null)
+    return {
+      preferences: normalizeDrawingPreferences(rawPreferences ? JSON.parse(rawPreferences) : null),
+      message: '',
+    }
   } catch {
-    return { ...emptyDrawingPreferences }
+    return {
+      preferences: { ...emptyDrawingPreferences },
+      message: 'Favorites and recent picks will last for this visit only.',
+    }
   }
 }
 
@@ -1177,8 +1183,9 @@ function App() {
   const [uploadedImageSaveErrorId, setUploadedImageSaveErrorId] = useState<string | null>(null)
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
   const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
-  const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>(loadDrawingPreferences)
-  const [drawingPreferencesMessage, setDrawingPreferencesMessage] = useState('')
+  const [initialDrawingPreferences] = useState(loadDrawingPreferences)
+  const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>(initialDrawingPreferences.preferences)
+  const [drawingPreferencesMessage, setDrawingPreferencesMessage] = useState(initialDrawingPreferences.message)
   const [drawingPreferencesClearInProgress, setDrawingPreferencesClearInProgress] = useState(false)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [uploadCleanupMode, setUploadCleanupMode] = useState<UploadCleanupMode>('original')
@@ -1210,6 +1217,7 @@ function App() {
   const practiceSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
   const drawingPreferencesRef = useRef(drawingPreferences)
   const drawingPreferencesClearInProgressRef = useRef(false)
+  const previousWorkOperationGenerationRef = useRef(0)
 
   const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
   const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
@@ -1234,9 +1242,10 @@ function App() {
 
   useEffect(() => {
     let cancelled = false
+    const operationGeneration = previousWorkOperationGenerationRef.current
     const task = window.setTimeout(() => {
       void loadPreviousWorkSessions().then((sessions) => {
-        if (!cancelled) {
+        if (!cancelled && operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) {
           setPreviousWorkSessions(sessions)
           void cleanupOrphanedUploadedImageRecords()
         }
@@ -1698,8 +1707,10 @@ function App() {
   }
 
   function openPreviousWork(session: SavedPracticeSession) {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     void applyPracticeSource(session.source).then((ready) => {
-      if (!ready) return
+      if (!ready || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       setActivePracticeSession(session)
       setMode('practice')
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1707,8 +1718,10 @@ function App() {
   }
 
   function startFreshFromPreviousWork(session: SavedPracticeSession) {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     void applyPracticeSource(session.source).then((ready) => {
-      if (!ready) return
+      if (!ready || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       setActivePracticeSession(null)
       setMode('practice')
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1716,6 +1729,7 @@ function App() {
   }
 
   function duplicatePreviousWork(session: SavedPracticeSession) {
+    if (drawingPreferencesClearInProgressRef.current) return
     const now = new Date().toISOString()
     const copiedSession: SavedPracticeSession = {
       ...session,
@@ -1735,10 +1749,13 @@ function App() {
   }
 
   function deletePreviousWork(session: SavedPracticeSession) {
+    if (drawingPreferencesClearInProgressRef.current) return
     if (!window.confirm(`Delete ${session.title} from this browser?`)) return
 
+    const operationGeneration = previousWorkOperationGenerationRef.current
     void deletePreviousWorkSession(session.sessionId, uploadedImage?.imageId)
       .then(({ imageCleanupPending }) => {
+        if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
         setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
         if (activePracticeSession?.sessionId === session.sessionId) setActivePracticeSession(null)
         if (imageCleanupPending) window.alert('The saved drawing was removed, but this browser could not finish deleting its private image file. Use Clear local work to retry cleanup.')
@@ -1752,6 +1769,7 @@ function App() {
 
     drawingPreferencesClearInProgressRef.current = true
     setDrawingPreferencesClearInProgress(true)
+    previousWorkOperationGenerationRef.current += 1
     uploadOperationGenerationRef.current += 1
     resetUploadCleanup()
     setUploadedImage(null)
@@ -1987,6 +2005,7 @@ function App() {
           traceSurface={traceSurface}
           onTraceSurfaceChange={setTraceSurface}
           previousWorkSessions={previousWorkSessions}
+          previousWorkClearInProgress={drawingPreferencesClearInProgress}
           drawingPreferences={drawingPreferences}
           drawingPreferencesMessage={drawingPreferencesMessage}
           drawingPreferencesClearInProgress={drawingPreferencesClearInProgress}
@@ -2108,6 +2127,7 @@ function PickerScreen({
   traceSurface,
   onTraceSurfaceChange,
   previousWorkSessions,
+  previousWorkClearInProgress,
   drawingPreferences,
   drawingPreferencesMessage,
   drawingPreferencesClearInProgress,
@@ -2125,6 +2145,7 @@ function PickerScreen({
   traceSurface: TraceSurface
   onTraceSurfaceChange: (surface: TraceSurface) => void
   previousWorkSessions: SavedPracticeSession[]
+  previousWorkClearInProgress: boolean
   drawingPreferences: DrawingPreferences
   drawingPreferencesMessage: string
   drawingPreferencesClearInProgress: boolean
@@ -2212,13 +2233,13 @@ function PickerScreen({
             </div>
             <div className="previous-work-summary">
               <span>{previousWorkSessions.length}</span>
-              <button type="button" onClick={onDeleteAllWork}>Clear local work</button>
+              <button type="button" disabled={previousWorkClearInProgress} onClick={onDeleteAllWork}>{previousWorkClearInProgress ? 'Clearing...' : 'Clear local work'}</button>
             </div>
           </div>
           <div className="previous-work-grid">
             {previousWorkSessions.map((session) => (
               <article key={session.sessionId} className="previous-work-card">
-                <button type="button" className="previous-work-preview" onClick={() => onResumeWork(session)} aria-label={`Resume ${session.title}`}>
+                <button type="button" className="previous-work-preview" disabled={previousWorkClearInProgress} onClick={() => onResumeWork(session)} aria-label={`Resume ${session.title}`}>
                   <img src={session.source.kind === 'upload' && session.source.uploadedImage?.processedSrc ? session.source.uploadedImage.processedSrc : drawingImageSrc(drawingFromPracticeSource(session.source))} alt="" aria-hidden="true" />
                   <svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
                     {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-18).map((stroke, index) => (
@@ -2229,10 +2250,10 @@ function PickerScreen({
                 <strong>{session.title}</strong>
                 <small>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes</small>
                 <div className="previous-work-actions">
-                  <button type="button" onClick={() => onResumeWork(session)}>Resume</button>
-                  <button type="button" onClick={() => onStartFreshWork(session)}>Fresh</button>
-                  <button type="button" onClick={() => onDuplicateWork(session)}>Copy</button>
-                  <button type="button" onClick={() => onDeleteWork(session)}>Delete</button>
+                  <button type="button" disabled={previousWorkClearInProgress} onClick={() => onResumeWork(session)}>Resume</button>
+                  <button type="button" disabled={previousWorkClearInProgress} onClick={() => onStartFreshWork(session)}>Fresh</button>
+                  <button type="button" disabled={previousWorkClearInProgress} onClick={() => onDuplicateWork(session)}>Copy</button>
+                  <button type="button" disabled={previousWorkClearInProgress} onClick={() => onDeleteWork(session)}>Delete</button>
                 </div>
               </article>
             ))}

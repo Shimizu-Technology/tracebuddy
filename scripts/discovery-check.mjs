@@ -69,8 +69,24 @@ try {
   }))
   assert(combinedFilterValid, 'Combined category and difficulty filters returned an invalid result')
 
+  const storageFailurePage = await browser.newPage()
+  try {
+    await storageFailurePage.evaluateOnNewDocument(() => {
+      const originalGetItem = Storage.prototype.getItem
+      Storage.prototype.getItem = function getItemWithPreferenceFailure(key) {
+        if (key === 'tracebuddy.drawingPreferences.v1') throw new DOMException('Simulated preference read failure', 'SecurityError')
+        return originalGetItem.call(this, key)
+      }
+    })
+    await storageFailurePage.goto(url, { waitUntil: 'networkidle0' })
+    await clickByText(storageFailurePage, 'Pick a picture')
+    await storageFailurePage.waitForFunction(() => document.querySelector('.preference-message')?.textContent?.includes('will last for this visit only'))
+  } finally {
+    await storageFailurePage.close().catch(() => undefined)
+  }
+
   assert(pageErrors.length === 0, `Discovery flow emitted page errors: ${pageErrors.join(' | ')}`)
-  console.log('Discovery, favorites, recent picks, persistence, empty state, and combined filters passed')
+  console.log('Discovery, favorites, recent picks, persistence fallback, empty state, and combined filters passed')
 } finally {
   await page.close().catch(() => undefined)
   await closeBrowser(browser)
