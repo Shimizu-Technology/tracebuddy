@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: browser-actions/setup-chrome@48483d551c22a1fe6154c6a195ccc6d5773dc8c4 # v2
+        id: chrome
+      - run: npm ci
+      - run: npm --prefix mobile ci
+      - run: npm run check
+      - run: npm audit --audit-level=high
+      - run: npm --prefix mobile audit --audit-level=high
+      - name: Run browser regressions against a production preview
+        env:
+          CHECK_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          CHECK_URL: http://127.0.0.1:4173
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 > /tmp/tracebuddy-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for _ in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
+              npm run check:viewports
+              npm run check:storage
+              npm run check:offline
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/tracebuddy-preview.log
+          exit 1
+      - name: Print preview log after a browser-check failure
+        if: failure()
+        run: cat /tmp/tracebuddy-preview.log 2>/dev/null || true

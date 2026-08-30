@@ -1,17 +1,17 @@
 # TraceBuddy App Store Submission Notes
 
-This document collects the App Store Connect copy, decisions, and release checklist for the first public iOS release.
+This document collects the App Store Connect copy, decisions, and release checklist for iOS releases.
 
 ## Important release note
 
-App Store Connect currently shows an iOS app version of **1.0**, while the current TestFlight build is **0.1.0 (6)**.
+Do not rely on build numbers recorded in documentation. Before every release:
 
-Before submitting for App Review, confirm the selected build is eligible for the App Store version page. If App Store Connect does not allow build `0.1.0 (6)` to be selected for version `1.0`, do one of the following:
+1. Check `expo.version` in `mobile/app.json`; this is the public version customers see in the App Store.
+2. Run `eas build:version:get --platform ios`; with `appVersionSource: "remote"`, this remote iOS build number is authoritative for production builds.
+3. Confirm the newest processed build in App Store Connect matches the version page that will receive it.
+4. Test that exact build on a real device before App Review submission.
 
-1. Change the App Store version page to `0.1.0`, or
-2. Bump `mobile/app.json` `expo.version` to `1.0` or `1.0.0`, make a new EAS build, and submit that build.
-
-Recommended public release path: use a clean public version such as **1.0** and ship a matching production build.
+EAS is configured with remote build-number management and `autoIncrement: true` for production. `eas build:version:set --platform ios` changes that remote build-number state; it does not change the public `expo.version`. Edit `expo.version` deliberately when preparing a new public App Store version.
 
 ## Public app name
 
@@ -243,9 +243,9 @@ To test TraceBuddy:
 3. Tap Practice to test the on-screen tracing and coloring canvas.
 4. Tap Camera to test the camera-over-paper tracing workflow.
 5. Camera permission is used only to show the live camera preview behind the tracing guide.
-6. Photo-library permission is optional and only used if selecting a local image to trace.
+6. Photo-library permissions are optional and used only to select local images or save a finished drawing to Photos.
 
-TraceBuddy has no accounts, ads, analytics, backend, cloud uploads, or remote image processing. Camera frames, selected images, custom words, and practice drawings stay on the device.
+TraceBuddy has no accounts, ads, analytics, backend, cloud uploads, or remote image processing. Camera frames are not recorded. Selected images, custom words, and practice drawings may be saved in private on-device storage for Previous Work until the user deletes them or removes the app.
 ```
 
 ## Screenshot requirements
@@ -276,12 +276,7 @@ Screenshot captions can be added visually if desired, but keep them honest and r
 
 ## Build selection
 
-Current latest TestFlight build at time of writing:
-
-- Version/build: `1.0 (7)`
-- Commit: `55db474`
-
-Before review submission, select the latest processed build in App Store Connect under **TestFlight → Builds**. Do not rely on the version above — always pick the newest eligible build from the App Store Connect build list.
+Before review submission, select the newest eligible processed build in App Store Connect under **TestFlight → Builds** and verify its source commit, public version, build number, and real-device test result.
 
 ## Pre-submit checklist
 

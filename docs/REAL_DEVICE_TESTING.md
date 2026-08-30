@@ -1,6 +1,6 @@
 # Real-Device Testing Checklist
 
-Automated viewport checks are useful, but TraceBuddy needs real camera testing on actual phones/tablets because camera permissions, HTTPS, Expo Go behavior, stands, lighting, and browser/native camera differences are the core product risks.
+Automated viewport checks are useful, but TraceBuddy needs real camera testing on actual phones/tablets because camera permissions, HTTPS, development/TestFlight build behavior, stands, lighting, and browser/native camera differences are the core product risks.
 
 ## Preflight
 
@@ -25,16 +25,17 @@ Minimum recommended matrix:
 Run locally:
 
 ```bash
-npm run lint
-npm run build
-npm run mobile:typecheck
-npm run mobile:doctor
+npm run check
+npm audit --audit-level=high
+npm --prefix mobile audit --audit-level=high
 ```
 
-With the dev server running:
+After `npm run build`, with the production preview running (`npm run preview`):
 
 ```bash
 npm run check:viewports
+npm run check:storage
+npm run check:offline
 npm run screenshots
 ```
 
@@ -76,7 +77,7 @@ Pass if the overlay stays aligned when the device and paper remain still.
 
 - Upload a simple local image.
 - Confirm the trace header uses the uploaded file name.
-- Confirm the image stays local in the browser session.
+- Confirm the image stays local in browser storage and remains available through Previous Work after a reload.
 - Adjust and lock the overlay.
 
 Pass if upload works and the UI no longer labels the uploaded image as a built-in drawing.
@@ -158,19 +159,20 @@ Pass if supported browsers keep the screen awake. Note browsers that ignore Wake
 - Load the deployed app once while online.
 - Turn off network.
 - Reopen the app.
+- While online, visit Privacy or Support, then repeat the offline root-app load.
 
-Pass if the cached app shell loads. Camera still depends on device/browser permissions and HTTPS context.
+Pass if the complete cached app shell loads and a static page never replaces the offline root app. Camera still depends on device/browser permissions and HTTPS context.
 
-## Expo Go mobile app scenarios
+## Native mobile app scenarios
 
-### 1. Expo Go launch
+### 1. Development or TestFlight launch
 
-- Run `npm run mobile:start`.
-- Scan the Expo QR code on a real phone.
+- Install an Expo SDK 56 development build or the latest TraceBuddy TestFlight build. The public App Store version of Expo Go is not compatible with this pinned runtime.
+- For a development build, run Metro from `mobile/` with `npm run start` and open the project from the installed TraceBuddy build.
 - Confirm the picker loads without redbox errors.
 - Confirm category filters and template counts render.
 
-Pass if the app opens quickly and the picker is usable in Expo Go.
+Pass if the app opens quickly and the picker is usable in the installed build.
 
 ### 2. Native built-in tracing
 
@@ -205,14 +207,36 @@ Pass if local images stay on device and tracing still works without browser file
 
 Pass if on-screen practice works smoothly and remains separate from the camera permission flow.
 
-### 5. Native session behavior
+### 5. Native Previous Work and background saves
+
+- Draw a stroke and background the app while the finger or Pencil is still down.
+- Return to TraceBuddy, open Previous Work, and confirm the visible partial stroke was saved once.
+- Resume it, add strokes and image stickers, background through both iOS `inactive` and `background` transitions, and confirm there is still one session card.
+- Remove a sticker while autosave is active, leave Practice immediately, and confirm reopening never shows a missing-image placeholder.
+- Use Clear in Practice, then Clear local work in the picker; relaunch and confirm sessions and app-owned images are gone.
+- Simulate low storage if practical and confirm the visible status changes to Not saved with a working Retry action.
+
+Pass if saves never duplicate, resurrect cleared work, silently fail, or lose the stroke under the finger.
+
+### 6. Native export and permissions
+
+- Add a local image sticker and save the finished canvas to Photos.
+- Verify both photo selection and Add to Photos permission explanations are accurate.
+- Deny each permission once and confirm the app remains usable with built-in templates.
+
+Pass if export succeeds when allowed and denial has a clear recovery path.
+
+### 7. Rotation and native session behavior
 
 - Leave trace mode open for 5-10 minutes.
 - Confirm the screen stays awake when supported.
 - Watch battery/heat and camera stability.
 - Compare against the PWA on the same stand and lighting.
+- On iPhone and iPad, test portrait and landscape in Picker, Camera, and Practice.
+- Rotate while a stroke is active, while autosave is showing Saving, and while the camera overlay is locked.
+- On iPad, resize the app if multitasking is supported by the build and confirm controls remain reachable.
 
-Pass if Expo Go is noticeably stable enough to justify native app work.
+Pass if the app remains stable, saves correctly, and keeps essential controls reachable through every supported orientation.
 
 ## Browser-specific notes
 

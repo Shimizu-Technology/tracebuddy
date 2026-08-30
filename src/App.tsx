@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, PointerEvent, WheelEvent } from 'react'
+import type { PointerEvent, WheelEvent } from 'react'
 import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from './drawings'
 import type { Drawing, DrawingFilterId } from './drawings'
 import './App.css'
@@ -8,6 +8,7 @@ type AppMode = 'welcome' | 'picker' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'blocked' | 'unsupported'
 type Direction = 'up' | 'right' | 'down' | 'left'
+type LocalSaveStatus = 'saved' | 'saving' | 'error'
 
 type PickerCategoryId = DrawingFilterId
 
@@ -156,6 +157,7 @@ const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
 const uploadedImageDbName = 'tracebuddy-uploaded-images'
 const uploadedImageStoreName = 'uploaded-images'
+const activeUploadedImageIds = new Set<string>()
 const practiceAutosaveDelayMs = 450
 
 const defaultTransform: Transform = {
@@ -232,6 +234,13 @@ function createPracticeSessionId() {
 }
 
 let uploadedImageDbPromise: Promise<IDBDatabase> | null = null
+let uploadedImageWriteQueue = Promise.resolve()
+
+function queueUploadedImageWrite<T>(operation: () => Promise<T>) {
+  const result = uploadedImageWriteQueue.then(operation, operation)
+  uploadedImageWriteQueue = result.then(() => undefined, () => undefined)
+  return result
+}
 
 function openUploadedImageDb() {
   if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB unavailable'))
@@ -248,6 +257,10 @@ function openUploadedImageDb() {
       uploadedImageDbPromise = null
       reject(request.error ?? new Error('Could not open image storage'))
     }
+    request.onblocked = () => {
+      uploadedImageDbPromise = null
+      reject(new Error('Image storage upgrade was blocked'))
+    }
   })
 
   return uploadedImageDbPromise
@@ -257,13 +270,34 @@ function uploadedImageRecordSignature(image: UploadedImageState) {
   return JSON.stringify([image.imageId, image.fileName, image.originalSrc, image.processedSrc])
 }
 
-async function saveUploadedImageRecord(image: UploadedImageState) {
-  const db = await openUploadedImageDb()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(uploadedImageStoreName, 'readwrite')
-    tx.objectStore(uploadedImageStoreName).put({ ...image, updatedAt: new Date().toISOString() })
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error ?? new Error('Could not save uploaded image'))
+async function saveUploadedImageRecord(image: UploadedImageState, shouldSave: () => boolean = () => true, discardIfSuperseded = false) {
+  return queueUploadedImageWrite(async () => {
+    if (!shouldSave()) return false
+    const db = await openUploadedImageDb()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+      tx.objectStore(uploadedImageStoreName).put({ ...image, updatedAt: new Date().toISOString() })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Could not save uploaded image'))
+    })
+    if (!shouldSave()) {
+      activeUploadedImageIds.delete(image.imageId)
+      if (discardIfSuperseded) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+            tx.objectStore(uploadedImageStoreName).delete(image.imageId)
+            tx.oncomplete = () => resolve()
+            tx.onerror = () => reject(tx.error ?? new Error('Could not discard superseded uploaded image'))
+          })
+        } catch {
+          // A later orphan cleanup can retry a failed best-effort discard.
+        }
+      }
+      return false
+    }
+    activeUploadedImageIds.add(image.imageId)
+    return true
   })
 }
 
@@ -282,31 +316,86 @@ async function loadUploadedImageRecord(imageId: string) {
   })
 }
 
-async function deleteUploadedImageRecordIfUnused(imageId: string, remainingIds: string[]) {
-  const remainingSessions = remainingIds
-    .map((id) => {
-      try {
-        const rawSession = window.localStorage.getItem(previousWorkSessionKey(id))
-        return rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
-      } catch {
-        return null
+function readAllStoredPracticeSessionsForCleanup() {
+  const sessionKeys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(previousWorkSessionPrefix)))
+  const sessions: SavedPracticeSession[] = []
+  let inspectionFailed = false
+
+  sessionKeys.forEach((key) => {
+    try {
+      const rawSession = window.localStorage.getItem(key)
+      const session = rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
+      if (!session) {
+        inspectionFailed = true
+        return
       }
-    })
-    .filter((session): session is SavedPracticeSession => Boolean(session))
+      sessions.push(session)
+    } catch {
+      inspectionFailed = true
+    }
+  })
 
-  if (remainingSessions.some((session) => session.source.uploadedImage?.imageId === imageId)) return
+  return { sessions, inspectionFailed }
+}
 
-  try {
-    const db = await openUploadedImageDb()
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(uploadedImageStoreName, 'readwrite')
-      tx.objectStore(uploadedImageStoreName).delete(imageId)
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error ?? new Error('Could not delete uploaded image'))
-    })
-  } catch {
-    // Best-effort cleanup only.
-  }
+async function deleteUploadedImageRecordIfUnused(imageId: string, preserve = false) {
+  return queueUploadedImageWrite(async () => {
+    if (preserve) {
+      activeUploadedImageIds.add(imageId)
+      return true
+    }
+    activeUploadedImageIds.delete(imageId)
+
+    try {
+      const { sessions: storedSessions, inspectionFailed } = readAllStoredPracticeSessionsForCleanup()
+      if (inspectionFailed) return false
+      if (storedSessions.some((session) => session.source.uploadedImage?.imageId === imageId)) return true
+
+      const db = await openUploadedImageDb()
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+        tx.objectStore(uploadedImageStoreName).delete(imageId)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('Could not delete uploaded image'))
+      })
+      return true
+    } catch {
+      return false
+    }
+  })
+}
+
+async function cleanupOrphanedUploadedImageRecords() {
+  return queueUploadedImageWrite(async () => {
+    try {
+      const referencedImageIds = new Set(activeUploadedImageIds)
+      const { sessions: storedSessions, inspectionFailed } = readAllStoredPracticeSessionsForCleanup()
+      if (inspectionFailed) return
+      storedSessions.forEach((session) => {
+        if (session.source.uploadedImage?.imageId) referencedImageIds.add(session.source.uploadedImage.imageId)
+      })
+      const db = await openUploadedImageDb()
+      const imageIds = await new Promise<string[]>((resolve, reject) => {
+        const tx = db.transaction(uploadedImageStoreName, 'readonly')
+        const request = tx.objectStore(uploadedImageStoreName).getAllKeys()
+        request.onsuccess = () => resolve(request.result.filter((key): key is string => typeof key === 'string'))
+        request.onerror = () => reject(request.error ?? new Error('Could not inspect image storage'))
+      })
+      const orphanedIds = imageIds.filter((imageId) => !referencedImageIds.has(imageId))
+      if (orphanedIds.length === 0) return
+
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+        const store = tx.objectStore(uploadedImageStoreName)
+        orphanedIds.forEach((imageId) => store.delete(imageId))
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('Could not clean image storage'))
+      })
+    } catch {
+      // Cleanup is best-effort and must not block drawing.
+    }
+  })
 }
 
 function serializePracticeSource(source: PracticeSource): PracticeSource {
@@ -490,14 +579,29 @@ function normalizeSavedPracticeSession(value: unknown): SavedPracticeSession | n
 }
 
 function readPreviousWorkIds() {
-  try {
-    const rawIndex = window.localStorage.getItem(previousWorkIndexKey)
-    if (!rawIndex) return []
-    const parsed = JSON.parse(rawIndex) as { ids?: unknown }
-    return Array.isArray(parsed.ids) ? parsed.ids.filter((id): id is string => typeof id === 'string') : []
-  } catch {
-    return []
+  const rawIndex = window.localStorage.getItem(previousWorkIndexKey)
+  if (!rawIndex) return []
+  const parsed = JSON.parse(rawIndex) as { ids?: unknown }
+  if (!Array.isArray(parsed.ids) || parsed.ids.some((id) => typeof id !== 'string')) {
+    throw new Error('Previous Work index is invalid')
   }
+  return parsed.ids
+}
+
+function recoverPreviousWorkIdsFromSessions() {
+  return Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(previousWorkSessionPrefix)))
+    .map((key) => {
+      try {
+        const rawSession = window.localStorage.getItem(key)
+        return rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
+      } catch {
+        return null
+      }
+    })
+    .filter((session): session is SavedPracticeSession => Boolean(session))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .map((session) => session.sessionId)
 }
 
 async function hydrateUploadedImageSession(session: SavedPracticeSession) {
@@ -515,7 +619,19 @@ async function hydrateUploadedImageSession(session: SavedPracticeSession) {
 
 async function loadPreviousWorkSessions() {
   migrateLegacyPracticeAutosaves()
-  const ids = readPreviousWorkIds()
+  const ids = (() => {
+    try {
+      return readPreviousWorkIds()
+    } catch {
+      const recoveredIds = recoverPreviousWorkIdsFromSessions()
+      try {
+        window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds }))
+      } catch {
+        // Valid sessions can still be shown even if the repaired index cannot be written yet.
+      }
+      return recoveredIds
+    }
+  })()
   const entries = ids.map((id) => {
     try {
       const rawSession = window.localStorage.getItem(previousWorkSessionKey(id))
@@ -552,7 +668,7 @@ function savePreviousWorkSession(session: SavedPracticeSession) {
   window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
 }
 
-function deletePreviousWorkSession(sessionId: string) {
+async function deletePreviousWorkSession(sessionId: string, preserveImageId?: string) {
   const rawSession = window.localStorage.getItem(previousWorkSessionKey(sessionId))
   const deletedSession = (() => {
     try {
@@ -564,7 +680,36 @@ function deletePreviousWorkSession(sessionId: string) {
   const ids = readPreviousWorkIds().filter((id) => id !== sessionId)
   window.localStorage.removeItem(previousWorkSessionKey(sessionId))
   window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
-  if (deletedSession?.source.uploadedImage?.imageId) void deleteUploadedImageRecordIfUnused(deletedSession.source.uploadedImage.imageId, ids)
+  const imageId = deletedSession?.source.uploadedImage?.imageId
+  const imageCleanupPending = imageId ? !(await deleteUploadedImageRecordIfUnused(imageId, imageId === preserveImageId)) : false
+  return { imageCleanupPending }
+}
+
+async function deleteAllPreviousWorkSessions() {
+  const ownedSessionKeys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(previousWorkSessionPrefix)))
+  ownedSessionKeys.forEach((key) => window.localStorage.removeItem(key))
+  window.localStorage.removeItem(previousWorkIndexKey)
+
+  const legacyKeys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+    .filter((key): key is string => Boolean(key?.startsWith(legacyPracticeAutosavePrefix)))
+  legacyKeys.forEach((key) => window.localStorage.removeItem(key))
+
+  try {
+    await queueUploadedImageWrite(async () => {
+      activeUploadedImageIds.clear()
+      const db = await openUploadedImageDb()
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+        tx.objectStore(uploadedImageStoreName).clear()
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('Could not clear image storage'))
+      })
+    })
+    return { imageCleanupPending: false }
+  } catch {
+    return { imageCleanupPending: true }
+  }
 }
 
 function formatPreviousWorkDate(value: string) {
@@ -1005,6 +1150,8 @@ function App() {
   const [mode, setMode] = useState<AppMode>('welcome')
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImageState | null>(null)
+  const [uploadedImageGeneration, setUploadedImageGeneration] = useState(0)
+  const [uploadedImageSaveErrorId, setUploadedImageSaveErrorId] = useState<string | null>(null)
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
   const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
@@ -1031,8 +1178,10 @@ function App() {
   const modeRef = useRef<AppMode>(mode)
   const paperLockEnabledRef = useRef(false)
   const uploadCleanupRequestRef = useRef(0)
+  const uploadOperationGenerationRef = useRef(0)
   const uploadedImageSaveSignatureRef = useRef('')
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
+  const practiceSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
 
   const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
   const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
@@ -1042,8 +1191,11 @@ function App() {
     let cancelled = false
     const task = window.setTimeout(() => {
       void loadPreviousWorkSessions().then((sessions) => {
-        if (!cancelled) setPreviousWorkSessions(sessions)
-      })
+        if (!cancelled) {
+          setPreviousWorkSessions(sessions)
+          void cleanupOrphanedUploadedImageRecords()
+        }
+      }).catch(() => undefined)
     }, 0)
 
     return () => {
@@ -1377,19 +1529,27 @@ function App() {
       uploadedImageSaveSignatureRef.current = ''
       return
     }
+    if (uploadOperationGenerationRef.current !== uploadedImageGeneration) return
+    activeUploadedImageIds.add(uploadedImage.imageId)
 
     const saveSignature = uploadedImageRecordSignature(uploadedImage)
     if (saveSignature === uploadedImageSaveSignatureRef.current) return
 
-    void saveUploadedImageRecord(uploadedImage)
-      .then(() => {
+    void saveUploadedImageRecord(uploadedImage, () => uploadOperationGenerationRef.current === uploadedImageGeneration)
+      .then((saved) => {
+        if (!saved) {
+          activeUploadedImageIds.delete(uploadedImage.imageId)
+          return
+        }
         uploadedImageSaveSignatureRef.current = saveSignature
+        setUploadedImageSaveErrorId((current) => current === uploadedImage.imageId ? null : current)
       })
       .catch(() => {
+        setUploadedImageSaveErrorId(uploadedImage.imageId)
         setUploadCleanupStatus('error')
         setUploadCleanupMessage('Could not save this uploaded image locally. Clear older Previous Work or try a smaller image.')
       })
-  }, [uploadedImage])
+  }, [uploadedImage, uploadedImageGeneration])
 
   function resetPaperDetection() {
     paperLockEnabledRef.current = false
@@ -1411,8 +1571,11 @@ function App() {
   function openTrace(drawing?: Drawing) {
     setActivePracticeSession(null)
     if (drawing) {
+      const abandonedImageId = uploadedImage?.imageId
+      uploadOperationGenerationRef.current += 1
       setSelectedDrawing(drawing)
       setUploadedImage(null)
+      if (abandonedImageId) void deleteUploadedImageRecordIfUnused(abandonedImageId)
       resetUploadCleanup()
     }
     setTraceSurface('camera')
@@ -1425,8 +1588,11 @@ function App() {
   function openPractice(drawing?: Drawing) {
     setActivePracticeSession(null)
     if (drawing) {
+      const abandonedImageId = uploadedImage?.imageId
+      uploadOperationGenerationRef.current += 1
       setSelectedDrawing(drawing)
       setUploadedImage(null)
+      if (abandonedImageId) void deleteUploadedImageRecordIfUnused(abandonedImageId)
       resetUploadCleanup()
     }
     setTraceSurface('screen')
@@ -1445,14 +1611,39 @@ function App() {
   }
 
   async function applyPracticeSource(source: PracticeSource) {
-    const resolvedUploadedImage = await uploadedImageFromSource(source)
+    const operationGeneration = uploadOperationGenerationRef.current + 1
+    uploadOperationGenerationRef.current = operationGeneration
+    let resolvedUploadedImage: UploadedImageState | null
+    try {
+      resolvedUploadedImage = await uploadedImageFromSource(source)
+    } catch {
+      if (uploadOperationGenerationRef.current !== operationGeneration) return false
+      setUploadedImageGeneration(operationGeneration)
+      window.alert('TraceBuddy could not read this saved image from local storage. Try again in a moment or clear local work to repair storage.')
+      return false
+    }
+    if (uploadOperationGenerationRef.current !== operationGeneration) return false
     if (source.kind === 'upload' && !resolvedUploadedImage) {
+      setUploadedImageGeneration(operationGeneration)
       window.alert('This uploaded image is no longer available in this browser. The saved strokes are still local, but the image preview cannot be restored.')
       return false
     }
 
+    if (resolvedUploadedImage) {
+      try {
+        const saved = await saveUploadedImageRecord(resolvedUploadedImage, () => uploadOperationGenerationRef.current === operationGeneration)
+        if (!saved) return false
+      } catch {
+        if (uploadOperationGenerationRef.current !== operationGeneration) return false
+        setUploadedImageGeneration(operationGeneration)
+        window.alert('TraceBuddy could not restore this saved image to local storage. Clear older Previous Work or try again in a moment.')
+        return false
+      }
+    }
+
     uploadedImageSaveSignatureRef.current = resolvedUploadedImage ? uploadedImageRecordSignature(resolvedUploadedImage) : ''
     setSelectedDrawing(drawingFromPracticeSource(source))
+    setUploadedImageGeneration(operationGeneration)
     setUploadedImage(resolvedUploadedImage)
     resetUploadCleanup()
     resetPaperDetection()
@@ -1501,13 +1692,30 @@ function App() {
   function deletePreviousWork(session: SavedPracticeSession) {
     if (!window.confirm(`Delete ${session.title} from this browser?`)) return
 
-    try {
-      deletePreviousWorkSession(session.sessionId)
-      setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
-      if (activePracticeSession?.sessionId === session.sessionId) setActivePracticeSession(null)
-    } catch {
-      window.alert('TraceBuddy could not delete this work from this browser. Try again in a moment.')
-    }
+    void deletePreviousWorkSession(session.sessionId, uploadedImage?.imageId)
+      .then(({ imageCleanupPending }) => {
+        setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
+        if (activePracticeSession?.sessionId === session.sessionId) setActivePracticeSession(null)
+        if (imageCleanupPending) window.alert('The saved drawing was removed, but this browser could not finish deleting its private image file. Use Clear local work to retry cleanup.')
+      })
+      .catch(() => window.alert('TraceBuddy could not delete this work from this browser. Try again in a moment.'))
+  }
+
+  function deleteAllPreviousWork() {
+    if (!window.confirm('Delete all Previous Work and locally stored uploaded images from this browser?')) return
+
+    uploadOperationGenerationRef.current += 1
+    resetUploadCleanup()
+    setUploadedImage(null)
+    uploadedImageSaveSignatureRef.current = ''
+
+    void deleteAllPreviousWorkSessions()
+      .then(({ imageCleanupPending }) => {
+        setPreviousWorkSessions([])
+        setActivePracticeSession(null)
+        if (imageCleanupPending) window.alert('Saved drawings were cleared, but this browser could not finish removing stored image files. Use Clear local work again to retry.')
+      })
+      .catch(() => window.alert('TraceBuddy could not clear all local work. Try again in a moment.'))
   }
 
   const handlePracticeSessionSaved = useCallback((session: SavedPracticeSession) => {
@@ -1517,6 +1725,21 @@ function App() {
   const handlePracticeSessionDeleted = useCallback((sessionId: string) => {
     setActivePracticeSession(null)
     setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== sessionId))
+  }, [])
+
+  const handlePracticeSaveHandlerChange = useCallback((handler: (() => Promise<boolean>) | null) => {
+    practiceSaveHandlerRef.current = handler
+  }, [])
+
+  const ensureUploadedImageSaved = useCallback(async (image: UploadedImageState) => {
+    const signature = uploadedImageRecordSignature(image)
+    if (signature === uploadedImageSaveSignatureRef.current) {
+      setUploadedImageSaveErrorId((current) => current === image.imageId ? null : current)
+      return
+    }
+    await saveUploadedImageRecord(image)
+    uploadedImageSaveSignatureRef.current = signature
+    setUploadedImageSaveErrorId((current) => current === image.imageId ? null : current)
   }, [])
 
   function openSelectedSurface(drawing: Drawing) {
@@ -1568,8 +1791,7 @@ function App() {
     setTransform((transformState) => ({ ...transformState, locked: true }))
   }
 
-  function onUpload(event: ChangeEvent<HTMLInputElement>, targetMode: 'trace' | 'practice' = 'trace') {
-    const input = event.currentTarget
+  function onUpload(input: HTMLInputElement, targetMode: 'trace' | 'practice' = 'trace') {
     const file = input.files?.[0]
     if (!file) return
 
@@ -1577,10 +1799,19 @@ function App() {
       input.value = ''
       return
     }
+    const operationGeneration = uploadOperationGenerationRef.current + 1
+    uploadOperationGenerationRef.current = operationGeneration
+    const restoreCurrentImageGeneration = () => {
+      if (uploadOperationGenerationRef.current !== operationGeneration) return false
+      setUploadedImageGeneration(operationGeneration)
+      input.value = ''
+      return true
+    }
 
     const reader = new FileReader()
     reader.onload = () => {
       void (async () => {
+        if (uploadOperationGenerationRef.current !== operationGeneration) return
         const originalSrc = String(reader.result)
         const nextUploadedImage: UploadedImageState = {
           imageId: createPracticeSessionId(),
@@ -1588,18 +1819,30 @@ function App() {
           processedSrc: originalSrc,
           fileName: file.name || 'Uploaded picture',
         }
+        activeUploadedImageIds.add(nextUploadedImage.imageId)
 
         try {
-          await saveUploadedImageRecord(nextUploadedImage)
+          const saved = await saveUploadedImageRecord(nextUploadedImage, () => uploadOperationGenerationRef.current === operationGeneration, true)
+          if (!saved) {
+            activeUploadedImageIds.delete(nextUploadedImage.imageId)
+            restoreCurrentImageGeneration()
+            return
+          }
+          if (uploadOperationGenerationRef.current !== operationGeneration) return
           uploadedImageSaveSignatureRef.current = uploadedImageRecordSignature(nextUploadedImage)
         } catch {
-          input.value = ''
-          window.alert('TraceBuddy could not save this upload locally. Try a smaller image, clear older Previous Work, or choose a built-in template.')
+          activeUploadedImageIds.delete(nextUploadedImage.imageId)
+          if (restoreCurrentImageGeneration()) window.alert('TraceBuddy could not save this upload locally. Try a smaller image, clear older Previous Work, or choose a built-in template.')
           return
         }
 
         resetUploadCleanup()
+        const abandonedImageId = uploadedImage?.imageId
+        setUploadedImageGeneration(operationGeneration)
         setUploadedImage(nextUploadedImage)
+        if (abandonedImageId && abandonedImageId !== nextUploadedImage.imageId) {
+          void deleteUploadedImageRecordIfUnused(abandonedImageId)
+        }
         setActivePracticeSession(null)
         resetPaperDetection()
         setTransform(defaultTransform)
@@ -1609,10 +1852,17 @@ function App() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })()
     }
-    reader.onerror = () => {
-      input.value = ''
+    const reportFileReadFailure = () => {
+      if (restoreCurrentImageGeneration()) window.alert('TraceBuddy could not read this image. Try another image file or choose a built-in template.')
     }
-    reader.readAsDataURL(file)
+    reader.onerror = reportFileReadFailure
+    reader.onabort = reportFileReadFailure
+    try {
+      reader.readAsDataURL(file)
+    } catch {
+      restoreCurrentImageGeneration()
+      window.alert('TraceBuddy could not read this image. Try another image file or choose a built-in template.')
+    }
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -1643,11 +1893,22 @@ function App() {
     }
   }
 
+  function navigateWithPracticeFlush(action: () => void) {
+    const saveHandler = mode === 'practice' ? practiceSaveHandlerRef.current : null
+    if (!saveHandler) {
+      action()
+      return
+    }
+    void saveHandler().then((saved) => {
+      if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Leave this drawing without saving them?')) action()
+    })
+  }
+
   return (
     <main className="app-shell">
       <canvas ref={paperCanvasRef} className="paper-scan-canvas" aria-hidden="true" />
       <header className="topbar">
-        <button className="brand" type="button" onClick={() => setMode('welcome')} aria-label="TraceBuddy home">
+        <button className="brand" type="button" onClick={() => navigateWithPracticeFlush(() => setMode('welcome'))} aria-label="TraceBuddy home">
           <span className="brand-mark" aria-hidden="true"><PencilIcon /></span>
           <span>
             <strong>TraceBuddy</strong>
@@ -1655,10 +1916,10 @@ function App() {
           </span>
         </button>
         <nav aria-label="Main navigation">
-          <button className={mode === 'welcome' ? 'active' : ''} type="button" onClick={() => setMode('welcome')} aria-current={mode === 'welcome' ? 'page' : undefined}>Home</button>
-          <button className={mode === 'picker' ? 'active' : ''} type="button" onClick={() => setMode('picker')} aria-current={mode === 'picker' ? 'page' : undefined}>Pictures</button>
-          <button className={mode === 'trace' ? 'active' : ''} type="button" onClick={() => openTrace()} aria-current={mode === 'trace' ? 'page' : undefined}>Camera</button>
-          <button className={mode === 'practice' ? 'active' : ''} type="button" onClick={() => openPractice()} aria-current={mode === 'practice' ? 'page' : undefined}>Practice</button>
+          <button className={mode === 'welcome' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('welcome'))} aria-current={mode === 'welcome' ? 'page' : undefined}>Home</button>
+          <button className={mode === 'picker' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('picker'))} aria-current={mode === 'picker' ? 'page' : undefined}>Pictures</button>
+          <button className={mode === 'trace' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openTrace())} aria-current={mode === 'trace' ? 'page' : undefined}>Camera</button>
+          <button className={mode === 'practice' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openPractice())} aria-current={mode === 'practice' ? 'page' : undefined}>Practice</button>
         </nav>
       </header>
 
@@ -1671,11 +1932,12 @@ function App() {
           previousWorkSessions={previousWorkSessions}
           onSelect={openSelectedSurface}
           onTextSubmit={openTextSurface}
-          onUpload={(event) => onUpload(event, traceSurface === 'screen' ? 'practice' : 'trace')}
+          onUpload={(input) => onUpload(input, traceSurface === 'screen' ? 'practice' : 'trace')}
           onResumeWork={openPreviousWork}
           onStartFreshWork={startFreshFromPreviousWork}
           onDuplicateWork={duplicatePreviousWork}
           onDeleteWork={deletePreviousWork}
+          onDeleteAllWork={deleteAllPreviousWork}
         />
       )}
       {mode === 'trace' && (
@@ -1703,7 +1965,7 @@ function App() {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           updateTransform={updateTransform}
-          onUpload={onUpload}
+          onUpload={(input) => onUpload(input)}
           onPicker={() => setMode('picker')}
           onPractice={() => openPractice()}
           onRetryCamera={startCamera}
@@ -1722,12 +1984,15 @@ function App() {
           overlaySrc={overlaySrc}
           selectedDrawing={selectedDrawing}
           uploadedImage={uploadedImage}
+          uploadedImageSaveFailed={uploadedImageSaveErrorId === uploadedImage?.imageId}
           initialSession={activePracticeSession}
           onSessionSaved={handlePracticeSessionSaved}
           onSessionDeleted={handlePracticeSessionDeleted}
+          onSaveHandlerChange={handlePracticeSaveHandlerChange}
+          onEnsureUploadedImageSaved={ensureUploadedImageSaved}
           onPicker={() => setMode('picker')}
           onCameraTrace={() => openTrace()}
-          onUpload={(event) => onUpload(event, 'practice')}
+          onUpload={(input) => onUpload(input, 'practice')}
         />
       )}
     </main>
@@ -1789,6 +2054,7 @@ function PickerScreen({
   onStartFreshWork,
   onDuplicateWork,
   onDeleteWork,
+  onDeleteAllWork,
 }: {
   selectedDrawing: Drawing
   traceSurface: TraceSurface
@@ -1796,11 +2062,12 @@ function PickerScreen({
   previousWorkSessions: SavedPracticeSession[]
   onSelect: (drawing: Drawing) => void
   onTextSubmit: (value: string) => void
-  onUpload: (event: ChangeEvent<HTMLInputElement>) => void
+  onUpload: (input: HTMLInputElement) => void
   onResumeWork: (session: SavedPracticeSession) => void
   onStartFreshWork: (session: SavedPracticeSession) => void
   onDuplicateWork: (session: SavedPracticeSession) => void
   onDeleteWork: (session: SavedPracticeSession) => void
+  onDeleteAllWork: () => void
 }) {
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
   const [customText, setCustomText] = useState('')
@@ -1849,18 +2116,20 @@ function PickerScreen({
             <strong>Upload your own</strong>
             <small>Photo or drawing</small>
           </span>
-          <input type="file" accept="image/*" onChange={onUpload} />
+          <input type="file" accept="image/*" onChange={(event) => onUpload(event.currentTarget)} />
         </label>
       </div>
 
-      {previousWorkSessions.length > 0 && (
-        <section className="previous-work-section" aria-labelledby="previous-work-title">
+      <section className="previous-work-section" aria-labelledby="previous-work-title">
           <div className="previous-work-heading">
             <div>
               <p className="eyebrow">Saved in this browser</p>
               <h2 id="previous-work-title">Previous work</h2>
             </div>
-            <span>{previousWorkSessions.length}</span>
+            <div className="previous-work-summary">
+              <span>{previousWorkSessions.length}</span>
+              <button type="button" onClick={onDeleteAllWork}>Clear local work</button>
+            </div>
           </div>
           <div className="previous-work-grid">
             {previousWorkSessions.map((session) => (
@@ -1884,8 +2153,8 @@ function PickerScreen({
               </article>
             ))}
           </div>
+          {previousWorkSessions.length === 0 && <p className="previous-work-empty">No saved drawings yet. Clear local work is still available here if you want to remove stored uploads or repair local storage.</p>}
         </section>
-      )}
 
       <div className="category-strip" aria-label="Template categories">
         {drawingCategories.map((category) => (
@@ -1979,7 +2248,7 @@ function TraceScreen({
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void
   updateTransform: (update: TransformUpdate) => void
-  onUpload: (event: ChangeEvent<HTMLInputElement>) => void
+  onUpload: (input: HTMLInputElement) => void
   onPicker: () => void
   onPractice: () => void
   onRetryCamera: () => void
@@ -2040,7 +2309,7 @@ function TraceScreen({
           <button className="secondary-button compact" type="button" onClick={onPractice}>Practice on screen</button>
           <label className="secondary-button compact file-button">
             Upload
-            <input type="file" accept="image/*" onChange={onUpload} />
+            <input type="file" accept="image/*" onChange={(event) => onUpload(event.currentTarget)} />
           </label>
         </div>
       </div>
@@ -2233,9 +2502,12 @@ function PracticeScreen({
   overlaySrc,
   selectedDrawing,
   uploadedImage,
+  uploadedImageSaveFailed,
   initialSession,
   onSessionSaved,
   onSessionDeleted,
+  onSaveHandlerChange,
+  onEnsureUploadedImageSaved,
   onPicker,
   onCameraTrace,
   onUpload,
@@ -2245,24 +2517,27 @@ function PracticeScreen({
   overlaySrc: string
   selectedDrawing: Drawing
   uploadedImage: UploadedImageState | null
+  uploadedImageSaveFailed: boolean
   initialSession: SavedPracticeSession | null
   onSessionSaved: (session: SavedPracticeSession) => void
   onSessionDeleted: (sessionId: string) => void
+  onSaveHandlerChange: (handler: (() => Promise<boolean>) | null) => void
+  onEnsureUploadedImageSaved: (image: UploadedImageState) => Promise<void>
   onPicker: () => void
   onCameraTrace: () => void
-  onUpload: (event: ChangeEvent<HTMLInputElement>) => void
+  onUpload: (input: HTMLInputElement) => void
 }) {
   const [strokes, setStrokes] = useState<PracticeStroke[]>(initialSession?.strokes ?? [])
   const [activePath, setActivePath] = useState('')
   const [activeStrokeRender, setActiveStrokeRender] = useState<PracticeStroke | null>(null)
-  const [sessionId, setSessionId] = useState<string | null>(initialSession?.sessionId ?? null)
-  const [sessionCreatedAt, setSessionCreatedAt] = useState(initialSession?.createdAt ?? new Date().toISOString())
   const [sessionTitle, setSessionTitle] = useState(initialSession?.title ?? makePracticeSessionTitle(makePracticeSource(selectedDrawing, uploadedImage)))
   const [guideOpacity, setGuideOpacity] = useState(initialSession?.guideOpacity ?? 0.26)
   const [markerColor, setMarkerColor] = useState<string>(initialSession?.markerColor ?? markerColors[0])
   const [markerWidth, setMarkerWidth] = useState(initialSession?.markerWidth ?? 12)
   const [brushToolId, setBrushToolId] = useState<BrushToolId>(initialSession?.brushToolId ?? 'marker')
   const [guideOnTop, setGuideOnTop] = useState(initialSession?.guideOnTop ?? true)
+  const [saveStatus, setSaveStatus] = useState<LocalSaveStatus>('saved')
+  const visibleSaveStatus: LocalSaveStatus = uploadedImageSaveFailed ? 'error' : saveStatus
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasRef = useRef<HTMLDivElement | null>(null)
@@ -2272,7 +2547,14 @@ function PracticeScreen({
   const activePointCountRef = useRef(0)
   const activePathFrameRef = useRef<number | null>(null)
   const autosaveReadyRef = useRef(false)
+  const autosaveTimeoutRef = useRef<number | null>(null)
   const lastSavedSignatureRef = useRef('')
+  const saveGenerationRef = useRef(0)
+  const saveRequestRef = useRef(0)
+  const strokesRef = useRef(strokes)
+  const sessionIdRef = useRef(initialSession?.sessionId ?? createPracticeSessionId())
+  const sessionCreatedAtRef = useRef(initialSession?.createdAt ?? new Date().toISOString())
+  const persistedSessionRef = useRef(Boolean(initialSession))
   const activeStrokeStyleRef = useRef<PracticeStroke>({ path: '', color: markerColor, width: markerWidth, opacity: 0.9, mode: 'draw' })
   const lastPointRef = useRef<PracticePoint | null>(null)
   const drawingRef = useRef(false)
@@ -2308,6 +2590,12 @@ function PracticeScreen({
   useEffect(() => {
     let cancelled = false
     autosaveReadyRef.current = false
+    saveGenerationRef.current += 1
+    saveRequestRef.current += 1
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
 
     async function resetPracticeSession() {
       await Promise.resolve()
@@ -2328,15 +2616,20 @@ function PracticeScreen({
       const nextBrushToolId = initialSession?.brushToolId ?? 'marker'
       const resetPracticeSource = practiceSourceRef.current
 
+      const nextSessionId = initialSession?.sessionId ?? createPracticeSessionId()
+      const nextCreatedAt = initialSession?.createdAt ?? new Date().toISOString()
+      strokesRef.current = nextStrokes
+      sessionIdRef.current = nextSessionId
+      sessionCreatedAtRef.current = nextCreatedAt
+      persistedSessionRef.current = Boolean(initialSession)
       setStrokes(nextStrokes)
-      setSessionId(initialSession?.sessionId ?? null)
-      setSessionCreatedAt(initialSession?.createdAt ?? new Date().toISOString())
       setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(resetPracticeSource))
       setGuideOpacity(nextGuideOpacity)
       setGuideOnTop(nextGuideOnTop)
       setMarkerColor(nextMarkerColor)
       setMarkerWidth(nextMarkerWidth)
       setBrushToolId(nextBrushToolId)
+      setSaveStatus('saved')
       lastSavedSignatureRef.current = makePracticeSaveSignature({
         source: resetPracticeSource,
         strokes: nextStrokes,
@@ -2356,59 +2649,125 @@ function PracticeScreen({
     }
   }, [initialSession, sourceResetKey])
 
-  useEffect(() => {
-    if (!autosaveReadyRef.current) return
+  const materializeActiveStroke = useCallback((): PracticeStroke | null => {
+    if (!drawingRef.current) return null
+    const { color, width, opacity, mode, dasharray } = activeStrokeStyleRef.current
+    const simplifiedPoints = simplifyPracticePoints(activePointsRef.current, clamp(width * 0.18, 1.25, 5))
+    let path = pointsToSvgPath(simplifiedPoints)
+    if (path && simplifiedPoints.length === 1) path = `${path} l 0.1 0`
+    return path ? { path, color, width, opacity, mode, dasharray } : null
+  }, [])
 
-    if (strokes.length === 0) {
-      if (!sessionId) return
-      const deleteTimeout = window.setTimeout(() => {
-        try {
-          deletePreviousWorkSession(sessionId)
-          setSessionId(null)
-          setSessionCreatedAt(new Date().toISOString())
-          onSessionDeleted(sessionId)
-        } catch {
-          // Ignore storage failures; the visible drawing remains clear.
-        }
-      }, practiceAutosaveDelayMs)
-
-      return () => window.clearTimeout(deleteTimeout)
-    }
-
-    const timeout = window.setTimeout(() => {
-      const now = new Date().toISOString()
-      const nextSessionId = sessionId ?? createPracticeSessionId()
-      if (!sessionId) setSessionId(nextSessionId)
-
-      const savedSession: SavedPracticeSession = {
-        version: 2,
-        sessionId: nextSessionId,
-        title: sessionTitle,
-        source: practiceSource,
-        createdAt: sessionCreatedAt,
-        updatedAt: now,
-        strokes,
-        guideOpacity,
-        guideOnTop,
-        markerColor,
-        markerWidth,
-        brushToolId,
+  const savePracticeSessionNow = useCallback(async (skipUploadedImageFlush = false) => {
+    if (!autosaveReadyRef.current) return true
+    const requestId = saveRequestRef.current + 1
+    saveRequestRef.current = requestId
+    const generation = saveGenerationRef.current
+    if (uploadedImage && !skipUploadedImageFlush) {
+      setSaveStatus('saving')
+      try {
+        await onEnsureUploadedImageSaved(uploadedImage)
+      } catch {
+        if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
+        return false
       }
+      if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
+    }
+    const activeStroke = materializeActiveStroke()
+    const snapshotStrokes = activeStroke ? [...strokesRef.current, activeStroke] : strokesRef.current
 
-      const nextSignature = makePracticeSaveSignature(savedSession)
-      if (nextSignature === lastSavedSignatureRef.current) return
+    if (snapshotStrokes.length === 0) {
+      if (!persistedSessionRef.current) {
+        setSaveStatus('saved')
+        return true
+      }
 
       try {
-        savePreviousWorkSession(savedSession)
-        lastSavedSignatureRef.current = nextSignature
-        onSessionSaved(savedSession)
+        const deletedSessionId = sessionIdRef.current
+        const { imageCleanupPending } = await deletePreviousWorkSession(deletedSessionId, uploadedImage?.imageId)
+        if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
+        lastSavedSignatureRef.current = ''
+        persistedSessionRef.current = false
+        sessionIdRef.current = createPracticeSessionId()
+        sessionCreatedAtRef.current = new Date().toISOString()
+        setSaveStatus('saved')
+        onSessionDeleted(deletedSessionId)
+        if (imageCleanupPending) window.alert('The saved drawing was removed, but this browser could not finish deleting its private image file. Use Clear local work to retry cleanup.')
+        return true
       } catch {
-        // Keep drawing usable if browser storage is unavailable or full.
+        setSaveStatus('error')
+        return false
       }
-    }, practiceAutosaveDelayMs)
+    }
 
-    return () => window.clearTimeout(timeout)
-  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, onSessionDeleted, onSessionSaved, practiceSource, sessionCreatedAt, sessionId, sessionTitle, strokes])
+    const now = new Date().toISOString()
+    const nextSessionId = sessionIdRef.current
+    const savedSession: SavedPracticeSession = {
+      version: 2,
+      sessionId: nextSessionId,
+      title: sessionTitle,
+      source: practiceSource,
+      createdAt: sessionCreatedAtRef.current,
+      updatedAt: now,
+      strokes: snapshotStrokes,
+      guideOpacity,
+      guideOnTop,
+      markerColor,
+      markerWidth,
+      brushToolId,
+    }
+
+    const nextSignature = makePracticeSaveSignature(savedSession)
+    if (nextSignature === lastSavedSignatureRef.current) {
+      setSaveStatus('saved')
+      return true
+    }
+
+    try {
+      if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
+      savePreviousWorkSession(savedSession)
+      persistedSessionRef.current = true
+      lastSavedSignatureRef.current = nextSignature
+      setSaveStatus('saved')
+      onSessionSaved(savedSession)
+      return true
+    } catch {
+      if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
+      return false
+    }
+  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, materializeActiveStroke, onEnsureUploadedImageSaved, onSessionDeleted, onSessionSaved, practiceSource, sessionTitle, uploadedImage])
+
+  useEffect(() => {
+    if (!autosaveReadyRef.current || (strokes.length === 0 && !persistedSessionRef.current)) return
+    setSaveStatus('saving')
+    const timeout = window.setTimeout(() => {
+      if (autosaveTimeoutRef.current === timeout) autosaveTimeoutRef.current = null
+      void savePracticeSessionNow()
+    }, practiceAutosaveDelayMs)
+    autosaveTimeoutRef.current = timeout
+
+    return () => {
+      window.clearTimeout(timeout)
+      if (autosaveTimeoutRef.current === timeout) autosaveTimeoutRef.current = null
+    }
+  }, [savePracticeSessionNow, strokes.length])
+
+  useEffect(() => {
+    const flushPendingSave = () => { void savePracticeSessionNow(true) }
+    window.addEventListener('pagehide', flushPendingSave)
+    return () => window.removeEventListener('pagehide', flushPendingSave)
+  }, [savePracticeSessionNow])
+
+  useEffect(() => {
+    onSaveHandlerChange(savePracticeSessionNow)
+    return () => onSaveHandlerChange(null)
+  }, [onSaveHandlerChange, savePracticeSessionNow])
+
+  function leavePractice(action: () => void) {
+    void savePracticeSessionNow().then((saved) => {
+      if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Leave this drawing without saving them?')) action()
+    })
+  }
 
   const committedStrokeLayers = useMemo(() => {
     const eraserStrokes = strokes.map((stroke, index) => ({ stroke, index })).filter(({ stroke }) => stroke.mode === 'erase')
@@ -2577,13 +2936,11 @@ function PracticeScreen({
   const finishStroke = useCallback(() => {
     if (!drawingRef.current) return
 
-    const { color, width, opacity, mode, dasharray } = activeStrokeStyleRef.current
-    const simplifiedPoints = simplifyPracticePoints(activePointsRef.current, clamp(width * 0.18, 1.25, 5))
-    let path = pointsToSvgPath(simplifiedPoints)
-    if (path && simplifiedPoints.length === 1) path = `${path} l 0.1 0`
-
-    if (path) {
-      setStrokes((current) => [...current, { path, color, width, opacity, mode, dasharray }])
+    const completedStroke = materializeActiveStroke()
+    if (completedStroke) {
+      const nextStrokes = [...strokesRef.current, completedStroke]
+      strokesRef.current = nextStrokes
+      setStrokes(nextStrokes)
     }
 
     cancelActivePathUpdate()
@@ -2594,7 +2951,7 @@ function PracticeScreen({
     drawingRef.current = false
     setActivePath('')
     setActiveStrokeRender(null)
-  }, [cancelActivePathUpdate])
+  }, [cancelActivePathUpdate, materializeActiveStroke])
 
   const resetViewportGestureState = useCallback(() => {
     const canvas = canvasRef.current
@@ -2738,7 +3095,33 @@ function PracticeScreen({
     })
   }
 
-  const clearPractice = () => {
+  const undoPracticeStroke = () => {
+    const nextStrokes = strokesRef.current.slice(0, -1)
+    strokesRef.current = nextStrokes
+    setStrokes(nextStrokes)
+  }
+
+  const clearPractice = async () => {
+    const deletedSessionId = persistedSessionRef.current ? sessionIdRef.current : null
+    autosaveReadyRef.current = false
+    saveGenerationRef.current += 1
+    saveRequestRef.current += 1
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
+    if (deletedSessionId) {
+      try {
+        const { imageCleanupPending } = await deletePreviousWorkSession(deletedSessionId, uploadedImage?.imageId)
+        if (imageCleanupPending) window.alert('The saved drawing was removed, but this browser could not finish deleting its private image file. Use Clear local work to retry cleanup.')
+      } catch {
+        autosaveReadyRef.current = true
+        setSaveStatus('error')
+        window.alert('TraceBuddy could not clear this saved work. Try again in a moment.')
+        return
+      }
+    }
+
     cancelActivePathUpdate()
     activePathRef.current = ''
     activePointsRef.current = []
@@ -2747,23 +3130,22 @@ function PracticeScreen({
     drawingRef.current = false
     setActivePath('')
     setActiveStrokeRender(null)
+    strokesRef.current = []
     setStrokes([])
-    const deletedSessionId = sessionId
-    setSessionId(null)
-    setSessionCreatedAt(new Date().toISOString())
+    persistedSessionRef.current = false
+    sessionIdRef.current = createPracticeSessionId()
+    sessionCreatedAtRef.current = new Date().toISOString()
+    lastSavedSignatureRef.current = ''
+    autosaveReadyRef.current = true
+    setSaveStatus('saved')
     if (deletedSessionId) {
-      try {
-        deletePreviousWorkSession(deletedSessionId)
-        onSessionDeleted(deletedSessionId)
-      } catch {
-        // Ignore storage failures; the visible drawing has already been cleared.
-      }
+      onSessionDeleted(deletedSessionId)
     }
   }
 
   const confirmClearPractice = () => {
     if (strokes.length === 0 && !activePath) return
-    if (window.confirm('Clear all coloring saved in this work?')) clearPractice()
+    if (window.confirm('Clear all coloring saved in this work?')) void clearPractice()
   }
 
   const resetPracticeViewport = () => {
@@ -2803,11 +3185,16 @@ function PracticeScreen({
           <p>{pictureTheme} · Draw while locked. Unlock only when you want to move or zoom the page.</p>
         </div>
         <div className="trace-header-actions">
-          <button className="secondary-button compact" type="button" onClick={onPicker}>Pictures</button>
-          <button className="secondary-button compact" type="button" onClick={onCameraTrace}>Camera</button>
+          <button className="secondary-button compact" type="button" onClick={() => leavePractice(onPicker)}>Pictures</button>
+          <button className="secondary-button compact" type="button" onClick={() => leavePractice(onCameraTrace)}>Camera</button>
           <label className="secondary-button compact file-button">
             Upload
-            <input type="file" accept="image/*" onChange={onUpload} />
+            <input type="file" accept="image/*" onChange={(event) => {
+              const input = event.currentTarget
+              void savePracticeSessionNow().then((saved) => {
+                if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Replace this drawing without saving them?')) onUpload(input)
+              })
+            }} />
           </label>
         </div>
       </div>
@@ -2873,7 +3260,7 @@ function PracticeScreen({
           <div className="studio-tool-group action-tool" aria-label="Drawing actions" role="group">
             <span>Actions</span>
             <div className="compact-stepper">
-              <button type="button" onClick={() => setStrokes((current) => current.slice(0, -1))} disabled={strokes.length === 0}>Undo</button>
+              <button type="button" onClick={undoPracticeStroke} disabled={strokes.length === 0}>Undo</button>
               <button type="button" onClick={confirmClearPractice} disabled={strokes.length === 0 && !activePath}>Clear all</button>
             </div>
           </div>
@@ -2882,6 +3269,13 @@ function PracticeScreen({
         <div className="practice-card studio-card">
           <div className="practice-status-strip">
             <span>{viewportLocked ? 'Draw mode: page is locked, lines stay visible, and coloring autosaves on this device.' : 'Move mode: drag to pan, pinch or scroll to zoom, then lock again to color.'}</span>
+            <span className={`practice-save-status ${visibleSaveStatus}`} role="status" aria-live="polite">
+              {visibleSaveStatus === 'saving' && 'Saving…'}
+              {visibleSaveStatus === 'saved' && 'Saved on this device'}
+              {visibleSaveStatus === 'error' && (
+                <>Not saved <button type="button" onClick={() => { void savePracticeSessionNow() }}>Retry</button></>
+              )}
+            </span>
           </div>
 
           <div

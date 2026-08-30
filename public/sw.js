@@ -1,6 +1,16 @@
-const CACHE_NAME = 'tracebuddy-app-shell-v2'
-const APP_SHELL = ['/', '/manifest.webmanifest', '/favicon.svg']
+const CACHE_PREFIX = 'tracebuddy-app-shell-'
+const CACHE_METADATA = 'tracebuddy-cache-metadata'
+const CURRENT_CACHE_KEY = '/__tracebuddy_current_cache__'
+const CANDIDATE_CACHE_KEY = '/__tracebuddy_candidate_cache__'
+const STATIC_SHELL = ['/manifest.webmanifest', '/favicon.svg']
 const VITE_ASSET_PREFIX = '/assets/'
+const EMBEDDED_BUILD_ID = '__TRACEBUDDY_BUILD_ID__'
+const LOCAL_TEST_BUILD_ID = new URL(self.location.href).searchParams.get('build')?.replace(/[^a-zA-Z0-9_-]/g, '')
+const IS_LOCAL_TEST_HOST = self.location.hostname === '127.0.0.1' || self.location.hostname === 'localhost'
+const BUILD_ID = IS_LOCAL_TEST_HOST && LOCAL_TEST_BUILD_ID?.startsWith('offline-upgrade-') ? LOCAL_TEST_BUILD_ID : EMBEDDED_BUILD_ID
+const SHOULD_FAIL_LOCAL_INSTALL = IS_LOCAL_TEST_HOST && new URL(self.location.href).searchParams.get('fail-install') === '1'
+const BUILD_CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`
+const CANDIDATE_CACHE_NAME = `${BUILD_CACHE_NAME}-candidate`
 
 const OFFLINE_HTML = `<!doctype html>
 <html lang="en">
@@ -40,21 +50,15 @@ const OFFLINE_HTML = `<!doctype html>
 </html>`
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting()),
-  )
+  event.waitUntil(installCompleteAppShell())
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((names) => Promise.all(names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))))
-      .then(() => self.clients.claim()),
-  )
+  event.waitUntil(promoteInstalledAppShell().then(() => self.clients.claim()))
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'TRACEBUDDY_ACTIVATE_UPDATE') void self.skipWaiting()
 })
 
 self.addEventListener('fetch', (event) => {
@@ -76,22 +80,89 @@ self.addEventListener('fetch', (event) => {
 })
 
 async function networkFirstNavigation(request) {
-  const cache = await caches.open(CACHE_NAME)
+  try {
+    return await fetch(request)
+  } catch {
+    const cache = await openCurrentAppShellCache()
+    return (await cache?.match('/')) || new Response(OFFLINE_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  }
+}
+
+async function installCompleteAppShell() {
+  const htmlResponse = await fetch('/', { cache: 'reload' })
+  if (!htmlResponse.ok || !isHtmlResponse(htmlResponse)) throw new Error('Could not fetch the TraceBuddy app shell')
+  const html = await htmlResponse.clone().text()
+  const viteAssetUrls = [...extractViteAssets(html)]
+  if (viteAssetUrls.length === 0) throw new Error('TraceBuddy app-shell assets were not found')
+
+  await caches.delete(CANDIDATE_CACHE_NAME)
+  const cache = await caches.open(CANDIDATE_CACHE_NAME)
 
   try {
-    const response = await fetch(request)
-    if (response.ok) {
-      await cache.put('/', response.clone())
-
-      if (isHtmlResponse(response)) {
-        const html = await response.clone().text()
-        await pruneStaleViteAssets(cache, extractViteAssets(html))
-      }
+    const shellUrls = [...STATIC_SHELL, ...viteAssetUrls]
+    const shellResponses = await Promise.all(shellUrls.map(async (assetUrl) => {
+      const response = await fetch(assetUrl, { cache: 'reload' })
+      if (!response.ok) throw new Error(`Could not cache ${assetUrl}`)
+      return [assetUrl, response]
+    }))
+    if (SHOULD_FAIL_LOCAL_INSTALL) {
+      const [firstAssetUrl, firstResponse] = shellResponses[0]
+      await cache.put(firstAssetUrl, firstResponse)
+      throw new Error('Simulated local app-shell install failure')
     }
-    return response
-  } catch {
-    return (await cache.match('/')) || new Response(OFFLINE_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+    await Promise.all(shellResponses.map(([assetUrl, response]) => cache.put(assetUrl, response)))
+    await cache.put('/', htmlResponse)
+    await cache.put(CANDIDATE_CACHE_KEY, new Response(BUILD_ID))
+  } catch (error) {
+    await caches.delete(CANDIDATE_CACHE_NAME)
+    throw error
   }
+}
+
+async function promoteInstalledAppShell() {
+  const names = await caches.keys()
+  if (!names.includes(CANDIDATE_CACHE_NAME)) throw new Error('The installed TraceBuddy candidate cache is unavailable')
+  const candidateCache = await caches.open(CANDIDATE_CACHE_NAME)
+  const candidateMarker = await candidateCache.match(CANDIDATE_CACHE_KEY)
+  if (!candidateMarker || await candidateMarker.text() !== BUILD_ID) throw new Error('The installed TraceBuddy candidate cache is incomplete')
+
+  const nextCacheName = `${BUILD_CACHE_NAME}-ready-${Date.now()}`
+  const nextCache = await caches.open(nextCacheName)
+
+  try {
+    const candidateRequests = await candidateCache.keys()
+    const shellRequests = candidateRequests.filter((request) => new URL(request.url).pathname !== CANDIDATE_CACHE_KEY)
+    const shellEntries = await Promise.all(shellRequests.map(async (request) => {
+      const response = await candidateCache.match(request)
+      if (!response) throw new Error(`The installed TraceBuddy response is missing: ${request.url}`)
+      return [request, response]
+    }))
+    await Promise.all(shellEntries.map(([request, response]) => nextCache.put(request, response)))
+  } catch (error) {
+    await caches.delete(nextCacheName)
+    throw error
+  }
+
+  const previousCacheName = await readCurrentCacheName()
+  const metadataCache = await caches.open(CACHE_METADATA)
+  await metadataCache.put(CURRENT_CACHE_KEY, new Response(nextCacheName))
+  await caches.delete(CANDIDATE_CACHE_NAME)
+
+  const retainedNames = new Set([nextCacheName, previousCacheName].filter(Boolean))
+  await Promise.all(names
+    .filter((name) => name.startsWith(CACHE_PREFIX) && !retainedNames.has(name))
+    .map((name) => caches.delete(name)))
+}
+
+async function readCurrentCacheName() {
+  const metadataCache = await caches.open(CACHE_METADATA)
+  const response = await metadataCache.match(CURRENT_CACHE_KEY)
+  return response ? response.text() : null
+}
+
+async function openCurrentAppShellCache() {
+  const currentCacheName = await readCurrentCacheName()
+  return currentCacheName ? caches.open(currentCacheName) : null
 }
 
 function isHtmlResponse(response) {
@@ -103,20 +174,6 @@ function extractViteAssets(html) {
   return new Set(matches.map((assetPath) => new URL(assetPath, self.location.origin).href))
 }
 
-async function pruneStaleViteAssets(cache, currentAssetUrls) {
-  if (!currentAssetUrls.size) return
-
-  const cachedRequests = await cache.keys()
-  await Promise.all(
-    cachedRequests
-      .filter((cachedRequest) => {
-        const cachedUrl = new URL(cachedRequest.url)
-        return cachedUrl.pathname.startsWith(VITE_ASSET_PREFIX) && !currentAssetUrls.has(cachedUrl.href)
-      })
-      .map((cachedRequest) => cache.delete(cachedRequest)),
-  )
-}
-
 function shouldCacheAsset(request, url) {
   return (
     ['script', 'style', 'image', 'font', 'manifest'].includes(request.destination) ||
@@ -126,11 +183,11 @@ function shouldCacheAsset(request, url) {
 }
 
 function staleWhileRevalidate(request) {
-  const cachePromise = caches.open(CACHE_NAME)
+  const cachePromise = openCurrentAppShellCache()
   const refreshResponse = cachePromise
     .then((cache) => fetch(request)
       .then(async (fetchResponse) => {
-        if (fetchResponse.ok) {
+        if (fetchResponse.ok && cache) {
           try {
             await cache.put(request, fetchResponse.clone())
           } catch {
@@ -143,7 +200,7 @@ function staleWhileRevalidate(request) {
 
   const response = cachePromise
     .then(async (cache) => {
-      const cached = await cache.match(request)
+      const cached = await cache?.match(request)
       if (cached) return cached
 
       return (await refreshResponse) || new Response('', { status: 504, statusText: 'Offline' })
