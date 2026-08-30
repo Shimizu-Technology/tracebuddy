@@ -6,6 +6,7 @@ export type DrawingCollectionId = 'curated'
 export type DrawingFilterId = 'all' | DrawingCollectionId | DrawingCategoryId
 
 export type DrawingDifficulty = 'Starter' | 'Medium' | 'Detailed'
+export type DrawingDifficultyFilter = 'all' | DrawingDifficulty
 
 export type Drawing = {
   id: string
@@ -15,6 +16,20 @@ export type Drawing = {
   collection?: DrawingCollectionId
   difficulty: DrawingDifficulty
   svg: string
+}
+
+export type DrawingPreferences = {
+  version: 1
+  favoriteIds: string[]
+  recentIds: string[]
+}
+
+export type DrawingDiscoveryFilters = {
+  category: DrawingFilterId
+  difficulty: DrawingDifficultyFilter
+  query: string
+  favoriteIds?: readonly string[]
+  favoritesOnly?: boolean
 }
 
 const SVG_TEXT_LIMIT = 48
@@ -84,6 +99,13 @@ export const drawingCategories: Array<{ id: DrawingFilterId; label: string }> = 
   { id: 'letters', label: 'Letters' },
   { id: 'island', label: 'Island' },
   { id: 'seasonal', label: 'Seasonal' },
+]
+
+export const drawingDifficultyFilters: Array<{ id: DrawingDifficultyFilter; label: string }> = [
+  { id: 'all', label: 'Any level' },
+  { id: 'Starter', label: 'Starter' },
+  { id: 'Medium', label: 'Medium' },
+  { id: 'Detailed', label: 'Detailed' },
 ]
 
 const curatedDrawings: Drawing[] = [
@@ -687,3 +709,72 @@ export const drawings: Drawing[] = [...legacyDrawings, ...addedDrawings].map((dr
     svg: revisedSvg ?? drawing.svg,
   }
 })
+
+const drawingIds = new Set(drawings.map(({ id }) => id))
+
+export const emptyDrawingPreferences: DrawingPreferences = {
+  version: 1,
+  favoriteIds: [],
+  recentIds: [],
+}
+
+function normalizedDrawingIds(value: unknown, limit: number) {
+  if (!Array.isArray(value)) return []
+  const ids: string[] = []
+  for (const candidate of value) {
+    if (typeof candidate !== 'string' || !drawingIds.has(candidate) || ids.includes(candidate)) continue
+    ids.push(candidate)
+    if (ids.length >= limit) break
+  }
+  return ids
+}
+
+export function normalizeDrawingPreferences(value: unknown): DrawingPreferences {
+  if (!value || typeof value !== 'object') return { ...emptyDrawingPreferences }
+  const candidate = value as Partial<DrawingPreferences>
+  return {
+    version: 1,
+    favoriteIds: normalizedDrawingIds(candidate.favoriteIds, drawings.length),
+    recentIds: normalizedDrawingIds(candidate.recentIds, 8),
+  }
+}
+
+export function addRecentDrawing(preferences: DrawingPreferences, drawingId: string): DrawingPreferences {
+  if (!drawingIds.has(drawingId)) return preferences
+  return {
+    ...preferences,
+    recentIds: [drawingId, ...preferences.recentIds.filter((id) => id !== drawingId)].slice(0, 8),
+  }
+}
+
+export function toggleFavoriteDrawing(preferences: DrawingPreferences, drawingId: string): DrawingPreferences {
+  if (!drawingIds.has(drawingId)) return preferences
+  const isFavorite = preferences.favoriteIds.includes(drawingId)
+  return {
+    ...preferences,
+    favoriteIds: isFavorite
+      ? preferences.favoriteIds.filter((id) => id !== drawingId)
+      : [...preferences.favoriteIds, drawingId],
+  }
+}
+
+export function drawingsFromIds(ids: readonly string[]) {
+  const byId = new Map(drawings.map((drawing) => [drawing.id, drawing]))
+  return ids.map((id) => byId.get(id)).filter((drawing): drawing is Drawing => Boolean(drawing))
+}
+
+export function filterDrawings({ category, difficulty, query, favoriteIds = [], favoritesOnly = false }: DrawingDiscoveryFilters) {
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const favoriteSet = new Set(favoriteIds)
+
+  return drawings.filter((drawing) => {
+    if (category === 'curated' && drawing.collection !== 'curated') return false
+    if (category !== 'all' && category !== 'curated' && drawing.category !== category) return false
+    if (difficulty !== 'all' && drawing.difficulty !== difficulty) return false
+    if (favoritesOnly && !favoriteSet.has(drawing.id)) return false
+    if (!normalizedQuery) return true
+
+    return [drawing.name, drawing.theme, drawing.category, drawing.difficulty]
+      .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
+  })
+}

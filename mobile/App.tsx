@@ -27,8 +27,20 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg'
 import { captureRef } from 'react-native-view-shot'
 
-import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from '@tracebuddy/shared'
-import type { Drawing, DrawingFilterId } from '@tracebuddy/shared'
+import {
+  addRecentDrawing,
+  createTextDrawing,
+  drawingCategories,
+  drawingDifficultyFilters,
+  drawings,
+  drawingsFromIds,
+  emptyDrawingPreferences,
+  filterDrawings,
+  normalizeDrawingPreferences,
+  sanitizeTraceText,
+  toggleFavoriteDrawing,
+} from '@tracebuddy/shared'
+import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences } from '@tracebuddy/shared'
 
 type ScreenMode = 'picker' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
@@ -185,6 +197,7 @@ const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
 const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
 const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
+const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
 const uploadedWorkDirectory = `${FileSystem.documentDirectory ?? ''}tracebuddy-uploads/`
 const practiceAutosaveDelayMs = 450
 
@@ -440,18 +453,19 @@ function normalizeLegacyPracticeAutosave(value: unknown, storageKey: string, leg
   }
 }
 
-async function migrateLegacyPracticeAutosaves(legacyCanvasSize: { width: number; height: number }) {
+async function migrateLegacyPracticeAutosaves(legacyCanvasSize: { width: number; height: number }, isCurrent: () => boolean = () => true) {
   const keys = await AsyncStorage.getAllKeys()
   const legacyKeys = keys.filter((key) => key.startsWith(legacyPracticeAutosavePrefix))
 
   for (const key of legacyKeys) {
+    if (!isCurrent()) return
     try {
       const rawSession = await AsyncStorage.getItem(key)
       const migratedSession = rawSession ? normalizeLegacyPracticeAutosave(JSON.parse(rawSession), key, legacyCanvasSize) : null
-      if (!migratedSession) continue
+      if (!migratedSession || !isCurrent()) continue
 
       await savePreviousWorkSession(migratedSession)
-      await AsyncStorage.removeItem(key)
+      if (isCurrent()) await AsyncStorage.removeItem(key)
     } catch {
       // Leave the legacy autosave in place if migration cannot complete.
     }
@@ -541,10 +555,10 @@ async function recoverPreviousWorkIdsFromSessions() {
     .map((session) => session.sessionId)
 }
 
-async function loadPreviousWorkSessions() {
+async function loadPreviousWorkSessions(isCurrent: () => boolean = () => true) {
   const ids = await readPreviousWorkIds().catch(async () => {
     const recoveredIds = await recoverPreviousWorkIdsFromSessions()
-    await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds })).catch(() => undefined)
+    if (isCurrent()) await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds })).catch(() => undefined)
     return recoveredIds
   })
   if (ids.length === 0) return []
@@ -563,23 +577,30 @@ async function loadPreviousWorkSessions() {
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
 
   const validIds = sessions.map((session) => session.sessionId)
-  if (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index])) {
+  if (isCurrent() && (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index]))) {
     await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: validIds })).catch(() => undefined)
   }
 
   return sessions
 }
 
-async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { width: number; height: number }) {
-  await migrateLegacyPracticeAutosaves(legacyCanvasSize)
-  return loadPreviousWorkSessions()
+async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { width: number; height: number }, isCurrent: () => boolean = () => true) {
+  await migrateLegacyPracticeAutosaves(legacyCanvasSize, isCurrent)
+  return loadPreviousWorkSessions(isCurrent)
 }
 
 let previousWorkWriteQueue = Promise.resolve()
+let drawingPreferencesWriteQueue = Promise.resolve()
 
 function queuePreviousWorkWrite<T>(operation: () => Promise<T>) {
   const result = previousWorkWriteQueue.then(operation, operation)
   previousWorkWriteQueue = result.then(() => undefined, () => undefined)
+  return result
+}
+
+function queueDrawingPreferencesWrite<T>(operation: () => Promise<T>) {
+  const result = drawingPreferencesWriteQueue.then(operation, operation)
+  drawingPreferencesWriteQueue = result.then(() => undefined, () => undefined)
   return result
 }
 
@@ -712,8 +733,9 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
 
 async function deleteAllPreviousWorkSessions() {
   return queuePreviousWorkWrite(async () => {
+    await queueDrawingPreferencesWrite(() => AsyncStorage.removeItem(drawingPreferencesKey))
     const keys = await AsyncStorage.getAllKeys()
-    const traceBuddyKeys = keys.filter((key) => key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
+    const traceBuddyKeys = keys.filter((key) => key === drawingPreferencesKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
     activeStoredImageUris.clear()
     try {
@@ -774,6 +796,12 @@ function TraceBuddyMobile() {
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null)
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
+  const [difficulty, setDifficulty] = useState<DrawingDifficultyFilter>('all')
+  const [drawingQuery, setDrawingQuery] = useState('')
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>({ ...emptyDrawingPreferences })
+  const [drawingPreferencesMessage, setDrawingPreferencesMessage] = useState('')
+  const [drawingPreferencesClearInProgress, setDrawingPreferencesClearInProgress] = useState(false)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [customText, setCustomText] = useState('')
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
@@ -788,30 +816,68 @@ function TraceBuddyMobile() {
   const dragStartRef = useRef({ x: defaultTransform.x, y: defaultTransform.y, pageX: 0, pageY: 0 })
   const transformRef = useRef(defaultTransform)
   const legacyMigrationCompleteRef = useRef(false)
+  const drawingPreferencesRef = useRef(drawingPreferences)
+  const drawingPreferencesInteractionRef = useRef(false)
+  const drawingPreferencesClearInProgressRef = useRef(false)
+  const previousWorkOperationGenerationRef = useRef(0)
   const legacyMigrationCanvasSizeRef = useRef({
     width: Math.max(1, width - 20),
     height: Math.max(430, height - 280),
   })
 
   const refreshPreviousWork = useCallback(() => {
+    const operationGeneration = previousWorkOperationGenerationRef.current
+    const isCurrent = () => operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current
     const loadTask = legacyMigrationCompleteRef.current
-      ? loadPreviousWorkSessions()
-      : loadPreviousWorkSessionsWithLegacyMigration(legacyMigrationCanvasSizeRef.current).then((sessions) => {
-          legacyMigrationCompleteRef.current = true
+      ? loadPreviousWorkSessions(isCurrent)
+      : loadPreviousWorkSessionsWithLegacyMigration(legacyMigrationCanvasSizeRef.current, isCurrent).then((sessions) => {
+          if (isCurrent()) legacyMigrationCompleteRef.current = true
           return sessions
         })
 
     void loadTask
       .then((sessions) => {
+        if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
         setPreviousWorkSessions(sessions)
         void cleanupOrphanedStoredImages()
       })
-      .catch(() => setPreviousWorkSessions([]))
+      .catch(() => {
+        if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) setPreviousWorkSessions([])
+      })
   }, [])
 
   useEffect(() => {
     refreshPreviousWork()
   }, [refreshPreviousWork])
+
+  useEffect(() => {
+    let cancelled = false
+    void AsyncStorage.getItem(drawingPreferencesKey)
+      .then((rawPreferences) => {
+        if (cancelled || drawingPreferencesInteractionRef.current) return
+        const preferences = normalizeDrawingPreferences(rawPreferences ? JSON.parse(rawPreferences) : null)
+        drawingPreferencesRef.current = preferences
+        setDrawingPreferences(preferences)
+      })
+      .catch(() => {
+        if (!cancelled) setDrawingPreferencesMessage('Favorites and recent picks will last for this visit only.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const saveDrawingPreferences = useCallback((nextPreferences: DrawingPreferences) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const normalizedPreferences = normalizeDrawingPreferences(nextPreferences)
+    drawingPreferencesInteractionRef.current = true
+    drawingPreferencesRef.current = normalizedPreferences
+    setDrawingPreferences(normalizedPreferences)
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(drawingPreferencesKey, JSON.stringify(normalizedPreferences)))
+      .then(() => setDrawingPreferencesMessage(''))
+      .catch(() => setDrawingPreferencesMessage('Favorites and recent picks will last for this visit only.'))
+  }, [])
 
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
@@ -822,11 +888,15 @@ function TraceBuddyMobile() {
     return counts
   }, [])
 
-  const visibleDrawings = useMemo(() => {
-    if (activeCategory === 'all') return drawings
-    if (activeCategory === 'curated') return drawings.filter((drawing) => drawing.collection === 'curated')
-    return drawings.filter((drawing) => drawing.category === activeCategory)
-  }, [activeCategory])
+  const visibleDrawings = useMemo(() => filterDrawings({
+    category: activeCategory,
+    difficulty,
+    query: drawingQuery,
+    favoriteIds: drawingPreferences.favoriteIds,
+    favoritesOnly,
+  }), [activeCategory, difficulty, drawingPreferences.favoriteIds, drawingQuery, favoritesOnly])
+  const recentDrawings = useMemo(() => drawingsFromIds(drawingPreferences.recentIds), [drawingPreferences.recentIds])
+  const favoriteIds = useMemo(() => new Set(drawingPreferences.favoriteIds), [drawingPreferences.favoriteIds])
 
   const pictureName = uploadedImage?.name ?? selectedDrawing.name
   const pictureTheme = uploadedImage ? 'Local image' : selectedDrawing.theme
@@ -874,6 +944,8 @@ function TraceBuddyMobile() {
 
   const openTraceWithDrawing = useCallback((drawing: Drawing) => {
     const abandonedUploadUri = uploadedImage?.uri
+    const nextPreferences = addRecentDrawing(drawingPreferencesRef.current, drawing.id)
+    if (nextPreferences !== drawingPreferencesRef.current) saveDrawingPreferences(nextPreferences)
     setSelectedDrawing(drawing)
     setUploadedImage(null)
     if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
@@ -881,7 +953,18 @@ function TraceBuddyMobile() {
     setMode(traceSurface === 'screen' ? 'practice' : 'trace')
     setControlsOpen(true)
     resetOverlay()
-  }, [resetOverlay, traceSurface, uploadedImage])
+  }, [resetOverlay, saveDrawingPreferences, traceSurface, uploadedImage])
+
+  const toggleFavorite = useCallback((drawingId: string) => {
+    saveDrawingPreferences(toggleFavoriteDrawing(drawingPreferencesRef.current, drawingId))
+  }, [saveDrawingPreferences])
+
+  const clearDrawingFilters = useCallback(() => {
+    setActiveCategory('all')
+    setDifficulty('all')
+    setDrawingQuery('')
+    setFavoritesOnly(false)
+  }, [])
 
   const openTraceWithCustomText = useCallback(() => {
     const safeText = sanitizeTraceText(customText)
@@ -1047,8 +1130,10 @@ function TraceBuddyMobile() {
   }, [resetOverlay])
 
   const openPreviousWorkSession = useCallback((session: SavedPracticeSession) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     void preparePracticeSessionForOpen(session).then((readySession) => {
-      if (!readySession) return
+      if (!readySession || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       applyPracticeSource(readySession.source)
       setActivePracticeSession(readySession)
       setMode('practice')
@@ -1056,8 +1141,10 @@ function TraceBuddyMobile() {
   }, [applyPracticeSource, preparePracticeSessionForOpen])
 
   const startFreshFromPreviousWork = useCallback((session: SavedPracticeSession) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     void preparePracticeSourceForOpen(session.source).then((source) => {
-      if (!source) return
+      if (!source || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       applyPracticeSource(source)
       setActivePracticeSession(null)
       setMode('practice')
@@ -1065,6 +1152,8 @@ function TraceBuddyMobile() {
   }, [applyPracticeSource, preparePracticeSourceForOpen])
 
   const duplicatePreviousWorkSession = useCallback((session: SavedPracticeSession) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     const now = new Date().toISOString()
     const copiedSession: SavedPracticeSession = {
       ...session,
@@ -1077,50 +1166,79 @@ function TraceBuddyMobile() {
     }
 
     void savePreviousWorkSession(copiedSession)
-      .then(() => setPreviousWorkSessions((current) => [copiedSession, ...current.filter((item) => item.sessionId !== copiedSession.sessionId)]))
-      .catch(() => Alert.alert('Could not duplicate work', 'Try again in a moment.'))
+      .then(() => {
+        if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) {
+          setPreviousWorkSessions((current) => [copiedSession, ...current.filter((item) => item.sessionId !== copiedSession.sessionId)])
+        }
+      })
+      .catch(() => {
+        if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) Alert.alert('Could not duplicate work', 'Try again in a moment.')
+      })
   }, [])
 
   const deletePreviousWork = useCallback((session: SavedPracticeSession) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const operationGeneration = previousWorkOperationGenerationRef.current
     Alert.alert('Delete previous work?', `Remove ${session.title} from this phone.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: () => {
+          if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
           const preservedGuideUris = [uploadedImage?.uri].filter((uri): uri is string => Boolean(uri))
           void deletePreviousWorkSession(session.sessionId, preservedGuideUris)
             .then(({ imageCleanupPending }) => {
+              if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
               setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
               if (activePracticeSession?.sessionId === session.sessionId) setActivePracticeSession(null)
               if (imageCleanupPending) Alert.alert('Work deleted', 'The saved drawing was removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work to retry cleanup.')
             })
-            .catch(() => Alert.alert('Could not delete work', 'Try again in a moment.'))
+            .catch(() => {
+              if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) Alert.alert('Could not delete work', 'Try again in a moment.')
+            })
         },
       },
     ])
   }, [activePracticeSession?.sessionId, uploadedImage?.uri])
 
   const deleteAllPreviousWork = useCallback(() => {
-    Alert.alert('Clear all local work?', 'This removes every Previous Work session and TraceBuddy image stored inside the app. Images already saved to Photos stay there.', [
+    Alert.alert('Clear all local work?', 'This removes every Previous Work session, favorite, recent pick, and TraceBuddy image stored inside the app. Images already saved to Photos stay there.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear all',
         style: 'destructive',
         onPress: () => {
+          if (drawingPreferencesClearInProgressRef.current) return
+          drawingPreferencesClearInProgressRef.current = true
+          setDrawingPreferencesClearInProgress(true)
+          previousWorkOperationGenerationRef.current += 1
+          let clearFailed = false
           void deleteAllPreviousWorkSessions()
             .then(({ imageCleanupPending }) => {
               setPreviousWorkSessions([])
               setActivePracticeSession(null)
               setUploadedImage(null)
+              drawingPreferencesInteractionRef.current = true
+              drawingPreferencesRef.current = { ...emptyDrawingPreferences }
+              setDrawingPreferences({ ...emptyDrawingPreferences })
+              setDrawingPreferencesMessage('')
               setMode('picker')
               if (imageCleanupPending) Alert.alert('Drawings cleared', 'Saved drawings were removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work again to retry cleanup.')
             })
-            .catch(() => Alert.alert('Could not clear local work', 'Try again in a moment.'))
+            .catch(() => {
+              clearFailed = true
+              Alert.alert('Could not clear local work', 'Try again in a moment.')
+            })
+            .finally(() => {
+              drawingPreferencesClearInProgressRef.current = false
+              setDrawingPreferencesClearInProgress(false)
+              if (clearFailed) refreshPreviousWork()
+            })
         },
       },
     ])
-  }, [])
+  }, [refreshPreviousWork])
 
   const handlePracticeSessionSaved = useCallback((session: SavedPracticeSession) => {
     setPreviousWorkSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
@@ -1201,12 +1319,75 @@ function TraceBuddyMobile() {
 
               <PreviousWorkSection
                 sessions={previousWorkSessions}
+                disabled={drawingPreferencesClearInProgress}
                 onResume={openPreviousWorkSession}
                 onStartFresh={startFreshFromPreviousWork}
                 onDuplicate={duplicatePreviousWorkSession}
                 onDelete={deletePreviousWork}
                 onDeleteAll={deleteAllPreviousWork}
               />
+
+              <View style={styles.discoveryPanel}>
+                <View style={styles.discoveryHeading}>
+                  <View style={styles.discoveryHeadingCopy}>
+                    <Text style={styles.discoveryEyebrow}>FIND A FAVORITE</Text>
+                    <Text style={styles.discoveryTitle}>What should we trace today?</Text>
+                  </View>
+                  <Pressable
+                    style={[styles.favoritesFilter, favoritesOnly && styles.favoritesFilterActive]}
+                    onPress={() => setFavoritesOnly((current) => !current)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: favoritesOnly }}
+                    accessibilityLabel={`Show favorites only. ${drawingPreferences.favoriteIds.length} favorites.`}
+                  >
+                    <Text style={[styles.favoritesHeart, favoritesOnly && styles.favoritesFilterTextActive]}>♥</Text>
+                    <Text style={[styles.favoritesFilterText, favoritesOnly && styles.favoritesFilterTextActive]}>Favorites</Text>
+                    <View style={styles.favoritesCount}><Text style={styles.favoritesCountText}>{drawingPreferences.favoriteIds.length}</Text></View>
+                  </Pressable>
+                </View>
+
+                <Text style={styles.searchLabel}>Search pictures</Text>
+                <TextInput
+                  value={drawingQuery}
+                  onChangeText={setDrawingQuery}
+                  placeholder="Search car, crab, Guam..."
+                  placeholderTextColor="#8A94A6"
+                  style={styles.drawingSearchInput}
+                  returnKeyType="search"
+                  accessibilityLabel="Search pictures"
+                />
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.difficultyStrip}>
+                  {drawingDifficultyFilters.map((filter) => {
+                    const active = difficulty === filter.id
+                    return (
+                      <Pressable
+                        key={filter.id}
+                        onPress={() => setDifficulty(filter.id)}
+                        style={[styles.difficultyChip, active && styles.difficultyChipActive]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text style={[styles.difficultyChipText, active && styles.difficultyChipTextActive]}>{filter.label}</Text>
+                      </Pressable>
+                    )
+                  })}
+                </ScrollView>
+
+                {recentDrawings.length > 0 && (
+                  <View style={styles.recentPicks}>
+                    <Text style={styles.recentPicksLabel}>RECENT</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentPicksStrip}>
+                      {recentDrawings.map((drawing) => (
+                        <Pressable key={drawing.id} style={styles.recentPick} disabled={drawingPreferencesClearInProgress} onPress={() => openTraceWithDrawing(drawing)} accessibilityRole="button" accessibilityLabel={`Trace recent picture ${drawing.name}`}>
+                          <Text style={styles.recentPickText}>{drawing.name}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+                {drawingPreferencesMessage ? <Text style={styles.preferenceMessage} accessibilityLiveRegion="polite">{drawingPreferencesMessage}</Text> : null}
+              </View>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryStrip}>
                 {drawingCategories.map((category) => {
@@ -1229,25 +1410,48 @@ function TraceBuddyMobile() {
                 })}
               </ScrollView>
 
-              <Text style={styles.templateCount}>Showing {visibleDrawings.length} {visibleDrawings.length === 1 ? 'template' : 'templates'}.</Text>
+              <Text style={styles.templateCount}>Showing {visibleDrawings.length} of {drawings.length} {visibleDrawings.length === 1 ? 'template' : 'templates'}.</Text>
+            </View>
+          )}
+          ListEmptyComponent={(
+            <View style={styles.drawingEmptyState}>
+              <Text style={styles.drawingEmptyTitle}>No pictures match those choices yet.</Text>
+              <Text style={styles.drawingEmptyCopy}>Try a different word or open up the level and category.</Text>
+              <Pressable style={styles.drawingEmptyButton} onPress={clearDrawingFilters} accessibilityRole="button">
+                <Text style={styles.drawingEmptyButtonText}>Show all pictures</Text>
+              </Pressable>
             </View>
           )}
           renderItem={({ item }) => (
-            <Pressable
+            <View
               style={[styles.drawingCard, selectedDrawing.id === item.id && !uploadedImage && styles.drawingCardSelected]}
-              onPress={() => openTraceWithDrawing(item)}
-              accessibilityRole="button"
-              accessibilityLabel={`Trace ${item.name}. ${item.difficulty} difficulty. ${item.theme}.`}
             >
-              <View style={styles.drawingPreview}>
-                <SvgXml xml={item.svg} width="100%" height="100%" />
-              </View>
-              <View style={styles.drawingMeta}>
-                <Text style={styles.drawingName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.drawingTheme} numberOfLines={1}>{item.theme}</Text>
-              </View>
-              <Text style={styles.difficultyBadge}>{item.difficulty}</Text>
-            </Pressable>
+              <Pressable
+                style={styles.drawingCardAction}
+                onPress={() => openTraceWithDrawing(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`Trace ${item.name}. ${item.difficulty} difficulty. ${item.theme}.`}
+              >
+                <View style={styles.drawingPreview}>
+                  <SvgXml xml={item.svg} width="100%" height="100%" />
+                </View>
+                <View style={styles.drawingMeta}>
+                  <Text style={styles.drawingName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.drawingTheme} numberOfLines={1}>{item.theme}</Text>
+                </View>
+                <Text style={styles.difficultyBadge}>{item.difficulty}</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.favoriteButton, favoriteIds.has(item.id) && styles.favoriteButtonActive]}
+                disabled={drawingPreferencesClearInProgress}
+                onPress={() => toggleFavorite(item.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: favoriteIds.has(item.id) }}
+                accessibilityLabel={`${favoriteIds.has(item.id) ? 'Remove' : 'Add'} ${item.name} ${favoriteIds.has(item.id) ? 'from' : 'to'} favorites`}
+              >
+                <Text style={[styles.favoriteButtonText, favoriteIds.has(item.id) && styles.favoriteButtonTextActive]}>♥</Text>
+              </Pressable>
+            </View>
           )}
         />
       </View>
@@ -1443,6 +1647,7 @@ function sizedStickerFrame(sticker: PracticeSticker, canvasSize: { width: number
 
 function PreviousWorkSection({
   sessions,
+  disabled,
   onResume,
   onStartFresh,
   onDuplicate,
@@ -1450,6 +1655,7 @@ function PreviousWorkSection({
   onDeleteAll,
 }: {
   sessions: SavedPracticeSession[]
+  disabled: boolean
   onResume: (session: SavedPracticeSession) => void
   onStartFresh: (session: SavedPracticeSession) => void
   onDuplicate: (session: SavedPracticeSession) => void
@@ -1467,18 +1673,18 @@ function PreviousWorkSection({
           <View style={styles.previousWorkCount}>
             <Text style={styles.previousWorkCountText}>{sessions.length}</Text>
           </View>
-          <Pressable style={styles.previousWorkClear} onPress={onDeleteAll} accessibilityRole="button" accessibilityLabel="Clear all local Previous Work">
-            <Text style={styles.previousWorkClearText}>Clear local work</Text>
+          <Pressable style={[styles.previousWorkClear, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={onDeleteAll} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel="Clear all local Previous Work">
+            <Text style={styles.previousWorkClearText}>{disabled ? 'Clearing...' : 'Clear local work'}</Text>
           </Pressable>
         </View>
       </View>
       {sessions.length === 0 && (
-        <Text style={styles.previousWorkEmpty}>No saved drawings yet. Clear local work can also remove stored TraceBuddy images.</Text>
+        <Text style={styles.previousWorkEmpty}>No saved drawings yet. Clear local work can also remove favorites, recent picks, and stored TraceBuddy images.</Text>
       )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previousWorkRail}>
         {sessions.map((session) => (
           <View key={session.sessionId} style={styles.previousWorkCard}>
-            <Pressable style={styles.previousWorkPreview} onPress={() => onResume(session)} accessibilityRole="button" accessibilityLabel={`Resume ${session.title}`}>
+            <Pressable style={[styles.previousWorkPreview, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onResume(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Resume ${session.title}`}>
               <View style={styles.previousWorkPreviewContent} pointerEvents="none">
                 {session.source.kind === 'upload' && session.source.uploadedImage ? (
                   <Image source={{ uri: session.source.uploadedImage.uri }} style={styles.previousWorkGuideImage} resizeMode="contain" />
@@ -1498,18 +1704,18 @@ function PreviousWorkSection({
             <Text style={styles.previousWorkName} numberOfLines={1}>{session.title}</Text>
             <Text style={styles.previousWorkMeta} numberOfLines={1}>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes{session.stickers.length > 0 ? ` · ${session.stickers.length} pieces` : ''}</Text>
             <View style={styles.previousWorkActions}>
-              <Pressable style={[styles.previousWorkAction, styles.previousWorkActionPrimary]} onPress={() => onResume(session)} accessibilityRole="button" accessibilityLabel={`Resume ${session.title}`}>
+              <Pressable style={[styles.previousWorkAction, styles.previousWorkActionPrimary, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onResume(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Resume ${session.title}`}>
                 <Text style={[styles.previousWorkActionText, styles.previousWorkActionTextPrimary]}>Resume</Text>
               </Pressable>
-              <Pressable style={styles.previousWorkAction} onPress={() => onStartFresh(session)} accessibilityRole="button" accessibilityLabel={`Start fresh from ${session.title}`}>
+              <Pressable style={[styles.previousWorkAction, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onStartFresh(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Start fresh from ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Fresh</Text>
               </Pressable>
             </View>
             <View style={styles.previousWorkActions}>
-              <Pressable style={styles.previousWorkAction} onPress={() => onDuplicate(session)} accessibilityRole="button" accessibilityLabel={`Copy ${session.title}`}>
+              <Pressable style={[styles.previousWorkAction, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onDuplicate(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Copy ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Copy</Text>
               </Pressable>
-              <Pressable style={styles.previousWorkAction} onPress={() => onDelete(session)} accessibilityRole="button" accessibilityLabel={`Delete ${session.title}`}>
+              <Pressable style={[styles.previousWorkAction, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onDelete(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Delete ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Delete</Text>
               </Pressable>
             </View>
@@ -3136,6 +3342,155 @@ const styles = StyleSheet.create({
   previousWorkActionTextPrimary: {
     color: '#FFFFFF',
   },
+  previousWorkActionDisabled: {
+    opacity: 0.42,
+  },
+  discoveryPanel: {
+    gap: 10,
+    marginBottom: 12,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#FFF8EF',
+    padding: 12,
+  },
+  discoveryHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  discoveryHeadingCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  discoveryEyebrow: {
+    color: palette.coralDark,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  discoveryTitle: {
+    color: palette.ink,
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+    lineHeight: 22,
+  },
+  favoritesFilter: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#FFFFFF',
+    paddingLeft: 10,
+    paddingRight: 7,
+  },
+  favoritesFilterActive: {
+    borderColor: palette.ink,
+    backgroundColor: palette.ink,
+  },
+  favoritesHeart: {
+    color: '#C94151',
+    fontSize: 16,
+  },
+  favoritesFilterText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  favoritesFilterTextActive: {
+    color: '#FFFFFF',
+  },
+  favoritesCount: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.paperStrong,
+  },
+  favoritesCountText: {
+    color: palette.ink,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  searchLabel: {
+    color: palette.ink,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  drawingSearchInput: {
+    minHeight: 50,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#FFFFFF',
+    color: palette.ink,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  difficultyStrip: {
+    gap: 7,
+    paddingRight: 4,
+  },
+  difficultyChip: {
+    minHeight: 42,
+    justifyContent: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 13,
+  },
+  difficultyChipActive: {
+    borderColor: palette.ink,
+    backgroundColor: palette.ink,
+  },
+  difficultyChipText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  difficultyChipTextActive: {
+    color: '#FFFFFF',
+  },
+  recentPicks: {
+    gap: 5,
+  },
+  recentPicksLabel: {
+    color: palette.muted,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  recentPicksStrip: {
+    gap: 7,
+    paddingRight: 4,
+  },
+  recentPick: {
+    minHeight: 38,
+    justifyContent: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 11,
+  },
+  recentPickText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  preferenceMessage: {
+    color: palette.coralDark,
+    fontSize: 12,
+    fontWeight: '800',
+  },
   categoryStrip: {
     gap: 8,
     paddingHorizontal: 2,
@@ -3206,9 +3561,76 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 3,
   },
+  drawingCardAction: {
+    flex: 1,
+  },
   drawingCardSelected: {
     borderColor: 'rgba(255, 121, 93, 0.55)',
     backgroundColor: '#FFFDF8',
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: palette.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
+  },
+  favoriteButtonActive: {
+    borderColor: 'rgba(201,65,81,0.35)',
+    backgroundColor: '#FFF0F1',
+  },
+  favoriteButtonText: {
+    color: '#788295',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  favoriteButtonTextActive: {
+    color: '#C94151',
+  },
+  drawingEmptyState: {
+    alignItems: 'flex-start',
+    gap: 7,
+    marginTop: 2,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(20,32,51,0.22)',
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    padding: 20,
+  },
+  drawingEmptyTitle: {
+    color: palette.ink,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  drawingEmptyCopy: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  drawingEmptyButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: 999,
+    backgroundColor: palette.ink,
+    paddingHorizontal: 14,
+  },
+  drawingEmptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
   },
   drawingPreview: {
     aspectRatio: 1,

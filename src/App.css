@@ -660,6 +660,137 @@ button.active:disabled {
   color: #ffffff;
 }
 
+.discovery-panel {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0 0 1rem;
+  border: 1px solid rgba(20, 32, 51, 0.1);
+  border-radius: 30px;
+  background: linear-gradient(135deg, rgba(255, 248, 239, 0.94), rgba(241, 247, 255, 0.9));
+  padding: 1rem;
+}
+
+.discovery-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.discovery-heading .eyebrow {
+  margin-bottom: 0.25rem;
+}
+
+.discovery-heading h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+}
+
+.favorites-filter,
+.difficulty-strip button,
+.recent-picks button,
+.drawing-empty-state button {
+  min-height: 44px;
+  border: 1px solid rgba(20, 32, 51, 0.12);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.favorites-filter {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem 0.55rem 0.9rem;
+}
+
+.favorites-filter > span {
+  color: #d85b63;
+  font-size: 1.05rem;
+}
+
+.favorites-filter small {
+  display: grid;
+  min-width: 1.6rem;
+  min-height: 1.6rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff1dc;
+}
+
+.favorites-filter.active,
+.difficulty-strip button.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+}
+
+.drawing-search {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.drawing-search input {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid rgba(20, 32, 51, 0.14);
+  border-radius: 18px;
+  background: #ffffff;
+  color: var(--ink);
+  padding: 0 1rem;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.difficulty-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.difficulty-strip button {
+  padding: 0.55rem 0.9rem;
+}
+
+.recent-picks {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.recent-picks > strong {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recent-picks > div {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+}
+
+.recent-picks button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.preference-message {
+  margin: 0;
+  color: #9a4a36;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
 .category-strip {
   display: flex;
   gap: 0.55rem;
@@ -766,10 +897,69 @@ button.active:disabled {
 }
 
 .drawing-card:hover,
-.drawing-card.selected {
+.drawing-card.selected,
+.drawing-card:focus-within {
   transform: translateY(-4px);
   border-color: rgba(255, 121, 93, 0.36);
   box-shadow: rgba(255, 121, 93, 0.2) 0 34px 70px -48px;
+}
+
+.drawing-card-action {
+  display: grid;
+  gap: 0.48rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.favorite-button {
+  position: absolute;
+  top: 1.05rem;
+  right: 1.05rem;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(20, 32, 51, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #788295;
+  cursor: pointer;
+  font-size: 1.15rem;
+  box-shadow: rgba(20, 32, 51, 0.18) 0 10px 24px -16px;
+}
+
+.favorite-button.active {
+  border-color: rgba(216, 91, 99, 0.35);
+  background: #fff0f1;
+  color: #c94151;
+}
+
+.drawing-empty-state {
+  display: grid;
+  justify-items: start;
+  border: 1px dashed rgba(20, 32, 51, 0.22);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.6);
+  padding: clamp(1.2rem, 5vw, 2.5rem);
+}
+
+.drawing-empty-state strong {
+  color: var(--ink);
+  font-size: 1.1rem;
+}
+
+.drawing-empty-state p {
+  margin: 0.35rem 0 0.85rem;
+  color: var(--muted);
+}
+
+.drawing-empty-state button {
+  padding: 0.55rem 0.9rem;
 }
 
 .drawing-card img {

@@ -1,2 +1,2 @@
-export type { Drawing, DrawingCategoryId, DrawingCollectionId, DrawingDifficulty, DrawingFilterId } from '../shared'
-export { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from '../shared'
+export type { Drawing, DrawingCategoryId, DrawingCollectionId, DrawingDifficulty, DrawingDifficultyFilter, DrawingDiscoveryFilters, DrawingFilterId, DrawingPreferences } from '../shared'
+export { addRecentDrawing, createTextDrawing, drawingCategories, drawingDifficultyFilters, drawings, drawingsFromIds, emptyDrawingPreferences, filterDrawings, normalizeDrawingPreferences, sanitizeTraceText, toggleFavoriteDrawing } from '../shared'
