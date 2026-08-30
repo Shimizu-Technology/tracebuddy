@@ -2,3 +2,5 @@ export type { Drawing, DrawingCategoryId, DrawingCollectionId, DrawingDifficulty
 export { addRecentDrawing, createTextDrawing, drawingCategories, drawingDifficultyFilters, drawings, drawingsFromIds, emptyDrawingPreferences, filterDrawings, normalizeDrawingPreferences, sanitizeTraceText, toggleFavoriteDrawing } from '../shared'
 export type { GuidedLesson, GuidedLessonStep, LearningProgress } from '../shared'
 export { completeGuidedLesson, emptyLearningProgress, guidedLessonPreviewDrawing, guidedLessons, guidedLessonStepDrawing, normalizeLearningProgress, updateLearningStep } from '../shared'
+export type { TraceAlignment } from '../shared'
+export { normalizeTraceAlignment } from '../shared'

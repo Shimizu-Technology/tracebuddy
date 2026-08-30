@@ -102,7 +102,9 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Local autosave for on-screen coloring sessions.
 - Previous Work gallery for resuming, duplicating, deleting, or starting fresh from saved coloring.
 - Clear-all confirmation to prevent accidental work loss.
-- Overlay transform controls.
+- A 30-second parent setup coach covering stand stability, full-page framing, and even lighting.
+- Overlay transform controls, portrait/landscape presets, and one locally saved alignment.
+- A locked low-distraction child trace view with optional browser fullscreen.
 - Mobile floating controls for trace mode.
 - Experimental paper rectangle detection and tracking.
 - Uploaded image background cleanup and line-art conversion.
@@ -117,5 +119,5 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Are the beta uploaded-image cleanup modes good enough on real family photos?
 - Which premade drawing/template categories does Stassie use most?
 - Which discovery shortcuts do families use most: search, favorites, recent picks, category, or difficulty?
-- Does the app need a fullscreen/low-distraction mode after real-device testing?
+- Does the child trace view remove enough setup distraction on real phones and tablets?
 - Does the planned ARKit marker-anchored mode improve real tracing enough to justify the native complexity?
