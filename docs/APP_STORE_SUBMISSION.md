@@ -70,11 +70,11 @@ Features:
 • Local photo selection for tracing personal references
 • Previous Work saved privately on the device
 • Printable and shareable tracing worksheets
-• No account, no ads, no analytics, and no cloud uploads
+• No account, no ads, no analytics, and no automatic cloud uploads
 
 TraceBuddy is designed for parents and children to use together. A parent can pick or upload a guide, set up the camera or practice screen, and let the child trace at their own pace.
 
-Privacy is simple: camera video, selected images, custom words, and drawings stay on the device. TraceBuddy does not upload photos or camera frames to a server.
+Privacy is simple: camera video, selected images, custom words, and drawings stay on the device unless you explicitly share a worksheet through the system share interface. TraceBuddy does not automatically upload photos or camera frames to a server.
 ```
 
 Note: If Apple rejects bullet characters, replace each bullet with a hyphen.
@@ -155,7 +155,7 @@ Suggested questionnaire answers:
 - Allows users to interact with each other: No
 - Shares location: No
 
-The app lets a user choose a local image from their own device, but it does not publish or share user-generated content.
+The app lets a user choose a local image from their own device, but it does not automatically publish or share user-generated content. A user may explicitly share a generated worksheet through the system share interface.
 
 ## App Privacy
 
@@ -251,7 +251,7 @@ To test TraceBuddy:
 7. Camera permission is used only to show the live camera preview behind the tracing guide.
 8. Photo-library permissions are optional and used only to select local images or save a finished drawing to Photos.
 
-TraceBuddy has no accounts, ads, analytics, backend, cloud uploads, or remote image processing. Camera frames are not recorded. Selected images, custom words, and practice drawings may be saved in private on-device storage for Previous Work until the user deletes them or removes the app.
+TraceBuddy has no accounts, ads, analytics, backend, automatic cloud uploads, or remote image processing. Camera frames are not recorded. Selected images, custom words, and practice drawings may be saved in private on-device storage for Previous Work until the user deletes them or removes the app. Worksheet sharing happens only when the user chooses it and may send the selected PDF outside the device through the system share interface.
 ```
 
 ## Version 1.2 TestFlight notes
@@ -266,7 +266,7 @@ TraceBuddy 1.2 is a major family-focused update:
 • A 30-second parent setup coach, saved alignment, and low-distraction child trace mode
 • More reliable on-device saving, Previous Work, and local image cleanup
 
-Please try Pictures, Learn, Together, camera tracing over paper, on-screen practice, worksheet sharing, and Save image. Everything remains local to the device.
+Please try Pictures, Learn, Together, camera tracing over paper, on-screen practice, worksheet sharing, and Save image. TraceBuddy does not automatically upload app data; worksheet sharing happens only when you choose it and may send the selected PDF outside the device through the system share interface.
 ```
 
 ## Screenshot requirements
