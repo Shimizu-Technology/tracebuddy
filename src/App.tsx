@@ -1788,7 +1788,8 @@ function App() {
   }, [])
 
   function openSelectedSurface(drawing: Drawing) {
-    saveDrawingPreferences(addRecentDrawing(drawingPreferencesRef.current, drawing.id))
+    const nextPreferences = addRecentDrawing(drawingPreferencesRef.current, drawing.id)
+    if (nextPreferences !== drawingPreferencesRef.current) saveDrawingPreferences(nextPreferences)
     if (traceSurface === 'screen') {
       openPractice(drawing)
       return

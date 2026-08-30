@@ -589,10 +589,17 @@ async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { w
 }
 
 let previousWorkWriteQueue = Promise.resolve()
+let drawingPreferencesWriteQueue = Promise.resolve()
 
 function queuePreviousWorkWrite<T>(operation: () => Promise<T>) {
   const result = previousWorkWriteQueue.then(operation, operation)
   previousWorkWriteQueue = result.then(() => undefined, () => undefined)
+  return result
+}
+
+function queueDrawingPreferencesWrite<T>(operation: () => Promise<T>) {
+  const result = drawingPreferencesWriteQueue.then(operation, operation)
+  drawingPreferencesWriteQueue = result.then(() => undefined, () => undefined)
   return result
 }
 
@@ -725,6 +732,7 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
 
 async function deleteAllPreviousWorkSessions() {
   return queuePreviousWorkWrite(async () => {
+    await queueDrawingPreferencesWrite(() => AsyncStorage.removeItem(drawingPreferencesKey))
     const keys = await AsyncStorage.getAllKeys()
     const traceBuddyKeys = keys.filter((key) => key === drawingPreferencesKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
@@ -856,7 +864,7 @@ function TraceBuddyMobile() {
     drawingPreferencesInteractionRef.current = true
     drawingPreferencesRef.current = normalizedPreferences
     setDrawingPreferences(normalizedPreferences)
-    void AsyncStorage.setItem(drawingPreferencesKey, JSON.stringify(normalizedPreferences))
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(drawingPreferencesKey, JSON.stringify(normalizedPreferences)))
       .then(() => setDrawingPreferencesMessage(''))
       .catch(() => setDrawingPreferencesMessage('Favorites and recent picks will last for this visit only.'))
   }, [])
@@ -926,7 +934,8 @@ function TraceBuddyMobile() {
 
   const openTraceWithDrawing = useCallback((drawing: Drawing) => {
     const abandonedUploadUri = uploadedImage?.uri
-    saveDrawingPreferences(addRecentDrawing(drawingPreferencesRef.current, drawing.id))
+    const nextPreferences = addRecentDrawing(drawingPreferencesRef.current, drawing.id)
+    if (nextPreferences !== drawingPreferencesRef.current) saveDrawingPreferences(nextPreferences)
     setSelectedDrawing(drawing)
     setUploadedImage(null)
     if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
