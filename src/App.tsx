@@ -1151,6 +1151,7 @@ function App() {
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImageState | null>(null)
   const [uploadedImageGeneration, setUploadedImageGeneration] = useState(0)
+  const [uploadedImageSaveErrorId, setUploadedImageSaveErrorId] = useState<string | null>(null)
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
   const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
@@ -1541,8 +1542,10 @@ function App() {
           return
         }
         uploadedImageSaveSignatureRef.current = saveSignature
+        setUploadedImageSaveErrorId((current) => current === uploadedImage.imageId ? null : current)
       })
       .catch(() => {
+        setUploadedImageSaveErrorId(uploadedImage.imageId)
         setUploadCleanupStatus('error')
         setUploadCleanupMessage('Could not save this uploaded image locally. Clear older Previous Work or try a smaller image.')
       })
@@ -1717,9 +1720,13 @@ function App() {
 
   const ensureUploadedImageSaved = useCallback(async (image: UploadedImageState) => {
     const signature = uploadedImageRecordSignature(image)
-    if (signature === uploadedImageSaveSignatureRef.current) return
+    if (signature === uploadedImageSaveSignatureRef.current) {
+      setUploadedImageSaveErrorId((current) => current === image.imageId ? null : current)
+      return
+    }
     await saveUploadedImageRecord(image)
     uploadedImageSaveSignatureRef.current = signature
+    setUploadedImageSaveErrorId((current) => current === image.imageId ? null : current)
   }, [])
 
   function openSelectedSurface(drawing: Drawing) {
@@ -1837,8 +1844,12 @@ function App() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })()
     }
-    reader.onerror = restoreCurrentImageGeneration
-    reader.onabort = restoreCurrentImageGeneration
+    const reportFileReadFailure = () => {
+      restoreCurrentImageGeneration()
+      window.alert('TraceBuddy could not read this image. Try another image file or choose a built-in template.')
+    }
+    reader.onerror = reportFileReadFailure
+    reader.onabort = reportFileReadFailure
     try {
       reader.readAsDataURL(file)
     } catch {
@@ -1966,6 +1977,7 @@ function App() {
           overlaySrc={overlaySrc}
           selectedDrawing={selectedDrawing}
           uploadedImage={uploadedImage}
+          uploadedImageSaveFailed={uploadedImageSaveErrorId === uploadedImage?.imageId}
           initialSession={activePracticeSession}
           onSessionSaved={handlePracticeSessionSaved}
           onSessionDeleted={handlePracticeSessionDeleted}
@@ -2483,6 +2495,7 @@ function PracticeScreen({
   overlaySrc,
   selectedDrawing,
   uploadedImage,
+  uploadedImageSaveFailed,
   initialSession,
   onSessionSaved,
   onSessionDeleted,
@@ -2497,6 +2510,7 @@ function PracticeScreen({
   overlaySrc: string
   selectedDrawing: Drawing
   uploadedImage: UploadedImageState | null
+  uploadedImageSaveFailed: boolean
   initialSession: SavedPracticeSession | null
   onSessionSaved: (session: SavedPracticeSession) => void
   onSessionDeleted: (sessionId: string) => void
@@ -2516,6 +2530,7 @@ function PracticeScreen({
   const [brushToolId, setBrushToolId] = useState<BrushToolId>(initialSession?.brushToolId ?? 'marker')
   const [guideOnTop, setGuideOnTop] = useState(initialSession?.guideOnTop ?? true)
   const [saveStatus, setSaveStatus] = useState<LocalSaveStatus>('saved')
+  const visibleSaveStatus: LocalSaveStatus = uploadedImageSaveFailed ? 'error' : saveStatus
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasRef = useRef<HTMLDivElement | null>(null)
@@ -3216,10 +3231,10 @@ function PracticeScreen({
         <div className="practice-card studio-card">
           <div className="practice-status-strip">
             <span>{viewportLocked ? 'Draw mode: page is locked, lines stay visible, and coloring autosaves on this device.' : 'Move mode: drag to pan, pinch or scroll to zoom, then lock again to color.'}</span>
-            <span className={`practice-save-status ${saveStatus}`} role="status" aria-live="polite">
-              {saveStatus === 'saving' && 'Saving…'}
-              {saveStatus === 'saved' && 'Saved on this device'}
-              {saveStatus === 'error' && (
+            <span className={`practice-save-status ${visibleSaveStatus}`} role="status" aria-live="polite">
+              {visibleSaveStatus === 'saving' && 'Saving…'}
+              {visibleSaveStatus === 'saved' && 'Saved on this device'}
+              {visibleSaveStatus === 'error' && (
                 <>Not saved <button type="button" onClick={() => { void savePracticeSessionNow() }}>Retry</button></>
               )}
             </span>

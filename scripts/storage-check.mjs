@@ -1,4 +1,5 @@
 import puppeteer from 'puppeteer-core'
+import { fileURLToPath } from 'node:url'
 import { clickByText, closeBrowser, findChromeExecutable, waitForSelector } from './browser-utils.mjs'
 
 const url = process.env.CHECK_URL || 'http://127.0.0.1:5173'
@@ -324,7 +325,35 @@ try {
   }, { timeout: 3_000 })
   console.log('Startup orphan upload cleanup passed')
 
-  console.log('Storage checks passed: active-stroke flush, visible retry, unsaved-navigation warning, complete bulk clear, active-guide preservation, corrupt-index preservation, and orphan cleanup.')
+  await clickByText(page, 'Practice on screen')
+  await waitForSelector(page, '.practice-screen')
+  const practiceUpload = await page.$('.practice-screen input[type="file"]')
+  assert(practiceUpload, 'Practice upload input is unavailable')
+  await practiceUpload.uploadFile(fileURLToPath(new URL('../public/favicon.svg', import.meta.url)))
+  await page.waitForFunction(() => document.querySelector('.practice-screen h1')?.textContent === 'favicon.svg', { timeout: 3_000 })
+  await clickByText(page, 'Camera', '.practice-header button')
+  await waitForSelector(page, '.trace-screen')
+  await page.evaluate(() => {
+    window.__traceBuddyOriginalIdbPut = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = () => {
+      throw new DOMException('Simulated uploaded-image save failure', 'QuotaExceededError')
+    }
+  })
+  await clickByText(page, 'Line art')
+  await page.waitForFunction(() => document.querySelector('.cleanup-status')?.classList.contains('error'), { timeout: 3_000 })
+  await clickByText(page, 'Practice on screen')
+  await waitForSelector(page, '.practice-screen')
+  await page.waitForFunction(() => document.querySelector('.practice-save-status')?.classList.contains('error'), { timeout: 3_000 })
+  assert(await page.$('.practice-save-status button') !== null, 'Uploaded-image save failure did not expose Retry in Practice')
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.put = window.__traceBuddyOriginalIdbPut
+    delete window.__traceBuddyOriginalIdbPut
+  })
+  await clickByText(page, 'Retry')
+  await page.waitForFunction(() => document.querySelector('.practice-save-status')?.classList.contains('saved'), { timeout: 3_000 })
+  console.log('Uploaded-image save status propagation passed')
+
+  console.log('Storage checks passed: active-stroke flush, visible retry, unsaved-navigation warning, complete bulk clear, active-guide preservation, corrupt-index preservation, orphan cleanup, and uploaded-image failure propagation.')
 } finally {
   await closeBrowser(browser)
 }
