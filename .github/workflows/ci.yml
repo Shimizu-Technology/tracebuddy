@@ -52,6 +52,7 @@ jobs:
               npm run check:viewports
               npm run check:storage
               npm run check:offline
+              npm run check:discovery
               exit 0
             fi
             sleep 1

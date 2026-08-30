@@ -61,11 +61,11 @@ The MVP is successful if:
 
 ## Key product decisions
 
-### Web-first, then Expo Go
+### Web-first, then native development and TestFlight builds
 
 A mobile web MVP was faster to test and easier to share. Camera access is available through `getUserMedia`, and HTTPS deployment is enough for browser real-device validation.
 
-The next step is an Expo Go mobile MVP using only Expo Go-supported modules. This gives us a native camera preview, local image picker, keep-awake behavior, and React Native controls without committing to custom native AR work yet.
+The native Expo app gives us a camera preview, local image picker, keep-awake behavior, and React Native controls without committing to custom AR work yet. The pinned Expo SDK requires a development build for local native testing; release candidates are distributed through TestFlight.
 
 ### Camera tracing now, focused AR later
 
@@ -75,7 +75,7 @@ The planned AR direction is full iOS ARKit with a printed TraceBuddy marker/refe
 
 ### Local-first privacy
 
-TraceBuddy does not upload photos, video, or drawings. Camera frames are shown locally and are not recorded. Previous Work, practice strokes, custom words, and selected images may persist in private browser or app storage until the user deletes the work, clears site/app data, or removes the app.
+TraceBuddy does not upload photos, video, or drawings. Camera frames are shown locally and are not recorded. Previous Work, practice strokes, custom words, selected images, favorites, and recent picks may persist in private browser or app storage until the user clears local work, clears site/app data, or removes the app.
 
 ### Built-in SVG drawings
 
@@ -84,9 +84,9 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 ## Current implementation
 
 - React + Vite + TypeScript web frontend.
-- Expo Go + React Native + TypeScript mobile MVP under `mobile/`.
+- Expo + React Native + TypeScript mobile app under `mobile/`, tested with development and TestFlight builds.
 - CSS-only visual design.
-- Shared built-in SVG drawing library with compact mobile picker and category filters.
+- Shared 73-template SVG drawing library with search, category and difficulty filters, favorites, and recent picks.
 - Local image upload with optional browser-only cleanup.
 - Browser camera access with graceful demo fallback.
 - Native Expo camera trace mode in the mobile MVP.
@@ -109,11 +109,11 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 
 ## Open questions
 
-- Does the Expo Go native camera experience feel better than the PWA during a real tracing session?
+- Does the native camera experience feel better than the PWA during a real tracing session?
 - Is browser paper tracking stable enough on real iPhone/iPad setups?
 - Would printable marker-based tracking be more reliable than plain paper detection?
 - Are the beta uploaded-image cleanup modes good enough on real family photos?
 - Which premade drawing/template categories does Stassie use most?
-- Does the larger library need favorites/recent templates?
+- Which discovery shortcuts do families use most: search, favorites, recent picks, category, or difficulty?
 - Does the app need a fullscreen/low-distraction mode after real-device testing?
 - Does the planned ARKit marker-anchored mode improve real tracing enough to justify the native complexity?

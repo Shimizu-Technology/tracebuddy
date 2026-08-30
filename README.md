@@ -26,7 +26,8 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 
 - Mobile-first responsive interface
 - Clean, modern, kid-friendly visual design
-- Built-in traceable SVG drawing library with category filters
+- 73 built-in SVG tracing templates with category, difficulty, and text search filters
+- Local favorites and recent picks for quickly returning to family favorites
 - Local image upload with optional cleanup modes
 - Camera access with `getUserMedia`
 - On-screen coloring/practice mode for finger, stylus, or mouse tracing
@@ -122,6 +123,7 @@ In another terminal, run the browser checks against that preview:
 CHECK_URL=http://127.0.0.1:4173 npm run check:viewports
 CHECK_URL=http://127.0.0.1:4173 npm run check:storage
 CHECK_URL=http://127.0.0.1:4173 npm run check:offline
+CHECK_URL=http://127.0.0.1:4173 npm run check:discovery
 ```
 
 Or against another local port:
@@ -155,6 +157,6 @@ Generated files:
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
 - Test a development or TestFlight build on a real phone over paper and in on-screen practice mode
 - Improve uploaded image cleanup after real-device testing
-- Add favorites/recent templates if the larger library needs shortcuts
+- Add guided lessons and handwriting practice that build from simple marks to complete drawings
 - Prototype printable marker-based tracking if plain paper detection is not stable enough
 - Keep the development-build workflow documented as Expo SDK requirements change

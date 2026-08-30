@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent, WheelEvent } from 'react'
-import { createTextDrawing, drawingCategories, drawings, sanitizeTraceText } from './drawings'
-import type { Drawing, DrawingFilterId } from './drawings'
+import {
+  addRecentDrawing,
+  createTextDrawing,
+  drawingCategories,
+  drawingDifficultyFilters,
+  drawings,
+  drawingsFromIds,
+  emptyDrawingPreferences,
+  filterDrawings,
+  normalizeDrawingPreferences,
+  sanitizeTraceText,
+  toggleFavoriteDrawing,
+} from './drawings'
+import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences } from './drawings'
 import './App.css'
 
 type AppMode = 'welcome' | 'picker' | 'trace' | 'practice'
@@ -155,6 +167,7 @@ const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
 const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
 const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
+const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
 const uploadedImageDbName = 'tracebuddy-uploaded-images'
 const uploadedImageStoreName = 'uploaded-images'
 const activeUploadedImageIds = new Set<string>()
@@ -694,6 +707,7 @@ async function deleteAllPreviousWorkSessions() {
   const legacyKeys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
     .filter((key): key is string => Boolean(key?.startsWith(legacyPracticeAutosavePrefix)))
   legacyKeys.forEach((key) => window.localStorage.removeItem(key))
+  window.localStorage.removeItem(drawingPreferencesKey)
 
   try {
     await queueUploadedImageWrite(async () => {
@@ -716,6 +730,15 @@ function formatPreviousWorkDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Saved work'
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function loadDrawingPreferences() {
+  try {
+    const rawPreferences = window.localStorage.getItem(drawingPreferencesKey)
+    return normalizeDrawingPreferences(rawPreferences ? JSON.parse(rawPreferences) : null)
+  } catch {
+    return { ...emptyDrawingPreferences }
+  }
 }
 
 function lerp(start: number, end: number, amount: number) {
@@ -1154,6 +1177,8 @@ function App() {
   const [uploadedImageSaveErrorId, setUploadedImageSaveErrorId] = useState<string | null>(null)
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
   const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
+  const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>(loadDrawingPreferences)
+  const [drawingPreferencesMessage, setDrawingPreferencesMessage] = useState('')
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [uploadCleanupMode, setUploadCleanupMode] = useState<UploadCleanupMode>('original')
   const [backgroundTolerance, setBackgroundTolerance] = useState(48)
@@ -1182,10 +1207,27 @@ function App() {
   const uploadedImageSaveSignatureRef = useRef('')
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
   const practiceSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
+  const drawingPreferencesRef = useRef(drawingPreferences)
 
   const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
   const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
   const pictureTheme = uploadedImage ? `Local upload · ${uploadCleanupMode === 'original' ? 'Original image' : uploadCleanupMode === 'background' ? 'Background cleanup' : 'Line-art cleanup'}` : selectedDrawing.theme
+
+  const saveDrawingPreferences = useCallback((nextPreferences: DrawingPreferences) => {
+    const normalizedPreferences = normalizeDrawingPreferences(nextPreferences)
+    drawingPreferencesRef.current = normalizedPreferences
+    setDrawingPreferences(normalizedPreferences)
+    try {
+      window.localStorage.setItem(drawingPreferencesKey, JSON.stringify(normalizedPreferences))
+      setDrawingPreferencesMessage('')
+    } catch {
+      setDrawingPreferencesMessage('Favorites and recent picks will last for this visit only.')
+    }
+  }, [])
+
+  const favoriteDrawing = useCallback((drawingId: string) => {
+    saveDrawingPreferences(toggleFavoriteDrawing(drawingPreferencesRef.current, drawingId))
+  }, [saveDrawingPreferences])
 
   useEffect(() => {
     let cancelled = false
@@ -1702,7 +1744,7 @@ function App() {
   }
 
   function deleteAllPreviousWork() {
-    if (!window.confirm('Delete all Previous Work and locally stored uploaded images from this browser?')) return
+    if (!window.confirm('Delete all Previous Work, favorites, recent picks, and locally stored uploaded images from this browser?')) return
 
     uploadOperationGenerationRef.current += 1
     resetUploadCleanup()
@@ -1713,6 +1755,9 @@ function App() {
       .then(({ imageCleanupPending }) => {
         setPreviousWorkSessions([])
         setActivePracticeSession(null)
+        drawingPreferencesRef.current = { ...emptyDrawingPreferences }
+        setDrawingPreferences({ ...emptyDrawingPreferences })
+        setDrawingPreferencesMessage('')
         if (imageCleanupPending) window.alert('Saved drawings were cleared, but this browser could not finish removing stored image files. Use Clear local work again to retry.')
       })
       .catch(() => window.alert('TraceBuddy could not clear all local work. Try again in a moment.'))
@@ -1743,6 +1788,7 @@ function App() {
   }, [])
 
   function openSelectedSurface(drawing: Drawing) {
+    saveDrawingPreferences(addRecentDrawing(drawingPreferencesRef.current, drawing.id))
     if (traceSurface === 'screen') {
       openPractice(drawing)
       return
@@ -1930,7 +1976,10 @@ function App() {
           traceSurface={traceSurface}
           onTraceSurfaceChange={setTraceSurface}
           previousWorkSessions={previousWorkSessions}
+          drawingPreferences={drawingPreferences}
+          drawingPreferencesMessage={drawingPreferencesMessage}
           onSelect={openSelectedSurface}
+          onToggleFavorite={favoriteDrawing}
           onTextSubmit={openTextSurface}
           onUpload={(input) => onUpload(input, traceSurface === 'screen' ? 'practice' : 'trace')}
           onResumeWork={openPreviousWork}
@@ -2047,7 +2096,10 @@ function PickerScreen({
   traceSurface,
   onTraceSurfaceChange,
   previousWorkSessions,
+  drawingPreferences,
+  drawingPreferencesMessage,
   onSelect,
+  onToggleFavorite,
   onTextSubmit,
   onUpload,
   onResumeWork,
@@ -2060,7 +2112,10 @@ function PickerScreen({
   traceSurface: TraceSurface
   onTraceSurfaceChange: (surface: TraceSurface) => void
   previousWorkSessions: SavedPracticeSession[]
+  drawingPreferences: DrawingPreferences
+  drawingPreferencesMessage: string
   onSelect: (drawing: Drawing) => void
+  onToggleFavorite: (drawingId: string) => void
   onTextSubmit: (value: string) => void
   onUpload: (input: HTMLInputElement) => void
   onResumeWork: (session: SavedPracticeSession) => void
@@ -2070,6 +2125,9 @@ function PickerScreen({
   onDeleteAllWork: () => void
 }) {
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
+  const [difficulty, setDifficulty] = useState<DrawingDifficultyFilter>('all')
+  const [query, setQuery] = useState('')
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [customText, setCustomText] = useState('')
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
@@ -2079,11 +2137,23 @@ function PickerScreen({
     }
     return counts
   }, [])
-  const visibleDrawings = useMemo(() => {
-    if (activeCategory === 'all') return drawings
-    if (activeCategory === 'curated') return drawings.filter((drawing) => drawing.collection === 'curated')
-    return drawings.filter((drawing) => drawing.category === activeCategory)
-  }, [activeCategory])
+  const visibleDrawings = useMemo(() => filterDrawings({
+    category: activeCategory,
+    difficulty,
+    query,
+    favoriteIds: drawingPreferences.favoriteIds,
+    favoritesOnly,
+  }), [activeCategory, difficulty, drawingPreferences.favoriteIds, favoritesOnly, query])
+  const recentDrawings = useMemo(() => drawingsFromIds(drawingPreferences.recentIds), [drawingPreferences.recentIds])
+  const favoriteIds = useMemo(() => new Set(drawingPreferences.favoriteIds), [drawingPreferences.favoriteIds])
+  const filtersAreActive = activeCategory !== 'all' || difficulty !== 'all' || query.trim().length > 0 || favoritesOnly
+
+  function clearDiscoveryFilters() {
+    setActiveCategory('all')
+    setDifficulty('all')
+    setQuery('')
+    setFavoritesOnly(false)
+  }
 
   return (
     <section className="picker-screen">
@@ -2153,8 +2223,57 @@ function PickerScreen({
               </article>
             ))}
           </div>
-          {previousWorkSessions.length === 0 && <p className="previous-work-empty">No saved drawings yet. Clear local work is still available here if you want to remove stored uploads or repair local storage.</p>}
+          {previousWorkSessions.length === 0 && <p className="previous-work-empty">No saved drawings yet. Clear local work can also remove favorites, recent picks, stored uploads, or repair local storage.</p>}
         </section>
+
+      <section className="discovery-panel" aria-labelledby="find-picture-title">
+        <div className="discovery-heading">
+          <div>
+            <p className="eyebrow">Find a favorite</p>
+            <h2 id="find-picture-title">What should we trace today?</h2>
+          </div>
+          <button
+            type="button"
+            className={`favorites-filter ${favoritesOnly ? 'active' : ''}`}
+            aria-pressed={favoritesOnly}
+            onClick={() => setFavoritesOnly((current) => !current)}
+          >
+            <span aria-hidden="true">♥</span>
+            Favorites
+            <small>{drawingPreferences.favoriteIds.length}</small>
+          </button>
+        </div>
+
+        <label className="drawing-search">
+          <span>Search pictures</span>
+          <input
+            type="search"
+            value={query}
+            placeholder="Search car, crab, Guam..."
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+
+        <div className="difficulty-strip" role="group" aria-label="Difficulty level">
+          {drawingDifficultyFilters.map((filter) => (
+            <button key={filter.id} type="button" className={difficulty === filter.id ? 'active' : ''} aria-pressed={difficulty === filter.id} onClick={() => setDifficulty(filter.id)}>
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
+        {recentDrawings.length > 0 && (
+          <div className="recent-picks" aria-label="Recent picks">
+            <strong>Recent</strong>
+            <div>
+              {recentDrawings.map((drawing) => (
+                <button key={drawing.id} type="button" onClick={() => onSelect(drawing)}>{drawing.name}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {drawingPreferencesMessage && <p className="preference-message" role="status">{drawingPreferencesMessage}</p>}
+      </section>
 
       <div className="category-strip" aria-label="Template categories">
         {drawingCategories.map((category) => (
@@ -2166,26 +2285,43 @@ function PickerScreen({
       </div>
 
       <div className="template-count" aria-live="polite">
-        Showing {visibleDrawings.length} {visibleDrawings.length === 1 ? 'template' : 'templates'}.
+        Showing {visibleDrawings.length} of {drawings.length} {visibleDrawings.length === 1 ? 'template' : 'templates'}.
       </div>
 
-      <div className="drawing-grid">
+      {visibleDrawings.length > 0 ? <div className="drawing-grid">
         {visibleDrawings.map((drawing) => (
-          <button
+          <article
             key={drawing.id}
-            type="button"
             className={`drawing-card ${selectedDrawing.id === drawing.id ? 'selected' : ''}`}
-            onClick={() => onSelect(drawing)}
+            data-drawing-id={drawing.id}
           >
-            <img src={drawingImageSrc(drawing)} alt={`${drawing.name} tracing line art`} />
-            <span className="drawing-meta">
-              <strong>{drawing.name}</strong>
-              <small>{drawing.theme}</small>
-            </span>
-            <span className="difficulty-badge">{drawing.difficulty}</span>
-          </button>
+            <button type="button" className="drawing-card-action" onClick={() => onSelect(drawing)}>
+              <img src={drawingImageSrc(drawing)} alt={`${drawing.name} tracing line art`} />
+              <span className="drawing-meta">
+                <strong>{drawing.name}</strong>
+                <small>{drawing.theme}</small>
+              </span>
+              <span className="difficulty-badge">{drawing.difficulty}</span>
+            </button>
+            <button
+              type="button"
+              className={`favorite-button ${favoriteIds.has(drawing.id) ? 'active' : ''}`}
+              aria-label={`${favoriteIds.has(drawing.id) ? 'Remove' : 'Add'} ${drawing.name} ${favoriteIds.has(drawing.id) ? 'from' : 'to'} favorites`}
+              aria-pressed={favoriteIds.has(drawing.id)}
+              data-favorite-button={drawing.id}
+              onClick={() => onToggleFavorite(drawing.id)}
+            >
+              <span aria-hidden="true">♥</span>
+            </button>
+          </article>
         ))}
-      </div>
+      </div> : (
+        <div className="drawing-empty-state">
+          <strong>No pictures match those choices yet.</strong>
+          <p>Try a different word or open up the level and category.</p>
+          {filtersAreActive && <button type="button" onClick={clearDiscoveryFilters}>Show all pictures</button>}
+        </div>
+      )}
     </section>
   )
 }

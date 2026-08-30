@@ -14,10 +14,10 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 ## Completed in the current MVP
 
 - Mobile-first React/Vite frontend.
-- Expo Go native mobile MVP.
+- Expo native mobile app distributed through development and TestFlight builds.
 - On-screen coloring/practice mode for tracing without a paper/camera setup.
 - Custom word/name/phrase tracing, expanded colors including pinks, brush styles, and locked pan/zoom controls.
-- Shared SVG line-art drawing library with category filters.
+- Shared 73-template SVG line-art library with search, category and difficulty filters, local favorites, and recent picks.
 - Local image upload.
 - Mobile practice add-ons for built-in shapes and local photo/image stickers.
 - Save finished mobile practice drawings to the device Photos library.
@@ -55,7 +55,7 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Continue adding simple drawing packs and premade templates based on what Stassie uses most.
 - Keep template categories such as animals, ocean, magic/fairy, vehicles, letters, seasonal, and Guam/island themes.
 - Keep difficulty labels: starter, medium, detailed.
-- Add a favorites/recent drawings section stored locally if the larger library needs shortcuts.
+- Watch how families use search, difficulty, favorites, and recent picks, then tune labels and defaults from real sessions.
 - Continue polishing the local Previous Work gallery as real saved sessions accumulate.
 - Expand dynamic word/name tracing with handwriting-style letter guides and saved favorite names.
 - Add a clearer parent setup mode vs child tracing mode.
@@ -87,12 +87,12 @@ Future polish:
 
 Goal: compare the native camera tracing loop against the PWA before adding AR complexity.
 
-Current Expo Go MVP:
+Current Expo mobile app:
 
 - Native camera trace mode.
 - On-screen coloring/practice mode for finger/stylus tracing, brush switching, and detail zoom.
 - Shared built-in template library.
-- Two-column mobile template picker with category filters.
+- Two-column mobile template picker with search, category and difficulty filters, favorites, and recent picks.
 - Local photo library selection.
 - Manual overlay drag, nudge, opacity, scale, rotation, lock, and reset controls.
 - Screen keep-awake behavior during trace and practice mode.
@@ -100,7 +100,7 @@ Current Expo Go MVP:
 
 Next improvements:
 
-- Test on real iPhone and Android devices using Expo Go.
+- Test on real iPhone and iPad devices using development and TestFlight builds, plus an Android development build when Android validation begins.
 - Compare native camera stability against Safari/Chrome PWA behavior.
 - Decide whether uploaded-image cleanup should be ported to native.
 - Decide whether paper tracking should remain web-only, be reimplemented natively, or be replaced by ARKit marker anchoring.
