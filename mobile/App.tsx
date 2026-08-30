@@ -1442,19 +1442,22 @@ function TraceBuddyMobile() {
     resetOverlay()
   }, [maybeOpenParentSetup, resetOverlay, saveDrawingPreferences, uploadedImage])
 
-  /** Opens the native print sheet while treating an explicit iOS dismissal as cancellation. */
-  const printDrawingWorksheet = useCallback(async (drawing: Drawing, options: WorksheetOptions = {}) => {
-    if (worksheetActionInProgressRef.current) return
-    worksheetActionInProgressRef.current = true
-    try {
-      await Print.printAsync({ html: buildWorksheetHtml(drawing, options) })
-    } catch (error) {
-      if (isDismissedPrintSheet(error, Platform.OS)) return
-      Alert.alert('Could not print worksheet', 'Try again in a moment or share the PDF instead.')
-    } finally {
-      worksheetActionInProgressRef.current = false
-    }
-  }, [])
+  const printDrawingWorksheet = useCallback(
+    /** Opens the native print sheet while treating an explicit iOS dismissal as cancellation. */
+    async (drawing: Drawing, options: WorksheetOptions = {}) => {
+      if (worksheetActionInProgressRef.current) return
+      worksheetActionInProgressRef.current = true
+      try {
+        await Print.printAsync({ html: buildWorksheetHtml(drawing, options) })
+      } catch (error) {
+        if (isDismissedPrintSheet(error, Platform.OS)) return
+        Alert.alert('Could not print worksheet', 'Try again in a moment or share the PDF instead.')
+      } finally {
+        worksheetActionInProgressRef.current = false
+      }
+    },
+    [],
+  )
 
   const shareDrawingWorksheet = useCallback(async (drawing: Drawing, options: WorksheetOptions = {}) => {
     if (worksheetActionInProgressRef.current) return
