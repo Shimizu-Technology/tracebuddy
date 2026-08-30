@@ -831,7 +831,7 @@ function TraceBuddyMobile() {
     const loadTask = legacyMigrationCompleteRef.current
       ? loadPreviousWorkSessions(isCurrent)
       : loadPreviousWorkSessionsWithLegacyMigration(legacyMigrationCanvasSizeRef.current, isCurrent).then((sessions) => {
-          legacyMigrationCompleteRef.current = true
+          if (isCurrent()) legacyMigrationCompleteRef.current = true
           return sessions
         })
 
