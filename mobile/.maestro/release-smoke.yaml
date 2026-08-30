@@ -16,6 +16,7 @@ name: TraceBuddy release smoke
     direction: DOWN
 - tapOn: "Guam Memory Map.*"
 - assertVisible: "Guam Memory Map"
+- assertVisible: "Trace the island outline."
 - tapOn: "Practice together"
 - assertVisible: "Guam Outline"
 - assertVisible: "Save drawing image to Photos"
