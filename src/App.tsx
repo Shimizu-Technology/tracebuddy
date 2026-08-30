@@ -234,6 +234,13 @@ function createPracticeSessionId() {
 }
 
 let uploadedImageDbPromise: Promise<IDBDatabase> | null = null
+let uploadedImageWriteQueue = Promise.resolve()
+
+function queueUploadedImageWrite<T>(operation: () => Promise<T>) {
+  const result = uploadedImageWriteQueue.then(operation, operation)
+  uploadedImageWriteQueue = result.then(() => undefined, () => undefined)
+  return result
+}
 
 function openUploadedImageDb() {
   if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB unavailable'))
@@ -263,13 +270,18 @@ function uploadedImageRecordSignature(image: UploadedImageState) {
   return JSON.stringify([image.imageId, image.fileName, image.originalSrc, image.processedSrc])
 }
 
-async function saveUploadedImageRecord(image: UploadedImageState) {
-  const db = await openUploadedImageDb()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(uploadedImageStoreName, 'readwrite')
-    tx.objectStore(uploadedImageStoreName).put({ ...image, updatedAt: new Date().toISOString() })
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error ?? new Error('Could not save uploaded image'))
+async function saveUploadedImageRecord(image: UploadedImageState, shouldSave: () => boolean = () => true) {
+  return queueUploadedImageWrite(async () => {
+    if (!shouldSave()) return false
+    const db = await openUploadedImageDb()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+      tx.objectStore(uploadedImageStoreName).put({ ...image, updatedAt: new Date().toISOString() })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Could not save uploaded image'))
+    })
+    activeUploadedImageIds.add(image.imageId)
+    return true
   })
 }
 
@@ -312,58 +324,62 @@ function readAllStoredPracticeSessionsForCleanup() {
 }
 
 async function deleteUploadedImageRecordIfUnused(imageId: string, preserve = false) {
-  if (preserve) {
-    activeUploadedImageIds.add(imageId)
-    return true
-  }
-  activeUploadedImageIds.delete(imageId)
+  return queueUploadedImageWrite(async () => {
+    if (preserve) {
+      activeUploadedImageIds.add(imageId)
+      return true
+    }
+    activeUploadedImageIds.delete(imageId)
 
-  try {
-    const { sessions: storedSessions, inspectionFailed } = readAllStoredPracticeSessionsForCleanup()
-    if (inspectionFailed) return false
-    if (storedSessions.some((session) => session.source.uploadedImage?.imageId === imageId)) return true
+    try {
+      const { sessions: storedSessions, inspectionFailed } = readAllStoredPracticeSessionsForCleanup()
+      if (inspectionFailed) return false
+      if (storedSessions.some((session) => session.source.uploadedImage?.imageId === imageId)) return true
 
-    const db = await openUploadedImageDb()
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(uploadedImageStoreName, 'readwrite')
-      tx.objectStore(uploadedImageStoreName).delete(imageId)
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error ?? new Error('Could not delete uploaded image'))
-    })
-    return true
-  } catch {
-    return false
-  }
+      const db = await openUploadedImageDb()
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+        tx.objectStore(uploadedImageStoreName).delete(imageId)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('Could not delete uploaded image'))
+      })
+      return true
+    } catch {
+      return false
+    }
+  })
 }
 
 async function cleanupOrphanedUploadedImageRecords() {
-  try {
-    const referencedImageIds = new Set(activeUploadedImageIds)
-    const { sessions: storedSessions, inspectionFailed } = readAllStoredPracticeSessionsForCleanup()
-    if (inspectionFailed) return
-    storedSessions.forEach((session) => {
-      if (session.source.uploadedImage?.imageId) referencedImageIds.add(session.source.uploadedImage.imageId)
-    })
-    const db = await openUploadedImageDb()
-    const imageIds = await new Promise<string[]>((resolve, reject) => {
-      const tx = db.transaction(uploadedImageStoreName, 'readonly')
-      const request = tx.objectStore(uploadedImageStoreName).getAllKeys()
-      request.onsuccess = () => resolve(request.result.filter((key): key is string => typeof key === 'string'))
-      request.onerror = () => reject(request.error ?? new Error('Could not inspect image storage'))
-    })
-    const orphanedIds = imageIds.filter((imageId) => !referencedImageIds.has(imageId))
-    if (orphanedIds.length === 0) return
+  return queueUploadedImageWrite(async () => {
+    try {
+      const referencedImageIds = new Set(activeUploadedImageIds)
+      const { sessions: storedSessions, inspectionFailed } = readAllStoredPracticeSessionsForCleanup()
+      if (inspectionFailed) return
+      storedSessions.forEach((session) => {
+        if (session.source.uploadedImage?.imageId) referencedImageIds.add(session.source.uploadedImage.imageId)
+      })
+      const db = await openUploadedImageDb()
+      const imageIds = await new Promise<string[]>((resolve, reject) => {
+        const tx = db.transaction(uploadedImageStoreName, 'readonly')
+        const request = tx.objectStore(uploadedImageStoreName).getAllKeys()
+        request.onsuccess = () => resolve(request.result.filter((key): key is string => typeof key === 'string'))
+        request.onerror = () => reject(request.error ?? new Error('Could not inspect image storage'))
+      })
+      const orphanedIds = imageIds.filter((imageId) => !referencedImageIds.has(imageId))
+      if (orphanedIds.length === 0) return
 
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(uploadedImageStoreName, 'readwrite')
-      const store = tx.objectStore(uploadedImageStoreName)
-      orphanedIds.forEach((imageId) => store.delete(imageId))
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error ?? new Error('Could not clean image storage'))
-    })
-  } catch {
-    // Cleanup is best-effort and must not block drawing.
-  }
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+        const store = tx.objectStore(uploadedImageStoreName)
+        orphanedIds.forEach((imageId) => store.delete(imageId))
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('Could not clean image storage'))
+      })
+    } catch {
+      // Cleanup is best-effort and must not block drawing.
+    }
+  })
 }
 
 function serializePracticeSource(source: PracticeSource): PracticeSource {
@@ -663,14 +679,16 @@ async function deleteAllPreviousWorkSessions() {
     .filter((key): key is string => Boolean(key?.startsWith(legacyPracticeAutosavePrefix)))
   legacyKeys.forEach((key) => window.localStorage.removeItem(key))
 
-  activeUploadedImageIds.clear()
   try {
-    const db = await openUploadedImageDb()
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(uploadedImageStoreName, 'readwrite')
-      tx.objectStore(uploadedImageStoreName).clear()
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error ?? new Error('Could not clear image storage'))
+    await queueUploadedImageWrite(async () => {
+      activeUploadedImageIds.clear()
+      const db = await openUploadedImageDb()
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+        tx.objectStore(uploadedImageStoreName).clear()
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('Could not clear image storage'))
+      })
     })
     return { imageCleanupPending: false }
   } catch {
@@ -1116,6 +1134,7 @@ function App() {
   const [mode, setMode] = useState<AppMode>('welcome')
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImageState | null>(null)
+  const [uploadedImageGeneration, setUploadedImageGeneration] = useState(0)
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
   const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
@@ -1142,6 +1161,7 @@ function App() {
   const modeRef = useRef<AppMode>(mode)
   const paperLockEnabledRef = useRef(false)
   const uploadCleanupRequestRef = useRef(0)
+  const uploadOperationGenerationRef = useRef(0)
   const uploadedImageSaveSignatureRef = useRef('')
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
   const practiceSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
@@ -1492,20 +1512,22 @@ function App() {
       uploadedImageSaveSignatureRef.current = ''
       return
     }
+    if (uploadOperationGenerationRef.current !== uploadedImageGeneration) return
     activeUploadedImageIds.add(uploadedImage.imageId)
 
     const saveSignature = uploadedImageRecordSignature(uploadedImage)
     if (saveSignature === uploadedImageSaveSignatureRef.current) return
 
-    void saveUploadedImageRecord(uploadedImage)
-      .then(() => {
+    void saveUploadedImageRecord(uploadedImage, () => uploadOperationGenerationRef.current === uploadedImageGeneration)
+      .then((saved) => {
+        if (!saved) return
         uploadedImageSaveSignatureRef.current = saveSignature
       })
       .catch(() => {
         setUploadCleanupStatus('error')
         setUploadCleanupMessage('Could not save this uploaded image locally. Clear older Previous Work or try a smaller image.')
       })
-  }, [uploadedImage])
+  }, [uploadedImage, uploadedImageGeneration])
 
   function resetPaperDetection() {
     paperLockEnabledRef.current = false
@@ -1528,6 +1550,7 @@ function App() {
     setActivePracticeSession(null)
     if (drawing) {
       const abandonedImageId = uploadedImage?.imageId
+      uploadOperationGenerationRef.current += 1
       setSelectedDrawing(drawing)
       setUploadedImage(null)
       if (abandonedImageId) void deleteUploadedImageRecordIfUnused(abandonedImageId)
@@ -1544,6 +1567,7 @@ function App() {
     setActivePracticeSession(null)
     if (drawing) {
       const abandonedImageId = uploadedImage?.imageId
+      uploadOperationGenerationRef.current += 1
       setSelectedDrawing(drawing)
       setUploadedImage(null)
       if (abandonedImageId) void deleteUploadedImageRecordIfUnused(abandonedImageId)
@@ -1565,7 +1589,10 @@ function App() {
   }
 
   async function applyPracticeSource(source: PracticeSource) {
+    const operationGeneration = uploadOperationGenerationRef.current + 1
+    uploadOperationGenerationRef.current = operationGeneration
     const resolvedUploadedImage = await uploadedImageFromSource(source)
+    if (uploadOperationGenerationRef.current !== operationGeneration) return false
     if (source.kind === 'upload' && !resolvedUploadedImage) {
       window.alert('This uploaded image is no longer available in this browser. The saved strokes are still local, but the image preview cannot be restored.')
       return false
@@ -1573,6 +1600,7 @@ function App() {
 
     uploadedImageSaveSignatureRef.current = resolvedUploadedImage ? uploadedImageRecordSignature(resolvedUploadedImage) : ''
     setSelectedDrawing(drawingFromPracticeSource(source))
+    setUploadedImageGeneration(operationGeneration)
     setUploadedImage(resolvedUploadedImage)
     resetUploadCleanup()
     resetPaperDetection()
@@ -1633,12 +1661,15 @@ function App() {
   function deleteAllPreviousWork() {
     if (!window.confirm('Delete all Previous Work and locally stored uploaded images from this browser?')) return
 
+    uploadOperationGenerationRef.current += 1
+    resetUploadCleanup()
+    setUploadedImage(null)
+    uploadedImageSaveSignatureRef.current = ''
+
     void deleteAllPreviousWorkSessions()
       .then(({ imageCleanupPending }) => {
         setPreviousWorkSessions([])
         setActivePracticeSession(null)
-        setUploadedImage(null)
-        uploadedImageSaveSignatureRef.current = ''
         if (imageCleanupPending) window.alert('Saved drawings were cleared, but this browser could not finish removing stored image files. Use Clear local work again to retry.')
       })
       .catch(() => window.alert('TraceBuddy could not clear all local work. Try again in a moment.'))
@@ -1721,10 +1752,16 @@ function App() {
       input.value = ''
       return
     }
+    const operationGeneration = uploadOperationGenerationRef.current + 1
+    uploadOperationGenerationRef.current = operationGeneration
 
     const reader = new FileReader()
     reader.onload = () => {
       void (async () => {
+        if (uploadOperationGenerationRef.current !== operationGeneration) {
+          input.value = ''
+          return
+        }
         const originalSrc = String(reader.result)
         const nextUploadedImage: UploadedImageState = {
           imageId: createPracticeSessionId(),
@@ -1735,7 +1772,15 @@ function App() {
         activeUploadedImageIds.add(nextUploadedImage.imageId)
 
         try {
-          await saveUploadedImageRecord(nextUploadedImage)
+          const saved = await saveUploadedImageRecord(nextUploadedImage, () => uploadOperationGenerationRef.current === operationGeneration)
+          if (!saved) {
+            input.value = ''
+            return
+          }
+          if (uploadOperationGenerationRef.current !== operationGeneration) {
+            input.value = ''
+            return
+          }
           uploadedImageSaveSignatureRef.current = uploadedImageRecordSignature(nextUploadedImage)
         } catch {
           activeUploadedImageIds.delete(nextUploadedImage.imageId)
@@ -1746,6 +1791,7 @@ function App() {
 
         resetUploadCleanup()
         const abandonedImageId = uploadedImage?.imageId
+        setUploadedImageGeneration(operationGeneration)
         setUploadedImage(nextUploadedImage)
         if (abandonedImageId && abandonedImageId !== nextUploadedImage.imageId) {
           void deleteUploadedImageRecordIfUnused(abandonedImageId)
