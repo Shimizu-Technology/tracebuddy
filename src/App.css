@@ -545,7 +545,13 @@ button.active:disabled {
   letter-spacing: -0.055em;
 }
 
-.previous-work-heading > span {
+.previous-work-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.previous-work-summary > span {
   display: grid;
   min-width: 2.2rem;
   height: 2.2rem;
@@ -556,10 +562,29 @@ button.active:disabled {
   font-weight: 950;
 }
 
+.previous-work-summary button {
+  min-height: 36px;
+  border: 1px solid rgba(164, 70, 50, 0.24);
+  border-radius: 999px;
+  background: #fff7f3;
+  color: #9f3f2e;
+  cursor: pointer;
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .previous-work-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
   gap: 0.72rem;
+}
+
+.previous-work-empty {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 .previous-work-card {
@@ -1186,6 +1211,8 @@ button.active:disabled {
 .practice-status-strip {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
   min-height: 38px;
   border-radius: 18px;
   padding: 0.42rem 0.75rem;
@@ -1194,6 +1221,35 @@ button.active:disabled {
   font-size: 0.82rem;
   font-weight: 850;
   line-height: 1.35;
+}
+
+.practice-save-status {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.34rem 0.58rem;
+  background: #edf7ee;
+  color: #28603a;
+  white-space: nowrap;
+}
+
+.practice-save-status.saving {
+  background: #fff3d8;
+  color: #825b12;
+}
+
+.practice-save-status.error {
+  background: #fff0ec;
+  color: #9f3f2e;
+}
+
+.practice-save-status button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 950;
+  text-decoration: underline;
 }
 
 .practice-canvas {

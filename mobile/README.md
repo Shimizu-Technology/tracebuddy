@@ -31,7 +31,7 @@ This app intentionally uses Expo Go-supported modules only:
 - `expo-keep-awake` for tracing sessions
 - `react-native-svg` for built-in SVG templates, custom word guides, and finger/stylus practice strokes
 
-AR, paper tracking, uploaded-image cleanup, and dynamic word/name tracing are deferred until after the native tracing and on-screen practice loops are validated.
+Native AR anchoring and automatic paper tracking remain deferred. Dynamic word/name guides, private Previous Work, orphaned local-image cleanup, on-screen practice, stickers, and Photos export are implemented locally on the device.
 
 ## TestFlight / EAS build
 

@@ -60,7 +60,7 @@ This is a frontend MVP only.
 - No backend
 - No image/video upload
 - No remote or server-side image processing
-- Camera and uploaded images stay local in the browser session or Expo app state
+- Camera frames stay local and are never recorded. Previous Work, practice strokes, custom words, and selected images may persist in private browser/app storage until deleted.
 
 For real tracing, use a phone/iPad stand or prop the device above the paper. Experimental paper tracking can follow small camera shifts when the page is clearly visible, but manual realignment may still be needed.
 
@@ -105,16 +105,15 @@ The mobile MVP uses native camera, local image picker, keep-awake, shared built-
 ## Verify
 
 ```bash
-npm run lint
-npm run build
-npm run mobile:typecheck
-npm run mobile:doctor
+npm run check
 ```
 
-With the dev server running, viewport checks can be run with:
+With a production preview running, browser checks can be run with:
 
 ```bash
 npm run check:viewports
+npm run check:storage
+npm run check:offline
 ```
 
 Or against another local port:
@@ -136,8 +135,10 @@ Generated files:
 - `/tmp/tracebuddy-01-home-desktop.png`
 - `/tmp/tracebuddy-02-picker-desktop.png`
 - `/tmp/tracebuddy-03-trace-desktop.png`
-- `/tmp/tracebuddy-04-home-mobile.png`
-- `/tmp/tracebuddy-05-trace-mobile.png`
+- `/tmp/tracebuddy-04-practice-desktop.png`
+- `/tmp/tracebuddy-05-home-mobile.png`
+- `/tmp/tracebuddy-06-trace-mobile.png`
+- `/tmp/tracebuddy-07-practice-mobile.png`
 
 ## Suggested next steps
 

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+      - run: npm ci
+      - run: npm --prefix mobile ci
+      - run: npm run check
+      - run: npm audit --audit-level=high
+      - run: npm --prefix mobile audit --audit-level=high
+      - name: Run browser regressions against a production preview
+        env:
+          CHECK_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          CHECK_URL: http://127.0.0.1:4173
+        run: |
+          ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 > /tmp/tracebuddy-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
+              npm run check:viewports
+              npm run check:storage
+              npm run check:offline
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/tracebuddy-preview.log
+          exit 1

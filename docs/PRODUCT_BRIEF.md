@@ -75,7 +75,7 @@ The planned AR direction is full iOS ARKit with a printed TraceBuddy marker/refe
 
 ### Local-first privacy
 
-TraceBuddy does not upload photos, video, or drawings. Uploaded images are held in browser memory for the current session. Camera frames are shown locally by the browser.
+TraceBuddy does not upload photos, video, or drawings. Camera frames are shown locally and are not recorded. Previous Work, practice strokes, custom words, and selected images may persist in private browser or app storage until the user deletes the work, clears site/app data, or removes the app.
 
 ### Built-in SVG drawings
 

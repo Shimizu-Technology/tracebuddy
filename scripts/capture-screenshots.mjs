@@ -1,10 +1,10 @@
 import puppeteer from 'puppeteer-core'
+import { clickByText, closeBrowser, findChromeExecutable } from './browser-utils.mjs'
 
 const url = process.env.CHECK_URL || 'http://127.0.0.1:5173'
-const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
 const browser = await puppeteer.launch({
-  executablePath: chrome,
+  executablePath: findChromeExecutable(),
   headless: true,
   args: ['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
 })
@@ -14,13 +14,7 @@ async function pause(ms = 350) {
 }
 
 async function click(page, text) {
-  const ok = await page.evaluate((target) => {
-    const node = [...document.querySelectorAll('button, label')].find((el) => el.textContent?.includes(target))
-    if (!node) return false
-    node.click()
-    return true
-  }, text)
-  if (!ok) throw new Error(`Could not click ${text}`)
+  await clickByText(page, text)
   await pause()
 }
 
@@ -52,7 +46,10 @@ async function mobile() {
   await page.close()
 }
 
-await desktop()
-await mobile()
-await browser.close()
-console.log('TraceBuddy screenshots saved to /tmp/tracebuddy-*.png')
+try {
+  await desktop()
+  await mobile()
+  console.log('TraceBuddy screenshots saved to /tmp/tracebuddy-*.png')
+} finally {
+  await closeBrowser(browser)
+}

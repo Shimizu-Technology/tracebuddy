@@ -8,7 +8,7 @@ TraceBuddy is designed as a local-first tracing helper. The web MVP and Expo Go 
 
 Trace mode asks the browser for camera access using `getUserMedia`. The Expo mobile MVP asks the operating system for camera access through `expo-camera`. The camera feed is shown directly as the tracing background. On-screen practice mode does not require camera access.
 
-TraceBuddy does not record, upload, or transmit camera video. Custom words/phrases and practice strokes drawn on the screen stay in local app/browser state for the current session.
+TraceBuddy does not record, upload, or transmit camera video. Custom words/phrases and practice strokes drawn on the screen may be saved in private local app/browser storage for Previous Work, but are never sent to TraceBuddy servers.
 
 ### Uploaded images
 
@@ -22,7 +22,13 @@ Paper detection samples the live camera frame into a small hidden canvas in the 
 
 TraceBuddy does not upload, save, or transmit these sampled frames.
 
-## What may be stored by the browser
+## What may be stored locally
+
+Saved-work metadata, strokes, tool settings, custom text, and local image references persist on the device until the work is deleted, site data is cleared, or the mobile app is removed. The web app uses `localStorage` and IndexedDB. The native app uses AsyncStorage and app-private files.
+
+The apps clean uploaded-image files that are no longer referenced by Previous Work. This cleanup is best-effort because browsers and operating systems can interrupt storage operations.
+
+### Browser app shell
 
 The service worker caches the app shell so TraceBuddy can load more reliably after the first visit. Cached files can include:
 
@@ -36,6 +42,8 @@ The service worker does not cache camera video or uploaded image files.
 ### Saved drawings
 
 When a parent or child taps Save image in mobile practice mode, TraceBuddy asks the operating system for permission to add the finished drawing image to the device Photos library. This happens only after the user chooses Save image.
+
+Deleting work inside TraceBuddy removes its saved session and attempts to remove any private uploaded-image file that no other saved work uses. If the browser or operating system interrupts image cleanup, the app reports the incomplete cleanup and Clear local work can be used again to retry. Clearing TraceBuddy's browser data or deleting the mobile app removes remaining private app data. Images already saved to the Photos library must be deleted from Photos separately.
 
 ## Permissions
 
