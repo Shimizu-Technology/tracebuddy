@@ -30,6 +30,8 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg'
 import { captureRef } from 'react-native-view-shot'
 
+import { isDismissedPrintSheet } from './printUtils'
+
 import {
   addRecentDrawing,
   buildWorksheetHtml,
@@ -1440,17 +1442,22 @@ function TraceBuddyMobile() {
     resetOverlay()
   }, [maybeOpenParentSetup, resetOverlay, saveDrawingPreferences, uploadedImage])
 
-  const printDrawingWorksheet = useCallback(async (drawing: Drawing, options: WorksheetOptions = {}) => {
-    if (worksheetActionInProgressRef.current) return
-    worksheetActionInProgressRef.current = true
-    try {
-      await Print.printAsync({ html: buildWorksheetHtml(drawing, options) })
-    } catch {
-      Alert.alert('Could not print worksheet', 'Try again in a moment or share the PDF instead.')
-    } finally {
-      worksheetActionInProgressRef.current = false
-    }
-  }, [])
+  const printDrawingWorksheet = useCallback(
+    /** Opens the native print sheet while treating an explicit iOS dismissal as cancellation. */
+    async (drawing: Drawing, options: WorksheetOptions = {}) => {
+      if (worksheetActionInProgressRef.current) return
+      worksheetActionInProgressRef.current = true
+      try {
+        await Print.printAsync({ html: buildWorksheetHtml(drawing, options) })
+      } catch (error) {
+        if (isDismissedPrintSheet(error, Platform.OS)) return
+        Alert.alert('Could not print worksheet', 'Try again in a moment or share the PDF instead.')
+      } finally {
+        worksheetActionInProgressRef.current = false
+      }
+    },
+    [],
+  )
 
   const shareDrawingWorksheet = useCallback(async (drawing: Drawing, options: WorksheetOptions = {}) => {
     if (worksheetActionInProgressRef.current) return
