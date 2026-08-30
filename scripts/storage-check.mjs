@@ -149,6 +149,8 @@ try {
     }))
     localStorage.setItem('tracebuddy.drawingPreferences.v1', JSON.stringify({ version: 1, favoriteIds: ['guam-outline'], recentIds: ['guam-outline'] }))
     localStorage.setItem('tracebuddy.learningProgress.v1', JSON.stringify({ version: 1, completedLessonIds: ['line-control'], stepByLessonId: { 'line-control': 4 } }))
+    localStorage.setItem('tracebuddy.parentSetupSeen.v1', '1')
+    localStorage.setItem('tracebuddy.savedAlignment.v1', JSON.stringify({ version: 1, x: 0, y: 0, scale: 1, rotation: 0, opacity: 0.62 }))
   })
   assert(await countUploadedImages(page) === 2, 'Could not seed linked and orphan image records before bulk clear')
   await page.evaluate(() => {
@@ -169,6 +171,8 @@ try {
   assert(!unindexedRecordExists, 'Bulk clear left an unindexed session behind')
   assert(await page.evaluate(() => localStorage.getItem('tracebuddy.drawingPreferences.v1') === null), 'Bulk clear left favorites or recent picks behind')
   assert(await page.evaluate(() => localStorage.getItem('tracebuddy.learningProgress.v1') === null), 'Bulk clear left guided-lesson progress behind')
+  assert(await page.evaluate(() => localStorage.getItem('tracebuddy.parentSetupSeen.v1') === null), 'Bulk clear left the parent-setup preference behind')
+  assert(await page.evaluate(() => localStorage.getItem('tracebuddy.savedAlignment.v1') === null), 'Bulk clear left a saved camera alignment behind')
   assert(await countUploadedImages(page) === 2, 'A simulated image-cleanup failure should not hide whether image records remain')
   for (let attempt = 0; attempt < 20 && clearDialogs.length < 2; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 50))

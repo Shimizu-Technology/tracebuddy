@@ -16,11 +16,12 @@ import {
   guidedLessonStepDrawing,
   normalizeDrawingPreferences,
   normalizeLearningProgress,
+  normalizeTraceAlignment,
   sanitizeTraceText,
   toggleFavoriteDrawing,
   updateLearningStep,
 } from './drawings'
-import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, GuidedLesson, LearningProgress } from './drawings'
+import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, GuidedLesson, LearningProgress, TraceAlignment } from './drawings'
 import './App.css'
 
 type AppMode = 'welcome' | 'picker' | 'learn' | 'trace' | 'practice'
@@ -122,7 +123,7 @@ type UploadCleanupOptions = {
   outlineDetail: number
 }
 
-type PaperDetectionStatus = 'idle' | 'scanning' | 'found' | 'not-found' | 'unavailable'
+type PaperDetectionStatus = 'idle' | 'scanning' | 'found' | 'not-found' | 'too-dark' | 'too-close' | 'unavailable'
 
 type PaperDetection = {
   centerX: number
@@ -176,6 +177,8 @@ const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
 const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
 const learningProgressKey = 'tracebuddy.learningProgress.v1'
+const parentSetupSeenKey = 'tracebuddy.parentSetupSeen.v1'
+const savedAlignmentKey = 'tracebuddy.savedAlignment.v1'
 const uploadedImageDbName = 'tracebuddy-uploaded-images'
 const uploadedImageStoreName = 'uploaded-images'
 const activeUploadedImageIds = new Set<string>()
@@ -196,6 +199,8 @@ const PAPER_MIN_AREA_RATIO = 0.04
 const PAPER_IDLE_MESSAGE = 'Find the paper to align the drawing automatically.'
 const PAPER_SCANNING_MESSAGE = 'Scanning for paper.'
 const PAPER_NOT_FOUND_MESSAGE = 'No clear sheet found. Use bright paper on a darker, non-glossy surface.'
+const PAPER_TOO_DARK_MESSAGE = 'The view is too dark. Add soft light, then try again.'
+const PAPER_TOO_CLOSE_MESSAGE = 'Move the device higher until the whole sheet and its edges are visible.'
 const PAPER_UNAVAILABLE_MESSAGE = 'Start the camera first, then try finding the paper again.'
 const PAPER_FOUND_MESSAGE = 'Paper found. Tap Track paper to follow small camera shifts.'
 const PAPER_TRACKING_MESSAGE = 'Tracking paper. Keep the sheet in view.'
@@ -718,6 +723,8 @@ async function deleteAllPreviousWorkSessions() {
   legacyKeys.forEach((key) => window.localStorage.removeItem(key))
   window.localStorage.removeItem(drawingPreferencesKey)
   window.localStorage.removeItem(learningProgressKey)
+  window.localStorage.removeItem(parentSetupSeenKey)
+  window.localStorage.removeItem(savedAlignmentKey)
 
   try {
     await queueUploadedImageWrite(async () => {
@@ -763,6 +770,15 @@ function loadLearningProgress() {
     return { progress: normalizeLearningProgress(rawProgress ? JSON.parse(rawProgress) : null), message: '' }
   } catch {
     return { progress: { ...emptyLearningProgress, stepByLessonId: {} }, message: 'Lesson progress will last for this visit only.' }
+  }
+}
+
+function loadSavedAlignment() {
+  try {
+    const rawAlignment = window.localStorage.getItem(savedAlignmentKey)
+    return normalizeTraceAlignment(rawAlignment ? JSON.parse(rawAlignment) : null)
+  } catch {
+    return null
   }
 }
 
@@ -1194,6 +1210,32 @@ function detectPaperRectangle(video: HTMLVideoElement, stage: HTMLDivElement, ca
   }, sampleWidth, sampleHeight)
 }
 
+function assessPaperFrame(canvas: HTMLCanvasElement): { status: 'too-dark' | 'too-close'; message: string } | null {
+  try {
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context || !canvas.width || !canvas.height) return null
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data
+    let luminanceTotal = 0
+    let brightNeutralPixels = 0
+    let sampledPixels = 0
+    for (let offset = 0; offset < data.length; offset += 16) {
+      const red = data[offset]
+      const green = data[offset + 1]
+      const blue = data[offset + 2]
+      luminanceTotal += 0.299 * red + 0.587 * green + 0.114 * blue
+      if (isPaperPixel(red, green, blue)) brightNeutralPixels += 1
+      sampledPixels += 1
+    }
+    const averageLuminance = luminanceTotal / Math.max(sampledPixels, 1)
+    const brightNeutralRatio = brightNeutralPixels / Math.max(sampledPixels, 1)
+    if (averageLuminance < 72) return { status: 'too-dark', message: PAPER_TOO_DARK_MESSAGE }
+    if (brightNeutralRatio > 0.78) return { status: 'too-close', message: PAPER_TOO_CLOSE_MESSAGE }
+    return null
+  } catch {
+    return null
+  }
+}
+
 function App() {
   const [mode, setMode] = useState<AppMode>('welcome')
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
@@ -1210,6 +1252,7 @@ function App() {
   const [learningProgress, setLearningProgress] = useState<LearningProgress>(initialLearningProgress.progress)
   const [learningProgressMessage, setLearningProgressMessage] = useState(initialLearningProgress.message)
   const [selectedLesson, setSelectedLesson] = useState<GuidedLesson>(guidedLessons[0])
+  const [savedAlignment, setSavedAlignment] = useState<TraceAlignment | null>(loadSavedAlignment)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [uploadCleanupMode, setUploadCleanupMode] = useState<UploadCleanupMode>('original')
   const [backgroundTolerance, setBackgroundTolerance] = useState(48)
@@ -1494,9 +1537,10 @@ function App() {
         return false
       }
 
+      const frameReadiness = assessPaperFrame(canvas)
       setPaperDetection(null)
-      setPaperDetectionStatus('not-found')
-      setPaperDetectionMessage(PAPER_NOT_FOUND_MESSAGE)
+      setPaperDetectionStatus(frameReadiness?.status ?? 'not-found')
+      setPaperDetectionMessage(frameReadiness?.message ?? PAPER_NOT_FOUND_MESSAGE)
       return false
     }
 
@@ -1822,6 +1866,7 @@ function App() {
         learningProgressRef.current = { ...emptyLearningProgress, stepByLessonId: {} }
         setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
         setLearningProgressMessage('')
+        setSavedAlignment(null)
         if (imageCleanupPending) window.alert('Saved drawings were cleared, but this browser could not finish removing stored image files. Use Clear local work again to retry.')
       })
       .catch(() => window.alert('TraceBuddy could not clear all local work. Try again in a moment.'))
@@ -1904,6 +1949,24 @@ function App() {
       ...current,
       ...(typeof update === 'function' ? update(current) : update),
     }))
+  }
+
+  function saveCurrentAlignment() {
+    const alignment = normalizeTraceAlignment({ version: 1, ...transform })
+    if (!alignment) return
+    try {
+      window.localStorage.setItem(savedAlignmentKey, JSON.stringify(alignment))
+      setSavedAlignment(alignment)
+    } catch {
+      window.alert('TraceBuddy could not remember this alignment in this browser. You can keep tracing with the current setup.')
+    }
+  }
+
+  function restoreSavedAlignment() {
+    if (!savedAlignment) return
+    resetPaperDetection()
+    const { x, y, scale, rotation, opacity } = savedAlignment
+    setTransform((current) => ({ ...current, x, y, scale, rotation, opacity, locked: false }))
   }
 
   function resetOverlay() {
@@ -2139,6 +2202,9 @@ function App() {
           onBackgroundToleranceChange={setBackgroundTolerance}
           onOutlineDetailChange={setOutlineDetail}
           onReset={resetOverlay}
+          savedAlignment={savedAlignment}
+          onSaveAlignment={saveCurrentAlignment}
+          onRestoreAlignment={restoreSavedAlignment}
         />
       )}
       {mode === 'practice' && (
@@ -2631,6 +2697,9 @@ function TraceScreen({
   onBackgroundToleranceChange,
   onOutlineDetailChange,
   onReset,
+  savedAlignment,
+  onSaveAlignment,
+  onRestoreAlignment,
 }: {
   pictureName: string
   pictureTheme: string
@@ -2665,10 +2734,37 @@ function TraceScreen({
   onBackgroundToleranceChange: (value: number) => void
   onOutlineDetailChange: (value: number) => void
   onReset: () => void
+  savedAlignment: TraceAlignment | null
+  onSaveAlignment: () => void
+  onRestoreAlignment: () => void
 }) {
   const [controlsExpanded, setControlsExpanded] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(parentSetupSeenKey) !== '1'
+    } catch {
+      return true
+    }
+  })
+  const [setupChecks, setSetupChecks] = useState({ stable: false, page: false, light: false })
+  const [childTraceMode, setChildTraceMode] = useState(false)
   const manualTransformDisabled = paperLockEnabled
   const paperTrackingPaused = paperLockEnabled && cameraStatus !== 'ready'
+  const setupReady = Object.values(setupChecks).every(Boolean)
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) setChildTraceMode(false)
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  useEffect(() => {
+    const appShell = document.querySelector('.app-shell')
+    appShell?.classList.toggle('child-trace-active', childTraceMode)
+    return () => appShell?.classList.remove('child-trace-active')
+  }, [childTraceMode])
 
   const cameraMessage = useMemo(() => {
     if (cameraStatus === 'ready') return 'Camera ready — place paper in view.'
@@ -2703,8 +2799,70 @@ function TraceScreen({
     { mode: 'outline', label: 'Line art', description: 'Best for tracing' },
   ]
 
+  const finishSetup = () => {
+    try {
+      window.localStorage.setItem(parentSetupSeenKey, '1')
+    } catch {
+      // The coach can still close when browser storage is unavailable.
+    }
+    setSetupOpen(false)
+  }
+
+  const startChildTraceMode = () => {
+    updateTransform({ locked: true })
+    setControlsExpanded(false)
+    setChildTraceMode(true)
+    const requestFullscreen = document.documentElement.requestFullscreen
+    if (requestFullscreen) void requestFullscreen.call(document.documentElement).catch(() => undefined)
+  }
+
+  const exitChildTraceMode = () => {
+    setChildTraceMode(false)
+    const exitFullscreen = document.exitFullscreen
+    if (document.fullscreenElement && exitFullscreen) void exitFullscreen.call(document).catch(() => undefined)
+  }
+
+  const applyPagePreset = (orientation: 'portrait' | 'landscape') => {
+    if (manualTransformDisabled) return
+    updateTransform({ x: 0, y: 0, rotation: orientation === 'portrait' ? 0 : 90, scale: orientation === 'portrait' ? 0.82 : 0.72 })
+  }
+
   return (
-    <section className="trace-screen">
+    <section className={`trace-screen ${childTraceMode ? 'child-trace-mode' : ''}`}>
+      {setupOpen && (
+        <div className="setup-coach-backdrop" role="dialog" aria-modal="true" aria-labelledby="setup-coach-title">
+          <div className="setup-coach">
+            <div className="setup-coach-heading">
+              <span className="setup-coach-time">30-second parent setup</span>
+              <h2 id="setup-coach-title">Make the tracing space safe and easy.</h2>
+              <p>Check these three things before handing the pencil to your child.</p>
+            </div>
+            <div className="setup-checklist">
+              <button type="button" className={setupChecks.stable ? 'complete' : ''} aria-pressed={setupChecks.stable} onClick={() => setSetupChecks((current) => ({ ...current, stable: !current.stable }))}>
+                <span>{setupChecks.stable ? '✓' : '1'}</span>
+                <strong>Stand is stable</strong>
+                <small>The device cannot tip or fall into the drawing area.</small>
+              </button>
+              <button type="button" className={setupChecks.page ? 'complete' : ''} aria-pressed={setupChecks.page} onClick={() => setSetupChecks((current) => ({ ...current, page: !current.page }))}>
+                <span>{setupChecks.page ? '✓' : '2'}</span>
+                <strong>Whole page is visible</strong>
+                <small>Move the device higher until all four paper edges are in view.</small>
+              </button>
+              <button type="button" className={setupChecks.light ? 'complete' : ''} aria-pressed={setupChecks.light} onClick={() => setSetupChecks((current) => ({ ...current, light: !current.light }))}>
+                <span>{setupChecks.light ? '✓' : '3'}</span>
+                <strong>Light is even</strong>
+                <small>Avoid dark shadows, glare, and a bright window behind the page.</small>
+              </button>
+            </div>
+            <div className="setup-coach-actions">
+              <button className="secondary-button" type="button" onClick={() => setSetupOpen(false)}>Close for now</button>
+              <button className="primary-button" type="button" disabled={!setupReady} onClick={finishSetup}>Ready to align</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {childTraceMode && <button className="child-mode-exit" type="button" onClick={exitChildTraceMode}>Exit child mode</button>}
       <div className="trace-header">
         <div>
           <p className="eyebrow">Trace mode</p>
@@ -2712,6 +2870,8 @@ function TraceScreen({
           <p><span aria-live="polite">{cameraMessage}</span> <span>{pictureTheme}</span></p>
         </div>
         <div className="trace-header-actions">
+          <button className="secondary-button compact" type="button" onClick={() => setSetupOpen(true)}>Parent setup</button>
+          <button className="primary-button compact" type="button" onClick={startChildTraceMode}>Start child trace</button>
           <button className="secondary-button compact" type="button" onClick={onPicker}>Change picture</button>
           <button className="secondary-button compact" type="button" onClick={onPractice}>Practice on screen</button>
           <label className="secondary-button compact file-button">
@@ -2792,6 +2952,10 @@ function TraceScreen({
               <strong>Prop your device above the paper.</strong>
               <small>Use a gooseneck holder, overhead stand, tripod arm, document camera stand, or a sturdy box/books setup.</small>
               <p>Safety: make sure the phone or tablet cannot fall onto the child or paper.</p>
+              <div className="setup-inline-actions">
+                <button type="button" onClick={() => setSetupOpen(true)}>Open setup coach</button>
+                <button type="button" onClick={startChildTraceMode}>Start child trace</button>
+              </div>
             </div>
 
             <div className={`control-card paper-control ${paperLockEnabled ? 'active' : ''}`}>
@@ -2846,6 +3010,13 @@ function TraceScreen({
             )}
 
             <div className="quick-controls" aria-label="Quick tracing adjustments">
+              <div className="quick-row page-preset-row">
+                <span>Page</span>
+                <div className="preset-buttons">
+                  <button type="button" onClick={() => applyPagePreset('portrait')} disabled={manualTransformDisabled}>Portrait</button>
+                  <button type="button" onClick={() => applyPagePreset('landscape')} disabled={manualTransformDisabled}>Landscape</button>
+                </div>
+              </div>
               <div className="quick-row">
                 <span>Size</span>
                 <div className="stepper-buttons">
@@ -2895,6 +3066,14 @@ function TraceScreen({
             </div>
 
             <button className="reset-button" type="button" onClick={onReset}>Reset overlay</button>
+            <div className="alignment-memory">
+              <strong>Use this setup again</strong>
+              <small>Save the current size, position, rotation, and opacity on this device.</small>
+              <div>
+                <button type="button" onClick={onSaveAlignment}>Save alignment</button>
+                <button type="button" disabled={!savedAlignment} onClick={onRestoreAlignment}>Resume saved</button>
+              </div>
+            </div>
             <p className="privacy-note">Privacy: paper detection runs locally in this browser and does not upload photos or camera video anywhere.</p>
           </div>
         </aside>

@@ -27,6 +27,9 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Camera preview with demo fallback.
 - Overlay drag, opacity, scale, rotation, nudge, lock, and reset.
 - Mobile-friendly floating trace controls.
+- A 30-second parent setup coach with stand, framing, and lighting checks.
+- Portrait/landscape alignment presets and one locally saved alignment.
+- A locked low-distraction child trace view with optional browser fullscreen.
 - Experimental paper rectangle detection and tracking.
 - High-contrast outline display mode.
 - Safer camera cleanup and retry behavior.
@@ -48,7 +51,7 @@ Goal: prove the fixed-device tracing setup works in a real drawing session.
 - Test with a physical stand and real paper.
 - Document the best stand/lighting setup.
 - Confirm whether Wake Lock works on target devices.
-- Decide whether fullscreen/low-distraction mode is necessary.
+- Validate the low-distraction child trace view and optional browser fullscreen on target devices.
 
 ## Phase 2: Better drawing experience
 
@@ -60,9 +63,7 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Watch how families use search, difficulty, favorites, and recent picks, then tune labels and defaults from real sessions.
 - Continue polishing the local Previous Work gallery as real saved sessions accumulate.
 - Expand guided lessons and handwriting styles after testing the first curriculum with families.
-- Add a clearer parent setup mode vs child tracing mode.
 - Continue tuning the mobile controls based on live phone/tablet use.
-- Add a fullscreen/trace-only mode if real testing shows controls distract.
 - Improve print/export options for built-in line art if useful.
 
 ## Previous Work gallery

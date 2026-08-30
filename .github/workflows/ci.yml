@@ -54,6 +54,7 @@ jobs:
               npm run check:offline
               npm run check:discovery
               npm run check:learning
+              npm run check:setup
               exit 0
             fi
             sleep 1

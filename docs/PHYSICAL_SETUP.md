@@ -33,12 +33,15 @@ Avoid:
 3. Open TraceBuddy over HTTPS.
 4. Pick a drawing or upload a local image.
 5. Allow camera access.
-6. Move the paper until it is centered in the camera view.
-7. Tap Find paper if the sheet is clearly visible, or drag the overlay onto the paper manually.
-8. Optionally tap Track paper to keep the drawing aligned during small camera shifts.
-9. Adjust size, opacity, and rotation.
-10. Use the nudge controls for small alignment changes.
-11. Tap Lock before the child starts tracing.
+6. Complete the 30-second parent setup check: confirm a stable stand, the whole page in view, and even light.
+7. If TraceBuddy reports that the scene is too dark, add soft light. If it reports that the camera is too close, raise the device until the sheet edges are visible.
+8. Choose the portrait or landscape starting preset that matches the page.
+9. Tap Find paper if the sheet is clearly visible, or drag the overlay onto the paper manually.
+10. Optionally tap Track paper to keep the drawing aligned during small camera shifts.
+11. Adjust size, opacity, and rotation, then use the nudge controls for small changes.
+12. Tap Save alignment if this stand and paper position will be used again. Resume saved alignment restores that local setup later.
+13. Tap Start child trace. This locks the guide, hides setup controls, and requests browser fullscreen when the browser supports it.
+14. Use Exit when an adult needs to adjust the setup again.
 
 ## Alignment tips
 
@@ -48,6 +51,8 @@ Avoid:
 - Decrease opacity if the drawing hides the pencil line.
 - Use the rotation control if the paper is slightly angled.
 - Lock the overlay once aligned to avoid accidental movement.
+- Save alignment only after the stand, paper, and guide are in their final positions.
+- Saved alignment is local to this browser or app and is removed by Clear local work.
 
 ## Lighting tips
 
@@ -71,7 +76,7 @@ Use Track paper when the full sheet is visible and the paper/background contrast
 
 ### The child keeps moving the overlay accidentally
 
-Tap Lock after setup. When locked, dragging is disabled and only the controls can change the overlay.
+Tap Start child trace after setup. The guide is locked and setup controls are hidden until an adult taps Exit.
 
 ### Paper detection cannot find the sheet
 

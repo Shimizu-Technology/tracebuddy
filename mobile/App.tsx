@@ -8,6 +8,7 @@ import {
   AppState,
   FlatList,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -43,11 +44,12 @@ import {
   guidedLessonStepDrawing,
   normalizeDrawingPreferences,
   normalizeLearningProgress,
+  normalizeTraceAlignment,
   sanitizeTraceText,
   toggleFavoriteDrawing,
   updateLearningStep,
 } from '@tracebuddy/shared'
-import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, GuidedLesson, LearningProgress } from '@tracebuddy/shared'
+import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, GuidedLesson, LearningProgress, TraceAlignment } from '@tracebuddy/shared'
 
 type ScreenMode = 'picker' | 'learn' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
@@ -206,6 +208,8 @@ const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
 const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
 const learningProgressKey = 'tracebuddy.learningProgress.v1'
+const parentSetupSeenKey = 'tracebuddy.parentSetupSeen.v1'
+const savedAlignmentKey = 'tracebuddy.savedAlignment.v1'
 const uploadedWorkDirectory = `${FileSystem.documentDirectory ?? ''}tracebuddy-uploads/`
 const practiceAutosaveDelayMs = 450
 
@@ -742,9 +746,9 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
 
 async function deleteAllPreviousWorkSessions() {
   return queuePreviousWorkWrite(async () => {
-    await queueDrawingPreferencesWrite(() => AsyncStorage.multiRemove([drawingPreferencesKey, learningProgressKey]))
+    await queueDrawingPreferencesWrite(() => AsyncStorage.multiRemove([drawingPreferencesKey, learningProgressKey, parentSetupSeenKey, savedAlignmentKey]))
     const keys = await AsyncStorage.getAllKeys()
-    const traceBuddyKeys = keys.filter((key) => key === drawingPreferencesKey || key === learningProgressKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
+    const traceBuddyKeys = keys.filter((key) => key === drawingPreferencesKey || key === learningProgressKey || key === parentSetupSeenKey || key === savedAlignmentKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
     activeStoredImageUris.clear()
     try {
@@ -814,6 +818,11 @@ function TraceBuddyMobile() {
   const [learningProgress, setLearningProgress] = useState<LearningProgress>({ ...emptyLearningProgress, stepByLessonId: {} })
   const [learningProgressMessage, setLearningProgressMessage] = useState('')
   const [selectedLesson, setSelectedLesson] = useState<GuidedLesson>(guidedLessons[0])
+  const [savedAlignment, setSavedAlignment] = useState<TraceAlignment | null>(null)
+  const [setupCoachOpen, setSetupCoachOpen] = useState(false)
+  const [setupChecks, setSetupChecks] = useState({ stable: false, page: false, light: false })
+  const [parentSetupHydrated, setParentSetupHydrated] = useState(false)
+  const [childTraceMode, setChildTraceMode] = useState(false)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [customText, setCustomText] = useState('')
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
@@ -832,6 +841,7 @@ function TraceBuddyMobile() {
   const drawingPreferencesInteractionRef = useRef(false)
   const learningProgressRef = useRef(learningProgress)
   const learningProgressInteractionRef = useRef(false)
+  const parentSetupSeenRef = useRef(false)
   const drawingPreferencesClearInProgressRef = useRef(false)
   const previousWorkOperationGenerationRef = useRef(0)
   const legacyMigrationCanvasSizeRef = useRef({
@@ -877,6 +887,23 @@ function TraceBuddyMobile() {
         if (!cancelled) setDrawingPreferencesMessage('Favorites and recent picks will last for this visit only.')
       })
 
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([
+      AsyncStorage.getItem(parentSetupSeenKey),
+      AsyncStorage.getItem(savedAlignmentKey),
+    ]).then(([setupSeen, rawAlignment]) => {
+      if (cancelled) return
+      parentSetupSeenRef.current = setupSeen === '1'
+      setSavedAlignment(normalizeTraceAlignment(rawAlignment ? JSON.parse(rawAlignment) : null))
+    }).catch(() => undefined).finally(() => {
+      if (!cancelled) setParentSetupHydrated(true)
+    })
     return () => {
       cancelled = true
     }
@@ -985,6 +1012,46 @@ function TraceBuddyMobile() {
     setOverlayLocked(false)
   }, [setOverlayTransform])
 
+  const maybeOpenParentSetup = useCallback(() => {
+    if (parentSetupHydrated && !parentSetupSeenRef.current) setSetupCoachOpen(true)
+  }, [parentSetupHydrated])
+
+  useEffect(() => {
+    if (parentSetupHydrated && mode === 'trace' && traceSurface === 'camera' && !parentSetupSeenRef.current) setSetupCoachOpen(true)
+  }, [mode, parentSetupHydrated, traceSurface])
+
+  const finishParentSetup = useCallback(() => {
+    parentSetupSeenRef.current = true
+    setSetupCoachOpen(false)
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(parentSetupSeenKey, '1')).catch(() => undefined)
+  }, [])
+
+  const saveCurrentAlignment = useCallback(() => {
+    const alignment = normalizeTraceAlignment({ version: 1, ...transformRef.current })
+    if (!alignment) return
+    setSavedAlignment(alignment)
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(savedAlignmentKey, JSON.stringify(alignment)))
+      .catch(() => Alert.alert('Alignment not saved', 'You can keep tracing with the current setup, but TraceBuddy could not remember it for next time.'))
+  }, [])
+
+  const restoreSavedAlignment = useCallback(() => {
+    if (!savedAlignment) return
+    const { x, y, scale, rotation, opacity } = savedAlignment
+    setOverlayTransform({ x, y, scale, rotation, opacity })
+    setOverlayLocked(false)
+  }, [savedAlignment, setOverlayTransform])
+
+  const startChildTraceMode = useCallback(() => {
+    setOverlayLocked(true)
+    setControlsOpen(false)
+    setChildTraceMode(true)
+  }, [])
+
+  const applyPagePreset = useCallback((orientation: 'portrait' | 'landscape') => {
+    if (overlayLockedRef.current) return
+    setOverlayTransform((current) => ({ ...current, x: 0, y: 0, rotation: orientation === 'portrait' ? 0 : 90, scale: orientation === 'portrait' ? 0.82 : 0.72 }))
+  }, [setOverlayTransform])
+
   const openTraceWithDrawing = useCallback((drawing: Drawing) => {
     const abandonedUploadUri = uploadedImage?.uri
     const nextPreferences = addRecentDrawing(drawingPreferencesRef.current, drawing.id)
@@ -994,9 +1061,10 @@ function TraceBuddyMobile() {
     if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
     setActivePracticeSession(null)
     setMode(traceSurface === 'screen' ? 'practice' : 'trace')
+    if (traceSurface === 'camera') maybeOpenParentSetup()
     setControlsOpen(true)
     resetOverlay()
-  }, [resetOverlay, saveDrawingPreferences, traceSurface, uploadedImage])
+  }, [maybeOpenParentSetup, resetOverlay, saveDrawingPreferences, traceSurface, uploadedImage])
 
   const toggleFavorite = useCallback((drawingId: string) => {
     saveDrawingPreferences(toggleFavoriteDrawing(drawingPreferencesRef.current, drawingId))
@@ -1052,6 +1120,7 @@ function TraceBuddyMobile() {
         if (abandonedUploadUri && abandonedUploadUri !== persistedUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
         setActivePracticeSession(null)
         setMode(traceSurface === 'screen' ? 'practice' : 'trace')
+        if (traceSurface === 'camera') maybeOpenParentSetup()
         setControlsOpen(true)
         resetOverlay()
       }
@@ -1060,7 +1129,7 @@ function TraceBuddyMobile() {
     } finally {
       setIsPickingImage(false)
     }
-  }, [resetOverlay, traceSurface, uploadedImage])
+  }, [maybeOpenParentSetup, resetOverlay, traceSurface, uploadedImage])
 
   const adjustOpacity = useCallback((delta: number) => {
     setOverlayTransform((current) => ({ ...current, opacity: clamp(current.opacity + delta, 0.18, 1) }))
@@ -1096,7 +1165,8 @@ function TraceBuddyMobile() {
     setMode('trace')
     setControlsOpen(true)
     resetOverlay()
-  }, [resetOverlay])
+    maybeOpenParentSetup()
+  }, [maybeOpenParentSetup, resetOverlay])
 
   const openScreenPractice = useCallback(() => {
     setTraceSurface('screen')
@@ -1270,6 +1340,9 @@ function TraceBuddyMobile() {
               learningProgressRef.current = { ...emptyLearningProgress, stepByLessonId: {} }
               setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
               setLearningProgressMessage('')
+              parentSetupSeenRef.current = false
+              setSavedAlignment(null)
+              setChildTraceMode(false)
               setMode('picker')
               if (imageCleanupPending) Alert.alert('Drawings cleared', 'Saved drawings were removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work again to retry cleanup.')
             })
@@ -1319,9 +1392,10 @@ function TraceBuddyMobile() {
     setActivePracticeSession(null)
     setTraceSurface(surface)
     setMode(surface === 'screen' ? 'practice' : 'trace')
+    if (surface === 'camera') maybeOpenParentSetup()
     setControlsOpen(true)
     resetOverlay()
-  }, [resetOverlay, selectedLesson, uploadedImage])
+  }, [maybeOpenParentSetup, resetOverlay, selectedLesson, uploadedImage])
 
   const openGuidedWords = useCallback((value: string) => {
     const safeText = sanitizeTraceText(value)
@@ -1610,10 +1684,49 @@ function TraceBuddyMobile() {
   }
 
   const cameraReady = Boolean(permission?.granted)
+  const setupReady = Object.values(setupChecks).every(Boolean)
 
   return (
     <View style={styles.traceShell}>
-      <StatusBar style="light" />
+      <StatusBar style="light" hidden={childTraceMode} />
+      <Modal visible={setupCoachOpen} transparent animationType="fade" onRequestClose={() => setSetupCoachOpen(false)}>
+        <View style={styles.setupCoachBackdrop}>
+          <ScrollView contentContainerStyle={styles.setupCoachScroll}>
+            <View style={styles.setupCoachCard}>
+              <Text style={styles.setupCoachTime}>30-SECOND PARENT SETUP</Text>
+              <Text style={styles.setupCoachTitle}>Make the tracing space safe and easy.</Text>
+              <Text style={styles.setupCoachCopy}>Check these three things before handing the pencil to your child.</Text>
+              <View style={styles.setupChecklist}>
+                <Pressable style={[styles.setupCheck, setupChecks.stable && styles.setupCheckComplete]} onPress={() => setSetupChecks((current) => ({ ...current, stable: !current.stable }))} accessibilityRole="button" accessibilityState={{ selected: setupChecks.stable }}>
+                  <View style={[styles.setupCheckNumber, setupChecks.stable && styles.setupCheckNumberComplete]}><Text style={styles.setupCheckNumberText}>{setupChecks.stable ? '✓' : '1'}</Text></View>
+                  <Text style={styles.setupCheckTitle}>Stand is stable</Text>
+                  <Text style={styles.setupCheckCopy}>The device cannot tip or fall into the drawing area.</Text>
+                </Pressable>
+                <Pressable style={[styles.setupCheck, setupChecks.page && styles.setupCheckComplete]} onPress={() => setSetupChecks((current) => ({ ...current, page: !current.page }))} accessibilityRole="button" accessibilityState={{ selected: setupChecks.page }}>
+                  <View style={[styles.setupCheckNumber, setupChecks.page && styles.setupCheckNumberComplete]}><Text style={styles.setupCheckNumberText}>{setupChecks.page ? '✓' : '2'}</Text></View>
+                  <Text style={styles.setupCheckTitle}>Whole page is visible</Text>
+                  <Text style={styles.setupCheckCopy}>Move the device higher until all four paper edges are in view.</Text>
+                </Pressable>
+                <Pressable style={[styles.setupCheck, setupChecks.light && styles.setupCheckComplete]} onPress={() => setSetupChecks((current) => ({ ...current, light: !current.light }))} accessibilityRole="button" accessibilityState={{ selected: setupChecks.light }}>
+                  <View style={[styles.setupCheckNumber, setupChecks.light && styles.setupCheckNumberComplete]}><Text style={styles.setupCheckNumberText}>{setupChecks.light ? '✓' : '3'}</Text></View>
+                  <Text style={styles.setupCheckTitle}>Light is even</Text>
+                  <Text style={styles.setupCheckCopy}>Avoid dark shadows, glare, and a bright window behind the page.</Text>
+                </Pressable>
+              </View>
+              <View style={styles.setupCoachActions}>
+                <Pressable style={styles.setupCoachSecondary} onPress={() => setSetupCoachOpen(false)} accessibilityRole="button"><Text style={styles.setupCoachSecondaryText}>Close for now</Text></Pressable>
+                <Pressable style={[styles.setupCoachPrimary, !setupReady && styles.lessonButtonDisabled]} disabled={!setupReady} onPress={finishParentSetup} accessibilityRole="button"><Text style={styles.setupCoachPrimaryText}>Ready to align</Text></Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {childTraceMode ? (
+        <Pressable style={[styles.childModeExit, { top: insets.top + 10 }]} onPress={() => setChildTraceMode(false)} accessibilityRole="button">
+          <Text style={styles.childModeExitText}>Exit child mode</Text>
+        </Pressable>
+      ) : null}
       {cameraReady ? (
         <CameraView style={StyleSheet.absoluteFill} facing="back" autofocus="on" />
       ) : (
@@ -1627,7 +1740,7 @@ function TraceBuddyMobile() {
         </View>
       )}
 
-      <View style={[styles.traceHeader, styles.pointerBoxNone, { paddingTop: insets.top + 12 }]}>
+      {!childTraceMode ? <View style={[styles.traceHeader, styles.pointerBoxNone, { paddingTop: insets.top + 12 }]}>
         <Pressable style={styles.headerButton} onPress={() => setMode('picker')} accessibilityRole="button" accessibilityLabel="Back to picture picker">
           <BackIcon />
           <Text style={styles.headerButtonText}>Picker</Text>
@@ -1639,7 +1752,7 @@ function TraceBuddyMobile() {
         <Pressable style={styles.iconButton} onPress={() => setOverlayLocked((locked) => !locked)} accessibilityRole="button" accessibilityLabel={overlayLocked ? 'Unlock overlay' : 'Lock overlay'}>
           {overlayLocked ? <LockIcon /> : <UnlockIcon />}
         </Pressable>
-      </View>
+      </View> : null}
 
       <View
         style={[
@@ -1674,22 +1787,35 @@ function TraceBuddyMobile() {
         )}
       </View>
 
-      <View style={[styles.traceControls, styles.pointerBoxNone, { paddingBottom: insets.bottom + 12 }]}>
+      {!childTraceMode ? <View style={[styles.traceControls, styles.pointerBoxNone, { paddingBottom: insets.bottom + 12 }]}>
         {!controlsOpen ? (
           <Pressable style={styles.openControlsButton} onPress={() => setControlsOpen(true)} accessibilityRole="button">
             <Text style={styles.openControlsText}>Adjust drawing</Text>
           </Pressable>
         ) : (
-          <View style={styles.controlsSheet}>
+          <ScrollView style={[styles.controlsSheet, { maxHeight: Math.min(650, height * 0.78) }]} contentContainerStyle={styles.controlsSheetContent} showsVerticalScrollIndicator={false}>
             <View style={styles.sheetHandle} />
             <View style={styles.controlsHeader}>
               <View>
                 <Text style={styles.controlsTitle}>Adjust drawing</Text>
                 <Text style={styles.controlsStatus}>{overlayLocked ? 'Locked to avoid accidental dragging.' : 'Drag the overlay or use precise nudges.'}</Text>
               </View>
-              <Pressable style={styles.hideButton} onPress={() => setControlsOpen(false)} accessibilityRole="button">
-                <Text style={styles.hideButtonText}>Hide</Text>
-              </Pressable>
+              <View style={styles.controlsHeaderActions}>
+                <Pressable style={styles.hideButton} onPress={() => setSetupCoachOpen(true)} accessibilityRole="button">
+                  <Text style={styles.hideButtonText}>Setup</Text>
+                </Pressable>
+                <Pressable style={styles.hideButton} onPress={() => setControlsOpen(false)} accessibilityRole="button">
+                  <Text style={styles.hideButtonText}>Hide</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.traceSetupTools}>
+              <Text style={styles.controlLabel}>Page orientation</Text>
+              <View style={styles.controlRow}>
+                <Pressable style={styles.controlButton} disabled={overlayLocked} onPress={() => applyPagePreset('portrait')} accessibilityRole="button"><Text style={styles.controlButtonText}>Portrait</Text></Pressable>
+                <Pressable style={styles.controlButton} disabled={overlayLocked} onPress={() => applyPagePreset('landscape')} accessibilityRole="button"><Text style={styles.controlButtonText}>Landscape</Text></Pressable>
+              </View>
             </View>
 
             <View style={styles.controlGrid}>
@@ -1724,6 +1850,17 @@ function TraceBuddyMobile() {
               </View>
             </View>
 
+            <View style={styles.alignmentMemoryCard}>
+              <View style={styles.alignmentMemoryCopy}>
+                <Text style={styles.alignmentMemoryTitle}>Use this setup again</Text>
+                <Text style={styles.alignmentMemoryText}>Remember size, position, rotation, and opacity on this phone.</Text>
+              </View>
+              <View style={styles.alignmentMemoryActions}>
+                <Pressable style={styles.alignmentMemoryButton} onPress={saveCurrentAlignment} accessibilityRole="button"><Text style={styles.alignmentMemoryButtonText}>Save</Text></Pressable>
+                <Pressable style={[styles.alignmentMemoryButton, !savedAlignment && styles.lessonButtonDisabled]} disabled={!savedAlignment} onPress={restoreSavedAlignment} accessibilityRole="button"><Text style={styles.alignmentMemoryButtonText}>Resume</Text></Pressable>
+              </View>
+            </View>
+
             <View style={styles.actionRow}>
               <Pressable style={[styles.actionButton, overlayLocked && styles.actionButtonActive]} onPress={() => setOverlayLocked((locked) => !locked)} accessibilityRole="button">
                 <Text style={[styles.actionButtonText, overlayLocked && styles.actionButtonTextActive]}>{overlayLocked ? 'Unlock overlay' : 'Lock overlay'}</Text>
@@ -1735,9 +1872,12 @@ function TraceBuddyMobile() {
                 <Text style={styles.actionButtonText}>Screen</Text>
               </Pressable>
             </View>
-          </View>
+            <Pressable style={styles.childTraceButton} onPress={startChildTraceMode} accessibilityRole="button">
+              <Text style={styles.childTraceButtonText}>Lock and start child trace</Text>
+            </Pressable>
+          </ScrollView>
         )}
-      </View>
+      </View> : null}
     </View>
   )
 }
@@ -4618,7 +4758,6 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 32,
     backgroundColor: 'rgba(255,255,255,0.96)',
-    padding: 14,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.7)',
     shadowColor: '#000',
@@ -4626,6 +4765,9 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 14 },
     elevation: 10,
+  },
+  controlsSheetContent: {
+    padding: 14,
   },
   sheetHandle: {
     alignSelf: 'center',
@@ -5151,5 +5293,202 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginVertical: 12,
+  },
+  setupCoachBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(16,25,39,0.76)',
+  },
+  setupCoachScroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 16,
+  },
+  setupCoachCard: {
+    borderRadius: 30,
+    padding: 19,
+    backgroundColor: '#FFF9F1',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.65)',
+  },
+  setupCoachTime: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    overflow: 'hidden',
+    backgroundColor: palette.ink,
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  setupCoachTitle: {
+    color: palette.ink,
+    fontSize: 31,
+    lineHeight: 33,
+    fontWeight: '900',
+    marginTop: 10,
+  },
+  setupCoachCopy: {
+    color: palette.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 7,
+  },
+  setupChecklist: {
+    gap: 8,
+    marginVertical: 14,
+  },
+  setupCheck: {
+    minHeight: 104,
+    borderRadius: 20,
+    padding: 12,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  setupCheckComplete: {
+    backgroundColor: '#F0FAF4',
+    borderColor: 'rgba(23,98,58,0.38)',
+  },
+  setupCheckNumber: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.paperStrong,
+    marginBottom: 7,
+  },
+  setupCheckNumberComplete: {
+    backgroundColor: palette.mint,
+  },
+  setupCheckNumberText: {
+    color: palette.ink,
+    fontWeight: '900',
+  },
+  setupCheckTitle: {
+    color: palette.ink,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  setupCheckCopy: {
+    color: palette.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  setupCoachActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  setupCoachSecondary: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  setupCoachSecondaryText: {
+    color: palette.ink,
+    fontWeight: '900',
+  },
+  setupCoachPrimary: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.coral,
+  },
+  setupCoachPrimaryText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  childModeExit: {
+    position: 'absolute',
+    right: 12,
+    zIndex: 80,
+    minHeight: 48,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(16,25,39,0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.32)',
+  },
+  childModeExitText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  controlsHeaderActions: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  traceSetupTools: {
+    borderRadius: 20,
+    backgroundColor: palette.paper,
+    padding: 10,
+    marginBottom: 9,
+  },
+  alignmentMemoryCard: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: '#EEF8F2',
+    padding: 10,
+    marginTop: 9,
+  },
+  alignmentMemoryCopy: {
+    flex: 1,
+  },
+  alignmentMemoryTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  alignmentMemoryText: {
+    color: palette.muted,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  alignmentMemoryActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  alignmentMemoryButton: {
+    minHeight: 44,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  alignmentMemoryButtonText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  childTraceButton: {
+    minHeight: 48,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.coral,
+    marginTop: 9,
+  },
+  childTraceButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
   },
 })
