@@ -5000,9 +5000,9 @@ const styles = StyleSheet.create({
     marginVertical: 14,
   },
   lessonStepButton: {
-    width: 39,
-    height: 39,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: palette.surface,
