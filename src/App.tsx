@@ -445,12 +445,13 @@ function makePracticeSource(drawing: Drawing, uploadedImage: UploadedImageState 
   }
 
   const isCustom = drawing.id.startsWith('custom-text-')
+  const isLibraryDrawing = drawings.some((candidate) => candidate.id === drawing.id)
   return {
     kind: isCustom ? 'custom' : 'drawing',
     drawingId: drawing.id,
     drawingName: drawing.name,
     drawingTheme: drawing.theme,
-    drawingSvg: isCustom ? drawing.svg : undefined,
+    drawingSvg: isLibraryDrawing ? undefined : drawing.svg,
   }
 }
 

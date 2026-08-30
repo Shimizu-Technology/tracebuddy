@@ -45,6 +45,27 @@ try {
   await waitForSelector(page, '.learning-screen')
   assert(await page.$eval('.lesson-finished-badge', (badge) => badge.textContent?.includes('Finished')), 'Finished lesson did not survive reload')
 
+  await clickByText(page, 'Practice this step on screen')
+  await waitForSelector(page, '.practice-screen')
+  const canvasBox = await page.$eval('.practice-canvas', (canvas) => {
+    const rect = canvas.getBoundingClientRect()
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+  })
+  await page.mouse.move(canvasBox.x + canvasBox.width * 0.35, canvasBox.y + canvasBox.height * 0.45)
+  await page.mouse.down()
+  await page.mouse.move(canvasBox.x + canvasBox.width * 0.55, canvasBox.y + canvasBox.height * 0.55, { steps: 8 })
+  await page.mouse.up()
+  await clickByText(page, 'Pictures')
+  await waitForSelector(page, '.picker-screen')
+  const storedGuidedSource = await page.evaluate(() => Object.keys(localStorage)
+    .filter((key) => key.startsWith('tracebuddy.previousWork.v1.session.'))
+    .map((key) => JSON.parse(localStorage.getItem(key) || 'null')?.source)
+    .find((source) => source?.drawingId?.startsWith('lesson-line-control-step-')))
+  assert(storedGuidedSource?.drawingSvg?.includes('<svg'), 'Saved guided work did not embed its generated lesson guide')
+
+  await clickByText(page, 'Learn')
+  await waitForSelector(page, '.learning-screen')
+
   await page.type('.handwriting-card input', 'Stassie')
   await clickByText(page, 'Practice these words')
   await waitForSelector(page, '.practice-screen')
