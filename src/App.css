@@ -1846,6 +1846,382 @@ input[type='range'] {
   font-size: 0.88rem;
 }
 
+.learning-callout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(320px, 1.15fr);
+  gap: 1.25rem;
+  align-items: stretch;
+  margin: 1.25rem 0;
+  padding: 1.35rem;
+  border: 1px solid rgba(24, 36, 58, 0.1);
+  border-radius: 28px;
+  background: linear-gradient(135deg, #fff4df 0%, #eef8f2 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+.learning-callout-copy h2,
+.learning-heading h1,
+.lesson-title-row h2,
+.lesson-instruction h3 {
+  margin: 0;
+  color: var(--ink);
+}
+
+.learning-callout-copy > p:not(.eyebrow),
+.learning-heading > div > p:not(.eyebrow),
+.lesson-title-row p,
+.lesson-instruction > p:last-child {
+  color: var(--muted);
+}
+
+.learning-callout-progress {
+  height: 9px;
+  margin-top: 1rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(24, 36, 58, 0.1);
+}
+
+.learning-callout-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--coral);
+}
+
+.learning-callout-copy > small {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--muted);
+}
+
+.learning-callout-lessons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.learning-callout-lessons button,
+.lesson-library button {
+  position: relative;
+  display: grid;
+  border: 1px solid rgba(24, 36, 58, 0.1);
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--ink);
+  text-align: left;
+}
+
+.learning-callout-lessons button {
+  grid-template-rows: 98px auto;
+  min-width: 0;
+  padding: 0.65rem;
+  border-radius: 20px;
+}
+
+.learning-callout-lessons button:hover,
+.lesson-library button:hover,
+.lesson-library button.active {
+  transform: translateY(-2px);
+  border-color: rgba(255, 121, 93, 0.55);
+  box-shadow: 0 10px 24px rgba(24, 36, 58, 0.09);
+}
+
+.learning-callout-lessons img {
+  width: 100%;
+  height: 98px;
+  object-fit: contain;
+}
+
+.learning-callout-lessons button span:not(.lesson-complete-mark),
+.lesson-library button span:not(.lesson-complete-mark) {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.learning-callout-lessons small,
+.lesson-library small {
+  color: var(--muted);
+}
+
+.learning-callout-lessons .learning-see-all {
+  grid-column: 1 / -1;
+  display: block;
+  min-height: 44px;
+  color: var(--coral-dark);
+  text-align: center;
+}
+
+.lesson-complete-mark {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--mint);
+  color: #17623a;
+  font-weight: 900;
+}
+
+.learning-screen {
+  padding: 2rem clamp(1rem, 4vw, 4.5rem) 4rem;
+}
+
+.learning-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  max-width: 1240px;
+  margin: 0 auto 1.5rem;
+}
+
+.learning-heading h1 {
+  font-size: clamp(2rem, 5vw, 4.4rem);
+  line-height: 0.98;
+}
+
+.learning-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.35fr) minmax(0, 1fr);
+  gap: 1rem;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.lesson-library,
+.lesson-stage-card {
+  border: 1px solid rgba(24, 36, 58, 0.1);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: var(--shadow-soft);
+}
+
+.lesson-library {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  padding: 0.8rem;
+}
+
+.lesson-library-heading {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.45rem 0.45rem 0.7rem;
+}
+
+.lesson-library button {
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  min-height: 72px;
+  padding: 0.48rem;
+  border-radius: 17px;
+}
+
+.lesson-library button.active {
+  background: #fff2e8;
+}
+
+.lesson-library img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #fffdf9;
+}
+
+.lesson-library .lesson-complete-mark {
+  position: static;
+  width: 26px;
+  height: 26px;
+}
+
+.lesson-stage-card {
+  padding: clamp(1rem, 2.8vw, 2rem);
+}
+
+.lesson-stage-meta,
+.lesson-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.lesson-stage-meta > span,
+.lesson-finished-badge {
+  padding: 0.38rem 0.72rem;
+  border-radius: 999px;
+  background: var(--paper-strong);
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.lesson-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+  margin: 1rem 0;
+}
+
+.lesson-title-row h2 {
+  font-size: clamp(1.8rem, 3vw, 3rem);
+}
+
+.lesson-finished-badge {
+  flex: 0 0 auto;
+  background: var(--mint);
+  color: #17623a;
+}
+
+.lesson-step-dots {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.lesson-step-dots button {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid rgba(24, 36, 58, 0.14);
+  border-radius: 50%;
+  background: white;
+  color: var(--muted);
+}
+
+.lesson-step-dots button.visited {
+  background: var(--mint);
+  color: #17623a;
+}
+
+.lesson-step-dots button.active {
+  border-color: var(--coral);
+  background: var(--coral);
+  color: white;
+}
+
+.lesson-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(240px, 0.65fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.lesson-picture,
+.lesson-instruction {
+  border-radius: 24px;
+}
+
+.lesson-picture {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: #fffaf3;
+}
+
+.lesson-picture img {
+  width: min(100%, 480px);
+  aspect-ratio: 1;
+  object-fit: contain;
+  animation: lesson-arrive 500ms ease-out both;
+}
+
+.lesson-picture span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.lesson-instruction {
+  position: relative;
+  padding: clamp(1.1rem, 3vw, 2rem);
+  background: linear-gradient(145deg, var(--sky), #f4fbff);
+}
+
+.lesson-step-number {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 1rem;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--ink);
+  color: white;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.lesson-instruction h3 {
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  line-height: 1.08;
+}
+
+.lesson-actions {
+  margin-top: 1rem;
+}
+
+.lesson-actions button {
+  min-height: 48px;
+}
+
+.handwriting-card {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(320px, 1fr);
+  gap: 1rem;
+  max-width: 1240px;
+  margin: 1rem auto 0;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid rgba(24, 36, 58, 0.1);
+  border-radius: 28px;
+  background: linear-gradient(145deg, #fff2e8, #fffaf3);
+  box-shadow: var(--shadow-soft);
+}
+
+.handwriting-card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+}
+
+.handwriting-card p:not(.eyebrow) {
+  color: var(--muted);
+}
+
+.handwriting-card form,
+.handwriting-card label {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.handwriting-card form {
+  align-content: center;
+}
+
+.handwriting-card label span {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.handwriting-card input {
+  min-height: 50px;
+  padding: 0 0.9rem;
+  border: 1px solid rgba(24, 36, 58, 0.15);
+  border-radius: 16px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+}
+
+@keyframes lesson-arrive {
+  from { opacity: 0.35; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2175,6 +2551,52 @@ input[type='range'] {
   }
 
   .toggle-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .learning-callout,
+  .learning-layout,
+  .lesson-workspace,
+  .handwriting-card {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-library {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lesson-library-heading {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .learning-callout-lessons {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-callout-lessons .learning-see-all {
+    grid-column: auto;
+  }
+
+  .learning-heading,
+  .lesson-title-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lesson-library {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-library-heading {
+    grid-column: auto;
+  }
+
+  .lesson-actions {
+    display: grid;
     grid-template-columns: 1fr;
   }
 }

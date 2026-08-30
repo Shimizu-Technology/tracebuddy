@@ -18,6 +18,8 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - On-screen coloring/practice mode for tracing without a paper/camera setup.
 - Custom word/name/phrase tracing, expanded colors including pinks, brush styles, and locked pan/zoom controls.
 - Shared 73-template SVG line-art library with search, category and difficulty filters, local favorites, and recent picks.
+- Eight guided drawing lessons with local progress, gentle step prompts, and direct handoff to paper or on-screen tracing.
+- A handwriting studio for custom names, words, numbers, and short family messages.
 - Local image upload.
 - Mobile practice add-ons for built-in shapes and local photo/image stickers.
 - Save finished mobile practice drawings to the device Photos library.
@@ -57,7 +59,7 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Keep difficulty labels: starter, medium, detailed.
 - Watch how families use search, difficulty, favorites, and recent picks, then tune labels and defaults from real sessions.
 - Continue polishing the local Previous Work gallery as real saved sessions accumulate.
-- Expand dynamic word/name tracing with handwriting-style letter guides and saved favorite names.
+- Expand guided lessons and handwriting styles after testing the first curriculum with families.
 - Add a clearer parent setup mode vs child tracing mode.
 - Continue tuning the mobile controls based on live phone/tablet use.
 - Add a fullscreen/trace-only mode if real testing shows controls distract.

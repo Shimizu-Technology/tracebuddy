@@ -75,7 +75,7 @@ The planned AR direction is full iOS ARKit with a printed TraceBuddy marker/refe
 
 ### Local-first privacy
 
-TraceBuddy does not upload photos, video, or drawings. Camera frames are shown locally and are not recorded. Previous Work, practice strokes, custom words, selected images, favorites, and recent picks may persist in private browser or app storage until the user clears local work, clears site/app data, or removes the app.
+TraceBuddy does not upload photos, video, or drawings. Camera frames are shown locally and are not recorded. Previous Work, practice strokes, custom words, selected images, favorites, recent picks, and guided-lesson progress may persist in private browser or app storage until the user clears local work, clears site/app data, or removes the app.
 
 ### Built-in SVG drawings
 
@@ -87,6 +87,8 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Expo + React Native + TypeScript mobile app under `mobile/`, tested with development and TestFlight builds.
 - CSS-only visual design.
 - Shared 73-template SVG drawing library with search, category and difficulty filters, favorites, and recent picks.
+- Eight step-by-step lessons that introduce one highlighted stroke group at a time, remember the current step locally, and avoid scores or failure states.
+- Handwriting practice for names, words, numbers, and short family messages.
 - Local image upload with optional browser-only cleanup.
 - Browser camera access with graceful demo fallback.
 - Native Expo camera trace mode in the mobile MVP.

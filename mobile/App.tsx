@@ -36,13 +36,20 @@ import {
   drawingsFromIds,
   emptyDrawingPreferences,
   filterDrawings,
+  completeGuidedLesson,
+  emptyLearningProgress,
+  guidedLessonPreviewDrawing,
+  guidedLessons,
+  guidedLessonStepDrawing,
   normalizeDrawingPreferences,
+  normalizeLearningProgress,
   sanitizeTraceText,
   toggleFavoriteDrawing,
+  updateLearningStep,
 } from '@tracebuddy/shared'
-import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences } from '@tracebuddy/shared'
+import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, GuidedLesson, LearningProgress } from '@tracebuddy/shared'
 
-type ScreenMode = 'picker' | 'trace' | 'practice'
+type ScreenMode = 'picker' | 'learn' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
 type PickerCategoryId = DrawingFilterId
 
@@ -198,6 +205,7 @@ const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
 const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
 const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
+const learningProgressKey = 'tracebuddy.learningProgress.v1'
 const uploadedWorkDirectory = `${FileSystem.documentDirectory ?? ''}tracebuddy-uploads/`
 const practiceAutosaveDelayMs = 450
 
@@ -733,9 +741,9 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
 
 async function deleteAllPreviousWorkSessions() {
   return queuePreviousWorkWrite(async () => {
-    await queueDrawingPreferencesWrite(() => AsyncStorage.removeItem(drawingPreferencesKey))
+    await queueDrawingPreferencesWrite(() => AsyncStorage.multiRemove([drawingPreferencesKey, learningProgressKey]))
     const keys = await AsyncStorage.getAllKeys()
-    const traceBuddyKeys = keys.filter((key) => key === drawingPreferencesKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
+    const traceBuddyKeys = keys.filter((key) => key === drawingPreferencesKey || key === learningProgressKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
     activeStoredImageUris.clear()
     try {
@@ -802,6 +810,9 @@ function TraceBuddyMobile() {
   const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>({ ...emptyDrawingPreferences })
   const [drawingPreferencesMessage, setDrawingPreferencesMessage] = useState('')
   const [drawingPreferencesClearInProgress, setDrawingPreferencesClearInProgress] = useState(false)
+  const [learningProgress, setLearningProgress] = useState<LearningProgress>({ ...emptyLearningProgress, stepByLessonId: {} })
+  const [learningProgressMessage, setLearningProgressMessage] = useState('')
+  const [selectedLesson, setSelectedLesson] = useState<GuidedLesson>(guidedLessons[0])
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [customText, setCustomText] = useState('')
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
@@ -818,6 +829,8 @@ function TraceBuddyMobile() {
   const legacyMigrationCompleteRef = useRef(false)
   const drawingPreferencesRef = useRef(drawingPreferences)
   const drawingPreferencesInteractionRef = useRef(false)
+  const learningProgressRef = useRef(learningProgress)
+  const learningProgressInteractionRef = useRef(false)
   const drawingPreferencesClearInProgressRef = useRef(false)
   const previousWorkOperationGenerationRef = useRef(0)
   const legacyMigrationCanvasSizeRef = useRef({
@@ -868,6 +881,24 @@ function TraceBuddyMobile() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    void AsyncStorage.getItem(learningProgressKey)
+      .then((rawProgress) => {
+        if (cancelled || learningProgressInteractionRef.current) return
+        const progress = normalizeLearningProgress(rawProgress ? JSON.parse(rawProgress) : null)
+        learningProgressRef.current = progress
+        setLearningProgress(progress)
+      })
+      .catch(() => {
+        if (!cancelled) setLearningProgressMessage('Lesson progress will last for this visit only.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const saveDrawingPreferences = useCallback((nextPreferences: DrawingPreferences) => {
     if (drawingPreferencesClearInProgressRef.current) return
     const normalizedPreferences = normalizeDrawingPreferences(nextPreferences)
@@ -877,6 +908,17 @@ function TraceBuddyMobile() {
     void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(drawingPreferencesKey, JSON.stringify(normalizedPreferences)))
       .then(() => setDrawingPreferencesMessage(''))
       .catch(() => setDrawingPreferencesMessage('Favorites and recent picks will last for this visit only.'))
+  }, [])
+
+  const saveLearningProgress = useCallback((nextProgress: LearningProgress) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const normalizedProgress = normalizeLearningProgress(nextProgress)
+    learningProgressInteractionRef.current = true
+    learningProgressRef.current = normalizedProgress
+    setLearningProgress(normalizedProgress)
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(learningProgressKey, JSON.stringify(normalizedProgress)))
+      .then(() => setLearningProgressMessage(''))
+      .catch(() => setLearningProgressMessage('Lesson progress will last for this visit only.'))
   }, [])
 
   const categoryCounts = useMemo(() => {
@@ -1203,7 +1245,7 @@ function TraceBuddyMobile() {
   }, [activePracticeSession?.sessionId, uploadedImage?.uri])
 
   const deleteAllPreviousWork = useCallback(() => {
-    Alert.alert('Clear all local work?', 'This removes every Previous Work session, favorite, recent pick, and TraceBuddy image stored inside the app. Images already saved to Photos stay there.', [
+    Alert.alert('Clear all local work?', 'This removes every Previous Work session, favorite, recent pick, guided-lesson progress, and TraceBuddy image stored inside the app. Images already saved to Photos stay there.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear all',
@@ -1223,6 +1265,10 @@ function TraceBuddyMobile() {
               drawingPreferencesRef.current = { ...emptyDrawingPreferences }
               setDrawingPreferences({ ...emptyDrawingPreferences })
               setDrawingPreferencesMessage('')
+              learningProgressInteractionRef.current = true
+              learningProgressRef.current = { ...emptyLearningProgress, stepByLessonId: {} }
+              setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
+              setLearningProgressMessage('')
               setMode('picker')
               if (imageCleanupPending) Alert.alert('Drawings cleared', 'Saved drawings were removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work again to retry cleanup.')
             })
@@ -1248,6 +1294,50 @@ function TraceBuddyMobile() {
     setActivePracticeSession(null)
     setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== sessionId))
   }, [])
+
+  const openGuidedLesson = useCallback((lesson: GuidedLesson) => {
+    setSelectedLesson(lesson)
+    setMode('learn')
+  }, [])
+
+  const changeGuidedLessonStep = useCallback((stepIndex: number) => {
+    saveLearningProgress(updateLearningStep(learningProgressRef.current, selectedLesson, stepIndex))
+  }, [saveLearningProgress, selectedLesson])
+
+  const finishGuidedLesson = useCallback(() => {
+    saveLearningProgress(completeGuidedLesson(learningProgressRef.current, selectedLesson))
+  }, [saveLearningProgress, selectedLesson])
+
+  const openGuidedLessonStep = useCallback((surface: TraceSurface) => {
+    const stepIndex = learningProgressRef.current.stepByLessonId[selectedLesson.id] ?? 0
+    const drawing = guidedLessonStepDrawing(selectedLesson, stepIndex)
+    const abandonedUploadUri = uploadedImage?.uri
+    setSelectedDrawing(drawing)
+    setUploadedImage(null)
+    if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
+    setActivePracticeSession(null)
+    setTraceSurface(surface)
+    setMode(surface === 'screen' ? 'practice' : 'trace')
+    setControlsOpen(true)
+    resetOverlay()
+  }, [resetOverlay, selectedLesson, uploadedImage])
+
+  const openGuidedWords = useCallback((value: string) => {
+    const safeText = sanitizeTraceText(value)
+    if (!safeText) {
+      Alert.alert('Add words to practice', 'Type a name, word, number, or short phrase first.')
+      return
+    }
+    const drawing = createTextDrawing(safeText)
+    const abandonedUploadUri = uploadedImage?.uri
+    setSelectedDrawing(drawing)
+    setUploadedImage(null)
+    if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
+    setActivePracticeSession(null)
+    setTraceSurface('screen')
+    setMode('practice')
+    resetOverlay()
+  }, [resetOverlay, uploadedImage])
 
   if (mode === 'picker') {
     return (
@@ -1314,6 +1404,29 @@ function TraceBuddyMobile() {
                     <Text style={styles.uploadTitle}>{isPickingImage ? 'Opening photos' : 'Upload your own'}</Text>
                     <Text style={styles.uploadSmall}>Local photo or drawing</Text>
                   </View>
+                </Pressable>
+              </View>
+
+              <View style={styles.learningCallout}>
+                <Text style={styles.learningEyebrow}>LEARN, DON’T JUST COPY</Text>
+                <Text style={styles.learningCalloutTitle}>Build a drawing one friendly step at a time.</Text>
+                <Text style={styles.learningCalloutCopy}>Eight short lessons teach lines, curves, and picture-building. There are no scores or wrong answers.</Text>
+                <View style={styles.learningProgressTrack} accessibilityLabel={`${learningProgress.completedLessonIds.length} of ${guidedLessons.length} lessons finished`}>
+                  <View style={[styles.learningProgressFill, { width: `${(learningProgress.completedLessonIds.length / guidedLessons.length) * 100}%` }]} />
+                </View>
+                <Text style={styles.learningProgressText}>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished on this phone</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.learningQuickList}>
+                  {guidedLessons.slice(0, 4).map((lesson) => (
+                    <Pressable key={lesson.id} style={styles.learningQuickCard} onPress={() => openGuidedLesson(lesson)} accessibilityRole="button" accessibilityLabel={`Learn ${lesson.title}, ${lesson.steps.length} steps`}>
+                      <View style={styles.learningQuickPreview}><SvgXml xml={guidedLessonPreviewDrawing(lesson).svg} width="100%" height="100%" /></View>
+                      <Text style={styles.learningQuickTitle} numberOfLines={2}>{lesson.title}</Text>
+                      <Text style={styles.learningQuickMeta}>{lesson.steps.length} steps · {lesson.estimatedMinutes} min</Text>
+                      {learningProgress.completedLessonIds.includes(lesson.id) ? <View style={styles.learningCompleteMark}><Text style={styles.learningCompleteMarkText}>✓</Text></View> : null}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Pressable style={styles.learningAllButton} onPress={() => openGuidedLesson(guidedLessons[0])} accessibilityRole="button">
+                  <Text style={styles.learningAllButtonText}>See all guided lessons</Text>
                 </Pressable>
               </View>
 
@@ -1455,6 +1568,25 @@ function TraceBuddyMobile() {
           )}
         />
       </View>
+    )
+  }
+
+  if (mode === 'learn') {
+    return (
+      <GuidedLearningScreen
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+        lesson={selectedLesson}
+        learningProgress={learningProgress}
+        storageMessage={learningProgressMessage}
+        onSelectLesson={openGuidedLesson}
+        onStepChange={changeGuidedLessonStep}
+        onComplete={finishGuidedLesson}
+        onPractice={() => openGuidedLessonStep('screen')}
+        onPaper={() => openGuidedLessonStep('camera')}
+        onPracticeWords={openGuidedWords}
+        onPicker={() => setMode('picker')}
+      />
     )
   }
 
@@ -1643,6 +1775,133 @@ function sizedStickerFrame(sticker: PracticeSticker, canvasSize: { width: number
     width: (sticker.width / 1000) * canvasSize.width,
     height: (sticker.height / 1000) * canvasSize.height,
   }
+}
+
+function GuidedLearningScreen({
+  insetsTop,
+  insetsBottom,
+  lesson,
+  learningProgress,
+  storageMessage,
+  onSelectLesson,
+  onStepChange,
+  onComplete,
+  onPractice,
+  onPaper,
+  onPracticeWords,
+  onPicker,
+}: {
+  insetsTop: number
+  insetsBottom: number
+  lesson: GuidedLesson
+  learningProgress: LearningProgress
+  storageMessage: string
+  onSelectLesson: (lesson: GuidedLesson) => void
+  onStepChange: (stepIndex: number) => void
+  onComplete: () => void
+  onPractice: () => void
+  onPaper: () => void
+  onPracticeWords: (value: string) => void
+  onPicker: () => void
+}) {
+  const [practiceWords, setPracticeWords] = useState('')
+  const stepIndex = learningProgress.stepByLessonId[lesson.id] ?? 0
+  const step = lesson.steps[stepIndex]
+  const lessonFinished = learningProgress.completedLessonIds.includes(lesson.id)
+  const stepDrawing = guidedLessonStepDrawing(lesson, stepIndex)
+
+  return (
+    <View style={styles.learningScreen}>
+      <StatusBar style="dark" />
+      <ScrollView contentContainerStyle={[styles.learningScreenContent, { paddingTop: insetsTop + 16, paddingBottom: insetsBottom + 36 }]}>
+        <View style={styles.learningScreenHeader}>
+          <View style={styles.learningHeaderCopy}>
+            <Text style={styles.learningEyebrow}>GENTLE GUIDED DRAWING</Text>
+            <Text style={styles.learningScreenTitle}>Learn the shapes behind the picture.</Text>
+            <Text style={styles.learningScreenLead}>Follow one prompt at a time, then practice that exact step on screen or over real paper.</Text>
+          </View>
+          <Pressable style={styles.learningBackButton} onPress={onPicker} accessibilityRole="button">
+            <Text style={styles.learningBackButtonText}>Pictures</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.lessonPickerStrip} accessibilityLabel="Guided lessons">
+          {guidedLessons.map((candidate) => {
+            const selected = candidate.id === lesson.id
+            const finished = learningProgress.completedLessonIds.includes(candidate.id)
+            return (
+              <Pressable key={candidate.id} style={[styles.lessonPickerCard, selected && styles.lessonPickerCardActive]} onPress={() => onSelectLesson(candidate)} accessibilityRole="button" accessibilityState={{ selected }}>
+                <View style={styles.lessonPickerPreview}><SvgXml xml={guidedLessonPreviewDrawing(candidate).svg} width="100%" height="100%" /></View>
+                <Text style={styles.lessonPickerTitle} numberOfLines={2}>{candidate.title}</Text>
+                <Text style={styles.lessonPickerMeta}>{candidate.steps.length} steps · {candidate.estimatedMinutes} min</Text>
+                {finished ? <View style={styles.learningCompleteMark}><Text style={styles.learningCompleteMarkText}>✓</Text></View> : null}
+              </Pressable>
+            )
+          })}
+        </ScrollView>
+
+        <View style={styles.lessonStageCard}>
+          <View style={styles.lessonMetaRow}>
+            <Text style={styles.lessonMetaChip}>{lesson.difficulty}</Text>
+            <Text style={styles.lessonMetaChip}>{lesson.estimatedMinutes} minutes</Text>
+            <Text style={styles.lessonMetaChip}>{lesson.steps.length} steps</Text>
+          </View>
+          <Text style={styles.learningEyebrow}>{lessonFinished ? 'FINISHED — REVISIT ANYTIME' : `STEP ${stepIndex + 1} OF ${lesson.steps.length}`}</Text>
+          <Text style={styles.lessonStageTitle}>{lesson.title}</Text>
+          <Text style={styles.lessonStageDescription}>{lesson.description}</Text>
+          {lessonFinished ? <View style={styles.lessonFinishedBadge}><Text style={styles.lessonFinishedText}>Finished ✓</Text></View> : null}
+
+          <View style={styles.lessonStepRow} accessibilityLabel={`Step ${stepIndex + 1} of ${lesson.steps.length}`}>
+            {lesson.steps.map((candidateStep, index) => (
+              <Pressable key={candidateStep.title} style={[styles.lessonStepButton, index < stepIndex && styles.lessonStepButtonVisited, index === stepIndex && styles.lessonStepButtonActive]} onPress={() => onStepChange(index)} accessibilityRole="button" accessibilityState={{ selected: index === stepIndex }} accessibilityLabel={`Go to step ${index + 1}: ${candidateStep.title}`}>
+                <Text style={[styles.lessonStepButtonText, index === stepIndex && styles.lessonStepButtonTextActive]}>{index + 1}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.lessonPictureCard}>
+            <SvgXml xml={stepDrawing.svg} width="100%" height="100%" />
+          </View>
+          <Text style={styles.lessonPictureNote}>New lines are coral. Earlier lines stay faint.</Text>
+
+          <View style={styles.lessonInstructionCard} accessibilityLiveRegion="polite">
+            <View style={styles.lessonInstructionNumber}><Text style={styles.lessonInstructionNumberText}>{stepIndex + 1}</Text></View>
+            <Text style={styles.learningEyebrow}>{step.title.toUpperCase()}</Text>
+            <Text style={styles.lessonInstructionTitle}>{step.instruction}</Text>
+            <Text style={styles.lessonInstructionCopy}>Try the motion in the air first, then make it your own. It does not need to be perfect.</Text>
+          </View>
+
+          <View style={styles.lessonActionRow}>
+            <Pressable style={[styles.lessonSecondaryButton, stepIndex === 0 && styles.lessonButtonDisabled]} disabled={stepIndex === 0} onPress={() => onStepChange(stepIndex - 1)} accessibilityRole="button">
+              <Text style={styles.lessonSecondaryButtonText}>Back</Text>
+            </Pressable>
+            {stepIndex < lesson.steps.length - 1 ? (
+              <Pressable style={styles.lessonPrimaryButton} onPress={() => onStepChange(stepIndex + 1)} accessibilityRole="button">
+                <Text style={styles.lessonPrimaryButtonText}>Next step</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.lessonPrimaryButton} onPress={onComplete} accessibilityRole="button">
+                <Text style={styles.lessonPrimaryButtonText}>{lessonFinished ? 'Finished' : 'Finish lesson'}</Text>
+              </Pressable>
+            )}
+          </View>
+          <Pressable style={styles.lessonWideButton} onPress={onPractice} accessibilityRole="button"><Text style={styles.lessonWideButtonText}>Practice this step on screen</Text></Pressable>
+          <Pressable style={styles.lessonWideButton} onPress={onPaper} accessibilityRole="button"><Text style={styles.lessonWideButtonText}>Trace this step on paper</Text></Pressable>
+          {storageMessage ? <Text style={styles.preferenceMessage} accessibilityLiveRegion="polite">{storageMessage}</Text> : null}
+        </View>
+
+        <View style={styles.handwritingCard}>
+          <Text style={styles.learningEyebrow}>HANDWRITING STUDIO</Text>
+          <Text style={styles.handwritingTitle}>Practice a name, word, or family message.</Text>
+          <Text style={styles.handwritingCopy}>TraceBuddy turns the words into a large local guide. Nothing is uploaded.</Text>
+          <TextInput value={practiceWords} onChangeText={setPracticeWords} placeholder="Stassie, Grandma, I love Guam" placeholderTextColor="#8A94A6" style={styles.handwritingInput} maxLength={48} returnKeyType="done" />
+          <Pressable style={styles.lessonPrimaryButton} onPress={() => onPracticeWords(practiceWords)} accessibilityRole="button">
+            <Text style={styles.lessonPrimaryButtonText}>Practice these words</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
+  )
 }
 
 function PreviousWorkSection({
@@ -4505,5 +4764,391 @@ const styles = StyleSheet.create({
   },
   actionButtonTextActive: {
     color: '#FFFFFF',
+  },
+  learningCallout: {
+    marginTop: 14,
+    marginBottom: 14,
+    borderRadius: 26,
+    padding: 16,
+    backgroundColor: '#EEF8F2',
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  learningEyebrow: {
+    color: palette.coralDark,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 5,
+  },
+  learningCalloutTitle: {
+    color: palette.ink,
+    fontSize: 25,
+    lineHeight: 28,
+    fontWeight: '900',
+  },
+  learningCalloutCopy: {
+    color: palette.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 7,
+  },
+  learningProgressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(24,36,58,0.1)',
+    overflow: 'hidden',
+    marginTop: 13,
+  },
+  learningProgressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: palette.coral,
+  },
+  learningProgressText: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 5,
+  },
+  learningQuickList: {
+    gap: 9,
+    paddingTop: 13,
+    paddingBottom: 4,
+  },
+  learningQuickCard: {
+    position: 'relative',
+    width: 152,
+    minHeight: 185,
+    borderRadius: 20,
+    padding: 9,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  learningQuickPreview: {
+    width: '100%',
+    height: 108,
+  },
+  learningQuickTitle: {
+    color: palette.ink,
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  learningQuickMeta: {
+    color: palette.muted,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  learningCompleteMark: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.mint,
+  },
+  learningCompleteMarkText: {
+    color: '#17623A',
+    fontWeight: '900',
+  },
+  learningAllButton: {
+    minHeight: 46,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.ink,
+    marginTop: 9,
+  },
+  learningAllButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  learningScreen: {
+    flex: 1,
+    backgroundColor: palette.paper,
+  },
+  learningScreenContent: {
+    paddingHorizontal: 14,
+    gap: 14,
+  },
+  learningScreenHeader: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  learningHeaderCopy: {
+    flex: 1,
+  },
+  learningScreenTitle: {
+    color: palette.ink,
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: '900',
+  },
+  learningScreenLead: {
+    color: palette.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 7,
+  },
+  learningBackButton: {
+    minHeight: 44,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  learningBackButtonText: {
+    color: palette.ink,
+    fontWeight: '900',
+  },
+  lessonPickerStrip: {
+    gap: 9,
+    paddingVertical: 2,
+  },
+  lessonPickerCard: {
+    position: 'relative',
+    width: 148,
+    minHeight: 174,
+    borderRadius: 20,
+    padding: 9,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  lessonPickerCardActive: {
+    borderColor: palette.coral,
+    backgroundColor: '#FFF2E8',
+  },
+  lessonPickerPreview: {
+    width: '100%',
+    height: 98,
+  },
+  lessonPickerTitle: {
+    color: palette.ink,
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: '900',
+  },
+  lessonPickerMeta: {
+    color: palette.muted,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  lessonStageCard: {
+    borderRadius: 28,
+    padding: 15,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  lessonMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  lessonMetaChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    overflow: 'hidden',
+    backgroundColor: palette.paperStrong,
+    color: palette.ink,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  lessonStageTitle: {
+    color: palette.ink,
+    fontSize: 28,
+    lineHeight: 31,
+    fontWeight: '900',
+  },
+  lessonStageDescription: {
+    color: palette.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 5,
+  },
+  lessonFinishedBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    backgroundColor: palette.mint,
+    marginTop: 10,
+  },
+  lessonFinishedText: {
+    color: '#17623A',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  lessonStepRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginVertical: 14,
+  },
+  lessonStepButton: {
+    width: 39,
+    height: 39,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  lessonStepButtonVisited: {
+    backgroundColor: palette.mint,
+  },
+  lessonStepButtonActive: {
+    backgroundColor: palette.coral,
+    borderColor: palette.coral,
+  },
+  lessonStepButtonText: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  lessonStepButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  lessonPictureCard: {
+    width: '100%',
+    aspectRatio: 1,
+    maxHeight: 470,
+    borderRadius: 24,
+    padding: 8,
+    backgroundColor: '#FFFAF3',
+  },
+  lessonPictureNote: {
+    color: palette.muted,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  lessonInstructionCard: {
+    borderRadius: 23,
+    padding: 17,
+    backgroundColor: palette.sky,
+    marginTop: 13,
+  },
+  lessonInstructionNumber: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.ink,
+    marginBottom: 11,
+  },
+  lessonInstructionNumberText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  lessonInstructionTitle: {
+    color: palette.ink,
+    fontSize: 23,
+    lineHeight: 27,
+    fontWeight: '900',
+  },
+  lessonInstructionCopy: {
+    color: palette.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 7,
+  },
+  lessonActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 13,
+  },
+  lessonPrimaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+    backgroundColor: palette.coral,
+  },
+  lessonPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  lessonSecondaryButton: {
+    minWidth: 96,
+    minHeight: 48,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  lessonSecondaryButtonText: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  lessonButtonDisabled: {
+    opacity: 0.42,
+  },
+  lessonWideButton: {
+    minHeight: 48,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.ink,
+    marginTop: 8,
+  },
+  lessonWideButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  handwritingCard: {
+    borderRadius: 26,
+    padding: 17,
+    backgroundColor: '#FFF2E8',
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  handwritingTitle: {
+    color: palette.ink,
+    fontSize: 24,
+    lineHeight: 27,
+    fontWeight: '900',
+  },
+  handwritingCopy: {
+    color: palette.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  handwritingInput: {
+    minHeight: 49,
+    borderRadius: 17,
+    paddingHorizontal: 13,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    color: palette.ink,
+    fontSize: 16,
+    fontWeight: '700',
+    marginVertical: 12,
   },
 })
