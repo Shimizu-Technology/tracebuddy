@@ -542,7 +542,7 @@ async function recoverPreviousWorkIdsFromSessions() {
 async function loadPreviousWorkSessions() {
   const ids = await readPreviousWorkIds().catch(async () => {
     const recoveredIds = await recoverPreviousWorkIdsFromSessions()
-    await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds }))
+    await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds })).catch(() => undefined)
     return recoveredIds
   })
   if (ids.length === 0) return []

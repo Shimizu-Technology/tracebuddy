@@ -592,7 +592,11 @@ async function loadPreviousWorkSessions() {
       return readPreviousWorkIds()
     } catch {
       const recoveredIds = recoverPreviousWorkIdsFromSessions()
-      window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds }))
+      try {
+        window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds }))
+      } catch {
+        // Valid sessions can still be shown even if the repaired index cannot be written yet.
+      }
       return recoveredIds
     }
   })()

@@ -73,11 +73,21 @@ try {
   await page.waitForFunction(() => document.querySelector('.practice-save-status')?.classList.contains('error'), { timeout: 3_000 })
   console.log('Visible storage error passed')
 
-  const unsavedDialogHandled = new Promise((resolveDialog) => {
-    page.once('dialog', async (dialog) => {
-      await dialog.dismiss()
-      resolveDialog()
-    })
+  const unsavedDialogHandled = new Promise((resolveDialog, rejectDialog) => {
+    const handleDialog = async (dialog) => {
+      clearTimeout(timeout)
+      try {
+        await dialog.dismiss()
+        resolveDialog()
+      } catch (error) {
+        rejectDialog(error)
+      }
+    }
+    const timeout = setTimeout(() => {
+      page.off('dialog', handleDialog)
+      rejectDialog(new Error('Unsaved-work confirmation did not appear'))
+    }, 3_000)
+    page.once('dialog', handleDialog)
   })
   await clickByText(page, 'Pictures')
   await unsavedDialogHandled
