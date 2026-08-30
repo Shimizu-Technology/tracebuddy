@@ -34,6 +34,7 @@ jobs:
       - name: Verify generated drawing contact sheets
         run: |
           npm run drawings:contact-sheets
+          git ls-files --error-unmatch artifacts/drawings/contact-sheet-160.svg artifacts/drawings/contact-sheet-420.svg > /dev/null
           git diff --exit-code -- artifacts/drawings/contact-sheet-160.svg artifacts/drawings/contact-sheet-420.svg
       - run: npm audit --audit-level=high
       - run: npm --prefix mobile audit --audit-level=high
