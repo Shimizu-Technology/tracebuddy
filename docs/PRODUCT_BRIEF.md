@@ -89,6 +89,8 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Shared 73-template SVG drawing library with search, category and difficulty filters, favorites, and recent picks.
 - Eight step-by-step lessons that introduce one highlighted stroke group at a time, remember the current step locally, and avoid scores or failure states.
 - Handwriting practice for names, words, numbers, and short family messages.
+- Twelve short Together activities that turn tracing into collaborative drawing, stories, gifts, and family memories.
+- Worksheet print/export for every built-in drawing and activity; PNG/Photos keepsakes for completed screen work.
 - Local image upload with optional browser-only cleanup.
 - Browser camera access with graceful demo fallback.
 - Native Expo camera trace mode in the mobile MVP.

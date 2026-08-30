@@ -20,6 +20,8 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Shared 73-template SVG line-art library with search, category and difficulty filters, local favorites, and recent picks.
 - Eight guided drawing lessons with local progress, gentle step prompts, and direct handoff to paper or on-screen tracing.
 - A handwriting studio for custom names, words, numbers, and short family messages.
+- Twelve no-score Together activities with paper and on-screen paths.
+- Printable and shareable activity/template worksheets, plus PNG/Photos keepsake export.
 - Local image upload.
 - Mobile practice add-ons for built-in shapes and local photo/image stickers.
 - Save finished mobile practice drawings to the device Photos library.
@@ -64,7 +66,7 @@ Goal: make the app more useful for everyday Stassie-style drawing practice.
 - Continue polishing the local Previous Work gallery as real saved sessions accumulate.
 - Expand guided lessons and handwriting styles after testing the first curriculum with families.
 - Continue tuning the mobile controls based on live phone/tablet use.
-- Improve print/export options for built-in line art if useful.
+- Refine worksheet layouts, activity prompts, and paper sizes after family testing.
 
 ## Previous Work gallery
 
@@ -162,7 +164,7 @@ If the ARKit spike works well on real devices, polish it into a reliable workflo
 
 Possible follow-up features:
 
-- Printable TraceBuddy worksheet PDFs.
+- Marker-aware TraceBuddy worksheet PDFs for the future AR workflow.
 - Multiple paper sizes and guide-placement presets.
 - Manual four-corner calibration.
 - Freeze-on-lost-tracking behavior.

@@ -4,3 +4,5 @@ export type { GuidedLesson, GuidedLessonStep, LearningProgress } from '../shared
 export { completeGuidedLesson, emptyLearningProgress, guidedLessonPreviewDrawing, guidedLessons, guidedLessonStepDrawing, normalizeLearningProgress, updateLearningStep } from '../shared'
 export type { TraceAlignment } from '../shared'
 export { normalizeTraceAlignment } from '../shared'
+export type { FamilyActivity, FamilyActivityTone, WorksheetOptions } from '../shared'
+export { buildWorksheetHtml, buildWorksheetSvg, drawingForFamilyActivity, familyActivities, worksheetFileName } from '../shared'

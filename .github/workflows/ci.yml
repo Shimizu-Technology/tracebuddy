@@ -55,6 +55,7 @@ jobs:
               npm run check:discovery
               npm run check:learning
               npm run check:setup
+              npm run check:family
               exit 0
             fi
             sleep 1

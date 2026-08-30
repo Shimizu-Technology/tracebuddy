@@ -61,7 +61,8 @@
           "imageWidth": 180,
           "backgroundColor": "#FFF7EA"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "owner": "shimizutechnology",
     "extra": {

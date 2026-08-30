@@ -2,15 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent, WheelEvent } from 'react'
 import {
   addRecentDrawing,
+  buildWorksheetHtml,
+  buildWorksheetSvg,
+  completeGuidedLesson,
   createTextDrawing,
   drawingCategories,
   drawingDifficultyFilters,
+  drawingForFamilyActivity,
   drawings,
   drawingsFromIds,
   emptyDrawingPreferences,
-  filterDrawings,
-  completeGuidedLesson,
   emptyLearningProgress,
+  familyActivities,
+  filterDrawings,
   guidedLessonPreviewDrawing,
   guidedLessons,
   guidedLessonStepDrawing,
@@ -20,11 +24,12 @@ import {
   sanitizeTraceText,
   toggleFavoriteDrawing,
   updateLearningStep,
+  worksheetFileName,
 } from './drawings'
-import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, GuidedLesson, LearningProgress, TraceAlignment } from './drawings'
+import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, FamilyActivity, GuidedLesson, LearningProgress, TraceAlignment, WorksheetOptions } from './drawings'
 import './App.css'
 
-type AppMode = 'welcome' | 'picker' | 'learn' | 'trace' | 'practice'
+type AppMode = 'welcome' | 'picker' | 'together' | 'learn' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'blocked' | 'unsupported'
 type Direction = 'up' | 'right' | 'down' | 'left'
@@ -815,6 +820,32 @@ const drawingImageSrcById = new Map(drawings.map((drawing) => [drawing.id, svgTo
 
 function drawingImageSrc(drawing: Drawing) {
   return drawingImageSrcById.get(drawing.id) ?? svgToDataUrl(drawing.svg)
+}
+
+function familyWorksheetOptions(activity: FamilyActivity): WorksheetOptions {
+  return { title: activity.title, subtitle: activity.description, steps: activity.steps }
+}
+
+function printWorksheet(drawing: Drawing, options: WorksheetOptions = {}) {
+  const popup = window.open('', '_blank', 'popup,width=900,height=1100')
+  if (!popup) {
+    window.alert('Allow pop-ups for TraceBuddy to open the printable worksheet.')
+    return
+  }
+  popup.opener = null
+  popup.document.open()
+  popup.document.write(buildWorksheetHtml(drawing, options))
+  popup.document.close()
+}
+
+function downloadWorksheet(drawing: Drawing, options: WorksheetOptions = {}) {
+  const title = options.title ?? drawing.name
+  const url = URL.createObjectURL(new Blob([buildWorksheetSvg(drawing, options)], { type: 'image/svg+xml' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = worksheetFileName(title)
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 function loadImage(src: string) {
@@ -1917,6 +1948,19 @@ function App() {
     openSelectedSurface(createTextDrawing(safeText))
   }
 
+  function openFamilyActivity(activity: FamilyActivity, surface: TraceSurface) {
+    const drawing = drawingForFamilyActivity(activity)
+    const nextPreferences = addRecentDrawing(drawingPreferencesRef.current, drawing.id)
+    if (nextPreferences !== drawingPreferencesRef.current) saveDrawingPreferences(nextPreferences)
+    if (surface === 'screen') openPractice(drawing)
+    else openTrace(drawing)
+  }
+
+  function openTogether() {
+    setMode('together')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   function openGuidedLesson(lesson: GuidedLesson) {
     setSelectedLesson(lesson)
     setMode('learn')
@@ -2123,13 +2167,14 @@ function App() {
         <nav aria-label="Main navigation">
           <button className={mode === 'welcome' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('welcome'))} aria-current={mode === 'welcome' ? 'page' : undefined}>Home</button>
           <button className={mode === 'picker' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('picker'))} aria-current={mode === 'picker' ? 'page' : undefined}>Pictures</button>
+          <button className={mode === 'together' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(openTogether)} aria-current={mode === 'together' ? 'page' : undefined}>Together</button>
           <button className={mode === 'learn' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('learn'))} aria-current={mode === 'learn' ? 'page' : undefined}>Learn</button>
           <button className={mode === 'trace' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openTrace())} aria-current={mode === 'trace' ? 'page' : undefined}>Camera</button>
           <button className={mode === 'practice' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openPractice())} aria-current={mode === 'practice' ? 'page' : undefined}>Practice</button>
         </nav>
       </header>
 
-      {mode === 'welcome' && <WelcomeScreen onStart={() => setMode('picker')} onLearn={() => setMode('learn')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
+      {mode === 'welcome' && <WelcomeScreen onStart={() => setMode('picker')} onTogether={openTogether} onLearn={() => setMode('learn')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
       {mode === 'picker' && (
         <PickerScreen
           selectedDrawing={selectedDrawing}
@@ -2150,7 +2195,19 @@ function App() {
           onDeleteWork={deletePreviousWork}
           onDeleteAllWork={deleteAllPreviousWork}
           onOpenLesson={openGuidedLesson}
+          onTogether={openTogether}
+          onPrintDrawing={(drawing) => printWorksheet(drawing)}
+          onDownloadDrawing={(drawing) => downloadWorksheet(drawing)}
           learningProgress={learningProgress}
+        />
+      )}
+      {mode === 'together' && (
+        <FamilyActivitiesScreen
+          onPractice={(activity) => openFamilyActivity(activity, 'screen')}
+          onPaper={(activity) => openFamilyActivity(activity, 'camera')}
+          onPrint={(activity) => printWorksheet(drawingForFamilyActivity(activity), familyWorksheetOptions(activity))}
+          onDownload={(activity) => downloadWorksheet(drawingForFamilyActivity(activity), familyWorksheetOptions(activity))}
+          onPictures={() => setMode('picker')}
         />
       )}
       {mode === 'learn' && (
@@ -2229,7 +2286,7 @@ function App() {
   )
 }
 
-function WelcomeScreen({ onStart, onLearn, onDemo, onPractice }: { onStart: () => void; onLearn: () => void; onDemo: () => void; onPractice: () => void }) {
+function WelcomeScreen({ onStart, onTogether, onLearn, onDemo, onPractice }: { onStart: () => void; onTogether: () => void; onLearn: () => void; onDemo: () => void; onPractice: () => void }) {
   const demoDrawing = drawings.find((drawing) => drawing.id === 'dream-unicorn') ?? drawings[0]
 
   return (
@@ -2242,6 +2299,7 @@ function WelcomeScreen({ onStart, onLearn, onDemo, onPractice }: { onStart: () =
         </p>
         <div className="hero-actions">
           <button className="primary-button" type="button" onClick={onStart}>Pick a picture</button>
+          <button className="secondary-button" type="button" onClick={onTogether}>Play together</button>
           <button className="secondary-button" type="button" onClick={onLearn}>Learn step by step</button>
           <button className="secondary-button" type="button" onClick={onDemo}>Try camera trace</button>
           <button className="secondary-button" type="button" onClick={onPractice}>Practice on screen</button>
@@ -2396,6 +2454,73 @@ function LearningScreen({
   )
 }
 
+function FamilyActivitiesScreen({
+  onPractice,
+  onPaper,
+  onPrint,
+  onDownload,
+  onPictures,
+}: {
+  onPractice: (activity: FamilyActivity) => void
+  onPaper: (activity: FamilyActivity) => void
+  onPrint: (activity: FamilyActivity) => void
+  onDownload: (activity: FamilyActivity) => void
+  onPictures: () => void
+}) {
+  const [selectedId, setSelectedId] = useState(familyActivities[0].id)
+  const featureRef = useRef<HTMLElement | null>(null)
+  const activity = familyActivities.find((candidate) => candidate.id === selectedId) ?? familyActivities[0]
+  const drawing = drawingForFamilyActivity(activity)
+
+  function selectActivity(activityId: string) {
+    setSelectedId(activityId)
+    window.requestAnimationFrame(() => featureRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
+  return (
+    <section className="family-screen">
+      <div className="family-heading">
+        <div>
+          <p className="eyebrow">Together time</p>
+          <h1>Draw, talk, and make a memory together.</h1>
+          <p>Twelve short invitations for kids, siblings, grandparents, and anyone who wants to join. No scores, timers, or wrong answers.</p>
+        </div>
+        <button className="secondary-button compact" type="button" onClick={onPictures}>Browse pictures</button>
+      </div>
+
+      <article ref={featureRef} className={`family-feature tone-${activity.tone}`} aria-live="polite">
+        <div className="family-feature-art"><img src={drawingImageSrc(drawing)} alt={`${drawing.name} starter`} /></div>
+        <div className="family-feature-copy">
+          <p className="family-invitation">{activity.invitation}</p>
+          <h2>{activity.title}</h2>
+          <p>{activity.description}</p>
+          <div className="family-meta"><span>{activity.minutes} min</span><span>{activity.people}</span><span>{drawing.name}</span></div>
+          <ol>{activity.steps.map((step) => <li key={step}>{step}</li>)}</ol>
+          <div className="family-actions">
+            <button className="primary-button" type="button" onClick={() => onPractice(activity)}>Practice together</button>
+            <button className="secondary-button" type="button" onClick={() => onPaper(activity)}>Trace on paper</button>
+            <button className="secondary-button" type="button" onClick={() => onPrint(activity)}>Print worksheet</button>
+            <button className="secondary-button" type="button" onClick={() => onDownload(activity)}>Download SVG</button>
+          </div>
+        </div>
+      </article>
+
+      <div className="family-library" aria-label="Family activities">
+        {familyActivities.map((candidate) => {
+          const starter = drawingForFamilyActivity(candidate)
+          const selected = candidate.id === activity.id
+          return (
+            <button key={candidate.id} type="button" data-family-activity-id={candidate.id} className={`family-activity-card tone-${candidate.tone} ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => selectActivity(candidate.id)}>
+              <img src={drawingImageSrc(starter)} alt="" aria-hidden="true" />
+              <span><strong>{candidate.title}</strong><small>{candidate.minutes} min · {candidate.people}</small></span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function PickerScreen({
   selectedDrawing,
   traceSurface,
@@ -2415,6 +2540,9 @@ function PickerScreen({
   onDeleteWork,
   onDeleteAllWork,
   onOpenLesson,
+  onTogether,
+  onPrintDrawing,
+  onDownloadDrawing,
   learningProgress,
 }: {
   selectedDrawing: Drawing
@@ -2435,6 +2563,9 @@ function PickerScreen({
   onDeleteWork: (session: SavedPracticeSession) => void
   onDeleteAllWork: () => void
   onOpenLesson: (lesson: GuidedLesson) => void
+  onTogether: () => void
+  onPrintDrawing: (drawing: Drawing) => void
+  onDownloadDrawing: (drawing: Drawing) => void
   learningProgress: LearningProgress
 }) {
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
@@ -2523,6 +2654,15 @@ function PickerScreen({
           ))}
           <button className="learning-see-all" type="button" onClick={() => onOpenLesson(guidedLessons[0])}>See all guided lessons</button>
         </div>
+      </section>
+
+      <section className="family-callout" aria-labelledby="family-callout-title">
+        <div>
+          <p className="eyebrow">Make something together</p>
+          <h2 id="family-callout-title">Twelve no-score activities for kids and grown-ups.</h2>
+          <p>Pass the page, invent a story, map a family memory, or make a small gift. Every activity works on paper or on screen.</p>
+        </div>
+        <button className="primary-button" type="button" onClick={onTogether}>Open family activities</button>
       </section>
 
       <section className="previous-work-section" aria-labelledby="previous-work-title">
@@ -2650,6 +2790,10 @@ function PickerScreen({
             >
               <span aria-hidden="true">♥</span>
             </button>
+            <div className="drawing-card-exports" aria-label={`${drawing.name} worksheet actions`}>
+              <button type="button" onClick={() => onPrintDrawing(drawing)}>Print</button>
+              <button type="button" onClick={() => onDownloadDrawing(drawing)}>SVG</button>
+            </div>
           </article>
         ))}
       </div> : (
@@ -3173,6 +3317,7 @@ function PracticeScreen({
   const [brushToolId, setBrushToolId] = useState<BrushToolId>(initialSession?.brushToolId ?? 'marker')
   const [guideOnTop, setGuideOnTop] = useState(initialSession?.guideOnTop ?? true)
   const [saveStatus, setSaveStatus] = useState<LocalSaveStatus>('saved')
+  const [isExportingImage, setIsExportingImage] = useState(false)
   const visibleSaveStatus: LocalSaveStatus = uploadedImageSaveFailed ? 'error' : saveStatus
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
@@ -3805,6 +3950,67 @@ function PracticeScreen({
     })
   }
 
+  const savePracticeImage = async () => {
+    if (isExportingImage) return
+    setIsExportingImage(true)
+    try {
+      const size = 1000
+      const guide = await loadImage(overlaySrc)
+      const output = document.createElement('canvas')
+      output.width = size
+      output.height = size
+      const outputContext = output.getContext('2d')
+      const ink = document.createElement('canvas')
+      ink.width = size
+      ink.height = size
+      const inkContext = ink.getContext('2d')
+      if (!outputContext || !inkContext) throw new Error('Canvas is unavailable.')
+
+      outputContext.fillStyle = '#ffffff'
+      outputContext.fillRect(0, 0, size, size)
+      const imageScale = Math.min(size / guide.naturalWidth, size / guide.naturalHeight)
+      const imageWidth = guide.naturalWidth * imageScale
+      const imageHeight = guide.naturalHeight * imageScale
+      const imageX = (size - imageWidth) / 2
+      const imageY = (size - imageHeight) / 2
+      outputContext.globalAlpha = guideOpacity
+      outputContext.drawImage(guide, imageX, imageY, imageWidth, imageHeight)
+      outputContext.globalAlpha = 1
+
+      const exportStrokes = activePath && activeStrokeRender ? [...strokes, { ...activeStrokeRender, path: activePath }] : strokes
+      for (const stroke of exportStrokes) {
+        inkContext.save()
+        inkContext.globalCompositeOperation = stroke.mode === 'erase' ? 'destination-out' : 'source-over'
+        inkContext.strokeStyle = stroke.color
+        inkContext.lineWidth = stroke.width
+        inkContext.globalAlpha = stroke.opacity
+        inkContext.lineCap = 'round'
+        inkContext.lineJoin = 'round'
+        inkContext.setLineDash(stroke.dasharray?.split(/[ ,]+/).map(Number).filter(Number.isFinite) ?? [])
+        inkContext.stroke(new Path2D(stroke.path))
+        inkContext.restore()
+      }
+      outputContext.drawImage(ink, 0, 0)
+      if (guideOnTop) {
+        outputContext.globalAlpha = topGuideOpacity
+        outputContext.drawImage(guide, imageX, imageY, imageWidth, imageHeight)
+        outputContext.globalAlpha = 1
+      }
+      const blob = await new Promise<Blob>((resolve, reject) => output.toBlob((value) => value ? resolve(value) : reject(new Error('Could not create image.')), 'image/png'))
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const safeTitle = sessionTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'my-drawing'
+      link.href = url
+      link.download = `${safeTitle}-tracebuddy.png`
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch {
+      window.alert('TraceBuddy could not make the image. Try again in a moment.')
+    } finally {
+      setIsExportingImage(false)
+    }
+  }
+
   const activeStrokeStyle = {
     stroke: activeStrokeRender?.color,
     strokeWidth: activeStrokeRender?.width,
@@ -3821,6 +4027,7 @@ function PracticeScreen({
           <p>{pictureTheme} · Draw while locked. Unlock only when you want to move or zoom the page.</p>
         </div>
         <div className="trace-header-actions">
+          <button className="primary-button compact" type="button" disabled={isExportingImage} onClick={() => { void savePracticeImage() }}>{isExportingImage ? 'Saving…' : 'Save image'}</button>
           <button className="secondary-button compact" type="button" onClick={() => leavePractice(onPicker)}>Pictures</button>
           <button className="secondary-button compact" type="button" onClick={() => leavePractice(onCameraTrace)}>Camera</button>
           <label className="secondary-button compact file-button">

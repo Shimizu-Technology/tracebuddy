@@ -23,6 +23,8 @@ import * as FileSystem from 'expo-file-system/legacy'
 import * as ImagePicker from 'expo-image-picker'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import * as MediaLibrary from 'expo-media-library'
+import * as Print from 'expo-print'
+import * as Sharing from 'expo-sharing'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg'
@@ -30,15 +32,18 @@ import { captureRef } from 'react-native-view-shot'
 
 import {
   addRecentDrawing,
+  buildWorksheetHtml,
   createTextDrawing,
   drawingCategories,
   drawingDifficultyFilters,
+  drawingForFamilyActivity,
   drawings,
   drawingsFromIds,
   emptyDrawingPreferences,
   filterDrawings,
   completeGuidedLesson,
   emptyLearningProgress,
+  familyActivities,
   guidedLessonPreviewDrawing,
   guidedLessons,
   guidedLessonStepDrawing,
@@ -49,9 +54,9 @@ import {
   toggleFavoriteDrawing,
   updateLearningStep,
 } from '@tracebuddy/shared'
-import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, GuidedLesson, LearningProgress, TraceAlignment } from '@tracebuddy/shared'
+import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, FamilyActivity, GuidedLesson, LearningProgress, TraceAlignment, WorksheetOptions } from '@tracebuddy/shared'
 
-type ScreenMode = 'picker' | 'learn' | 'trace' | 'practice'
+type ScreenMode = 'picker' | 'together' | 'learn' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
 type PickerCategoryId = DrawingFilterId
 
@@ -780,6 +785,10 @@ function uploadedImageFileName(sourceUri: string, fallbackName?: string) {
   return `${createPracticeSessionId()}.${extension}`
 }
 
+function familyWorksheetOptions(activity: FamilyActivity): WorksheetOptions {
+  return { title: activity.title, subtitle: activity.description, steps: activity.steps }
+}
+
 async function persistUploadedImage(sourceUri: string, fallbackName?: string) {
   if (!FileSystem.documentDirectory) return null
   if (sourceUri.startsWith(uploadedWorkDirectory)) {
@@ -844,6 +853,7 @@ function TraceBuddyMobile() {
   const parentSetupSeenRef = useRef(false)
   const drawingPreferencesClearInProgressRef = useRef(false)
   const previousWorkOperationGenerationRef = useRef(0)
+  const worksheetActionInProgressRef = useRef(false)
   const legacyMigrationCanvasSizeRef = useRef({
     width: Math.max(1, width - 20),
     height: Math.max(430, height - 280),
@@ -1414,6 +1424,52 @@ function TraceBuddyMobile() {
     resetOverlay()
   }, [resetOverlay, uploadedImage])
 
+  const openFamilyActivity = useCallback((activity: FamilyActivity, surface: TraceSurface) => {
+    const drawing = drawingForFamilyActivity(activity)
+    const abandonedUploadUri = uploadedImage?.uri
+    const nextPreferences = addRecentDrawing(drawingPreferencesRef.current, drawing.id)
+    if (nextPreferences !== drawingPreferencesRef.current) saveDrawingPreferences(nextPreferences)
+    setSelectedDrawing(drawing)
+    setUploadedImage(null)
+    if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
+    setActivePracticeSession(null)
+    setTraceSurface(surface)
+    setMode(surface === 'screen' ? 'practice' : 'trace')
+    if (surface === 'camera') maybeOpenParentSetup()
+    setControlsOpen(true)
+    resetOverlay()
+  }, [maybeOpenParentSetup, resetOverlay, saveDrawingPreferences, uploadedImage])
+
+  const printDrawingWorksheet = useCallback(async (drawing: Drawing, options: WorksheetOptions = {}) => {
+    if (worksheetActionInProgressRef.current) return
+    worksheetActionInProgressRef.current = true
+    try {
+      await Print.printAsync({ html: buildWorksheetHtml(drawing, options) })
+    } catch {
+      Alert.alert('Could not print worksheet', 'Try again in a moment or share the PDF instead.')
+    } finally {
+      worksheetActionInProgressRef.current = false
+    }
+  }, [])
+
+  const shareDrawingWorksheet = useCallback(async (drawing: Drawing, options: WorksheetOptions = {}) => {
+    if (worksheetActionInProgressRef.current) return
+    worksheetActionInProgressRef.current = true
+    try {
+      const available = await Sharing.isAvailableAsync()
+      if (!available) {
+        Alert.alert('Sharing is unavailable', 'This device cannot open the share sheet right now. Try Print instead.')
+        return
+      }
+      const file = await Print.printToFileAsync({ html: buildWorksheetHtml(drawing, options) })
+      await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: `Share ${options.title ?? drawing.name} worksheet` })
+    } catch {
+      Alert.alert('Could not share worksheet', 'Try again in a moment.')
+    } finally {
+      worksheetActionInProgressRef.current = false
+    }
+  }, [])
+
   if (mode === 'picker') {
     return (
       <View style={styles.appShell}>
@@ -1502,6 +1558,15 @@ function TraceBuddyMobile() {
                 </ScrollView>
                 <Pressable style={styles.learningAllButton} onPress={() => openGuidedLesson(guidedLessons[0])} accessibilityRole="button">
                   <Text style={styles.learningAllButtonText}>See all guided lessons</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.familyCallout}>
+                <Text style={styles.familyCalloutEyebrow}>MAKE SOMETHING TOGETHER</Text>
+                <Text style={styles.familyCalloutTitle}>Twelve no-score activities for kids and grown-ups.</Text>
+                <Text style={styles.familyCalloutCopy}>Pass the page, invent a story, map a family memory, or make a small gift. Use paper or the screen.</Text>
+                <Pressable style={styles.familyCalloutButton} onPress={() => setMode('together')} accessibilityRole="button">
+                  <Text style={styles.familyCalloutButtonText}>Open family activities</Text>
                 </Pressable>
               </View>
 
@@ -1629,6 +1694,14 @@ function TraceBuddyMobile() {
                 </View>
                 <Text style={styles.difficultyBadge}>{item.difficulty}</Text>
               </Pressable>
+              <View style={styles.drawingExportRow} accessibilityLabel={`${item.name} worksheet actions`}>
+                <Pressable style={styles.drawingExportButton} onPress={() => { void printDrawingWorksheet(item) }} accessibilityRole="button" accessibilityLabel={`Print ${item.name} worksheet`}>
+                  <Text style={styles.drawingExportButtonText}>Print</Text>
+                </Pressable>
+                <Pressable style={styles.drawingExportButton} onPress={() => { void shareDrawingWorksheet(item) }} accessibilityRole="button" accessibilityLabel={`Share ${item.name} worksheet PDF`}>
+                  <Text style={styles.drawingExportButtonText}>PDF</Text>
+                </Pressable>
+              </View>
               <Pressable
                 style={[styles.favoriteButton, favoriteIds.has(item.id) && styles.favoriteButtonActive]}
                 disabled={drawingPreferencesClearInProgress}
@@ -1643,6 +1716,20 @@ function TraceBuddyMobile() {
           )}
         />
       </View>
+    )
+  }
+
+  if (mode === 'together') {
+    return (
+      <FamilyActivitiesScreen
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+        onPractice={(activity) => openFamilyActivity(activity, 'screen')}
+        onPaper={(activity) => openFamilyActivity(activity, 'camera')}
+        onPrint={(activity) => { void printDrawingWorksheet(drawingForFamilyActivity(activity), familyWorksheetOptions(activity)) }}
+        onShare={(activity) => { void shareDrawingWorksheet(drawingForFamilyActivity(activity), familyWorksheetOptions(activity)) }}
+        onPicker={() => setMode('picker')}
+      />
     )
   }
 
@@ -1878,6 +1965,76 @@ function TraceBuddyMobile() {
           </ScrollView>
         )}
       </View> : null}
+    </View>
+  )
+}
+
+function FamilyActivitiesScreen({
+  insetsTop,
+  insetsBottom,
+  onPractice,
+  onPaper,
+  onPrint,
+  onShare,
+  onPicker,
+}: {
+  insetsTop: number
+  insetsBottom: number
+  onPractice: (activity: FamilyActivity) => void
+  onPaper: (activity: FamilyActivity) => void
+  onPrint: (activity: FamilyActivity) => void
+  onShare: (activity: FamilyActivity) => void
+  onPicker: () => void
+}) {
+  const [selectedId, setSelectedId] = useState(familyActivities[0].id)
+  const [featureOffset, setFeatureOffset] = useState(0)
+  const scrollRef = useRef<ScrollView | null>(null)
+  const activity = familyActivities.find((candidate) => candidate.id === selectedId) ?? familyActivities[0]
+  const drawing = drawingForFamilyActivity(activity)
+  const toneStyle = activity.tone === 'coral' ? styles.familyToneCoral : activity.tone === 'sky' ? styles.familyToneSky : activity.tone === 'mint' ? styles.familyToneMint : styles.familyToneSun
+
+  return (
+    <View style={styles.familyScreen}>
+      <StatusBar style="dark" />
+      <ScrollView ref={scrollRef} contentContainerStyle={[styles.familyScreenContent, { paddingTop: insetsTop + 18, paddingBottom: insetsBottom + 32 }]}>
+        <View style={styles.familyScreenHeader}>
+          <Pressable style={styles.familyBackButton} onPress={onPicker} accessibilityRole="button"><Text style={styles.familyBackButtonText}>Pictures</Text></Pressable>
+          <Text style={styles.familyScreenEyebrow}>TOGETHER TIME</Text>
+          <Text style={styles.familyScreenTitle}>Draw, talk, and make a memory together.</Text>
+          <Text style={styles.familyScreenCopy}>Twelve short invitations for kids, siblings, grandparents, and anyone who wants to join. No scores or wrong answers.</Text>
+        </View>
+
+        <View style={[styles.familyFeature, toneStyle]} onLayout={(event) => setFeatureOffset(event.nativeEvent.layout.y)}>
+          <View style={styles.familyFeaturePreview}><SvgXml xml={drawing.svg} width="100%" height="100%" /></View>
+          <Text style={styles.familyInvitation}>{activity.invitation.toUpperCase()}</Text>
+          <Text style={styles.familyFeatureTitle}>{activity.title}</Text>
+          <Text style={styles.familyFeatureCopy}>{activity.description}</Text>
+          <View style={styles.familyMetaRow}><Text style={styles.familyMetaText}>{activity.minutes} min</Text><Text style={styles.familyMetaText}>{activity.people}</Text><Text style={styles.familyMetaText}>{drawing.name}</Text></View>
+          <View style={styles.familySteps}>
+            {activity.steps.map((step, index) => <View key={step} style={styles.familyStep}><View style={styles.familyStepNumber}><Text style={styles.familyStepNumberText}>{index + 1}</Text></View><Text style={styles.familyStepText}>{step}</Text></View>)}
+          </View>
+          <View style={styles.familyActionGrid}>
+            <Pressable style={styles.familyPrimaryAction} onPress={() => onPractice(activity)} accessibilityRole="button"><Text style={styles.familyPrimaryActionText}>Practice together</Text></Pressable>
+            <Pressable style={styles.familySecondaryAction} onPress={() => onPaper(activity)} accessibilityRole="button"><Text style={styles.familySecondaryActionText}>Trace on paper</Text></Pressable>
+            <Pressable style={styles.familySecondaryAction} onPress={() => onPrint(activity)} accessibilityRole="button"><Text style={styles.familySecondaryActionText}>Print worksheet</Text></Pressable>
+            <Pressable style={styles.familySecondaryAction} onPress={() => onShare(activity)} accessibilityRole="button"><Text style={styles.familySecondaryActionText}>Share PDF</Text></Pressable>
+          </View>
+        </View>
+
+        <Text style={styles.familyChooseLabel}>CHOOSE AN ACTIVITY</Text>
+        <View style={styles.familyActivityGrid}>
+          {familyActivities.map((candidate) => {
+            const starter = drawingForFamilyActivity(candidate)
+            const selected = candidate.id === activity.id
+            return (
+              <Pressable key={candidate.id} style={[styles.familyActivityCard, selected && styles.familyActivityCardSelected]} onPress={() => { setSelectedId(candidate.id); requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: Math.max(0, featureOffset - 8), animated: true })) }} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${candidate.title}, ${candidate.minutes} minutes, ${candidate.people}`}>
+                <View style={styles.familyActivityPreview}><SvgXml xml={starter.svg} width="100%" height="100%" /></View>
+                <View style={styles.familyActivityCopy}><Text style={styles.familyActivityTitle}>{candidate.title}</Text><Text style={styles.familyActivityMeta}>{candidate.minutes} min · {candidate.people}</Text></View>
+              </Pressable>
+            )
+          })}
+        </View>
+      </ScrollView>
     </View>
   )
 }
@@ -3433,6 +3590,59 @@ const styles = StyleSheet.create({
   pickerContent: {
     paddingHorizontal: 14,
   },
+  familyCallout: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 16,
+    backgroundColor: '#EAF9FF',
+  },
+  familyCalloutEyebrow: { color: palette.coralDark, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+  familyCalloutTitle: { color: palette.ink, fontSize: 24, lineHeight: 27, fontWeight: '900', marginTop: 7 },
+  familyCalloutCopy: { color: palette.muted, fontSize: 14, lineHeight: 20, marginTop: 7 },
+  familyCalloutButton: { minHeight: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.coral, marginTop: 14 },
+  familyCalloutButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  drawingExportRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 7, paddingBottom: 7 },
+  drawingExportButton: { flex: 1, minHeight: 44, borderWidth: 1, borderColor: palette.border, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
+  drawingExportButtonText: { color: palette.ink, fontSize: 12, fontWeight: '900' },
+  familyScreen: { flex: 1, backgroundColor: palette.paper },
+  familyScreenContent: { paddingHorizontal: 14 },
+  familyScreenHeader: { marginBottom: 16 },
+  familyBackButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: palette.border, paddingHorizontal: 15, marginBottom: 18 },
+  familyBackButtonText: { color: palette.ink, fontSize: 13, fontWeight: '900' },
+  familyScreenEyebrow: { color: palette.coralDark, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+  familyScreenTitle: { color: palette.ink, fontSize: 35, lineHeight: 37, letterSpacing: -1.5, fontWeight: '900', marginTop: 8 },
+  familyScreenCopy: { color: palette.muted, fontSize: 15, lineHeight: 22, marginTop: 8 },
+  familyFeature: { borderWidth: 1, borderColor: palette.border, borderRadius: 30, padding: 16, shadowColor: palette.ink, shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 3 },
+  familyToneCoral: { backgroundColor: '#FFF0EB' },
+  familyToneSky: { backgroundColor: '#E9F8FF' },
+  familyToneMint: { backgroundColor: '#E8FBF3' },
+  familyToneSun: { backgroundColor: '#FFF5CE' },
+  familyFeaturePreview: { width: '100%', aspectRatio: 1.35, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.82)', padding: 12, marginBottom: 16 },
+  familyInvitation: { color: palette.coralDark, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+  familyFeatureTitle: { color: palette.ink, fontSize: 32, lineHeight: 35, letterSpacing: -1.2, fontWeight: '900', marginTop: 5 },
+  familyFeatureCopy: { color: palette.muted, fontSize: 15, lineHeight: 21, marginTop: 7 },
+  familyMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 },
+  familyMetaText: { overflow: 'hidden', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.8)', color: palette.ink, fontSize: 12, fontWeight: '800', paddingHorizontal: 10, paddingVertical: 7 },
+  familySteps: { gap: 9, marginTop: 16 },
+  familyStep: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  familyStepNumber: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.ink },
+  familyStepNumberText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  familyStepText: { flex: 1, color: palette.ink, fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  familyActionGrid: { gap: 8, marginTop: 17 },
+  familyPrimaryAction: { minHeight: 50, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.coral },
+  familyPrimaryActionText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  familySecondaryAction: { minHeight: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: 'rgba(255,255,255,0.84)' },
+  familySecondaryActionText: { color: palette.ink, fontSize: 14, fontWeight: '900' },
+  familyChooseLabel: { color: palette.coralDark, fontSize: 11, fontWeight: '900', letterSpacing: 1.1, marginTop: 22, marginBottom: 9 },
+  familyActivityGrid: { gap: 9 },
+  familyActivityCard: { minHeight: 108, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 22, padding: 10, backgroundColor: '#FFFFFF' },
+  familyActivityCardSelected: { borderColor: palette.coral, backgroundColor: '#FFF8F0' },
+  familyActivityPreview: { width: 82, height: 82, borderRadius: 17, backgroundColor: palette.paper, padding: 5 },
+  familyActivityCopy: { flex: 1, gap: 5 },
+  familyActivityTitle: { color: palette.ink, fontSize: 16, fontWeight: '900' },
+  familyActivityMeta: { color: palette.muted, fontSize: 12, fontWeight: '700' },
   heroCard: {
     borderWidth: 1,
     borderColor: palette.border,
