@@ -1617,7 +1617,8 @@ function App() {
     try {
       resolvedUploadedImage = await uploadedImageFromSource(source)
     } catch {
-      if (uploadOperationGenerationRef.current === operationGeneration) setUploadedImageGeneration(operationGeneration)
+      if (uploadOperationGenerationRef.current !== operationGeneration) return false
+      setUploadedImageGeneration(operationGeneration)
       window.alert('TraceBuddy could not read this saved image from local storage. Try again in a moment or clear local work to repair storage.')
       return false
     }
@@ -1626,6 +1627,18 @@ function App() {
       setUploadedImageGeneration(operationGeneration)
       window.alert('This uploaded image is no longer available in this browser. The saved strokes are still local, but the image preview cannot be restored.')
       return false
+    }
+
+    if (resolvedUploadedImage) {
+      try {
+        const saved = await saveUploadedImageRecord(resolvedUploadedImage, () => uploadOperationGenerationRef.current === operationGeneration)
+        if (!saved) return false
+      } catch {
+        if (uploadOperationGenerationRef.current !== operationGeneration) return false
+        setUploadedImageGeneration(operationGeneration)
+        window.alert('TraceBuddy could not restore this saved image to local storage. Clear older Previous Work or try again in a moment.')
+        return false
+      }
     }
 
     uploadedImageSaveSignatureRef.current = resolvedUploadedImage ? uploadedImageRecordSignature(resolvedUploadedImage) : ''
@@ -1789,17 +1802,16 @@ function App() {
     const operationGeneration = uploadOperationGenerationRef.current + 1
     uploadOperationGenerationRef.current = operationGeneration
     const restoreCurrentImageGeneration = () => {
-      if (uploadOperationGenerationRef.current === operationGeneration) setUploadedImageGeneration(operationGeneration)
+      if (uploadOperationGenerationRef.current !== operationGeneration) return false
+      setUploadedImageGeneration(operationGeneration)
       input.value = ''
+      return true
     }
 
     const reader = new FileReader()
     reader.onload = () => {
       void (async () => {
-        if (uploadOperationGenerationRef.current !== operationGeneration) {
-          input.value = ''
-          return
-        }
+        if (uploadOperationGenerationRef.current !== operationGeneration) return
         const originalSrc = String(reader.result)
         const nextUploadedImage: UploadedImageState = {
           imageId: createPracticeSessionId(),
@@ -1813,18 +1825,14 @@ function App() {
           const saved = await saveUploadedImageRecord(nextUploadedImage, () => uploadOperationGenerationRef.current === operationGeneration, true)
           if (!saved) {
             activeUploadedImageIds.delete(nextUploadedImage.imageId)
-            input.value = ''
+            restoreCurrentImageGeneration()
             return
           }
-          if (uploadOperationGenerationRef.current !== operationGeneration) {
-            input.value = ''
-            return
-          }
+          if (uploadOperationGenerationRef.current !== operationGeneration) return
           uploadedImageSaveSignatureRef.current = uploadedImageRecordSignature(nextUploadedImage)
         } catch {
           activeUploadedImageIds.delete(nextUploadedImage.imageId)
-          restoreCurrentImageGeneration()
-          window.alert('TraceBuddy could not save this upload locally. Try a smaller image, clear older Previous Work, or choose a built-in template.')
+          if (restoreCurrentImageGeneration()) window.alert('TraceBuddy could not save this upload locally. Try a smaller image, clear older Previous Work, or choose a built-in template.')
           return
         }
 
@@ -1845,8 +1853,7 @@ function App() {
       })()
     }
     const reportFileReadFailure = () => {
-      restoreCurrentImageGeneration()
-      window.alert('TraceBuddy could not read this image. Try another image file or choose a built-in template.')
+      if (restoreCurrentImageGeneration()) window.alert('TraceBuddy could not read this image. Try another image file or choose a built-in template.')
     }
     reader.onerror = reportFileReadFailure
     reader.onabort = reportFileReadFailure

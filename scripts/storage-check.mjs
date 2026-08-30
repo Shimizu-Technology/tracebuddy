@@ -353,7 +353,111 @@ try {
   await page.waitForFunction(() => document.querySelector('.practice-save-status')?.classList.contains('saved'), { timeout: 3_000 })
   console.log('Uploaded-image save status propagation passed')
 
-  console.log('Storage checks passed: active-stroke flush, visible retry, unsaved-navigation warning, complete bulk clear, active-guide preservation, corrupt-index preservation, orphan cleanup, and uploaded-image failure propagation.')
+  await page.evaluate(() => {
+    window.__traceBuddyOriginalFileReader = window.FileReader
+    window.__traceBuddyControlledReaders = []
+    window.FileReader = class ControlledFileReader {
+      result = null
+      onload = null
+      onerror = null
+      onabort = null
+      readAsDataURL() {
+        window.__traceBuddyControlledReaders.push(this)
+      }
+    }
+  })
+  const rapidUpload = await page.$('.practice-screen input[type="file"]')
+  assert(rapidUpload, 'Practice upload input is unavailable for rapid replacement')
+  const rapidUploadDialogs = []
+  const dismissRapidUploadDialog = (dialog) => {
+    rapidUploadDialogs.push(dialog.message())
+    void dialog.dismiss()
+  }
+  page.on('dialog', dismissRapidUploadDialog)
+  await rapidUpload.uploadFile(fileURLToPath(new URL('../public/favicon.svg', import.meta.url)))
+  await page.waitForFunction(() => window.__traceBuddyControlledReaders.length === 1, { timeout: 3_000 })
+  await rapidUpload.uploadFile(fileURLToPath(new URL('../mobile/assets/icon.png', import.meta.url)))
+  await page.waitForFunction(() => window.__traceBuddyControlledReaders.length === 2, { timeout: 3_000 })
+  await page.evaluate(() => {
+    window.__traceBuddyControlledReaders[0].onerror?.(new ProgressEvent('error'))
+  })
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  const selectedRapidUploadName = await page.$eval('.practice-screen input[type="file"]', (input) => input.files?.[0]?.name ?? '')
+  assert(selectedRapidUploadName === 'icon.png', `A stale FileReader failure cleared the newer upload: ${selectedRapidUploadName}`)
+  assert(rapidUploadDialogs.length === 0, `A stale FileReader failure showed an obsolete alert: ${rapidUploadDialogs.join(' | ')}`)
+  await page.evaluate(() => {
+    const reader = window.__traceBuddyControlledReaders[1]
+    reader.result = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+    reader.onload?.(new ProgressEvent('load'))
+  })
+  await page.waitForFunction(() => document.querySelector('.practice-screen h1')?.textContent === 'icon.png', { timeout: 3_000 })
+  await page.evaluate(() => {
+    window.FileReader = window.__traceBuddyOriginalFileReader
+    delete window.__traceBuddyOriginalFileReader
+    delete window.__traceBuddyControlledReaders
+  })
+  page.off('dialog', dismissRapidUploadDialog)
+  console.log('Rapid upload replacement passed')
+
+  await clickByText(page, 'Pictures')
+  await waitForSelector(page, '.picker-screen')
+  page.once('dialog', (dialog) => dialog.accept())
+  await clickByText(page, 'Clear local work')
+  await page.waitForFunction(() => document.querySelectorAll('.previous-work-card').length === 0, { timeout: 3_000 })
+  await page.evaluate(() => {
+    const image = {
+      imageId: 'legacy-inline-image',
+      fileName: 'legacy-inline.svg',
+      originalSrc: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="none" stroke="black"/></svg>',
+      processedSrc: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="none" stroke="black"/></svg>',
+    }
+    localStorage.setItem('tracebuddy.previousWork.v1.session.legacy-inline', JSON.stringify({
+      version: 2,
+      sessionId: 'legacy-inline',
+      title: 'Legacy inline upload',
+      source: { kind: 'upload', drawingId: 'upload', drawingName: image.fileName, drawingTheme: 'Local upload', uploadedImage: image },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      strokes: [{ path: 'M 100 100 L 180 180', color: '#000000', width: 12, opacity: 0.9, mode: 'draw' }],
+      guideOpacity: 0.26,
+      guideOnTop: true,
+      markerColor: '#000000',
+      markerWidth: 12,
+      brushToolId: 'marker',
+    }))
+    localStorage.setItem('tracebuddy.previousWork.v1.index', JSON.stringify({ version: 1, ids: ['legacy-inline'] }))
+  })
+  await page.reload({ waitUntil: 'networkidle0' })
+  await clickByText(page, 'Pictures')
+  await waitForSelector(page, '.picker-screen')
+  await clickByText(page, 'Resume')
+  await waitForSelector(page, '.practice-screen')
+  await page.waitForFunction(async () => {
+    const request = indexedDB.open('tracebuddy-uploaded-images', 1)
+    const db = await new Promise((resolveDb, reject) => {
+      request.onsuccess = () => resolveDb(request.result)
+      request.onerror = () => reject(request.error)
+    })
+    const getRequest = db.transaction('uploaded-images', 'readonly').objectStore('uploaded-images').get('legacy-inline-image')
+    return new Promise((resolveRecord, reject) => {
+      getRequest.onsuccess = () => resolveRecord(Boolean(getRequest.result))
+      getRequest.onerror = () => reject(getRequest.error)
+    })
+  }, { timeout: 3_000 })
+  await drawStroke(page, 15)
+  await clickByText(page, 'Pictures')
+  await waitForSelector(page, '.picker-screen')
+  const storedLegacySource = await page.evaluate(() => JSON.parse(localStorage.getItem('tracebuddy.previousWork.v1.session.legacy-inline')).source.uploadedImage)
+  assert(!storedLegacySource.originalSrc && !storedLegacySource.processedSrc, 'Legacy inline source was not normalized after save')
+  await page.reload({ waitUntil: 'networkidle0' })
+  await clickByText(page, 'Pictures')
+  await waitForSelector(page, '.picker-screen')
+  await clickByText(page, 'Resume')
+  await waitForSelector(page, '.practice-screen')
+  assert(await page.$eval('.practice-screen h1', (heading) => heading.textContent) === 'legacy-inline.svg', 'Migrated inline upload did not survive ID-only reload')
+  console.log('Legacy inline upload migration passed')
+
+  console.log('Storage checks passed: active-stroke flush, visible retry, unsaved-navigation warning, complete bulk clear, active-guide preservation, corrupt-index preservation, orphan cleanup, uploaded-image failure propagation, rapid replacement, and legacy inline migration.')
 } finally {
   await closeBrowser(browser)
 }
