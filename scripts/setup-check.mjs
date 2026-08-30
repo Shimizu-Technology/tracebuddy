@@ -31,6 +31,13 @@ try {
   await clickByText(page, 'Try camera trace')
   await waitForSelector(page, '.setup-coach-backdrop')
 
+  assert(await page.evaluate(() => document.activeElement?.textContent?.includes('Stand is stable')), 'Setup did not move keyboard focus into the dialog')
+  await page.keyboard.down('Shift')
+  await page.keyboard.press('Tab')
+  await page.keyboard.up('Shift')
+  assert(await page.evaluate(() => document.activeElement?.textContent?.includes('Close for now')), 'Shift+Tab escaped the setup dialog')
+  await page.keyboard.press('Tab')
+  assert(await page.evaluate(() => document.activeElement?.textContent?.includes('Stand is stable')), 'Tab did not wrap inside the setup dialog')
   assert(await page.$eval('.setup-coach .primary-button', (button) => button.disabled), 'Setup should require all three safety checks')
   await clickByText(page, 'Stand is stable')
   await clickByText(page, 'Whole page is visible')
@@ -56,9 +63,13 @@ try {
   await clickByText(page, 'Exit child mode')
   await page.waitForFunction(() => !document.querySelector('.trace-screen')?.classList.contains('child-trace-mode'))
 
-  await clickByText(page, 'Parent setup')
+  await page.$eval('.trace-header .secondary-button', (button) => {
+    button.focus()
+    button.click()
+  })
   await waitForSelector(page, '.setup-coach-backdrop')
   await clickByText(page, 'Close for now')
+  await page.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Parent setup')
   await page.reload({ waitUntil: 'networkidle0' })
   await clickByText(page, 'Try camera trace')
   await waitForSelector(page, '.trace-screen')

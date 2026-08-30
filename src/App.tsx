@@ -1531,13 +1531,13 @@ function App() {
     }
 
     const detection = detectPaperRectangle(video, stage, canvas)
+    const frameReadiness = assessPaperFrame(canvas)
 
-    if (!detection) {
+    if (!detection || frameReadiness) {
       if (smooth && paperLockEnabledRef.current) {
         return false
       }
 
-      const frameReadiness = assessPaperFrame(canvas)
       setPaperDetection(null)
       setPaperDetectionStatus(frameReadiness?.status ?? 'not-found')
       setPaperDetectionMessage(frameReadiness?.message ?? PAPER_NOT_FOUND_MESSAGE)
@@ -2748,6 +2748,9 @@ function TraceScreen({
   })
   const [setupChecks, setSetupChecks] = useState({ stable: false, page: false, light: false })
   const [childTraceMode, setChildTraceMode] = useState(false)
+  const traceSectionRef = useRef<HTMLElement>(null)
+  const setupDialogRef = useRef<HTMLDivElement>(null)
+  const setupReturnFocusRef = useRef<HTMLElement | null>(null)
   const manualTransformDisabled = paperLockEnabled
   const paperTrackingPaused = paperLockEnabled && cameraStatus !== 'ready'
   const setupReady = Object.values(setupChecks).every(Boolean)
@@ -2765,6 +2768,53 @@ function TraceScreen({
     appShell?.classList.toggle('child-trace-active', childTraceMode)
     return () => appShell?.classList.remove('child-trace-active')
   }, [childTraceMode])
+
+  useEffect(() => {
+    if (!setupOpen) return
+    const dialog = setupDialogRef.current
+    const traceSection = traceSectionRef.current
+    if (!dialog || !traceSection) return
+
+    setupReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const backgroundElements = [
+      document.querySelector<HTMLElement>('.topbar'),
+      ...Array.from(traceSection.children)
+        .filter((element) => !element.classList.contains('setup-coach-backdrop'))
+        .filter((element): element is HTMLElement => element instanceof HTMLElement),
+    ].filter((element): element is HTMLElement => Boolean(element))
+    backgroundElements.forEach((element) => { element.inert = true })
+
+    const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+    const focusableElements = () => Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+    focusableElements()[0]?.focus()
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return
+      const focusable = focusableElements()
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    dialog.addEventListener('keydown', trapFocus)
+
+    return () => {
+      dialog.removeEventListener('keydown', trapFocus)
+      backgroundElements.forEach((element) => { element.inert = false })
+      const returnFocus = setupReturnFocusRef.current
+      setupReturnFocusRef.current = null
+      if (returnFocus?.isConnected) returnFocus.focus()
+    }
+  }, [setupOpen])
 
   const cameraMessage = useMemo(() => {
     if (cameraStatus === 'ready') return 'Camera ready — place paper in view.'
@@ -2828,9 +2878,9 @@ function TraceScreen({
   }
 
   return (
-    <section className={`trace-screen ${childTraceMode ? 'child-trace-mode' : ''}`}>
+    <section ref={traceSectionRef} className={`trace-screen ${childTraceMode ? 'child-trace-mode' : ''}`}>
       {setupOpen && (
-        <div className="setup-coach-backdrop" role="dialog" aria-modal="true" aria-labelledby="setup-coach-title">
+        <div ref={setupDialogRef} className="setup-coach-backdrop" role="dialog" aria-modal="true" aria-labelledby="setup-coach-title" tabIndex={-1}>
           <div className="setup-coach">
             <div className="setup-coach-heading">
               <span className="setup-coach-time">30-second parent setup</span>
