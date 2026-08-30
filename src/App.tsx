@@ -270,7 +270,7 @@ function uploadedImageRecordSignature(image: UploadedImageState) {
   return JSON.stringify([image.imageId, image.fileName, image.originalSrc, image.processedSrc])
 }
 
-async function saveUploadedImageRecord(image: UploadedImageState, shouldSave: () => boolean = () => true) {
+async function saveUploadedImageRecord(image: UploadedImageState, shouldSave: () => boolean = () => true, discardIfSuperseded = false) {
   return queueUploadedImageWrite(async () => {
     if (!shouldSave()) return false
     const db = await openUploadedImageDb()
@@ -280,6 +280,22 @@ async function saveUploadedImageRecord(image: UploadedImageState, shouldSave: ()
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error ?? new Error('Could not save uploaded image'))
     })
+    if (!shouldSave()) {
+      activeUploadedImageIds.delete(image.imageId)
+      if (discardIfSuperseded) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(uploadedImageStoreName, 'readwrite')
+            tx.objectStore(uploadedImageStoreName).delete(image.imageId)
+            tx.oncomplete = () => resolve()
+            tx.onerror = () => reject(tx.error ?? new Error('Could not discard superseded uploaded image'))
+          })
+        } catch {
+          // A later orphan cleanup can retry a failed best-effort discard.
+        }
+      }
+      return false
+    }
     activeUploadedImageIds.add(image.imageId)
     return true
   })
@@ -1520,7 +1536,10 @@ function App() {
 
     void saveUploadedImageRecord(uploadedImage, () => uploadOperationGenerationRef.current === uploadedImageGeneration)
       .then((saved) => {
-        if (!saved) return
+        if (!saved) {
+          activeUploadedImageIds.delete(uploadedImage.imageId)
+          return
+        }
         uploadedImageSaveSignatureRef.current = saveSignature
       })
       .catch(() => {
@@ -1784,8 +1803,9 @@ function App() {
         activeUploadedImageIds.add(nextUploadedImage.imageId)
 
         try {
-          const saved = await saveUploadedImageRecord(nextUploadedImage, () => uploadOperationGenerationRef.current === operationGeneration)
+          const saved = await saveUploadedImageRecord(nextUploadedImage, () => uploadOperationGenerationRef.current === operationGeneration, true)
           if (!saved) {
+            activeUploadedImageIds.delete(nextUploadedImage.imageId)
             input.value = ''
             return
           }
