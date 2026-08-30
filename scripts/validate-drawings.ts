@@ -92,7 +92,7 @@ for (const drawing of drawings) {
   assert(drawing.svg.includes('stroke-linecap="round"'), `${drawing.id} must use rounded line caps`)
   assert(drawing.svg.includes('stroke-linejoin="round"'), `${drawing.id} must use rounded line joins`)
 
-  const strokeWidths = [...drawing.svg.matchAll(/\bstroke-width\s*=\s*(["'])([\d.]+)\1/g)]
+  const strokeWidths = [...drawing.svg.matchAll(/(?:^|[\s<])stroke-width\s*=\s*(["'])([\d.]+)\1/g)]
   assert(strokeWidths.length > 0, `${drawing.id} is missing a stroke width`)
   for (const [, , width] of strokeWidths) {
     assert(Number(width) >= 7, `${drawing.id} contains a stroke thinner than 7px`)
