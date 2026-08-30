@@ -32,8 +32,10 @@ try {
   const client = await page.createCDPSession()
   await client.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDirectory })
   await page.goto(url, { waitUntil: 'networkidle0' })
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
   await clickByText(page, 'Play together')
   await waitForSelector(page, '.family-screen')
+  await page.waitForFunction(() => window.scrollY === 0)
   assert(await page.$$eval('[data-family-activity-id]', (cards) => cards.length) === 12, 'Together library did not render all 12 activities')
 
   await page.click('[data-family-activity-id="guam-memory-map"]')
