@@ -28,6 +28,8 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Clean, modern, kid-friendly visual design
 - 73 built-in SVG tracing templates with category, difficulty, and text search filters
 - Local favorites and recent picks for quickly returning to family favorites
+- Eight gentle guided lessons with highlighted new strokes, resumable local progress, and no scores or failure states
+- A handwriting studio for turning a name, word, number, or short family message into an on-screen practice guide
 - Local image upload with optional cleanup modes
 - Camera access with `getUserMedia`
 - On-screen coloring/practice mode for finger, stylus, or mouse tracing
@@ -61,7 +63,7 @@ This is a frontend MVP only.
 - No backend
 - No image/video upload
 - No remote or server-side image processing
-- Camera frames stay local and are never recorded. Previous Work, practice strokes, custom words, and selected images may persist in private browser/app storage until deleted.
+- Camera frames stay local and are never recorded. Previous Work, practice strokes, custom words, selected images, favorites, recents, and guided-lesson progress may persist in private browser/app storage until deleted.
 
 For real tracing, use a phone/iPad stand or prop the device above the paper. Experimental paper tracking can follow small camera shifts when the page is clearly visible, but manual realignment may still be needed.
 
@@ -157,6 +159,6 @@ Generated files:
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
 - Test a development or TestFlight build on a real phone over paper and in on-screen practice mode
 - Improve uploaded image cleanup after real-device testing
-- Add guided lessons and handwriting practice that build from simple marks to complete drawings
+- Expand the guided-learning library after family playtesting shows which instructions and subjects work best
 - Prototype printable marker-based tracking if plain paper detection is not stable enough
 - Keep the development-build workflow documented as Expo SDK requirements change

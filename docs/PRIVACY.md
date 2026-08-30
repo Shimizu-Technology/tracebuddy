@@ -24,7 +24,7 @@ TraceBuddy does not upload, save, or transmit these sampled frames.
 
 ## What may be stored locally
 
-Saved-work metadata, strokes, tool settings, custom text, local image references, favorite template IDs, and up to eight recent template IDs may persist on the device until local work is cleared, site data is cleared, or the mobile app is removed. The web app uses `localStorage` and IndexedDB. The native app uses AsyncStorage and app-private files.
+Saved-work metadata, strokes, tool settings, custom text, local image references, favorite template IDs, up to eight recent template IDs, and guided-lesson step/completion IDs may persist on the device until local work is cleared, site data is cleared, or the mobile app is removed. The web app uses `localStorage` and IndexedDB. The native app uses AsyncStorage and app-private files.
 
 The apps clean uploaded-image files that are no longer referenced by Previous Work. This cleanup is best-effort because browsers and operating systems can interrupt storage operations.
 

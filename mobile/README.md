@@ -35,7 +35,7 @@ This app uses Expo SDK modules that are included in its development and producti
 - `expo-keep-awake` for tracing sessions
 - `react-native-svg` for built-in SVG templates, custom word guides, and finger/stylus practice strokes
 
-Native AR anchoring and automatic paper tracking remain deferred. Dynamic word/name guides, private Previous Work, orphaned local-image cleanup, on-screen practice, stickers, and Photos export are implemented locally on the device.
+Native AR anchoring and automatic paper tracking remain deferred. Eight guided lessons, resumable local lesson progress, dynamic word/name guides, private Previous Work, orphaned local-image cleanup, on-screen practice, stickers, and Photos export are implemented locally on the device.
 
 ## TestFlight / EAS build
 

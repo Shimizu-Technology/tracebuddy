@@ -148,6 +148,7 @@ try {
       brushToolId: 'marker',
     }))
     localStorage.setItem('tracebuddy.drawingPreferences.v1', JSON.stringify({ version: 1, favoriteIds: ['guam-outline'], recentIds: ['guam-outline'] }))
+    localStorage.setItem('tracebuddy.learningProgress.v1', JSON.stringify({ version: 1, completedLessonIds: ['line-control'], stepByLessonId: { 'line-control': 4 } }))
   })
   assert(await countUploadedImages(page) === 2, 'Could not seed linked and orphan image records before bulk clear')
   await page.evaluate(() => {
@@ -167,6 +168,7 @@ try {
   const unindexedRecordExists = await page.evaluate(() => localStorage.getItem('tracebuddy.previousWork.v1.session.unindexed-clear-test') !== null)
   assert(!unindexedRecordExists, 'Bulk clear left an unindexed session behind')
   assert(await page.evaluate(() => localStorage.getItem('tracebuddy.drawingPreferences.v1') === null), 'Bulk clear left favorites or recent picks behind')
+  assert(await page.evaluate(() => localStorage.getItem('tracebuddy.learningProgress.v1') === null), 'Bulk clear left guided-lesson progress behind')
   assert(await countUploadedImages(page) === 2, 'A simulated image-cleanup failure should not hide whether image records remain')
   for (let attempt = 0; attempt < 20 && clearDialogs.length < 2; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 50))

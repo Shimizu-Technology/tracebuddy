@@ -9,14 +9,21 @@ import {
   drawingsFromIds,
   emptyDrawingPreferences,
   filterDrawings,
+  completeGuidedLesson,
+  emptyLearningProgress,
+  guidedLessonPreviewDrawing,
+  guidedLessons,
+  guidedLessonStepDrawing,
   normalizeDrawingPreferences,
+  normalizeLearningProgress,
   sanitizeTraceText,
   toggleFavoriteDrawing,
+  updateLearningStep,
 } from './drawings'
-import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences } from './drawings'
+import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, GuidedLesson, LearningProgress } from './drawings'
 import './App.css'
 
-type AppMode = 'welcome' | 'picker' | 'trace' | 'practice'
+type AppMode = 'welcome' | 'picker' | 'learn' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'blocked' | 'unsupported'
 type Direction = 'up' | 'right' | 'down' | 'left'
@@ -168,6 +175,7 @@ const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
 const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
 const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
+const learningProgressKey = 'tracebuddy.learningProgress.v1'
 const uploadedImageDbName = 'tracebuddy-uploaded-images'
 const uploadedImageStoreName = 'uploaded-images'
 const activeUploadedImageIds = new Set<string>()
@@ -437,12 +445,13 @@ function makePracticeSource(drawing: Drawing, uploadedImage: UploadedImageState 
   }
 
   const isCustom = drawing.id.startsWith('custom-text-')
+  const isLibraryDrawing = drawings.some((candidate) => candidate.id === drawing.id)
   return {
     kind: isCustom ? 'custom' : 'drawing',
     drawingId: drawing.id,
     drawingName: drawing.name,
     drawingTheme: drawing.theme,
-    drawingSvg: isCustom ? drawing.svg : undefined,
+    drawingSvg: isLibraryDrawing ? undefined : drawing.svg,
   }
 }
 
@@ -708,6 +717,7 @@ async function deleteAllPreviousWorkSessions() {
     .filter((key): key is string => Boolean(key?.startsWith(legacyPracticeAutosavePrefix)))
   legacyKeys.forEach((key) => window.localStorage.removeItem(key))
   window.localStorage.removeItem(drawingPreferencesKey)
+  window.localStorage.removeItem(learningProgressKey)
 
   try {
     await queueUploadedImageWrite(async () => {
@@ -744,6 +754,15 @@ function loadDrawingPreferences() {
       preferences: { ...emptyDrawingPreferences },
       message: 'Favorites and recent picks will last for this visit only.',
     }
+  }
+}
+
+function loadLearningProgress() {
+  try {
+    const rawProgress = window.localStorage.getItem(learningProgressKey)
+    return { progress: normalizeLearningProgress(rawProgress ? JSON.parse(rawProgress) : null), message: '' }
+  } catch {
+    return { progress: { ...emptyLearningProgress, stepByLessonId: {} }, message: 'Lesson progress will last for this visit only.' }
   }
 }
 
@@ -1187,6 +1206,10 @@ function App() {
   const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>(initialDrawingPreferences.preferences)
   const [drawingPreferencesMessage, setDrawingPreferencesMessage] = useState(initialDrawingPreferences.message)
   const [drawingPreferencesClearInProgress, setDrawingPreferencesClearInProgress] = useState(false)
+  const [initialLearningProgress] = useState(loadLearningProgress)
+  const [learningProgress, setLearningProgress] = useState<LearningProgress>(initialLearningProgress.progress)
+  const [learningProgressMessage, setLearningProgressMessage] = useState(initialLearningProgress.message)
+  const [selectedLesson, setSelectedLesson] = useState<GuidedLesson>(guidedLessons[0])
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [uploadCleanupMode, setUploadCleanupMode] = useState<UploadCleanupMode>('original')
   const [backgroundTolerance, setBackgroundTolerance] = useState(48)
@@ -1216,6 +1239,7 @@ function App() {
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null)
   const practiceSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
   const drawingPreferencesRef = useRef(drawingPreferences)
+  const learningProgressRef = useRef(learningProgress)
   const drawingPreferencesClearInProgressRef = useRef(false)
   const previousWorkOperationGenerationRef = useRef(0)
 
@@ -1239,6 +1263,19 @@ function App() {
   const favoriteDrawing = useCallback((drawingId: string) => {
     saveDrawingPreferences(toggleFavoriteDrawing(drawingPreferencesRef.current, drawingId))
   }, [saveDrawingPreferences])
+
+  const saveLearningProgress = useCallback((nextProgress: LearningProgress) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const normalizedProgress = normalizeLearningProgress(nextProgress)
+    learningProgressRef.current = normalizedProgress
+    setLearningProgress(normalizedProgress)
+    try {
+      window.localStorage.setItem(learningProgressKey, JSON.stringify(normalizedProgress))
+      setLearningProgressMessage('')
+    } catch {
+      setLearningProgressMessage('Lesson progress will last for this visit only.')
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1765,7 +1802,7 @@ function App() {
 
   function deleteAllPreviousWork() {
     if (drawingPreferencesClearInProgressRef.current) return
-    if (!window.confirm('Delete all Previous Work, favorites, recent picks, and locally stored uploaded images from this browser?')) return
+    if (!window.confirm('Delete all Previous Work, favorites, recent picks, lesson progress, and locally stored uploaded images from this browser?')) return
 
     drawingPreferencesClearInProgressRef.current = true
     setDrawingPreferencesClearInProgress(true)
@@ -1782,6 +1819,9 @@ function App() {
         drawingPreferencesRef.current = { ...emptyDrawingPreferences }
         setDrawingPreferences({ ...emptyDrawingPreferences })
         setDrawingPreferencesMessage('')
+        learningProgressRef.current = { ...emptyLearningProgress, stepByLessonId: {} }
+        setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
+        setLearningProgressMessage('')
         if (imageCleanupPending) window.alert('Saved drawings were cleared, but this browser could not finish removing stored image files. Use Clear local work again to retry.')
       })
       .catch(() => window.alert('TraceBuddy could not clear all local work. Try again in a moment.'))
@@ -1830,6 +1870,33 @@ function App() {
     const safeText = sanitizeTraceText(value)
     if (!safeText) return
     openSelectedSurface(createTextDrawing(safeText))
+  }
+
+  function openGuidedLesson(lesson: GuidedLesson) {
+    setSelectedLesson(lesson)
+    setMode('learn')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function changeGuidedLessonStep(stepIndex: number) {
+    saveLearningProgress(updateLearningStep(learningProgressRef.current, selectedLesson, stepIndex))
+  }
+
+  function finishGuidedLesson() {
+    saveLearningProgress(completeGuidedLesson(learningProgressRef.current, selectedLesson))
+  }
+
+  function practiceGuidedLessonStep(surface: TraceSurface) {
+    const stepIndex = learningProgressRef.current.stepByLessonId[selectedLesson.id] ?? 0
+    const drawing = guidedLessonStepDrawing(selectedLesson, stepIndex)
+    if (surface === 'screen') openPractice(drawing)
+    else openTrace(drawing)
+  }
+
+  function practiceGuidedWords(value: string) {
+    const safeText = sanitizeTraceText(value)
+    if (!safeText) return
+    openPractice(createTextDrawing(safeText))
   }
 
   function updateTransform(update: TransformUpdate) {
@@ -1993,12 +2060,13 @@ function App() {
         <nav aria-label="Main navigation">
           <button className={mode === 'welcome' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('welcome'))} aria-current={mode === 'welcome' ? 'page' : undefined}>Home</button>
           <button className={mode === 'picker' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('picker'))} aria-current={mode === 'picker' ? 'page' : undefined}>Pictures</button>
+          <button className={mode === 'learn' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('learn'))} aria-current={mode === 'learn' ? 'page' : undefined}>Learn</button>
           <button className={mode === 'trace' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openTrace())} aria-current={mode === 'trace' ? 'page' : undefined}>Camera</button>
           <button className={mode === 'practice' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openPractice())} aria-current={mode === 'practice' ? 'page' : undefined}>Practice</button>
         </nav>
       </header>
 
-      {mode === 'welcome' && <WelcomeScreen onStart={() => setMode('picker')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
+      {mode === 'welcome' && <WelcomeScreen onStart={() => setMode('picker')} onLearn={() => setMode('learn')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
       {mode === 'picker' && (
         <PickerScreen
           selectedDrawing={selectedDrawing}
@@ -2018,6 +2086,22 @@ function App() {
           onDuplicateWork={duplicatePreviousWork}
           onDeleteWork={deletePreviousWork}
           onDeleteAllWork={deleteAllPreviousWork}
+          onOpenLesson={openGuidedLesson}
+          learningProgress={learningProgress}
+        />
+      )}
+      {mode === 'learn' && (
+        <LearningScreen
+          lesson={selectedLesson}
+          learningProgress={learningProgress}
+          storageMessage={learningProgressMessage}
+          onSelectLesson={openGuidedLesson}
+          onStepChange={changeGuidedLessonStep}
+          onComplete={finishGuidedLesson}
+          onPractice={() => practiceGuidedLessonStep('screen')}
+          onPaper={() => practiceGuidedLessonStep('camera')}
+          onPracticeWords={practiceGuidedWords}
+          onPictures={() => setMode('picker')}
         />
       )}
       {mode === 'trace' && (
@@ -2079,7 +2163,7 @@ function App() {
   )
 }
 
-function WelcomeScreen({ onStart, onDemo, onPractice }: { onStart: () => void; onDemo: () => void; onPractice: () => void }) {
+function WelcomeScreen({ onStart, onLearn, onDemo, onPractice }: { onStart: () => void; onLearn: () => void; onDemo: () => void; onPractice: () => void }) {
   const demoDrawing = drawings.find((drawing) => drawing.id === 'dream-unicorn') ?? drawings[0]
 
   return (
@@ -2092,6 +2176,7 @@ function WelcomeScreen({ onStart, onDemo, onPractice }: { onStart: () => void; o
         </p>
         <div className="hero-actions">
           <button className="primary-button" type="button" onClick={onStart}>Pick a picture</button>
+          <button className="secondary-button" type="button" onClick={onLearn}>Learn step by step</button>
           <button className="secondary-button" type="button" onClick={onDemo}>Try camera trace</button>
           <button className="secondary-button" type="button" onClick={onPractice}>Practice on screen</button>
         </div>
@@ -2122,6 +2207,129 @@ function WelcomeScreen({ onStart, onDemo, onPractice }: { onStart: () => void; o
   )
 }
 
+function LearningScreen({
+  lesson,
+  learningProgress,
+  storageMessage,
+  onSelectLesson,
+  onStepChange,
+  onComplete,
+  onPractice,
+  onPaper,
+  onPracticeWords,
+  onPictures,
+}: {
+  lesson: GuidedLesson
+  learningProgress: LearningProgress
+  storageMessage: string
+  onSelectLesson: (lesson: GuidedLesson) => void
+  onStepChange: (stepIndex: number) => void
+  onComplete: () => void
+  onPractice: () => void
+  onPaper: () => void
+  onPracticeWords: (value: string) => void
+  onPictures: () => void
+}) {
+  const [practiceWords, setPracticeWords] = useState('')
+  const stepIndex = learningProgress.stepByLessonId[lesson.id] ?? 0
+  const step = lesson.steps[stepIndex]
+  const lessonFinished = learningProgress.completedLessonIds.includes(lesson.id)
+  const stepDrawing = guidedLessonStepDrawing(lesson, stepIndex)
+
+  return (
+    <section className="learning-screen">
+      <div className="learning-heading">
+        <div>
+          <p className="eyebrow">Gentle guided drawing</p>
+          <h1>Learn the shapes behind the picture.</h1>
+          <p>Follow one prompt at a time, then practice that exact step on screen or over real paper.</p>
+        </div>
+        <button className="secondary-button compact" type="button" onClick={onPictures}>Browse all pictures</button>
+      </div>
+
+      <div className="learning-layout">
+        <aside className="lesson-library" aria-label="Guided lessons">
+          <div className="lesson-library-heading">
+            <strong>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished</strong>
+            <small>Progress stays on this device.</small>
+          </div>
+          {guidedLessons.map((candidate) => {
+            const selected = candidate.id === lesson.id
+            const finished = learningProgress.completedLessonIds.includes(candidate.id)
+            return (
+              <button key={candidate.id} type="button" data-lesson-id={candidate.id} className={selected ? 'active' : ''} aria-current={selected ? 'true' : undefined} onClick={() => onSelectLesson(candidate)}>
+                <img src={drawingImageSrc(guidedLessonPreviewDrawing(candidate))} alt="" aria-hidden="true" />
+                <span><strong>{candidate.title}</strong><small>{candidate.steps.length} steps · {candidate.estimatedMinutes} min</small></span>
+                {finished && <span className="lesson-complete-mark" aria-label="Finished">✓</span>}
+              </button>
+            )
+          })}
+        </aside>
+
+        <article className="lesson-stage-card">
+          <div className="lesson-stage-meta">
+            <span>{lesson.difficulty}</span>
+            <span>{lesson.estimatedMinutes} minutes</span>
+            <span>{lesson.steps.length} steps</span>
+          </div>
+          <div className="lesson-title-row">
+            <div>
+              <p className="eyebrow">{lessonFinished ? 'Finished — revisit anytime' : `Step ${stepIndex + 1} of ${lesson.steps.length}`}</p>
+              <h2>{lesson.title}</h2>
+              <p>{lesson.description}</p>
+            </div>
+            {lessonFinished && <span className="lesson-finished-badge">Finished ✓</span>}
+          </div>
+
+          <div className="lesson-step-dots" aria-label={`Step ${stepIndex + 1} of ${lesson.steps.length}`}>
+            {lesson.steps.map((candidateStep, index) => (
+              <button key={candidateStep.title} type="button" className={index === stepIndex ? 'active' : index < stepIndex ? 'visited' : ''} aria-label={`Go to step ${index + 1}: ${candidateStep.title}`} aria-current={index === stepIndex ? 'step' : undefined} onClick={() => onStepChange(index)}>{index + 1}</button>
+            ))}
+          </div>
+
+          <div className="lesson-workspace">
+            <div className="lesson-picture">
+              <img key={`${lesson.id}-${stepIndex}`} src={drawingImageSrc(stepDrawing)} alt={`${lesson.title}, ${step.title}`} />
+              <span>New lines are coral. Earlier lines stay faint.</span>
+            </div>
+            <div className="lesson-instruction" aria-live="polite">
+              <span className="lesson-step-number">{stepIndex + 1}</span>
+              <p className="eyebrow">{step.title}</p>
+              <h3>{step.instruction}</h3>
+              <p>Try the motion in the air first, then make it your own. It does not need to be perfect.</p>
+            </div>
+          </div>
+
+          <div className="lesson-actions">
+            <button type="button" className="secondary-button" disabled={stepIndex === 0} onClick={() => onStepChange(stepIndex - 1)}>Back</button>
+            {stepIndex < lesson.steps.length - 1
+              ? <button type="button" className="primary-button" onClick={() => onStepChange(stepIndex + 1)}>Next step</button>
+              : <button type="button" className="primary-button" onClick={onComplete}>{lessonFinished ? 'Finished' : 'Finish lesson'}</button>}
+            <button type="button" className="secondary-button" onClick={onPractice}>Practice this step on screen</button>
+            <button type="button" className="secondary-button" onClick={onPaper}>Trace this step on paper</button>
+          </div>
+          {storageMessage && <p className="preference-message" role="status">{storageMessage}</p>}
+        </article>
+      </div>
+
+      <section className="handwriting-card">
+        <div>
+          <p className="eyebrow">Handwriting studio</p>
+          <h2>Practice a name, word, or family message.</h2>
+          <p>TraceBuddy turns the words into a large on-screen guide. Nothing is uploaded.</p>
+        </div>
+        <form onSubmit={(event) => { event.preventDefault(); onPracticeWords(practiceWords) }}>
+          <label>
+            <span>Words to practice</span>
+            <input value={practiceWords} maxLength={48} placeholder="Stassie, Grandma, I love Guam" onChange={(event) => setPracticeWords(event.target.value)} />
+          </label>
+          <button type="submit" className="primary-button">Practice these words</button>
+        </form>
+      </section>
+    </section>
+  )
+}
+
 function PickerScreen({
   selectedDrawing,
   traceSurface,
@@ -2140,6 +2348,8 @@ function PickerScreen({
   onDuplicateWork,
   onDeleteWork,
   onDeleteAllWork,
+  onOpenLesson,
+  learningProgress,
 }: {
   selectedDrawing: Drawing
   traceSurface: TraceSurface
@@ -2158,6 +2368,8 @@ function PickerScreen({
   onDuplicateWork: (session: SavedPracticeSession) => void
   onDeleteWork: (session: SavedPracticeSession) => void
   onDeleteAllWork: () => void
+  onOpenLesson: (lesson: GuidedLesson) => void
+  learningProgress: LearningProgress
 }) {
   const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
   const [difficulty, setDifficulty] = useState<DrawingDifficultyFilter>('all')
@@ -2224,6 +2436,28 @@ function PickerScreen({
           <input type="file" accept="image/*" onChange={(event) => onUpload(event.currentTarget)} />
         </label>
       </div>
+
+      <section className="learning-callout" aria-labelledby="learning-callout-title">
+        <div className="learning-callout-copy">
+          <p className="eyebrow">Learn, don’t just copy</p>
+          <h2 id="learning-callout-title">Build a drawing one friendly step at a time.</h2>
+          <p>Eight short lessons teach lines, curves, shapes, and recognizable pictures. There are no scores or wrong answers.</p>
+          <div className="learning-callout-progress" aria-label={`${learningProgress.completedLessonIds.length} of ${guidedLessons.length} lessons finished`}>
+            <span style={{ width: `${(learningProgress.completedLessonIds.length / guidedLessons.length) * 100}%` }} />
+          </div>
+          <small>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished on this device</small>
+        </div>
+        <div className="learning-callout-lessons">
+          {guidedLessons.slice(0, 3).map((lesson) => (
+            <button key={lesson.id} type="button" data-lesson-id={lesson.id} onClick={() => onOpenLesson(lesson)}>
+              <img src={drawingImageSrc(guidedLessonPreviewDrawing(lesson))} alt="" aria-hidden="true" />
+              <span><strong>{lesson.title}</strong><small>{lesson.steps.length} steps · {lesson.estimatedMinutes} min</small></span>
+              {learningProgress.completedLessonIds.includes(lesson.id) && <span className="lesson-complete-mark" aria-label="Finished">✓</span>}
+            </button>
+          ))}
+          <button className="learning-see-all" type="button" onClick={() => onOpenLesson(guidedLessons[0])}>See all guided lessons</button>
+        </div>
+      </section>
 
       <section className="previous-work-section" aria-labelledby="previous-work-title">
           <div className="previous-work-heading">
