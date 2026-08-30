@@ -51,7 +51,7 @@ function safeBrowserProcessTree(rootProcessId) {
   try {
     return browserProcessTree(rootProcessId)
   } catch {
-    return []
+    return [rootProcessId]
   }
 }
 

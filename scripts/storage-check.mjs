@@ -31,12 +31,21 @@ async function countUploadedImages(page) {
       request.onerror = () => reject(request.error)
       request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
     })
-    if (!db.objectStoreNames.contains('uploaded-images')) return 0
+    if (!db.objectStoreNames.contains('uploaded-images')) {
+      db.close()
+      return 0
+    }
     const transaction = db.transaction('uploaded-images', 'readonly')
     const countRequest = transaction.objectStore('uploaded-images').count()
     return new Promise((resolveCount, reject) => {
-      countRequest.onsuccess = () => resolveCount(countRequest.result)
-      countRequest.onerror = () => reject(countRequest.error)
+      countRequest.onsuccess = () => {
+        db.close()
+        resolveCount(countRequest.result)
+      }
+      countRequest.onerror = () => {
+        db.close()
+        reject(countRequest.error)
+      }
     })
   })
 }
@@ -123,6 +132,7 @@ try {
       transaction.oncomplete = resolveWrite
       transaction.onerror = () => reject(transaction.error)
     })
+    db.close()
     localStorage.setItem('tracebuddy.previousWork.v1.session.unindexed-clear-test', JSON.stringify({
       version: 2,
       sessionId: 'unindexed-clear-test',
@@ -174,8 +184,14 @@ try {
     })
     const countRequest = db.transaction('uploaded-images', 'readonly').objectStore('uploaded-images').count()
     return new Promise((resolveCount, reject) => {
-      countRequest.onsuccess = () => resolveCount(countRequest.result === 0)
-      countRequest.onerror = () => reject(countRequest.error)
+      countRequest.onsuccess = () => {
+        db.close()
+        resolveCount(countRequest.result === 0)
+      }
+      countRequest.onerror = () => {
+        db.close()
+        reject(countRequest.error)
+      }
     })
   }, { timeout: 3_000 })
   page.off('dialog', acceptClearDialogs)
@@ -196,6 +212,7 @@ try {
       transaction.oncomplete = resolveWrite
       transaction.onerror = () => reject(transaction.error)
     })
+    db.close()
     localStorage.setItem('tracebuddy.previousWork.v1.session.active-guide-preservation', JSON.stringify({
       version: 2,
       sessionId: 'active-guide-preservation',
@@ -255,6 +272,7 @@ try {
       transaction.oncomplete = resolveWrite
       transaction.onerror = () => reject(transaction.error)
     })
+    db.close()
     localStorage.setItem('tracebuddy.previousWork.v1.session.preserved-corrupt-index', JSON.stringify({
       version: 2,
       sessionId: 'preserved-corrupt-index',
@@ -305,6 +323,7 @@ try {
       transaction.oncomplete = resolveWrite
       transaction.onerror = () => reject(transaction.error)
     })
+    db.close()
   })
   assert(await countUploadedImages(page) === 1, 'Could not seed an orphan upload record')
   await page.reload({ waitUntil: 'networkidle0' })
@@ -319,8 +338,14 @@ try {
     const transaction = db.transaction('uploaded-images', 'readonly')
     const countRequest = transaction.objectStore('uploaded-images').count()
     return new Promise((resolveCount, reject) => {
-      countRequest.onsuccess = () => resolveCount(countRequest.result === 0)
-      countRequest.onerror = () => reject(countRequest.error)
+      countRequest.onsuccess = () => {
+        db.close()
+        resolveCount(countRequest.result === 0)
+      }
+      countRequest.onerror = () => {
+        db.close()
+        reject(countRequest.error)
+      }
     })
   }, { timeout: 3_000 })
   console.log('Startup orphan upload cleanup passed')
@@ -381,7 +406,6 @@ try {
   await page.evaluate(() => {
     window.__traceBuddyControlledReaders[0].onerror?.(new ProgressEvent('error'))
   })
-  await new Promise((resolve) => setTimeout(resolve, 100))
   const selectedRapidUploadName = await page.$eval('.practice-screen input[type="file"]', (input) => input.files?.[0]?.name ?? '')
   assert(selectedRapidUploadName === 'icon.png', `A stale FileReader failure cleared the newer upload: ${selectedRapidUploadName}`)
   assert(rapidUploadDialogs.length === 0, `A stale FileReader failure showed an obsolete alert: ${rapidUploadDialogs.join(' | ')}`)
@@ -398,6 +422,52 @@ try {
   })
   page.off('dialog', dismissRapidUploadDialog)
   console.log('Rapid upload replacement passed')
+
+  await drawStroke(page, 28)
+  await page.waitForFunction(() => document.querySelector('.practice-save-status')?.classList.contains('saving'), { timeout: 3_000 })
+  await page.waitForFunction(() => document.querySelector('.practice-save-status')?.classList.contains('saved'), { timeout: 3_000 })
+  const clearRaceSessionId = await page.evaluate(() => JSON.parse(localStorage.getItem('tracebuddy.previousWork.v1.index')).ids[0])
+  assert(clearRaceSessionId, 'Could not identify the saved session for the clear/autosave race check')
+  await page.evaluate(() => {
+    window.__traceBuddyOriginalIdbTransaction = IDBDatabase.prototype.transaction
+    window.__traceBuddyDelayNextIdbTransaction = true
+    IDBDatabase.prototype.transaction = function delayedTransaction(...args) {
+      const transaction = window.__traceBuddyOriginalIdbTransaction.apply(this, args)
+      if (!window.__traceBuddyDelayNextIdbTransaction || args[1] !== 'readwrite') return transaction
+      window.__traceBuddyDelayNextIdbTransaction = false
+      return new Proxy(transaction, {
+        get(target, property) {
+          const value = Reflect.get(target, property, target)
+          return typeof value === 'function' ? value.bind(target) : value
+        },
+        set(target, property, value) {
+          if (property === 'oncomplete' && typeof value === 'function') {
+            return Reflect.set(target, property, (event) => setTimeout(() => value.call(target, event), 700), target)
+          }
+          return Reflect.set(target, property, value, target)
+        },
+      })
+    }
+  })
+  await drawStroke(page, 54)
+  await page.waitForFunction(() => document.querySelector('.practice-save-status')?.classList.contains('saving'), { timeout: 3_000 })
+  page.once('dialog', (dialog) => dialog.accept())
+  await clickByText(page, 'Clear all')
+  await page.waitForFunction((sessionId) => (
+    localStorage.getItem(`tracebuddy.previousWork.v1.session.${sessionId}`) === null
+    && document.querySelector('.practice-save-status')?.classList.contains('saved')
+  ), { timeout: 3_000 }, clearRaceSessionId)
+  const clearedSessionWasResurrected = await page.evaluate((sessionId) => {
+    const index = JSON.parse(localStorage.getItem('tracebuddy.previousWork.v1.index') ?? '{"ids":[]}')
+    return localStorage.getItem(`tracebuddy.previousWork.v1.session.${sessionId}`) !== null || index.ids.includes(sessionId)
+  }, clearRaceSessionId)
+  assert(!clearedSessionWasResurrected, 'A pending autosave resurrected a cleared session')
+  await page.evaluate(() => {
+    IDBDatabase.prototype.transaction = window.__traceBuddyOriginalIdbTransaction
+    delete window.__traceBuddyOriginalIdbTransaction
+    delete window.__traceBuddyDelayNextIdbTransaction
+  })
+  console.log('Clear/autosave race protection passed')
 
   await clickByText(page, 'Pictures')
   await waitForSelector(page, '.picker-screen')
@@ -437,11 +507,18 @@ try {
     const db = await new Promise((resolveDb, reject) => {
       request.onsuccess = () => resolveDb(request.result)
       request.onerror = () => reject(request.error)
+      request.onblocked = () => reject(new Error('Uploaded image database open was blocked'))
     })
     const getRequest = db.transaction('uploaded-images', 'readonly').objectStore('uploaded-images').get('legacy-inline-image')
     return new Promise((resolveRecord, reject) => {
-      getRequest.onsuccess = () => resolveRecord(Boolean(getRequest.result))
-      getRequest.onerror = () => reject(getRequest.error)
+      getRequest.onsuccess = () => {
+        db.close()
+        resolveRecord(Boolean(getRequest.result))
+      }
+      getRequest.onerror = () => {
+        db.close()
+        reject(getRequest.error)
+      }
     })
   }, { timeout: 3_000 })
   await drawStroke(page, 15)
@@ -457,7 +534,7 @@ try {
   assert(await page.$eval('.practice-screen h1', (heading) => heading.textContent) === 'legacy-inline.svg', 'Migrated inline upload did not survive ID-only reload')
   console.log('Legacy inline upload migration passed')
 
-  console.log('Storage checks passed: active-stroke flush, visible retry, unsaved-navigation warning, complete bulk clear, active-guide preservation, corrupt-index preservation, orphan cleanup, uploaded-image failure propagation, rapid replacement, and legacy inline migration.')
+  console.log('Storage checks passed: active-stroke flush, visible retry, unsaved-navigation warning, complete bulk clear, active-guide preservation, corrupt-index preservation, orphan cleanup, uploaded-image failure propagation, rapid replacement, clear/autosave race protection, and legacy inline migration.')
 } finally {
   await closeBrowser(browser)
 }

@@ -1,30 +1,34 @@
 # TraceBuddy Mobile
 
-Expo Go MVP for TraceBuddy's native mobile tracing workflow, including camera-over-paper tracing, custom word tracing, and on-screen practice with marker colors.
+Expo native app for TraceBuddy's camera-over-paper tracing workflow, including custom word tracing and on-screen practice with marker colors.
 
 ## Run locally
 
 ```bash
 cd mobile
 npm install
+eas build --platform ios --profile development
+```
+
+Install the resulting development build on a registered device. Camera tracing should be tested on a physical device, not only a simulator. The public App Store version of Expo Go supports the latest Expo SDK, not this app's pinned Expo SDK 56 runtime.
+
+After installing the development build, start Metro with:
+
+```bash
 npm run start
 ```
 
-Scan the Expo QR code with Expo Go on a real phone. Camera tracing should be tested on a physical device, not only a simulator.
-
-If the phone camera or iOS Code Scanner says "No usable data found," open the Expo Go app directly and use Expo Go's scanner. You can also type the Metro URL shown in the terminal, such as `exp://192.168.x.x:8081`, into Expo Go manually.
-
-If Expo Go opens but cannot connect, make sure the phone and laptop are on the same Wi-Fi network. If local network discovery is flaky, run:
+Open the TraceBuddy development build and connect to the project it discovers. If it cannot connect, make sure the phone and laptop are on the same Wi-Fi network. If local network discovery is flaky, run:
 
 ```bash
 npm run start -- --tunnel
 ```
 
-Then scan the new tunnel QR code from Expo Go.
+Then open the tunnel URL from the installed development build.
 
 ## Scope
 
-This app intentionally uses Expo Go-supported modules only:
+This app uses Expo SDK modules that are included in its development and production builds:
 
 - `expo-camera` for the live camera preview
 - `expo-image-picker` for local image selection

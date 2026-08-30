@@ -79,9 +79,36 @@ try {
       expectedCurrent,
       replacedCandidate,
     }
-  }, { expectedCurrent: `tracebuddy-app-shell-${v3BuildId}`, replacedCandidate: `tracebuddy-app-shell-${v2BuildId}` })
-  if (cacheState.current !== cacheState.expectedCurrent) throw new Error(`Wrong app-shell cache promoted: ${cacheState.current}`)
+  }, { expectedCurrent: `tracebuddy-app-shell-${v3BuildId}-ready-`, replacedCandidate: `tracebuddy-app-shell-${v2BuildId}-candidate` })
+  if (!cacheState.current?.startsWith(cacheState.expectedCurrent)) throw new Error(`Wrong app-shell cache promoted: ${cacheState.current}`)
   if (cacheState.names.includes(cacheState.replacedCandidate)) throw new Error('A replaced waiting worker left its candidate cache behind')
+  await page.evaluate(async ({ origin, targetBuildId }) => {
+    const registration = await navigator.serviceWorker.register(`${origin}/sw.js?build=${targetBuildId}&fail-install=1`)
+    const worker = registration.installing
+    if (!worker) throw new Error('The failed same-build worker did not begin installing')
+    await new Promise((resolveFailure, reject) => {
+      const timeout = setTimeout(() => reject(new Error('The simulated install failure did not settle')), 8_000)
+      const inspect = () => {
+        if (worker.state !== 'redundant') return
+        clearTimeout(timeout)
+        resolveFailure()
+      }
+      worker.addEventListener('statechange', inspect)
+      inspect()
+    })
+  }, { origin: appUrl.origin, targetBuildId: v3BuildId })
+  const failedReinstallState = await page.evaluate(async () => {
+    const metadata = await caches.open('tracebuddy-cache-metadata')
+    const currentResponse = await metadata.match('/__tracebuddy_current_cache__')
+    return {
+      current: currentResponse ? await currentResponse.text() : null,
+      names: await caches.keys(),
+    }
+  })
+  if (failedReinstallState.current !== cacheState.current) throw new Error('A failed same-build install replaced the promoted cache')
+  if (!failedReinstallState.names.includes(cacheState.current)) throw new Error('A failed same-build install deleted the promoted cache')
+  if (failedReinstallState.names.includes(`tracebuddy-app-shell-${v3BuildId}-candidate`)) throw new Error('A failed same-build install left a partial candidate cache')
+  console.log('Failed same-build reinstall preserved the promoted app shell')
   await page.setOfflineMode(true)
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10_000 })
   await waitForSelector(page, '.hero-screen')

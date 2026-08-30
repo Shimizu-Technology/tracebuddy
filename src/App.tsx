@@ -2547,7 +2547,10 @@ function PracticeScreen({
   const activePointCountRef = useRef(0)
   const activePathFrameRef = useRef<number | null>(null)
   const autosaveReadyRef = useRef(false)
+  const autosaveTimeoutRef = useRef<number | null>(null)
   const lastSavedSignatureRef = useRef('')
+  const saveGenerationRef = useRef(0)
+  const saveRequestRef = useRef(0)
   const strokesRef = useRef(strokes)
   const sessionIdRef = useRef(initialSession?.sessionId ?? createPracticeSessionId())
   const sessionCreatedAtRef = useRef(initialSession?.createdAt ?? new Date().toISOString())
@@ -2587,6 +2590,12 @@ function PracticeScreen({
   useEffect(() => {
     let cancelled = false
     autosaveReadyRef.current = false
+    saveGenerationRef.current += 1
+    saveRequestRef.current += 1
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
 
     async function resetPracticeSession() {
       await Promise.resolve()
@@ -2651,14 +2660,18 @@ function PracticeScreen({
 
   const savePracticeSessionNow = useCallback(async (skipUploadedImageFlush = false) => {
     if (!autosaveReadyRef.current) return true
+    const requestId = saveRequestRef.current + 1
+    saveRequestRef.current = requestId
+    const generation = saveGenerationRef.current
     if (uploadedImage && !skipUploadedImageFlush) {
       setSaveStatus('saving')
       try {
         await onEnsureUploadedImageSaved(uploadedImage)
       } catch {
-        setSaveStatus('error')
+        if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
         return false
       }
+      if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
     }
     const activeStroke = materializeActiveStroke()
     const snapshotStrokes = activeStroke ? [...strokesRef.current, activeStroke] : strokesRef.current
@@ -2672,6 +2685,7 @@ function PracticeScreen({
       try {
         const deletedSessionId = sessionIdRef.current
         const { imageCleanupPending } = await deletePreviousWorkSession(deletedSessionId, uploadedImage?.imageId)
+        if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
         lastSavedSignatureRef.current = ''
         persistedSessionRef.current = false
         sessionIdRef.current = createPracticeSessionId()
@@ -2710,6 +2724,7 @@ function PracticeScreen({
     }
 
     try {
+      if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
       savePreviousWorkSession(savedSession)
       persistedSessionRef.current = true
       lastSavedSignatureRef.current = nextSignature
@@ -2717,7 +2732,7 @@ function PracticeScreen({
       onSessionSaved(savedSession)
       return true
     } catch {
-      setSaveStatus('error')
+      if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
       return false
     }
   }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, materializeActiveStroke, onEnsureUploadedImageSaved, onSessionDeleted, onSessionSaved, practiceSource, sessionTitle, uploadedImage])
@@ -2725,9 +2740,16 @@ function PracticeScreen({
   useEffect(() => {
     if (!autosaveReadyRef.current || (strokes.length === 0 && !persistedSessionRef.current)) return
     setSaveStatus('saving')
-    const timeout = window.setTimeout(() => void savePracticeSessionNow(), practiceAutosaveDelayMs)
+    const timeout = window.setTimeout(() => {
+      if (autosaveTimeoutRef.current === timeout) autosaveTimeoutRef.current = null
+      void savePracticeSessionNow()
+    }, practiceAutosaveDelayMs)
+    autosaveTimeoutRef.current = timeout
 
-    return () => window.clearTimeout(timeout)
+    return () => {
+      window.clearTimeout(timeout)
+      if (autosaveTimeoutRef.current === timeout) autosaveTimeoutRef.current = null
+    }
   }, [savePracticeSessionNow, strokes.length])
 
   useEffect(() => {
@@ -3081,11 +3103,19 @@ function PracticeScreen({
 
   const clearPractice = async () => {
     const deletedSessionId = persistedSessionRef.current ? sessionIdRef.current : null
+    autosaveReadyRef.current = false
+    saveGenerationRef.current += 1
+    saveRequestRef.current += 1
+    if (autosaveTimeoutRef.current !== null) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
     if (deletedSessionId) {
       try {
         const { imageCleanupPending } = await deletePreviousWorkSession(deletedSessionId, uploadedImage?.imageId)
         if (imageCleanupPending) window.alert('The saved drawing was removed, but this browser could not finish deleting its private image file. Use Clear local work to retry cleanup.')
       } catch {
+        autosaveReadyRef.current = true
         setSaveStatus('error')
         window.alert('TraceBuddy could not clear this saved work. Try again in a moment.')
         return
@@ -3106,6 +3136,7 @@ function PracticeScreen({
     sessionIdRef.current = createPracticeSessionId()
     sessionCreatedAtRef.current = new Date().toISOString()
     lastSavedSignatureRef.current = ''
+    autosaveReadyRef.current = true
     setSaveStatus('saved')
     if (deletedSessionId) {
       onSessionDeleted(deletedSessionId)
@@ -3114,7 +3145,7 @@ function PracticeScreen({
 
   const confirmClearPractice = () => {
     if (strokes.length === 0 && !activePath) return
-    if (window.confirm('Clear all coloring saved in this work?')) clearPractice()
+    if (window.confirm('Clear all coloring saved in this work?')) void clearPractice()
   }
 
   const resetPracticeViewport = () => {

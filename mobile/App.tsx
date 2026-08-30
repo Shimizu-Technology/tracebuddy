@@ -3,10 +3,12 @@ import type { ReactNode } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native'
 import {
+  AccessibilityInfo,
   Alert,
   AppState,
   FlatList,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -640,6 +642,10 @@ async function cleanupStoredImageUrisIfUnused(candidateUris: string[]) {
   return queuePreviousWorkWrite(() => cleanupStoredImageUrisIfUnusedNow(candidateUris))
 }
 
+function cleanupStoredImageUrisIfUnusedBestEffort(candidateUris: string[]) {
+  void cleanupStoredImageUrisIfUnused(candidateUris).catch(() => undefined)
+}
+
 async function cleanupUploadedImageIfUnused(deletedSession: SavedPracticeSession | null, preserveUris: string[] = []) {
   const preservedUris = new Set(preserveUris.filter(isStoredUploadedImageUri))
   preservedUris.forEach((uri) => activeStoredImageUris.add(uri))
@@ -650,21 +656,25 @@ async function cleanupUploadedImageIfUnused(deletedSession: SavedPracticeSession
 
 async function cleanupOrphanedStoredImages(preserveUris: string[] = []) {
   return queuePreviousWorkWrite(async () => {
-    if (!uploadedWorkDirectory) return
-    const directoryInfo = await FileSystem.getInfoAsync(uploadedWorkDirectory).catch(() => null)
-    if (!directoryInfo?.exists) return
+    try {
+      if (!uploadedWorkDirectory) return
+      const directoryInfo = await FileSystem.getInfoAsync(uploadedWorkDirectory).catch(() => null)
+      if (!directoryInfo?.exists) return
 
-    const referencedUris = new Set([...preserveUris, ...activeStoredImageUris].filter(isStoredUploadedImageUri))
-    const storedSessions = await inspectAllStoredSessionsForCleanup()
-    storedSessions.forEach((session) => {
-      storedUploadedImageUrisFromSession(session).forEach((uri) => referencedUris.add(uri))
-    })
+      const referencedUris = new Set([...preserveUris, ...activeStoredImageUris].filter(isStoredUploadedImageUri))
+      const storedSessions = await inspectAllStoredSessionsForCleanup()
+      storedSessions.forEach((session) => {
+        storedUploadedImageUrisFromSession(session).forEach((uri) => referencedUris.add(uri))
+      })
 
-    const fileNames = await FileSystem.readDirectoryAsync(uploadedWorkDirectory)
-    const orphanedUris = fileNames
-      .map((fileName) => `${uploadedWorkDirectory}${fileName}`)
-      .filter((uri) => !referencedUris.has(uri))
-    await Promise.all(orphanedUris.map((uri) => FileSystem.deleteAsync(uri, { idempotent: true })))
+      const fileNames = await FileSystem.readDirectoryAsync(uploadedWorkDirectory)
+      const orphanedUris = fileNames
+        .map((fileName) => `${uploadedWorkDirectory}${fileName}`)
+        .filter((uri) => !referencedUris.has(uri))
+      await Promise.all(orphanedUris.map((uri) => FileSystem.deleteAsync(uri, { idempotent: true })))
+    } catch {
+      // Cleanup is best-effort. A later save or Clear local work retries it.
+    }
   })
 }
 
@@ -866,7 +876,7 @@ function TraceBuddyMobile() {
     const abandonedUploadUri = uploadedImage?.uri
     setSelectedDrawing(drawing)
     setUploadedImage(null)
-    if (abandonedUploadUri) void cleanupStoredImageUrisIfUnused([abandonedUploadUri])
+    if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
     setActivePracticeSession(null)
     setMode(traceSurface === 'screen' ? 'practice' : 'trace')
     setControlsOpen(true)
@@ -913,7 +923,7 @@ function TraceBuddyMobile() {
           width: asset.width,
           height: asset.height,
         })
-        if (abandonedUploadUri && abandonedUploadUri !== persistedUri) void cleanupStoredImageUrisIfUnused([abandonedUploadUri])
+        if (abandonedUploadUri && abandonedUploadUri !== persistedUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
         setActivePracticeSession(null)
         setMode(traceSurface === 'screen' ? 'practice' : 'trace')
         setControlsOpen(true)
@@ -1590,11 +1600,12 @@ function PracticeScreen({
   const selectedStickerIdRef = useRef<string | null>(selectedStickerId)
   const savedStickerUrisRef = useRef(storedUploadedImageUrisFromStickers(initialSession?.stickers ?? []))
   const stickersRef = useRef(stickers)
+  const previousSaveStatusRef = useRef(saveStatus)
 
   const cleanupUnsavedStickerUris = useCallback(() => {
     const savedUris = savedStickerUrisRef.current
     const unsavedUris = storedUploadedImageUrisFromStickers(stickersRef.current).filter((uri) => !savedUris.includes(uri))
-    if (unsavedUris.length > 0) void cleanupStoredImageUrisIfUnused(unsavedUris)
+    if (unsavedUris.length > 0) cleanupStoredImageUrisIfUnusedBestEffort(unsavedUris)
   }, [])
 
   useEffect(() => {
@@ -1604,6 +1615,14 @@ function PracticeScreen({
   useEffect(() => {
     stickersRef.current = stickers
   }, [stickers])
+
+  useEffect(() => {
+    const previousStatus = previousSaveStatusRef.current
+    previousSaveStatusRef.current = saveStatus
+    if (Platform.OS !== 'ios' || previousStatus === saveStatus) return
+    if (saveStatus === 'saved' && previousStatus === 'saving') AccessibilityInfo.announceForAccessibility('Drawing saved locally.')
+    if (saveStatus === 'error') AccessibilityInfo.announceForAccessibility('Drawing not saved. Retry available.')
+  }, [saveStatus])
 
   useEffect(() => {
     canvasSizeRef.current = canvasSize
@@ -2329,7 +2348,7 @@ function PracticeScreen({
     stickersRef.current = nextStickers
     setStickers(nextStickers)
     setSelectedStickerId(null)
-    if (removedSticker?.kind === 'image' && removedSticker.uri && !savedStickerUrisRef.current.includes(removedSticker.uri)) void cleanupStoredImageUrisIfUnused([removedSticker.uri])
+    if (removedSticker?.kind === 'image' && removedSticker.uri && !savedStickerUrisRef.current.includes(removedSticker.uri)) cleanupStoredImageUrisIfUnusedBestEffort([removedSticker.uri])
   }, [selectedStickerId, stickers])
 
   const savePracticeImage = useCallback(async () => {

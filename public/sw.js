@@ -8,7 +8,9 @@ const EMBEDDED_BUILD_ID = '__TRACEBUDDY_BUILD_ID__'
 const LOCAL_TEST_BUILD_ID = new URL(self.location.href).searchParams.get('build')?.replace(/[^a-zA-Z0-9_-]/g, '')
 const IS_LOCAL_TEST_HOST = self.location.hostname === '127.0.0.1' || self.location.hostname === 'localhost'
 const BUILD_ID = IS_LOCAL_TEST_HOST && LOCAL_TEST_BUILD_ID?.startsWith('offline-upgrade-') ? LOCAL_TEST_BUILD_ID : EMBEDDED_BUILD_ID
+const SHOULD_FAIL_LOCAL_INSTALL = IS_LOCAL_TEST_HOST && new URL(self.location.href).searchParams.get('fail-install') === '1'
 const BUILD_CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`
+const CANDIDATE_CACHE_NAME = `${BUILD_CACHE_NAME}-candidate`
 
 const OFFLINE_HTML = `<!doctype html>
 <html lang="en">
@@ -93,8 +95,8 @@ async function installCompleteAppShell() {
   const viteAssetUrls = [...extractViteAssets(html)]
   if (viteAssetUrls.length === 0) throw new Error('TraceBuddy app-shell assets were not found')
 
-  const cacheName = BUILD_CACHE_NAME
-  const cache = await caches.open(cacheName)
+  await caches.delete(CANDIDATE_CACHE_NAME)
+  const cache = await caches.open(CANDIDATE_CACHE_NAME)
 
   try {
     const shellUrls = [...STATIC_SHELL, ...viteAssetUrls]
@@ -103,26 +105,48 @@ async function installCompleteAppShell() {
       if (!response.ok) throw new Error(`Could not cache ${assetUrl}`)
       return [assetUrl, response]
     }))
+    if (SHOULD_FAIL_LOCAL_INSTALL) {
+      const [firstAssetUrl, firstResponse] = shellResponses[0]
+      await cache.put(firstAssetUrl, firstResponse)
+      throw new Error('Simulated local app-shell install failure')
+    }
     await Promise.all(shellResponses.map(([assetUrl, response]) => cache.put(assetUrl, response)))
     await cache.put('/', htmlResponse)
-    await cache.put(CANDIDATE_CACHE_KEY, new Response(cacheName))
+    await cache.put(CANDIDATE_CACHE_KEY, new Response(BUILD_ID))
   } catch (error) {
-    await caches.delete(cacheName)
+    await caches.delete(CANDIDATE_CACHE_NAME)
     throw error
   }
 }
 
 async function promoteInstalledAppShell() {
   const names = await caches.keys()
-  const nextCacheName = BUILD_CACHE_NAME
-  if (!names.includes(nextCacheName)) throw new Error('The installed TraceBuddy cache is unavailable')
+  if (!names.includes(CANDIDATE_CACHE_NAME)) throw new Error('The installed TraceBuddy candidate cache is unavailable')
+  const candidateCache = await caches.open(CANDIDATE_CACHE_NAME)
+  const candidateMarker = await candidateCache.match(CANDIDATE_CACHE_KEY)
+  if (!candidateMarker || await candidateMarker.text() !== BUILD_ID) throw new Error('The installed TraceBuddy candidate cache is incomplete')
+
+  const nextCacheName = `${BUILD_CACHE_NAME}-ready-${Date.now()}`
   const nextCache = await caches.open(nextCacheName)
-  if (!await nextCache.match(CANDIDATE_CACHE_KEY)) throw new Error('The installed TraceBuddy cache is incomplete')
+
+  try {
+    const candidateRequests = await candidateCache.keys()
+    const shellRequests = candidateRequests.filter((request) => new URL(request.url).pathname !== CANDIDATE_CACHE_KEY)
+    const shellEntries = await Promise.all(shellRequests.map(async (request) => {
+      const response = await candidateCache.match(request)
+      if (!response) throw new Error(`The installed TraceBuddy response is missing: ${request.url}`)
+      return [request, response]
+    }))
+    await Promise.all(shellEntries.map(([request, response]) => nextCache.put(request, response)))
+  } catch (error) {
+    await caches.delete(nextCacheName)
+    throw error
+  }
 
   const previousCacheName = await readCurrentCacheName()
   const metadataCache = await caches.open(CACHE_METADATA)
   await metadataCache.put(CURRENT_CACHE_KEY, new Response(nextCacheName))
-  await nextCache.delete(CANDIDATE_CACHE_KEY)
+  await caches.delete(CANDIDATE_CACHE_NAME)
 
   const retainedNames = new Set([nextCacheName, previousCacheName].filter(Boolean))
   await Promise.all(names

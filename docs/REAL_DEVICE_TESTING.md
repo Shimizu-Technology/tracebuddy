@@ -1,6 +1,6 @@
 # Real-Device Testing Checklist
 
-Automated viewport checks are useful, but TraceBuddy needs real camera testing on actual phones/tablets because camera permissions, HTTPS, Expo Go behavior, stands, lighting, and browser/native camera differences are the core product risks.
+Automated viewport checks are useful, but TraceBuddy needs real camera testing on actual phones/tablets because camera permissions, HTTPS, development/TestFlight build behavior, stands, lighting, and browser/native camera differences are the core product risks.
 
 ## Preflight
 
@@ -163,16 +163,16 @@ Pass if supported browsers keep the screen awake. Note browsers that ignore Wake
 
 Pass if the complete cached app shell loads and a static page never replaces the offline root app. Camera still depends on device/browser permissions and HTTPS context.
 
-## Expo Go mobile app scenarios
+## Native mobile app scenarios
 
-### 1. Expo Go launch
+### 1. Development or TestFlight launch
 
-- Run `npm run mobile:start`.
-- Scan the Expo QR code on a real phone.
+- Install an Expo SDK 56 development build or the latest TraceBuddy TestFlight build. The public App Store version of Expo Go is not compatible with this pinned runtime.
+- For a development build, run Metro from `mobile/` with `npm run start` and open the project from the installed TraceBuddy build.
 - Confirm the picker loads without redbox errors.
 - Confirm category filters and template counts render.
 
-Pass if the app opens quickly and the picker is usable in Expo Go.
+Pass if the app opens quickly and the picker is usable in the installed build.
 
 ### 2. Native built-in tracing
 

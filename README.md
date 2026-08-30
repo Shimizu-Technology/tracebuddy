@@ -1,12 +1,12 @@
 # TraceBuddy
 
-Kid-friendly camera overlay tracing helper built as a mobile-first React/Vite PWA with an Expo Go native mobile MVP.
+Kid-friendly camera overlay tracing helper built as a mobile-first React/Vite PWA with an Expo native mobile app.
 
 ## Why we built it
 
 TraceBuddy came from a simple family use case: build a tracing app with a phone camera so Stassie can trace and draw whatever she wants.
 
-The MVP tests whether a fixed phone/iPad plus camera overlay is good enough before considering heavier native AR work. The Expo app now lets us compare the same idea against a native camera experience in Expo Go.
+The MVP tests whether a fixed phone/iPad plus camera overlay is good enough before considering heavier native AR work. The Expo app now lets us compare the same idea against a native camera experience in a development or TestFlight build.
 
 ## What it does
 
@@ -95,12 +95,13 @@ Camera access on mobile requires HTTPS. Localhost works on desktop for developme
 ```bash
 npm install
 npm --prefix mobile install
-npm run mobile:start
+cd mobile
+eas build --platform ios --profile development
 ```
 
-Scan the QR code with Expo Go on a real phone. If the built-in phone camera says "No usable data found," open Expo Go directly and use its scanner or enter the `exp://...` Metro URL manually. If the phone cannot connect to the local server, run `cd mobile && npm run start -- --tunnel`.
+Install the resulting development build on a registered device, then run `npm run start` in `mobile/` and open the project from that build. The public App Store version of Expo Go does not support this app's pinned Expo SDK 56 runtime. For release-candidate testing, use the latest TraceBuddy TestFlight build instead.
 
-The mobile MVP uses native camera, local image picker, keep-awake, shared built-in templates, and manual overlay controls. AR is not part of the Expo Go MVP.
+The mobile MVP uses native camera, local image picker, keep-awake, shared built-in templates, and manual overlay controls. AR is not part of the native MVP.
 
 ## Verify
 
@@ -152,8 +153,8 @@ Generated files:
 - Deploy to HTTPS for real iPad/phone camera testing
 - Test with a physical stand and real paper
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
-- Test the Expo Go mobile MVP on a real phone over paper and in on-screen practice mode
+- Test a development or TestFlight build on a real phone over paper and in on-screen practice mode
 - Improve uploaded image cleanup after real-device testing
 - Add favorites/recent templates if the larger library needs shortcuts
 - Prototype printable marker-based tracking if plain paper detection is not stable enough
-- Move to an Expo development build only when AR or custom native modules are needed
+- Keep the development-build workflow documented as Expo SDK requirements change

@@ -1,6 +1,6 @@
 # Privacy Notes
 
-TraceBuddy is designed as a local-first tracing helper. The web MVP and Expo Go mobile MVP do not include accounts, a backend, analytics, ads, or cloud uploads.
+TraceBuddy is designed as a local-first tracing helper. The web and native mobile apps do not include accounts, a backend, analytics, ads, or cloud uploads.
 
 ## What the app accesses
 
@@ -12,7 +12,7 @@ TraceBuddy does not record, upload, or transmit camera video. Custom words/phras
 
 ### Uploaded images
 
-Parents can upload or select a local image from the device. The image is read by the browser or Expo app and stays on the device. Web saved-work image data is stored locally in IndexedDB; mobile saved-work images are copied into app-local file storage so Previous Work sessions do not depend on temporary picker URLs.
+Parents can upload or select a local image from the device to trace or add as a practice sticker. The image is read by the browser or Expo app and stays on the device. Web saved-work image data is stored locally in IndexedDB; mobile saved-work images are copied into app-local file storage so Previous Work sessions do not depend on temporary picker URLs.
 
 Optional cleanup modes in the web app also run locally in the browser using canvas processing. TraceBuddy can create a temporary transparent background or line-art version for the overlay, but it does not upload the image, save it to a server, or send it to an AI service. Mobile selected images remain local app files.
 
@@ -53,7 +53,7 @@ Camera and photo-library permissions are controlled by the browser and operating
 
 The web app needs network access to load the deployed site the first time. After the service worker caches the shell, the interface may load offline, but real camera behavior still depends on the browser and permission state.
 
-The Expo Go mobile app needs network access during development to load the JavaScript bundle from the local Expo server. It does not send camera video or selected images to TraceBuddy servers.
+An installed development build needs network access during local development to load the JavaScript bundle from the local Expo server. Production and TestFlight builds bundle the app code. None of these builds send camera video or selected images to TraceBuddy servers.
 
 ## Future AR Trace mode
 
