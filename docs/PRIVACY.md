@@ -41,7 +41,7 @@ The service worker does not cache camera video or uploaded image files.
 
 ### Saved drawings
 
-When a parent or child taps Save image in mobile practice mode, TraceBuddy asks the operating system for permission to add the finished drawing image to the device Photos library. This happens only after the user chooses Save image.
+When a parent or child taps Save image, the web app creates a PNG download in the browser and the mobile app asks the operating system for permission to add the finished drawing to Photos. Worksheet actions use the browser's print/download controls or the operating system's print/share sheet. These actions happen only after the user chooses them; TraceBuddy does not upload the drawing or worksheet. The user controls any destination selected in the system share sheet.
 
 Deleting work inside TraceBuddy removes its saved session and attempts to remove any private uploaded-image file that no other saved work uses. If the browser or operating system interrupts image cleanup, the app reports the incomplete cleanup and Clear local work can be used again to retry. Clearing TraceBuddy's browser data or deleting the mobile app removes remaining private app data. Images already saved to the Photos library must be deleted from Photos separately.
 

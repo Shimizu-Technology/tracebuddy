@@ -33,9 +33,10 @@ This app uses Expo SDK modules that are included in its development and producti
 - `expo-camera` for the live camera preview
 - `expo-image-picker` for local image selection
 - `expo-keep-awake` for tracing sessions
+- `expo-print` and `expo-sharing` for user-initiated worksheet print/PDF export
 - `react-native-svg` for built-in SVG templates, custom word guides, and finger/stylus practice strokes
 
-Native AR anchoring and automatic paper tracking remain deferred. The parent setup coach, portrait/landscape presets, saved alignment, low-distraction child trace view, eight guided lessons, resumable local lesson progress, dynamic word/name guides, private Previous Work, orphaned local-image cleanup, on-screen practice, stickers, and Photos export are implemented locally on the device.
+Native AR anchoring and automatic paper tracking remain deferred. The parent setup coach, portrait/landscape presets, saved alignment, low-distraction child trace view, eight guided lessons, twelve Together activities, worksheet print/PDF sharing, resumable local lesson progress, dynamic word/name guides, private Previous Work, orphaned local-image cleanup, on-screen practice, stickers, and Photos export are implemented locally on the device.
 
 ## TestFlight / EAS build
 

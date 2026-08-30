@@ -21,6 +21,8 @@
     "expo-image-picker": "~56.0.25",
     "expo-keep-awake": "~56.0.3",
     "expo-media-library": "~56.0.11",
+    "expo-print": "~56.0.4",
+    "expo-sharing": "~56.0.26",
     "expo-splash-screen": "~56.0.15",
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",

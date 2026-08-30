@@ -30,6 +30,9 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Local favorites and recent picks for quickly returning to family favorites
 - Eight gentle guided lessons with highlighted new strokes, resumable local progress, and no scores or failure states
 - A handwriting studio for turning a name, word, number, or short family message into an on-screen practice guide
+- Twelve no-score Together activities for family drawing, storytelling, turn-taking, and keepsakes
+- Printable/shareable PDF worksheets in the native app and printable/downloadable SVG worksheets on the web
+- Save finished web practice drawings as PNG keepsakes; save native practice drawings to Photos
 - Local image upload with optional cleanup modes
 - Camera access with `getUserMedia`
 - On-screen coloring/practice mode for finger, stylus, or mouse tracing
@@ -131,6 +134,7 @@ CHECK_URL=http://127.0.0.1:4173 npm run check:offline
 CHECK_URL=http://127.0.0.1:4173 npm run check:discovery
 CHECK_URL=http://127.0.0.1:4173 npm run check:learning
 CHECK_URL=http://127.0.0.1:4173 npm run check:setup
+CHECK_URL=http://127.0.0.1:4173 npm run check:family
 ```
 
 Or against another local port:
@@ -164,6 +168,6 @@ Generated files:
 - Capture real-device notes in `docs/REAL_DEVICE_TESTING.md`
 - Test a development or TestFlight build on a real phone over paper and in on-screen practice mode
 - Expand the guided-learning library after family playtesting shows which instructions and subjects work best
-- Expand family activities and print/export options after family playtesting
+- Refine family activities and worksheet prompts after family playtesting
 - Prototype printable marker-based tracking if plain paper detection is not stable enough
 - Keep the development-build workflow documented as Expo SDK requirements change
