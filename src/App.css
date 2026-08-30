@@ -1971,6 +1971,10 @@ input[type='range'] {
 }
 
 @media (max-width: 430px) {
+  .brand strong {
+    display: none;
+  }
+
   .drawing-grid {
     grid-template-columns: 1fr 1fr;
   }
