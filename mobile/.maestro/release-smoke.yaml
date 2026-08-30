@@ -1,0 +1,30 @@
+appId: com.shimizutechnology.tracebuddy
+name: TraceBuddy release smoke
+---
+- launchApp
+- assertVisible: "Pick a picture, then trace your way."
+- scrollUntilVisible:
+    element:
+      text: "Open family activities"
+    direction: DOWN
+- tapOn: "Open family activities"
+- assertVisible: "Draw, talk, and make a memory together."
+- assertVisible: "Take-Turn Doodle"
+- scrollUntilVisible:
+    element:
+      text: "Guam Memory Map.*"
+    direction: DOWN
+- tapOn: "Guam Memory Map.*"
+- assertVisible: "Guam Memory Map"
+- tapOn: "Practice together"
+- assertVisible: "Guam Outline"
+- assertVisible: "Save drawing image to Photos"
+- tapOn: "Back to picture picker"
+- assertVisible: "Pick a picture, then trace your way."
+- scrollUntilVisible:
+    element:
+      text: "See all guided lessons"
+    direction: DOWN
+- tapOn: "See all guided lessons"
+- assertVisible: "Learn the shapes behind the picture."
+- assertVisible: "Line Control Warm-up.*"

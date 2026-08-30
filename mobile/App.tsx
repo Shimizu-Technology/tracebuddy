@@ -30,6 +30,8 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg'
 import { captureRef } from 'react-native-view-shot'
 
+import { isDismissedPrintSheet } from './printUtils'
+
 import {
   addRecentDrawing,
   buildWorksheetHtml,
@@ -1445,7 +1447,8 @@ function TraceBuddyMobile() {
     worksheetActionInProgressRef.current = true
     try {
       await Print.printAsync({ html: buildWorksheetHtml(drawing, options) })
-    } catch {
+    } catch (error) {
+      if (isDismissedPrintSheet(error, Platform.OS)) return
       Alert.alert('Could not print worksheet', 'Try again in a moment or share the PDF instead.')
     } finally {
       worksheetActionInProgressRef.current = false

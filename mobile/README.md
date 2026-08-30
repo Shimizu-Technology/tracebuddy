@@ -26,6 +26,16 @@ npm run start -- --tunnel
 
 Then open the tunnel URL from the installed development build.
 
+## Simulator release smoke
+
+After installing the development build in a simulator and starting Metro, run the checked-in Maestro flow with that simulator's UDID:
+
+```bash
+MAESTRO_DRIVER_STARTUP_TIMEOUT=180000 maestro --device <SIMULATOR_UDID> test .maestro/release-smoke.yaml
+```
+
+The flow covers the picture picker, a Together activity, on-screen practice, the Photos export control, and guided lessons. Open and cancel one worksheet print sheet manually as well; Apple's print UI is outside the app process and is intentionally kept out of the reusable flow.
+
 ## Scope
 
 This app uses Expo SDK modules that are included in its development and production builds:

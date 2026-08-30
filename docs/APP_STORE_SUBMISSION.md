@@ -63,9 +63,13 @@ Features:
 • Locked canvas by default so little hands can draw without accidentally moving the page
 • Optional pan and zoom for tracing small details
 • Built-in kid-friendly tracing templates
+• Guided lessons that teach pictures one friendly step at a time
+• Family drawing activities for taking turns, telling stories, and making keepsakes
 • Custom word, name, and phrase tracing
 • Marker colors, brush sizes, and pencil, marker, crayon, and paint styles
 • Local photo selection for tracing personal references
+• Previous Work saved privately on the device
+• Printable and shareable tracing worksheets
 • No account, no ads, no analytics, and no cloud uploads
 
 TraceBuddy is designed for parents and children to use together. A parent can pick or upload a guide, set up the camera or practice screen, and let the child trace at their own pace.
@@ -239,13 +243,30 @@ No login is required.
 
 To test TraceBuddy:
 1. Open the app.
-2. Choose any built-in drawing from the picker.
-3. Tap Practice to test the on-screen tracing and coloring canvas.
-4. Tap Camera to test the camera-over-paper tracing workflow.
-5. Camera permission is used only to show the live camera preview behind the tracing guide.
-6. Photo-library permissions are optional and used only to select local images or save a finished drawing to Photos.
+2. Choose any built-in drawing from the picker, or open the Together card to try a family activity.
+3. Choose On-screen practice and open a drawing to test tracing, coloring, autosave, and Save image.
+4. Return to Pictures, choose Camera + paper, and open a drawing to test the parent setup and camera overlay workflow.
+5. Open Learn to try a guided lesson or custom word practice.
+6. Print or share a worksheet from a drawing card or family activity.
+7. Camera permission is used only to show the live camera preview behind the tracing guide.
+8. Photo-library permissions are optional and used only to select local images or save a finished drawing to Photos.
 
 TraceBuddy has no accounts, ads, analytics, backend, cloud uploads, or remote image processing. Camera frames are not recorded. Selected images, custom words, and practice drawings may be saved in private on-device storage for Previous Work until the user deletes them or removes the app.
+```
+
+## Version 1.2 TestFlight notes
+
+```text
+TraceBuddy 1.2 is a major family-focused update:
+
+• 73 reviewed tracing pictures with search, categories, difficulty, favorites, and recent picks
+• Eight gentle guided drawing lessons and custom handwriting practice
+• Twelve no-score Together activities for kids and grown-ups
+• Printable/shareable worksheets and finished-drawing keepsakes
+• A 30-second parent setup coach, saved alignment, and low-distraction child trace mode
+• More reliable local Previous Work, upload cleanup, and offline behavior
+
+Please try Pictures, Learn, Together, camera tracing over paper, on-screen practice, worksheet sharing, and Save image. Everything remains local to the device.
 ```
 
 ## Screenshot requirements
