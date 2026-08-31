@@ -1,50 +1,39 @@
+import { readFileSync } from 'node:fs'
+
 import { drawingCategories, drawings, type DrawingCategoryId } from '../shared/drawings'
 import { revisedTemplateSvgs } from '../shared/revisedTemplates'
 
-const legacyIds = [
-  'curated-flower-head-008', 'curated-cute-crab-056', 'curated-shell-057', 'curated-car-062',
-  'curated-rocket-064', 'curated-kite-070', 'curated-snowflake-080', 'curated-palm-tree-081',
-  'curated-pine-tree-088', 'curated-pumpkin-097', 'curated-airplane-110', 'curated-rose-117',
-  'curated-fish-118', 'curated-flower-120', 'curated-long-stem-flower-257', 'flower',
-  'smiling-star', 'cozy-house', 'friendly-sun', 'butterfly', 'puppy', 'sleepy-cat', 'bunny',
-  'gentle-elephant', 'panda', 'little-duck', 'curly-snail', 'island-turtle', 'friendly-fish',
-  'seahorse', 'starfish', 'happy-crab', 'tiny-whale', 'octopus', 'shell', 'dream-unicorn',
-  'fairy-wand', 'storybook-castle', 'tiny-dragon', 'royal-crown', 'rainbow-cloud', 'rocket-ship',
-  'race-car', 'airplane', 'delivery-truck', 'sailboat', 'scooter', 'abc-practice', 'numbers-123',
-  'big-heart-word', 'name-banner', 'latte-stone', 'palm-island', 'hibiscus', 'proa-canoe',
-  'beach-hut', 'pumpkin', 'snowflake', 'heart-balloons', 'flying-kite', 'birthday-cake',
+const retiredIds = [
+  'curated-kite-070',
+  'curated-fish-118',
+  'curated-flower-120',
+  'curated-long-stem-flower-257',
 ] as const
 
-const addedIds = [
-  'line-paths', 'waves-zigzags', 'loops-spirals', 'easy-tree', 'big-leaf', 'rain-cloud',
-  'baby-dinosaur', 'ladybug', 'jellyfish', 'happy-train', 'guam-outline', 'coconut-crab',
+const approvedUnchangedIds = [
+  'smiling-star',
+  'friendly-sun',
+  'royal-crown',
+  'birthday-cake',
 ] as const
 
-const replacementIds = [
-  'curated-flower-120', 'curated-long-stem-flower-257', 'seahorse', 'shell',
-  'curated-car-062', 'curated-airplane-110', 'curated-kite-070', 'curated-pumpkin-097',
-  'proa-canoe', 'dream-unicorn', 'tiny-dragon', 'abc-practice', 'numbers-123', 'name-banner',
+const inlineApprovedUnchangedIds = [
+  'smiling-star',
+  'friendly-sun',
+  'royal-crown',
+  'birthday-cake',
 ] as const
-
-const repairIds = [
-  'curated-flower-head-008', 'curated-shell-057', 'island-turtle', 'starfish', 'octopus',
-  'delivery-truck', 'scooter', 'snowflake', 'palm-island', 'beach-hut', 'flower', 'butterfly',
-  'gentle-elephant', 'panda', 'curly-snail', 'big-heart-word', 'curated-palm-tree-081',
-  'curated-rose-117', 'curated-fish-118',
-] as const
-
-const revisedLegacyIds = [...replacementIds, ...repairIds]
 
 const expectedCategoryCounts: Record<DrawingCategoryId, number> = {
   starters: 7,
-  nature: 8,
+  nature: 6,
   animals: 10,
-  ocean: 12,
+  ocean: 11,
   magic: 6,
   vehicles: 10,
   letters: 3,
   island: 8,
-  seasonal: 9,
+  seasonal: 8,
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -56,26 +45,40 @@ function sorted(values: readonly string[]) {
 }
 
 function assertExactSet(actual: readonly string[], expected: readonly string[], label: string) {
-  assert(JSON.stringify(sorted(actual)) === JSON.stringify(sorted(expected)), `${label} do not match the ledger`)
+  assert(JSON.stringify(sorted(actual)) === JSON.stringify(sorted(expected)), `${label} do not match the review ledger`)
 }
 
-assert(drawings.length === 73, `Expected 73 drawings, received ${drawings.length}`)
-assertExactSet(drawings.map(({ id }) => id), [...legacyIds, ...addedIds], 'Catalog IDs')
+assert(drawings.length === 69, `Expected 69 drawings, received ${drawings.length}`)
 assert(new Set(drawings.map(({ id }) => id)).size === drawings.length, 'Drawing IDs must be unique')
 assert(new Set(drawings.map(({ name }) => name)).size === drawings.length, 'Drawing names must be unique')
-assertExactSet(Object.keys(revisedTemplateSvgs), [...revisedLegacyIds, ...addedIds], 'Revised SVG IDs')
-assert(legacyIds.filter((id) => !revisedLegacyIds.includes(id as typeof revisedLegacyIds[number])).length === 28, 'Expected 28 unchanged legacy drawings')
+assert(retiredIds.every((id) => !drawings.some((drawing) => drawing.id === id)), 'Retired drawings must not remain discoverable')
+
+const reviewLedger = readFileSync(new URL('../artifacts/drawings/catalog-review.md', import.meta.url), 'utf8')
+for (const { id } of drawings) {
+  const token = `| \`${id}\` |`
+  const matchingRows = reviewLedger.split('\n').filter((line) => line.includes(token))
+  assert(matchingRows.length === 1, `${id} must have exactly one row in the drawing review ledger`)
+  assert(matchingRows[0].includes('pass'), `${id} must have a passing drawing review decision`)
+}
+for (const id of retiredIds) {
+  const token = `| \`${id}\` |`
+  assert(reviewLedger.split(token).length === 2, `${id} must have exactly one retirement row in the drawing review ledger`)
+}
+
+const revisedDrawingIds = drawings
+  .map(({ id }) => id)
+  .filter((id) => !(inlineApprovedUnchangedIds as readonly string[]).includes(id))
+
+assertExactSet(Object.keys(revisedTemplateSvgs), revisedDrawingIds, 'Revised SVG IDs')
 
 const featuredFilter = drawingCategories.find(({ id }) => id === 'curated')
 assert(featuredFilter?.label === 'Featured', 'The curated filter must be displayed as Featured')
-assert(drawings.filter(({ collection }) => collection === 'curated').length === 15, 'Expected 15 Featured drawings')
+assert(drawings.filter(({ collection }) => collection === 'curated').length === 11, 'Expected 11 Featured drawings after consolidation')
 
 for (const [category, expectedCount] of Object.entries(expectedCategoryCounts)) {
   const actualCount = drawings.filter((drawing) => drawing.category === category).length
   assert(actualCount === expectedCount, `${category} should contain ${expectedCount} drawings, received ${actualCount}`)
 }
-
-const revisedIds = new Set<string>([...revisedLegacyIds, ...addedIds])
 
 for (const drawing of drawings) {
   assert(drawing.name.trim().length > 0, `${drawing.id} is missing a name`)
@@ -85,18 +88,21 @@ for (const drawing of drawings) {
   assert(!/<(?:text|image|foreignObject)\b/i.test(drawing.svg), `${drawing.id} contains a disallowed SVG element`)
   assert(!/(?:href|src)=["'](?:https?:|data:|javascript:)/i.test(drawing.svg), `${drawing.id} contains an external or executable reference`)
 
-  if (!revisedIds.has(drawing.id)) continue
+  const revisedSvg = revisedTemplateSvgs[drawing.id as keyof typeof revisedTemplateSvgs]
+  if (revisedSvg) assert(drawing.svg === revisedSvg, `${drawing.id} is not using its reviewed SVG`)
+  if ((approvedUnchangedIds as readonly string[]).includes(drawing.id)) continue
 
-  assert(drawing.svg === revisedTemplateSvgs[drawing.id as keyof typeof revisedTemplateSvgs], `${drawing.id} is not using its revised SVG`)
   assert(drawing.svg.includes('stroke="#18243a"'), `${drawing.id} must use TraceBuddy navy`)
   assert(drawing.svg.includes('stroke-linecap="round"'), `${drawing.id} must use rounded line caps`)
   assert(drawing.svg.includes('stroke-linejoin="round"'), `${drawing.id} must use rounded line joins`)
+  assert(!/fill=["'](?:white|#fff|#ffffff)["']/i.test(drawing.svg), `${drawing.id} must not obscure the camera or paper with a white fill`)
 
   const strokeWidths = [...drawing.svg.matchAll(/(?:^|[\s<])stroke-width\s*=\s*(["'])([\d.]+)\1/g)]
   assert(strokeWidths.length > 0, `${drawing.id} is missing a stroke width`)
   for (const [, , width] of strokeWidths) {
     assert(Number(width) >= 7, `${drawing.id} contains a stroke thinner than 7px`)
+    assert(Number(width) <= 13, `${drawing.id} contains a stroke thicker than 13px`)
   }
 }
 
-console.log('Drawing catalog valid: 73 drawings, 61 preserved IDs, 14 replacements, 19 repairs, 28 unchanged drawings, and 12 additions.')
+console.log('Drawing catalog valid: 69 drawings, 65 revised templates, 4 approved unchanged templates, and 4 retired duplicates.')

@@ -161,7 +161,7 @@ const curatedDrawings: Drawing[] = [
     category: 'seasonal',
     collection: 'curated',
     difficulty: 'Starter',
-    svg: revisedTemplateSvgs['curated-kite-070'],
+    svg: curatedTemplateSvgs.kite070,
   },
   {
     id: 'curated-snowflake-080',
@@ -188,7 +188,7 @@ const curatedDrawings: Drawing[] = [
     category: 'nature',
     collection: 'curated',
     difficulty: 'Medium',
-    svg: curatedTemplateSvgs.pineTree088,
+    svg: revisedTemplateSvgs['curated-pine-tree-088'],
   },
   {
     id: 'curated-pumpkin-097',
@@ -224,7 +224,7 @@ const curatedDrawings: Drawing[] = [
     category: 'ocean',
     collection: 'curated',
     difficulty: 'Medium',
-    svg: revisedTemplateSvgs['curated-fish-118'],
+    svg: curatedTemplateSvgs.cartoonFish118,
   },
   {
     id: 'curated-flower-120',
@@ -233,7 +233,7 @@ const curatedDrawings: Drawing[] = [
     category: 'nature',
     collection: 'curated',
     difficulty: 'Medium',
-    svg: revisedTemplateSvgs['curated-flower-120'],
+    svg: curatedTemplateSvgs.bigFlower120,
   },
   {
     id: 'curated-long-stem-flower-257',
@@ -242,7 +242,7 @@ const curatedDrawings: Drawing[] = [
     category: 'nature',
     collection: 'curated',
     difficulty: 'Starter',
-    svg: revisedTemplateSvgs['curated-long-stem-flower-257'],
+    svg: curatedTemplateSvgs.longStemFlower257,
   },
 ]
 
@@ -699,16 +699,28 @@ const addedDrawings: Drawing[] = [
   { id: 'coconut-crab', name: 'Coconut Crab', theme: 'Island animal', category: 'island', difficulty: 'Medium', svg: revisedTemplateSvgs['coconut-crab'] },
 ]
 
-export const drawings: Drawing[] = [...legacyDrawings, ...addedDrawings].map((drawing) => {
-  const metadata = normalizedLegacyMetadata[drawing.id]
-  const revisedSvg = revisedTemplateSvgs[drawing.id as keyof typeof revisedTemplateSvgs]
+// These concepts were deliberately consolidated in the 2026 catalog review.
+// Saved work stores its own SVG snapshot, so removing them from discovery does
+// not delete or alter a family's existing drawings.
+const retiredDrawingIds = new Set([
+  'curated-kite-070',
+  'curated-fish-118',
+  'curated-flower-120',
+  'curated-long-stem-flower-257',
+])
 
-  return {
-    ...drawing,
-    ...metadata,
-    svg: revisedSvg ?? drawing.svg,
-  }
-})
+export const drawings: Drawing[] = [...legacyDrawings, ...addedDrawings]
+  .filter((drawing) => !retiredDrawingIds.has(drawing.id))
+  .map((drawing) => {
+    const metadata = normalizedLegacyMetadata[drawing.id]
+    const revisedSvg = revisedTemplateSvgs[drawing.id as keyof typeof revisedTemplateSvgs]
+
+    return {
+      ...drawing,
+      ...metadata,
+      svg: revisedSvg ?? drawing.svg,
+    }
+  })
 
 const drawingIds = new Set(drawings.map(({ id }) => id))
 
