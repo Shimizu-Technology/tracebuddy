@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 
-import { drawingCategories, drawings, type DrawingCategoryId } from '../shared/drawings'
+import { drawingById, drawingCategories, drawings, type DrawingCategoryId } from '../shared/drawings'
 import { revisedTemplateSvgs } from '../shared/revisedTemplates'
 
 const retiredIds = [
@@ -55,6 +55,7 @@ assert(drawings.length === 66, `Expected 66 drawings, received ${drawings.length
 assert(new Set(drawings.map(({ id }) => id)).size === drawings.length, 'Drawing IDs must be unique')
 assert(new Set(drawings.map(({ name }) => name)).size === drawings.length, 'Drawing names must be unique')
 assert(retiredIds.every((id) => !drawings.some((drawing) => drawing.id === id)), 'Retired drawings must not remain discoverable')
+assert(retiredIds.every((id) => drawingById(id)?.id === id), 'Retired drawings must remain available for saved-session compatibility')
 
 const reviewLedger = readFileSync(new URL('../artifacts/drawings/catalog-review.md', import.meta.url), 'utf8')
 for (const { id } of drawings) {

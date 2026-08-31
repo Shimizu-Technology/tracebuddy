@@ -6,6 +6,7 @@ import {
   buildWorksheetSvg,
   completeGuidedLesson,
   createTextDrawing,
+  drawingById,
   drawingCategories,
   drawingDifficultyFilters,
   drawingForFamilyActivity,
@@ -455,18 +456,17 @@ function makePracticeSource(drawing: Drawing, uploadedImage: UploadedImageState 
   }
 
   const isCustom = drawing.id.startsWith('custom-text-')
-  const isLibraryDrawing = drawings.some((candidate) => candidate.id === drawing.id)
   return {
     kind: isCustom ? 'custom' : 'drawing',
     drawingId: drawing.id,
     drawingName: drawing.name,
     drawingTheme: drawing.theme,
-    drawingSvg: isLibraryDrawing ? undefined : drawing.svg,
+    drawingSvg: drawing.svg,
   }
 }
 
 function drawingFromPracticeSource(source: PracticeSource) {
-  const libraryDrawing = drawings.find((drawing) => drawing.id === source.drawingId)
+  const libraryDrawing = drawingById(source.drawingId)
   return libraryDrawing ?? {
     id: source.drawingId,
     name: source.drawingName,

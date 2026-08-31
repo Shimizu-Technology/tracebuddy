@@ -700,8 +700,8 @@ const addedDrawings: Drawing[] = [
 ]
 
 // These concepts were deliberately consolidated in the 2026 catalog review.
-// Saved work stores its own SVG snapshot, so removing them from discovery does
-// not delete or alter a family's existing drawings.
+// They remain in the compatibility catalog below so older saved sessions that
+// predate SVG snapshots can still restore the correct guide.
 const retiredDrawingIds = new Set([
   'curated-rocket-064',
   'curated-kite-070',
@@ -712,8 +712,7 @@ const retiredDrawingIds = new Set([
   'curated-long-stem-flower-257',
 ])
 
-export const drawings: Drawing[] = [...legacyDrawings, ...addedDrawings]
-  .filter((drawing) => !retiredDrawingIds.has(drawing.id))
+const compatibilityDrawings: Drawing[] = [...legacyDrawings, ...addedDrawings]
   .map((drawing) => {
     const metadata = normalizedLegacyMetadata[drawing.id]
     const revisedSvg = revisedTemplateSvgs[drawing.id as keyof typeof revisedTemplateSvgs]
@@ -724,6 +723,15 @@ export const drawings: Drawing[] = [...legacyDrawings, ...addedDrawings]
       svg: revisedSvg ?? drawing.svg,
     }
   })
+
+const compatibilityDrawingsById = new Map(compatibilityDrawings.map((drawing) => [drawing.id, drawing]))
+
+export const drawings: Drawing[] = compatibilityDrawings
+  .filter((drawing) => !retiredDrawingIds.has(drawing.id))
+
+export function drawingById(drawingId: string) {
+  return compatibilityDrawingsById.get(drawingId)
+}
 
 const drawingIds = new Set(drawings.map(({ id }) => id))
 
