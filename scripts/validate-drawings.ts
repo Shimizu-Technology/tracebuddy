@@ -4,9 +4,11 @@ import { drawingById, drawingByNameAndTheme, drawingCategories, drawings, type D
 import { revisedTemplateSvgs } from '../shared/revisedTemplates'
 
 const retiredIds = [
+  'curated-cute-crab-056',
   'curated-rocket-064',
   'curated-kite-070',
   'curated-snowflake-080',
+  'curated-palm-tree-081',
   'curated-airplane-110',
   'curated-fish-118',
   'curated-flower-120',
@@ -31,11 +33,11 @@ const expectedCategoryCounts: Record<DrawingCategoryId, number> = {
   starters: 7,
   nature: 6,
   animals: 10,
-  ocean: 11,
+  ocean: 10,
   magic: 6,
   vehicles: 8,
   letters: 3,
-  island: 8,
+  island: 7,
   seasonal: 7,
 }
 
@@ -51,7 +53,7 @@ function assertExactSet(actual: readonly string[], expected: readonly string[], 
   assert(JSON.stringify(sorted(actual)) === JSON.stringify(sorted(expected)), `${label} do not match the review ledger`)
 }
 
-assert(drawings.length === 66, `Expected 66 drawings, received ${drawings.length}`)
+assert(drawings.length === 64, `Expected 64 drawings, received ${drawings.length}`)
 assert(new Set(drawings.map(({ id }) => id)).size === drawings.length, 'Drawing IDs must be unique')
 assert(new Set(drawings.map(({ name }) => name)).size === drawings.length, 'Drawing names must be unique')
 assert(retiredIds.every((id) => !drawings.some((drawing) => drawing.id === id)), 'Retired drawings must not remain discoverable')
@@ -81,7 +83,7 @@ assertExactSet(Object.keys(revisedTemplateSvgs), revisedDrawingIds, 'Revised SVG
 
 const featuredFilter = drawingCategories.find(({ id }) => id === 'curated')
 assert(featuredFilter?.label === 'Featured', 'The curated filter must be displayed as Featured')
-assert(drawings.filter(({ collection }) => collection === 'curated').length === 8, 'Expected 8 Featured drawings after consolidation')
+assert(drawings.filter(({ collection }) => collection === 'curated').length === 6, 'Expected 6 Featured drawings after consolidation')
 
 for (const [category, expectedCount] of Object.entries(expectedCategoryCounts)) {
   const actualCount = drawings.filter((drawing) => drawing.category === category).length
@@ -113,4 +115,4 @@ for (const drawing of drawings) {
   }
 }
 
-console.log('Drawing catalog valid: 66 drawings, 62 revised templates, 4 approved unchanged templates, and 7 retired duplicates.')
+console.log('Drawing catalog valid: 64 drawings, 60 revised templates, 4 approved unchanged templates, and 9 retired duplicates.')

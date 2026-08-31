@@ -26,13 +26,13 @@ try {
   await clickByText(page, 'Pick a picture')
   await waitForSelector(page, '.picker-screen')
 
-  assert(await page.$$eval('[data-drawing-id]', (cards) => cards.length) === 66, 'The unfiltered picker should show all 66 templates')
+  assert(await page.$$eval('[data-drawing-id]', (cards) => cards.length) === 64, 'The unfiltered picker should show all 64 templates')
 
   await page.type('.drawing-search input', 'Guam')
   await waitForSelector(page, '[data-drawing-id="guam-outline"]')
   const searchNames = await page.$$eval('[data-drawing-id] .drawing-meta strong', (names) => names.map((name) => name.textContent?.trim()))
   assert(searchNames.includes('Guam Outline'), `Searching Guam did not show Guam Outline: ${searchNames.join(', ')}`)
-  assert(searchNames.length < 66, 'Search did not narrow the template library')
+  assert(searchNames.length < 64, 'Search did not narrow the template library')
 
   await page.click('[data-favorite-button="guam-outline"]')
   await page.click('.favorites-filter')
@@ -59,7 +59,7 @@ try {
   await page.type('.drawing-search input', 'no-such-tracebuddy-picture')
   await waitForSelector(page, '.drawing-empty-state')
   await clickByText(page, 'Show all pictures')
-  await page.waitForFunction(() => document.querySelectorAll('[data-drawing-id]').length === 66)
+  await page.waitForFunction(() => document.querySelectorAll('[data-drawing-id]').length === 64)
 
   await clickByText(page, 'Island')
   await clickByText(page, 'Starter')

@@ -179,7 +179,7 @@ const curatedDrawings: Drawing[] = [
     category: 'island',
     collection: 'curated',
     difficulty: 'Detailed',
-    svg: revisedTemplateSvgs['curated-palm-tree-081'],
+    svg: curatedTemplateSvgs.palmTree081,
   },
   {
     id: 'curated-pine-tree-088',
@@ -703,9 +703,11 @@ const addedDrawings: Drawing[] = [
 // They remain in the compatibility catalog below so older saved sessions that
 // predate SVG snapshots can still restore the correct guide.
 const retiredDrawingIds = new Set([
+  'curated-cute-crab-056',
   'curated-rocket-064',
   'curated-kite-070',
   'curated-snowflake-080',
+  'curated-palm-tree-081',
   'curated-airplane-110',
   'curated-fish-118',
   'curated-flower-120',
