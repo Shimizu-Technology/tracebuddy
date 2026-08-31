@@ -1,6 +1,6 @@
 # Drawing contact sheets
 
-These generated SVGs show the complete 73-item catalog at the two review sizes:
+These generated SVGs show the complete 69-item catalog at the two review sizes:
 
 - `contact-sheet-160.svg` checks gallery-thumbnail recognition.
 - `contact-sheet-420.svg` checks the native tracing canvas.
