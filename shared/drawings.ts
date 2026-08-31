@@ -206,7 +206,7 @@ const curatedDrawings: Drawing[] = [
     category: 'vehicles',
     collection: 'curated',
     difficulty: 'Medium',
-    svg: revisedTemplateSvgs['curated-airplane-110'],
+    svg: curatedTemplateSvgs.propellerAirplane110,
   },
   {
     id: 'curated-rose-117',
@@ -703,7 +703,10 @@ const addedDrawings: Drawing[] = [
 // Saved work stores its own SVG snapshot, so removing them from discovery does
 // not delete or alter a family's existing drawings.
 const retiredDrawingIds = new Set([
+  'curated-rocket-064',
   'curated-kite-070',
+  'curated-snowflake-080',
+  'curated-airplane-110',
   'curated-fish-118',
   'curated-flower-120',
   'curated-long-stem-flower-257',
