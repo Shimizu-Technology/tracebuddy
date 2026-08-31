@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs'
 
-import { drawingCategories, drawings, type DrawingCategoryId } from '../shared/drawings'
+import { drawingById, drawingByNameAndTheme, drawingCategories, drawings, type DrawingCategoryId } from '../shared/drawings'
 import { revisedTemplateSvgs } from '../shared/revisedTemplates'
 
 const retiredIds = [
+  'curated-rocket-064',
   'curated-kite-070',
+  'curated-snowflake-080',
+  'curated-airplane-110',
   'curated-fish-118',
   'curated-flower-120',
   'curated-long-stem-flower-257',
@@ -30,10 +33,10 @@ const expectedCategoryCounts: Record<DrawingCategoryId, number> = {
   animals: 10,
   ocean: 11,
   magic: 6,
-  vehicles: 10,
+  vehicles: 8,
   letters: 3,
   island: 8,
-  seasonal: 8,
+  seasonal: 7,
 }
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -48,10 +51,15 @@ function assertExactSet(actual: readonly string[], expected: readonly string[], 
   assert(JSON.stringify(sorted(actual)) === JSON.stringify(sorted(expected)), `${label} do not match the review ledger`)
 }
 
-assert(drawings.length === 69, `Expected 69 drawings, received ${drawings.length}`)
+assert(drawings.length === 66, `Expected 66 drawings, received ${drawings.length}`)
 assert(new Set(drawings.map(({ id }) => id)).size === drawings.length, 'Drawing IDs must be unique')
 assert(new Set(drawings.map(({ name }) => name)).size === drawings.length, 'Drawing names must be unique')
 assert(retiredIds.every((id) => !drawings.some((drawing) => drawing.id === id)), 'Retired drawings must not remain discoverable')
+assert(retiredIds.every((id) => drawingById(id)?.id === id), 'Retired drawings must remain available for saved-session compatibility')
+assert(retiredIds.every((id) => {
+  const drawing = drawingById(id)
+  return drawing && drawingByNameAndTheme(drawing.name, drawing.theme)?.id === id
+}), 'Retired drawings must remain available to name-and-theme legacy migrations')
 
 const reviewLedger = readFileSync(new URL('../artifacts/drawings/catalog-review.md', import.meta.url), 'utf8')
 for (const { id } of drawings) {
@@ -73,7 +81,7 @@ assertExactSet(Object.keys(revisedTemplateSvgs), revisedDrawingIds, 'Revised SVG
 
 const featuredFilter = drawingCategories.find(({ id }) => id === 'curated')
 assert(featuredFilter?.label === 'Featured', 'The curated filter must be displayed as Featured')
-assert(drawings.filter(({ collection }) => collection === 'curated').length === 11, 'Expected 11 Featured drawings after consolidation')
+assert(drawings.filter(({ collection }) => collection === 'curated').length === 8, 'Expected 8 Featured drawings after consolidation')
 
 for (const [category, expectedCount] of Object.entries(expectedCategoryCounts)) {
   const actualCount = drawings.filter((drawing) => drawing.category === category).length
@@ -105,4 +113,4 @@ for (const drawing of drawings) {
   }
 }
 
-console.log('Drawing catalog valid: 69 drawings, 65 revised templates, 4 approved unchanged templates, and 4 retired duplicates.')
+console.log('Drawing catalog valid: 66 drawings, 62 revised templates, 4 approved unchanged templates, and 7 retired duplicates.')

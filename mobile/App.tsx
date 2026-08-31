@@ -36,6 +36,7 @@ import {
   addRecentDrawing,
   buildWorksheetHtml,
   createTextDrawing,
+  drawingById,
   drawingCategories,
   drawingDifficultyFilters,
   drawingForFamilyActivity,
@@ -317,18 +318,17 @@ function makePracticeSource(drawing: Drawing, uploadedImage: UploadedImage | nul
   }
 
   const isCustom = drawing.id.startsWith('custom-text-')
-  const isLibraryDrawing = drawings.some((candidate) => candidate.id === drawing.id)
   return {
     kind: isCustom ? 'custom' : 'drawing',
     drawingId: drawing.id,
     drawingName: drawing.name,
     drawingTheme: drawing.theme,
-    drawingSvg: isLibraryDrawing ? undefined : drawing.svg,
+    drawingSvg: drawing.svg,
   }
 }
 
 function drawingFromPracticeSource(source: PracticeSource) {
-  const libraryDrawing = drawings.find((drawing) => drawing.id === source.drawingId)
+  const libraryDrawing = drawingById(source.drawingId)
   const drawing = libraryDrawing ?? {
     id: source.drawingId,
     name: source.drawingName,
@@ -413,7 +413,7 @@ function scaleLegacyPracticeStroke(stroke: PracticeStroke, scaleX: number, scale
 }
 
 function legacyPracticeSource(drawingId: string, drawingName: string, storageKey: string): PracticeSource {
-  const libraryDrawing = !isLegacyUploadAutosaveKey(storageKey) ? drawings.find((drawing) => drawing.id === drawingId) : null
+  const libraryDrawing = !isLegacyUploadAutosaveKey(storageKey) ? drawingById(drawingId) : null
   if (libraryDrawing) return makePracticeSource(libraryDrawing, null)
 
   const customDrawing = createTextDrawing(drawingName)
