@@ -733,6 +733,10 @@ export function drawingById(drawingId: string) {
   return compatibilityDrawingsById.get(drawingId)
 }
 
+export function drawingByNameAndTheme(name: string, theme: string) {
+  return compatibilityDrawings.find((drawing) => drawing.name === name && drawing.theme === theme)
+}
+
 const drawingIds = new Set(drawings.map(({ id }) => id))
 
 export const emptyDrawingPreferences: DrawingPreferences = {

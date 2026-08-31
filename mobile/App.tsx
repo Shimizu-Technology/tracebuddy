@@ -413,7 +413,7 @@ function scaleLegacyPracticeStroke(stroke: PracticeStroke, scaleX: number, scale
 }
 
 function legacyPracticeSource(drawingId: string, drawingName: string, storageKey: string): PracticeSource {
-  const libraryDrawing = !isLegacyUploadAutosaveKey(storageKey) ? drawings.find((drawing) => drawing.id === drawingId) : null
+  const libraryDrawing = !isLegacyUploadAutosaveKey(storageKey) ? drawingById(drawingId) : null
   if (libraryDrawing) return makePracticeSource(libraryDrawing, null)
 
   const customDrawing = createTextDrawing(drawingName)

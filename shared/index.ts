@@ -1,5 +1,5 @@
 export type { Drawing, DrawingCategoryId, DrawingCollectionId, DrawingDifficulty, DrawingDifficultyFilter, DrawingDiscoveryFilters, DrawingFilterId, DrawingPreferences } from './drawings'
-export { addRecentDrawing, createTextDrawing, drawingById, drawingCategories, drawingDifficultyFilters, drawings, drawingsFromIds, emptyDrawingPreferences, filterDrawings, normalizeDrawingPreferences, sanitizeTraceText, toggleFavoriteDrawing } from './drawings'
+export { addRecentDrawing, createTextDrawing, drawingById, drawingByNameAndTheme, drawingCategories, drawingDifficultyFilters, drawings, drawingsFromIds, emptyDrawingPreferences, filterDrawings, normalizeDrawingPreferences, sanitizeTraceText, toggleFavoriteDrawing } from './drawings'
 export type { FamilyActivity, FamilyActivityTone } from './familyActivities'
 export { drawingForFamilyActivity, familyActivities } from './familyActivities'
 export type { GuidedLesson, GuidedLessonStep, LearningProgress } from './lessons'

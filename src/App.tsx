@@ -7,6 +7,7 @@ import {
   completeGuidedLesson,
   createTextDrawing,
   drawingById,
+  drawingByNameAndTheme,
   drawingCategories,
   drawingDifficultyFilters,
   drawingForFamilyActivity,
@@ -491,7 +492,7 @@ function legacyPracticeSessionId(storageKey: string) {
 }
 
 function legacyPracticeSource(pictureName: string, pictureTheme: string, storageKey: string): PracticeSource {
-  const libraryDrawing = drawings.find((drawing) => drawing.name === pictureName && drawing.theme === pictureTheme)
+  const libraryDrawing = drawingByNameAndTheme(pictureName, pictureTheme)
   if (libraryDrawing) return makePracticeSource(libraryDrawing, null)
 
   const customDrawing = createTextDrawing(pictureName)
