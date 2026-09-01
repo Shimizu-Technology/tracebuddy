@@ -1,6 +1,6 @@
 # Drawing catalog review
 
-Reviewed at both 160 × 160 picker size and 420 × 420 tracing size. A pass requires a readable silhouette, rounded TraceBuddy strokes, safe canvas margins, no accidental line collisions, and a traceable amount of detail. The nine retired entries remain valid saved-work IDs but no longer appear in the picker.
+Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size in September 2026. A pass requires a readable silhouette, rounded TraceBuddy strokes, safe canvas margins, no accidental line collisions, and a traceable amount of detail. The nine retired entries remain valid saved-work IDs but no longer appear in the picker.
 
 | Prior catalog position | Drawing ID | Decision | Review note |
 |---:|---|---|---|
@@ -29,11 +29,11 @@ Reviewed at both 160 × 160 picker size and 420 × 420 tracing size. A pass requ
 | 28 | `happy-crab` | Redrawn — pass | Eyestalks, two large open pincers, body shell, face, and separated legs form a complete crab. |
 | 29 | `tiny-whale` | Redrawn — pass | Broad whale body, two-part tail fluke, fin, face, blowhole, and three-part spout are cleanly separated. |
 | 30 | `octopus` | Redrawn — pass | Rounded head and eight individually spaced, non-crossing arms replace the tangled strand bundle. |
-| 31 | `shell` | Redrawn — pass | Nautilus-style outer shell, center spiral, lip, and evenly spaced ribs stay open and traceable. |
+| 31 | `shell` | Redrawn — pass | Nautilus-style outer shell, open center spiral, and two restrained chamber guides stay clear at thumbnail size. |
 | 32 | `dream-unicorn` | Redrawn — pass | Graceful pony profile adds a long horn, ear, layered mane, grounded legs, eye, and muzzle. |
 | 33 | `fairy-wand` | Redrawn — pass | Centered star and diagonal handle with balanced sparkles. |
 | 34 | `storybook-castle` | Redrawn — pass | Three aligned towers, centered door, and no intersecting rooms. |
-| 35 | `tiny-dragon` | Redrawn — pass | Full side profile has a snout, horns, two open wings, tail, feet, and a readable face. |
+| 35 | `tiny-dragon` | Redrawn — pass | Full front-facing character has horns, ears, two open wings, a round body, feet, and a curled tail. |
 | 36 | `royal-crown` | Retained — pass | Existing crown is centered, open, and easy to trace. |
 | 37 | `rainbow-cloud` | Redrawn — pass | Three centered rainbow bands meet a balanced cloud without crowding or drifting off-center. |
 | 38 | `rocket-ship` | Redrawn — pass | The single remaining rocket uses a centered capsule, window, fins, bands, and open flame. |
@@ -62,7 +62,7 @@ Reviewed at both 160 × 160 picker size and 420 × 420 tracing size. A pass requ
 | 61 | `easy-tree` | Redrawn — pass | Centered canopy, trunk, and branches use a small number of clean paths. |
 | 62 | `big-leaf` | Redrawn — pass | Strong outer contour with an even stem and vein pattern. |
 | 63 | `rain-cloud` | Redrawn — pass | Open cloud silhouette and four evenly spaced rain lines. |
-| 64 | `baby-dinosaur` | Redrawn — pass | Friendly stegosaurus profile has a pointed tail, a clear row of back plates, a face, and two grounded feet. |
+| 64 | `baby-dinosaur` | Redrawn — pass | Friendly long-neck profile has an unmistakable raised head, spotted body, tapered tail, and grounded legs. |
 | 65 | `ladybug` | Redrawn — pass | Separate head, symmetric shell, center line, spots, antennae, and six legs complete the insect. |
 | 66 | `jellyfish` | Redrawn — pass | Simple bell, four scallops, and four untangled tentacles. |
 | 67 | `happy-train` | Redrawn — pass | Recognizable steam engine has a cab, boiler, chimney, steam puff, cowcatcher, and unobstructed wheels. |
@@ -83,4 +83,8 @@ Reviewed at both 160 × 160 picker size and 420 × 420 tracing size. A pass requ
 | `curated-flower-120` | Redundant flower with hairline imported strokes. |
 | `curated-long-stem-flower-257` | Redundant daisy with hairline imported strokes. |
 
-The Guam source is the U.S. Census Bureau’s 2024 1:500,000 state cartographic boundary file: <https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_state_500k.zip>.
+Reference checks used Guampedia’s traditional proa overview, Joel Sartore’s coconut-crab photography, and the U.S. Census Bureau’s 2024 1:500,000 Guam boundary file. The drawings are original simplified tracing geometry rather than copied source artwork.
+
+- Proa reference: <https://www.guampedia.com/proa-and-navigation/>
+- Coconut-crab reference: <https://www.joelsartore.com/inv002-00472/>
+- Guam boundary source: <https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_state_500k.zip>
