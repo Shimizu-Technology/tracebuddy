@@ -30,7 +30,7 @@ Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size i
 | 29 | `tiny-whale` | Redrawn — pass | Broad whale body, two-part tail fluke, fin, face, blowhole, and three-part spout are cleanly separated. |
 | 30 | `octopus` | Redrawn — pass | A wide rounded head and eight separately spaced outward-curving arms replace the tangled strand bundle and stay distinct from the jellyfish. |
 | 31 | `shell` | Redrawn — pass | Nautilus-style outer shell, open center spiral, and two restrained chamber guides stay clear at thumbnail size. |
-| 32 | `dream-unicorn` | Redrawn — pass | Shorter neck, larger pony body, long horn, layered mane and tail, and four grounded legs remain readable at picker size. |
+| 32 | `dream-unicorn` | Redrawn — pass | Shorter neck, larger pony body, long horn, layered mane and tail, and two visible grounded legs remain readable in side profile at picker size. |
 | 33 | `fairy-wand` | Redrawn — pass | Centered star and diagonal handle with balanced sparkles. |
 | 34 | `storybook-castle` | Redrawn — pass | Three aligned towers, centered door, and no intersecting rooms. |
 | 35 | `tiny-dragon` | Redrawn — pass | The side-profile hatchling has horns, a clear wing, four grounded legs, and a curled tail, avoiding the former winged-cat silhouette. |
