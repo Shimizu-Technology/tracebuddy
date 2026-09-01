@@ -33,7 +33,7 @@ Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size i
 | 32 | `dream-unicorn` | Redrawn — pass | Shorter neck, larger pony body, long horn, layered mane and tail, and two visible grounded legs remain readable in side profile at picker size. |
 | 33 | `fairy-wand` | Redrawn — pass | Centered star and diagonal handle with balanced sparkles. |
 | 34 | `storybook-castle` | Redrawn — pass | Three aligned towers, centered door, and no intersecting rooms. |
-| 35 | `tiny-dragon` | Redrawn — pass | The side-profile hatchling has horns, a clear wing, four grounded legs, and a curled tail, avoiding the former winged-cat silhouette. |
+| 35 | `tiny-dragon` | Redrawn — pass | The side-profile hatchling has horns, a clear wing, three visible grounded legs, and a curled tail, avoiding the former winged-cat silhouette. |
 | 36 | `royal-crown` | Retained — pass | Existing crown is centered, open, and easy to trace. |
 | 37 | `rainbow-cloud` | Redrawn — pass | Three centered rainbow bands meet a balanced cloud without crowding or drifting off-center. |
 | 38 | `rocket-ship` | Redrawn — pass | The single remaining rocket uses a centered capsule, window, fins, bands, and open flame. |
