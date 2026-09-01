@@ -62,7 +62,7 @@ Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size i
 | 61 | `easy-tree` | Redrawn — pass | Centered canopy, trunk, and branches use a small number of clean paths. |
 | 62 | `big-leaf` | Redrawn — pass | Strong outer contour with an even stem and vein pattern. |
 | 63 | `rain-cloud` | Redrawn — pass | Open cloud silhouette and four evenly spaced rain lines. |
-| 64 | `baby-dinosaur` | Redrawn — pass | A larger friendly body, balanced neck and head, spots, tapered tail, and four grounded legs create a clear young sauropod. |
+| 64 | `baby-dinosaur` | Redrawn — pass | A larger friendly body, balanced neck and head, spots, tapered tail, and two visible grounded legs create a clear side-profile young sauropod. |
 | 65 | `ladybug` | Redrawn — pass | Separate head, symmetric shell, center line, spots, antennae, and six legs complete the insect. |
 | 66 | `jellyfish` | Redrawn — pass | Simple bell, four scallops, and four untangled tentacles. |
 | 67 | `happy-train` | Redrawn — pass | Simplified chimney and steam, a clear boiler and cab hierarchy, cowcatcher, and unobstructed wheels form a readable steam engine. |
