@@ -28,6 +28,30 @@ try {
 
   assert(await page.$$eval('[data-drawing-id]', (cards) => cards.length) === 64, 'The unfiltered picker should show all 64 templates')
 
+  async function assertFavoriteControlsClearArtwork(viewportLabel) {
+    const layout = await page.$$eval('[data-drawing-id]', (cards) => cards.map((card) => {
+      const artwork = card.querySelector('img')?.getBoundingClientRect()
+      const favorite = card.querySelector('[data-favorite-button]')?.getBoundingClientRect()
+      if (!artwork || !favorite) return { id: card.getAttribute('data-drawing-id'), missing: true }
+      const overlaps = favorite.left < artwork.right && favorite.right > artwork.left
+        && favorite.top < artwork.bottom && favorite.bottom > artwork.top
+      return {
+        id: card.getAttribute('data-drawing-id'),
+        missing: false,
+        overlaps,
+        width: favorite.width,
+        height: favorite.height,
+      }
+    }))
+    const invalid = layout.filter(({ missing, overlaps, width, height }) => missing || overlaps || width < 44 || height < 44)
+    assert(invalid.length === 0, `${viewportLabel} favorite controls obscure artwork or miss the 44px target: ${JSON.stringify(invalid)}`)
+  }
+
+  await assertFavoriteControlsClearArtwork('Desktop')
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await assertFavoriteControlsClearArtwork('Mobile')
+  await page.setViewport({ width: 1180, height: 900, deviceScaleFactor: 1 })
+
   await page.type('.drawing-search input', 'Guam')
   await waitForSelector(page, '[data-drawing-id="guam-outline"]')
   const searchNames = await page.$$eval('[data-drawing-id] .drawing-meta strong', (names) => names.map((name) => name.textContent?.trim()))

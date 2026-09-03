@@ -2780,20 +2780,20 @@ function PickerScreen({
               </span>
               <span className="difficulty-badge">{drawing.difficulty}</span>
             </button>
-            <button
-              type="button"
-              className={`favorite-button ${favoriteIds.has(drawing.id) ? 'active' : ''}`}
-              aria-label={`${favoriteIds.has(drawing.id) ? 'Remove' : 'Add'} ${drawing.name} ${favoriteIds.has(drawing.id) ? 'from' : 'to'} favorites`}
-              aria-pressed={favoriteIds.has(drawing.id)}
-              data-favorite-button={drawing.id}
-              disabled={drawingPreferencesClearInProgress}
-              onClick={() => onToggleFavorite(drawing.id)}
-            >
-              <span aria-hidden="true">♥</span>
-            </button>
-            <div className="drawing-card-exports" aria-label={`${drawing.name} worksheet actions`}>
+            <div className="drawing-card-exports" aria-label={`${drawing.name} actions`}>
               <button type="button" onClick={() => onPrintDrawing(drawing)}>Print</button>
               <button type="button" onClick={() => onDownloadDrawing(drawing)}>SVG</button>
+              <button
+                type="button"
+                className={`favorite-button ${favoriteIds.has(drawing.id) ? 'active' : ''}`}
+                aria-label={`${favoriteIds.has(drawing.id) ? 'Remove' : 'Add'} ${drawing.name} ${favoriteIds.has(drawing.id) ? 'from' : 'to'} favorites`}
+                aria-pressed={favoriteIds.has(drawing.id)}
+                data-favorite-button={drawing.id}
+                disabled={drawingPreferencesClearInProgress}
+                onClick={() => onToggleFavorite(drawing.id)}
+              >
+                <span aria-hidden="true">♥</span>
+              </button>
             </div>
           </article>
         ))}
