@@ -1701,24 +1701,24 @@ function TraceBuddyMobile() {
                 </View>
                 <Text style={styles.difficultyBadge}>{item.difficulty}</Text>
               </Pressable>
-              <View style={styles.drawingExportRow} accessibilityLabel={`${item.name} worksheet actions`}>
+              <View style={styles.drawingExportRow} accessibilityLabel={`${item.name} actions`}>
                 <Pressable style={styles.drawingExportButton} onPress={() => { void printDrawingWorksheet(item) }} accessibilityRole="button" accessibilityLabel={`Print ${item.name} worksheet`}>
                   <Text style={styles.drawingExportButtonText}>Print</Text>
                 </Pressable>
                 <Pressable style={styles.drawingExportButton} onPress={() => { void shareDrawingWorksheet(item) }} accessibilityRole="button" accessibilityLabel={`Share ${item.name} worksheet PDF`}>
                   <Text style={styles.drawingExportButtonText}>PDF</Text>
                 </Pressable>
+                <Pressable
+                  style={[styles.favoriteButton, favoriteIds.has(item.id) && styles.favoriteButtonActive]}
+                  disabled={drawingPreferencesClearInProgress}
+                  onPress={() => toggleFavorite(item.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: favoriteIds.has(item.id) }}
+                  accessibilityLabel={`${favoriteIds.has(item.id) ? 'Remove' : 'Add'} ${item.name} ${favoriteIds.has(item.id) ? 'from' : 'to'} favorites`}
+                >
+                  <Text style={[styles.favoriteButtonText, favoriteIds.has(item.id) && styles.favoriteButtonTextActive]}>♥</Text>
+                </Pressable>
               </View>
-              <Pressable
-                style={[styles.favoriteButton, favoriteIds.has(item.id) && styles.favoriteButtonActive]}
-                disabled={drawingPreferencesClearInProgress}
-                onPress={() => toggleFavorite(item.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: favoriteIds.has(item.id) }}
-                accessibilityLabel={`${favoriteIds.has(item.id) ? 'Remove' : 'Add'} ${item.name} ${favoriteIds.has(item.id) ? 'from' : 'to'} favorites`}
-              >
-                <Text style={[styles.favoriteButtonText, favoriteIds.has(item.id) && styles.favoriteButtonTextActive]}>♥</Text>
-              </Pressable>
             </View>
           )}
         />
@@ -4186,11 +4186,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFDF8',
   },
   favoriteButton: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: palette.border,
@@ -4198,10 +4195,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: palette.ink,
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   favoriteButtonActive: {
     borderColor: 'rgba(201,65,81,0.35)',

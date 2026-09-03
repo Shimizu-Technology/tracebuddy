@@ -28,6 +28,63 @@ try {
 
   assert(await page.$$eval('[data-drawing-id]', (cards) => cards.length) === 64, 'The unfiltered picker should show all 64 templates')
 
+  const drawingsTouchingCanvasEdge = await page.$$eval('[data-drawing-id]', async (cards) => {
+    const failures = []
+    for (const card of cards) {
+      const image = card.querySelector('img')
+      if (!image) {
+        failures.push(card.getAttribute('data-drawing-id'))
+        continue
+      }
+      if (!image.complete) await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = 420
+      canvas.height = 420
+      const context = canvas.getContext('2d')
+      context?.drawImage(image, 0, 0, 420, 420)
+      const pixels = context?.getImageData(0, 0, 420, 420).data
+      if (!pixels) {
+        failures.push(card.getAttribute('data-drawing-id'))
+        continue
+      }
+      const safetyEdges = [0, 1, 418, 419]
+      const edgeHasInk = Array.from({ length: 420 }, (_, offset) => offset).some((offset) => (
+        safetyEdges.some((edge) => {
+          const horizontal = (((edge * 420) + offset) * 4) + 3
+          const vertical = (((offset * 420) + edge) * 4) + 3
+          return pixels[horizontal] > 0 || pixels[vertical] > 0
+        })
+      ))
+      if (edgeHasInk) failures.push(card.getAttribute('data-drawing-id'))
+    }
+    return failures
+  })
+  assert(drawingsTouchingCanvasEdge.length === 0, `Drawings touch the canvas edge: ${drawingsTouchingCanvasEdge.join(', ')}`)
+
+  async function assertFavoriteControlsClearArtwork(viewportLabel) {
+    const layout = await page.$$eval('[data-drawing-id]', (cards) => cards.map((card) => {
+      const artwork = card.querySelector('img')?.getBoundingClientRect()
+      const favorite = card.querySelector('[data-favorite-button]')?.getBoundingClientRect()
+      if (!artwork || !favorite) return { id: card.getAttribute('data-drawing-id'), missing: true }
+      const overlaps = favorite.left < artwork.right && favorite.right > artwork.left
+        && favorite.top < artwork.bottom && favorite.bottom > artwork.top
+      return {
+        id: card.getAttribute('data-drawing-id'),
+        missing: false,
+        overlaps,
+        width: favorite.width,
+        height: favorite.height,
+      }
+    }))
+    const invalid = layout.filter(({ missing, overlaps, width, height }) => missing || overlaps || width < 44 || height < 44)
+    assert(invalid.length === 0, `${viewportLabel} favorite controls obscure artwork or miss the 44px target: ${JSON.stringify(invalid)}`)
+  }
+
+  await assertFavoriteControlsClearArtwork('Desktop')
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  await assertFavoriteControlsClearArtwork('Mobile')
+  await page.setViewport({ width: 1180, height: 900, deviceScaleFactor: 1 })
+
   await page.type('.drawing-search input', 'Guam')
   await waitForSelector(page, '[data-drawing-id="guam-outline"]')
   const searchNames = await page.$$eval('[data-drawing-id] .drawing-meta strong', (names) => names.map((name) => name.textContent?.trim()))
