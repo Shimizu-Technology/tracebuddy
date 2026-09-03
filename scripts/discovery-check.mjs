@@ -47,13 +47,14 @@ try {
         failures.push(card.getAttribute('data-drawing-id'))
         continue
       }
-      const edgeHasInk = Array.from({ length: 420 }, (_, offset) => offset).some((offset) => {
-        const top = ((420 + offset) * 4) + 3
-        const bottom = (((418 * 420) + offset) * 4) + 3
-        const left = (((offset * 420) + 1) * 4) + 3
-        const right = (((offset * 420) + 418) * 4) + 3
-        return pixels[top] > 0 || pixels[bottom] > 0 || pixels[left] > 0 || pixels[right] > 0
-      })
+      const safetyEdges = [0, 1, 418, 419]
+      const edgeHasInk = Array.from({ length: 420 }, (_, offset) => offset).some((offset) => (
+        safetyEdges.some((edge) => {
+          const horizontal = (((edge * 420) + offset) * 4) + 3
+          const vertical = (((offset * 420) + edge) * 4) + 3
+          return pixels[horizontal] > 0 || pixels[vertical] > 0
+        })
+      ))
       if (edgeHasInk) failures.push(card.getAttribute('data-drawing-id'))
     }
     return failures
