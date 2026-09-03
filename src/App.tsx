@@ -2780,9 +2780,9 @@ function PickerScreen({
               </span>
               <span className="difficulty-badge">{drawing.difficulty}</span>
             </button>
-            <div className="drawing-card-exports" aria-label={`${drawing.name} actions`}>
-              <button type="button" onClick={() => onPrintDrawing(drawing)}>Print</button>
-              <button type="button" onClick={() => onDownloadDrawing(drawing)}>SVG</button>
+            <div className="drawing-card-exports" role="group" aria-label={`${drawing.name} actions`}>
+              <button type="button" aria-label={`Print ${drawing.name} worksheet`} onClick={() => onPrintDrawing(drawing)}>Print</button>
+              <button type="button" aria-label={`Download ${drawing.name} worksheet SVG`} onClick={() => onDownloadDrawing(drawing)}>SVG</button>
               <button
                 type="button"
                 className={`favorite-button ${favoriteIds.has(drawing.id) ? 'active' : ''}`}

@@ -28,6 +28,38 @@ try {
 
   assert(await page.$$eval('[data-drawing-id]', (cards) => cards.length) === 64, 'The unfiltered picker should show all 64 templates')
 
+  const drawingsTouchingCanvasEdge = await page.$$eval('[data-drawing-id]', async (cards) => {
+    const failures = []
+    for (const card of cards) {
+      const image = card.querySelector('img')
+      if (!image) {
+        failures.push(card.getAttribute('data-drawing-id'))
+        continue
+      }
+      if (!image.complete) await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = 420
+      canvas.height = 420
+      const context = canvas.getContext('2d')
+      context?.drawImage(image, 0, 0, 420, 420)
+      const pixels = context?.getImageData(0, 0, 420, 420).data
+      if (!pixels) {
+        failures.push(card.getAttribute('data-drawing-id'))
+        continue
+      }
+      const edgeHasInk = Array.from({ length: 420 }, (_, offset) => offset).some((offset) => {
+        const top = ((420 + offset) * 4) + 3
+        const bottom = (((418 * 420) + offset) * 4) + 3
+        const left = (((offset * 420) + 1) * 4) + 3
+        const right = (((offset * 420) + 418) * 4) + 3
+        return pixels[top] > 0 || pixels[bottom] > 0 || pixels[left] > 0 || pixels[right] > 0
+      })
+      if (edgeHasInk) failures.push(card.getAttribute('data-drawing-id'))
+    }
+    return failures
+  })
+  assert(drawingsTouchingCanvasEdge.length === 0, `Drawings touch the canvas edge: ${drawingsTouchingCanvasEdge.join(', ')}`)
+
   async function assertFavoriteControlsClearArtwork(viewportLabel) {
     const layout = await page.$$eval('[data-drawing-id]', (cards) => cards.map((card) => {
       const artwork = card.querySelector('img')?.getBoundingClientRect()
