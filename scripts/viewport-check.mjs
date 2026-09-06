@@ -57,6 +57,53 @@ async function checkViewport(name, width, height, expectedSelector, action) {
       if (pageErrors.length) console.error(`${name} page errors`, pageErrors)
       throw new Error(`${name} failed its browser checks`)
     }
+    if (name === 'mobile-practice') {
+      const toolbar = await page.$eval('.practice-toolbar-ribbon', (ribbon) => ({
+        clientWidth: ribbon.clientWidth,
+        scrollWidth: ribbon.scrollWidth,
+        advancedOpen: document.querySelector('.practice-toolbar-more')?.hasAttribute('open') ?? true,
+        smallTargets: [...ribbon.querySelectorAll('button, summary')]
+          .filter((element) => {
+            const rect = element.getBoundingClientRect()
+            return rect.width > 0 && rect.height > 0 && (rect.width < 44 || rect.height < 44)
+          })
+          .map((element) => ({ text: element.textContent?.trim(), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })),
+      }))
+      console.log('mobile-practice-toolbar', JSON.stringify(toolbar, null, 2))
+      if (toolbar.scrollWidth > toolbar.clientWidth + 1 || toolbar.advancedOpen || toolbar.smallTargets.length > 0) {
+        throw new Error(`mobile-practice toolbar failed its compact-layout checks: ${JSON.stringify(toolbar)}`)
+      }
+      await page.click('.practice-toolbar-more > summary')
+      const expandedToolbar = await page.$eval('.practice-toolbar-ribbon', (ribbon) => ({
+        clientWidth: ribbon.clientWidth,
+        scrollWidth: ribbon.scrollWidth,
+        advancedOpen: document.querySelector('.practice-toolbar-more')?.hasAttribute('open') ?? false,
+        smallTargets: [...ribbon.querySelectorAll('button, summary')]
+          .filter((element) => {
+            const rect = element.getBoundingClientRect()
+            return rect.width > 0 && rect.height > 0 && (rect.width < 44 || rect.height < 44)
+          }).map((element) => ({ text: element.textContent?.trim(), width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height })),
+      }))
+      if (expandedToolbar.scrollWidth > expandedToolbar.clientWidth + 1 || !expandedToolbar.advancedOpen || expandedToolbar.smallTargets.length > 0) {
+        throw new Error(`expanded mobile-practice toolbar failed its layout checks: ${JSON.stringify(expandedToolbar)}`)
+      }
+    }
+    if (name === 'desktop-practice') {
+      const toolbar = await page.$eval('.practice-toolbar-ribbon', (ribbon) => {
+        const advanced = document.querySelector('.practice-toolbar-more-content')
+        return {
+          clientWidth: ribbon.clientWidth,
+          scrollWidth: ribbon.scrollWidth,
+          advancedOpen: document.querySelector('.practice-toolbar-more')?.hasAttribute('open') ?? false,
+          advancedDisplay: advanced ? getComputedStyle(advanced).display : 'missing',
+          advancedWidth: advanced?.getBoundingClientRect().width ?? 0,
+        }
+      })
+      console.log('desktop-practice-toolbar', JSON.stringify(toolbar, null, 2))
+      if (toolbar.scrollWidth > toolbar.clientWidth + 1 || !toolbar.advancedOpen || toolbar.advancedDisplay === 'none' || toolbar.advancedWidth < 500) {
+        throw new Error(`desktop-practice toolbar failed its expanded-layout checks: ${JSON.stringify(toolbar)}`)
+      }
+    }
   } finally {
     await page.close().catch(() => undefined)
   }
@@ -83,6 +130,16 @@ try {
   await checkViewport('tablet-landscape-trace', 1180, 820, '.trace-screen', (page) => clickByText(page, 'Try camera trace'))
   await checkViewport('desktop-practice', 1440, 1100, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
   await checkViewport('mobile-practice', 390, 950, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
+  await checkViewport('mobile-to-desktop-practice', 390, 950, '.practice-screen', async (page) => {
+    await clickByText(page, 'Practice on screen')
+    await page.setViewport({ width: 1440, height: 1100, deviceScaleFactor: 1, isMobile: true })
+    await page.waitForFunction(() => {
+      const details = document.querySelector('.practice-toolbar-more')
+      const summary = document.querySelector('.practice-toolbar-more > summary')
+      return details?.hasAttribute('open')
+        || (summary && getComputedStyle(summary).display !== 'none' && summary.getBoundingClientRect().height >= 44)
+    })
+  })
   await checkViewport('phone-landscape-practice', 844, 390, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
   await checkViewport('tablet-portrait-practice', 820, 1180, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
   await checkViewport('tablet-landscape-practice', 1180, 820, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))

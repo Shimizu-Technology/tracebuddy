@@ -28,11 +28,29 @@ try {
     localStorage.removeItem('tracebuddy.savedAlignment.v1')
   })
   await page.reload({ waitUntil: 'networkidle0' })
+  await page.evaluate(() => {
+    window.__traceBuddyCameraRequestCount = 0
+    const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+      configurable: true,
+      value: (...args) => {
+        window.__traceBuddyCameraRequestCount += 1
+        return originalGetUserMedia(...args)
+      },
+    })
+  })
   await clickByText(page, 'Try camera trace')
   await waitForSelector(page, '.setup-coach-backdrop')
+  assert(await page.evaluate(() => window.__traceBuddyCameraRequestCount) === 0, 'Camera permission was requested before the parent setup appeared')
 
   await page.keyboard.press('Escape')
   await page.waitForSelector('.setup-coach-backdrop', { hidden: true })
+  await page.waitForFunction(() => window.__traceBuddyCameraRequestCount === 1)
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert(
+    await page.evaluate(() => window.__traceBuddyCameraRequestCount) === 1,
+    'Camera permission was requested more than once after the parent setup closed',
+  )
   await clickByText(page, 'Parent setup')
   await waitForSelector(page, '.setup-coach-backdrop')
   await page.$eval('.setup-coach-backdrop', (backdrop) => backdrop.click())

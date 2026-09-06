@@ -831,6 +831,7 @@ function TraceBuddyMobile() {
   const [selectedLesson, setSelectedLesson] = useState<GuidedLesson>(guidedLessons[0])
   const [savedAlignment, setSavedAlignment] = useState<TraceAlignment | null>(null)
   const [setupCoachOpen, setSetupCoachOpen] = useState(false)
+  const [cameraPromptAllowed, setCameraPromptAllowed] = useState(false)
   const [setupChecks, setSetupChecks] = useState({ stable: false, page: false, light: false })
   const [parentSetupHydrated, setParentSetupHydrated] = useState(false)
   const [childTraceMode, setChildTraceMode] = useState(false)
@@ -1010,12 +1011,12 @@ function TraceBuddyMobile() {
   }, [mode])
 
   useEffect(() => {
-    if (mode !== 'trace' || permission?.granted || cameraPromptedRef.current) return
+    if (mode !== 'trace' || !cameraPromptAllowed || permission?.granted || cameraPromptedRef.current) return
     cameraPromptedRef.current = true
     requestPermission().catch(() => {
       // The trace screen renders a retry action if permission fails.
     })
-  }, [mode, permission?.granted, requestPermission])
+  }, [cameraPromptAllowed, mode, permission?.granted, requestPermission])
 
   const resetOverlay = useCallback(() => {
     dragStartRef.current = { x: defaultTransform.x, y: defaultTransform.y, pageX: 0, pageY: 0 }
@@ -1025,17 +1026,29 @@ function TraceBuddyMobile() {
   }, [setOverlayTransform])
 
   const maybeOpenParentSetup = useCallback(() => {
-    if (parentSetupHydrated && !parentSetupSeenRef.current) setSetupCoachOpen(true)
+    if (!parentSetupHydrated) return
+    if (!parentSetupSeenRef.current) {
+      setCameraPromptAllowed(false)
+      setSetupCoachOpen(true)
+      return
+    }
+    setCameraPromptAllowed(true)
   }, [parentSetupHydrated])
 
   useEffect(() => {
-    if (parentSetupHydrated && mode === 'trace' && traceSurface === 'camera' && !parentSetupSeenRef.current) setSetupCoachOpen(true)
-  }, [mode, parentSetupHydrated, traceSurface])
+    if (mode === 'trace' && traceSurface === 'camera') maybeOpenParentSetup()
+  }, [maybeOpenParentSetup, mode, traceSurface])
 
   const finishParentSetup = useCallback(() => {
     parentSetupSeenRef.current = true
     setSetupCoachOpen(false)
+    setCameraPromptAllowed(true)
     void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(parentSetupSeenKey, '1')).catch(() => undefined)
+  }, [])
+
+  const dismissParentSetup = useCallback(() => {
+    setSetupCoachOpen(false)
+    setCameraPromptAllowed(true)
   }, [])
 
   const saveCurrentAlignment = useCallback(() => {
@@ -1353,6 +1366,7 @@ function TraceBuddyMobile() {
               setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
               setLearningProgressMessage('')
               parentSetupSeenRef.current = false
+              setCameraPromptAllowed(false)
               setSavedAlignment(null)
               setChildTraceMode(false)
               setMode('picker')
@@ -1796,8 +1810,8 @@ function TraceBuddyMobile() {
   return (
     <View style={styles.traceShell}>
       <StatusBar style="light" hidden={childTraceMode} />
-      <Modal visible={setupCoachOpen} transparent animationType="fade" onRequestClose={() => setSetupCoachOpen(false)}>
-        <Pressable style={styles.setupCoachBackdrop} onPress={() => setSetupCoachOpen(false)} accessible={false}>
+      <Modal visible={setupCoachOpen} transparent animationType="fade" onRequestClose={dismissParentSetup}>
+        <Pressable style={styles.setupCoachBackdrop} onPress={dismissParentSetup} accessible={false}>
           <ScrollView contentContainerStyle={styles.setupCoachScroll}>
             <Pressable style={styles.setupCoachCard} onPress={(event) => event.stopPropagation()} accessible={false}>
               <Text style={styles.setupCoachTime}>30-SECOND PARENT SETUP</Text>
@@ -1821,7 +1835,7 @@ function TraceBuddyMobile() {
                 </Pressable>
               </View>
               <View style={styles.setupCoachActions}>
-                <Pressable style={styles.setupCoachSecondary} onPress={() => setSetupCoachOpen(false)} accessibilityRole="button"><Text style={styles.setupCoachSecondaryText}>Close for now</Text></Pressable>
+                <Pressable style={styles.setupCoachSecondary} onPress={dismissParentSetup} accessibilityRole="button"><Text style={styles.setupCoachSecondaryText}>Close for now</Text></Pressable>
                 <Pressable style={[styles.setupCoachPrimary, !setupReady && styles.lessonButtonDisabled]} disabled={!setupReady} onPress={finishParentSetup} accessibilityRole="button"><Text style={styles.setupCoachPrimaryText}>Ready to align</Text></Pressable>
               </View>
             </Pressable>

@@ -60,6 +60,8 @@ try {
 
   await clickByText(page, 'Practice this step on screen')
   await waitForSelector(page, '.practice-screen')
+  await page.$eval('.practice-canvas', (canvas) => canvas.scrollIntoView({ block: 'start', behavior: 'instant' }))
+  await new Promise((resolve) => setTimeout(resolve, 100))
   const canvasBox = await page.$eval('.practice-canvas', (canvas) => {
     const rect = canvas.getBoundingClientRect()
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
@@ -68,13 +70,15 @@ try {
   await page.mouse.down()
   await page.mouse.move(canvasBox.x + canvasBox.width * 0.55, canvasBox.y + canvasBox.height * 0.55, { steps: 8 })
   await page.mouse.up()
+  const guidedStrokeCount = await page.$$eval('.practice-ink path', (paths) => paths.length)
+  assert(guidedStrokeCount > 0, `Guided practice did not record a stroke: ${JSON.stringify(canvasBox)}`)
   await clickByText(page, 'Pictures')
   await waitForSelector(page, '.picker-screen')
   const storedGuidedSource = await page.evaluate(() => Object.keys(localStorage)
     .filter((key) => key.startsWith('tracebuddy.previousWork.v1.session.'))
     .map((key) => JSON.parse(localStorage.getItem(key) || 'null')?.source)
     .find((source) => source?.drawingId?.startsWith('lesson-line-control-step-')))
-  assert(storedGuidedSource?.drawingSvg?.includes('<svg'), 'Saved guided work did not embed its generated lesson guide')
+  assert(storedGuidedSource?.drawingSvg?.includes('<svg'), `Saved guided work did not embed its generated lesson guide: ${JSON.stringify(storedGuidedSource)}`)
 
   await clickByText(page, 'Learn')
   await waitForSelector(page, '.learning-screen')
