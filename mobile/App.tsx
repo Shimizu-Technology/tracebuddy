@@ -1545,47 +1545,17 @@ function TraceBuddyMobile() {
                 </Pressable>
               </View>
 
-              <View style={styles.learningCallout}>
-                <Text style={styles.learningEyebrow}>LEARN, DON’T JUST COPY</Text>
-                <Text style={styles.learningCalloutTitle}>Build a drawing one friendly step at a time.</Text>
-                <Text style={styles.learningCalloutCopy}>Eight short lessons teach lines, curves, and picture-building. There are no scores or wrong answers.</Text>
-                <View style={styles.learningProgressTrack} accessibilityLabel={`${learningProgress.completedLessonIds.length} of ${guidedLessons.length} lessons finished`}>
-                  <View style={[styles.learningProgressFill, { width: `${(learningProgress.completedLessonIds.length / guidedLessons.length) * 100}%` }]} />
-                </View>
-                <Text style={styles.learningProgressText}>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished on this phone</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.learningQuickList}>
-                  {guidedLessons.slice(0, 4).map((lesson) => (
-                    <Pressable key={lesson.id} style={styles.learningQuickCard} onPress={() => openGuidedLesson(lesson)} accessibilityRole="button" accessibilityLabel={`Learn ${lesson.title}, ${lesson.steps.length} steps`}>
-                      <View style={styles.learningQuickPreview}><SvgXml xml={guidedLessonPreviewDrawing(lesson).svg} width="100%" height="100%" /></View>
-                      <Text style={styles.learningQuickTitle} numberOfLines={2}>{lesson.title}</Text>
-                      <Text style={styles.learningQuickMeta}>{lesson.steps.length} steps · {lesson.estimatedMinutes} min</Text>
-                      {learningProgress.completedLessonIds.includes(lesson.id) ? <View style={styles.learningCompleteMark}><Text style={styles.learningCompleteMarkText}>✓</Text></View> : null}
-                    </Pressable>
-                  ))}
-                </ScrollView>
-                <Pressable style={styles.learningAllButton} onPress={() => openGuidedLesson(guidedLessons[0])} accessibilityRole="button">
-                  <Text style={styles.learningAllButtonText}>See all guided lessons</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.familyCallout}>
-                <Text style={styles.familyCalloutEyebrow}>MAKE SOMETHING TOGETHER</Text>
-                <Text style={styles.familyCalloutTitle}>Twelve no-score activities for kids and grown-ups.</Text>
-                <Text style={styles.familyCalloutCopy}>Pass the page, invent a story, map a family memory, or make a small gift. Use paper or the screen.</Text>
-                <Pressable style={styles.familyCalloutButton} onPress={() => setMode('together')} accessibilityRole="button">
-                  <Text style={styles.familyCalloutButtonText}>Open family activities</Text>
-                </Pressable>
-              </View>
-
-              <PreviousWorkSection
-                sessions={previousWorkSessions}
-                disabled={drawingPreferencesClearInProgress}
-                onResume={openPreviousWorkSession}
-                onStartFresh={startFreshFromPreviousWork}
-                onDuplicate={duplicatePreviousWorkSession}
-                onDelete={deletePreviousWork}
-                onDeleteAll={deleteAllPreviousWork}
-              />
+              {previousWorkSessions.length > 0 ? (
+                <PreviousWorkSection
+                  sessions={previousWorkSessions}
+                  disabled={drawingPreferencesClearInProgress}
+                  onResume={openPreviousWorkSession}
+                  onStartFresh={startFreshFromPreviousWork}
+                  onDuplicate={duplicatePreviousWorkSession}
+                  onDelete={deletePreviousWork}
+                  onDeleteAll={deleteAllPreviousWork}
+                />
+              ) : null}
 
               <View style={styles.discoveryPanel}>
                 <View style={styles.discoveryHeading}>
@@ -1680,6 +1650,49 @@ function TraceBuddyMobile() {
               <Pressable style={styles.drawingEmptyButton} onPress={clearDrawingFilters} accessibilityRole="button">
                 <Text style={styles.drawingEmptyButtonText}>Show all pictures</Text>
               </Pressable>
+            </View>
+          )}
+          ListFooterComponent={(
+            <View style={styles.pickerMore} accessibilityLabel="More ways to create">
+              <View style={styles.learningCallout}>
+                <Text style={styles.learningEyebrow}>LEARN, DON’T JUST COPY</Text>
+                <Text style={styles.learningCalloutTitle}>Build a drawing one friendly step at a time.</Text>
+                <Text style={styles.learningCalloutCopy}>Eight short lessons teach lines, curves, and picture-building. There are no scores or wrong answers.</Text>
+                <View style={styles.learningProgressTrack} accessibilityLabel={`${learningProgress.completedLessonIds.length} of ${guidedLessons.length} lessons finished`}>
+                  <View style={[styles.learningProgressFill, { width: `${(learningProgress.completedLessonIds.length / guidedLessons.length) * 100}%` }]} />
+                </View>
+                <Text style={styles.learningProgressText}>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished on this phone</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.learningQuickList}>
+                  {guidedLessons.slice(0, 4).map((lesson) => (
+                    <Pressable key={lesson.id} style={styles.learningQuickCard} onPress={() => openGuidedLesson(lesson)} accessibilityRole="button" accessibilityLabel={`Learn ${lesson.title}, ${lesson.steps.length} steps`}>
+                      <View style={styles.learningQuickPreview}><SvgXml xml={guidedLessonPreviewDrawing(lesson).svg} width="100%" height="100%" /></View>
+                      <Text style={styles.learningQuickTitle} numberOfLines={2}>{lesson.title}</Text>
+                      <Text style={styles.learningQuickMeta}>{lesson.steps.length} steps · {lesson.estimatedMinutes} min</Text>
+                      {learningProgress.completedLessonIds.includes(lesson.id) ? <View style={styles.learningCompleteMark}><Text style={styles.learningCompleteMarkText}>✓</Text></View> : null}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Pressable style={styles.learningAllButton} onPress={() => openGuidedLesson(guidedLessons[0])} accessibilityRole="button">
+                  <Text style={styles.learningAllButtonText}>See all guided lessons</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.familyCallout}>
+                <Text style={styles.familyCalloutEyebrow}>MAKE SOMETHING TOGETHER</Text>
+                <Text style={styles.familyCalloutTitle}>Twelve no-score activities for kids and grown-ups.</Text>
+                <Text style={styles.familyCalloutCopy}>Pass the page, invent a story, map a family memory, or make a small gift. Use paper or the screen.</Text>
+                <Pressable style={styles.familyCalloutButton} onPress={() => setMode('together')} accessibilityRole="button">
+                  <Text style={styles.familyCalloutButtonText}>Open family activities</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.localDataFooter}>
+                <Text style={styles.localDataFooterText}>Favorites, progress, uploads, and drawings stay on this phone.</Text>
+                <Pressable style={styles.localDataFooterButton} disabled={drawingPreferencesClearInProgress} onPress={deleteAllPreviousWork} accessibilityRole="button" accessibilityLabel="Clear all local TraceBuddy work and preferences">
+                  <Text style={styles.localDataFooterButtonText}>{drawingPreferencesClearInProgress ? 'Clearing...' : 'Clear local work'}</Text>
+                </Pressable>
+              </View>
+
             </View>
           )}
           renderItem={({ item }) => (
@@ -2011,6 +2024,21 @@ function FamilyActivitiesScreen({
           <Text style={styles.familyScreenCopy}>Twelve short invitations for kids, siblings, grandparents, and anyone who wants to join. No scores or wrong answers.</Text>
         </View>
 
+        <Text style={styles.familyChooseLabel}>CHOOSE AN ACTIVITY</Text>
+        <Text style={styles.familyChooseHint}>Swipe to find one that feels fun today.</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyActivityGrid} accessibilityLabel="Family activities">
+          {familyActivities.map((candidate) => {
+            const starter = drawingForFamilyActivity(candidate)
+            const selected = candidate.id === activity.id
+            return (
+              <Pressable key={candidate.id} style={[styles.familyActivityCard, selected && styles.familyActivityCardSelected]} onPress={() => { setSelectedId(candidate.id); requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: Math.max(0, featureOffset - 8), animated: true })) }} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${candidate.title}, ${candidate.minutes} minutes, ${candidate.people}`}>
+                <View style={styles.familyActivityPreview}><SvgXml xml={starter.svg} width="100%" height="100%" /></View>
+                <View style={styles.familyActivityCopy}><Text style={styles.familyActivityTitle}>{candidate.title}</Text><Text style={styles.familyActivityMeta}>{candidate.minutes} min · {candidate.people}</Text></View>
+              </Pressable>
+            )
+          })}
+        </ScrollView>
+
         <View style={[styles.familyFeature, toneStyle]} onLayout={(event) => setFeatureOffset(event.nativeEvent.layout.y)}>
           <View style={styles.familyFeaturePreview}><SvgXml xml={drawing.svg} width="100%" height="100%" /></View>
           <Text style={styles.familyInvitation}>{activity.invitation.toUpperCase()}</Text>
@@ -2026,20 +2054,6 @@ function FamilyActivitiesScreen({
             <Pressable style={styles.familySecondaryAction} onPress={() => onPrint(activity)} accessibilityRole="button"><Text style={styles.familySecondaryActionText}>Print worksheet</Text></Pressable>
             <Pressable style={styles.familySecondaryAction} onPress={() => onShare(activity)} accessibilityRole="button"><Text style={styles.familySecondaryActionText}>Share PDF</Text></Pressable>
           </View>
-        </View>
-
-        <Text style={styles.familyChooseLabel}>CHOOSE AN ACTIVITY</Text>
-        <View style={styles.familyActivityGrid}>
-          {familyActivities.map((candidate) => {
-            const starter = drawingForFamilyActivity(candidate)
-            const selected = candidate.id === activity.id
-            return (
-              <Pressable key={candidate.id} style={[styles.familyActivityCard, selected && styles.familyActivityCardSelected]} onPress={() => { setSelectedId(candidate.id); requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: Math.max(0, featureOffset - 8), animated: true })) }} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${candidate.title}, ${candidate.minutes} minutes, ${candidate.people}`}>
-                <View style={styles.familyActivityPreview}><SvgXml xml={starter.svg} width="100%" height="100%" /></View>
-                <View style={styles.familyActivityCopy}><Text style={styles.familyActivityTitle}>{candidate.title}</Text><Text style={styles.familyActivityMeta}>{candidate.minutes} min · {candidate.people}</Text></View>
-              </Pressable>
-            )
-          })}
         </View>
       </ScrollView>
     </View>
@@ -3604,6 +3618,35 @@ const styles = StyleSheet.create({
   pickerContent: {
     paddingHorizontal: 14,
   },
+  pickerMore: {
+    marginTop: 28,
+  },
+  localDataFooter: {
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+    paddingTop: 14,
+  },
+  localDataFooterText: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
+  },
+  localDataFooterButton: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(164,70,50,0.22)',
+    borderRadius: 17,
+    backgroundColor: '#FFF7F3',
+  },
+  localDataFooterButtonText: {
+    color: '#9F3F2E',
+    fontSize: 13,
+    fontWeight: '900',
+  },
   familyCallout: {
     borderWidth: 1,
     borderColor: palette.border,
@@ -3628,7 +3671,7 @@ const styles = StyleSheet.create({
   familyScreenEyebrow: { color: palette.coralDark, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
   familyScreenTitle: { color: palette.ink, fontSize: 35, lineHeight: 37, letterSpacing: -1.5, fontWeight: '900', marginTop: 8 },
   familyScreenCopy: { color: palette.muted, fontSize: 15, lineHeight: 22, marginTop: 8 },
-  familyFeature: { borderWidth: 1, borderColor: palette.border, borderRadius: 30, padding: 16, shadowColor: palette.ink, shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 3 },
+  familyFeature: { marginTop: 14, borderWidth: 1, borderColor: palette.border, borderRadius: 30, padding: 16, shadowColor: palette.ink, shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 3 },
   familyToneCoral: { backgroundColor: '#FFF0EB' },
   familyToneSky: { backgroundColor: '#E9F8FF' },
   familyToneMint: { backgroundColor: '#E8FBF3' },
@@ -3649,9 +3692,10 @@ const styles = StyleSheet.create({
   familyPrimaryActionText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   familySecondaryAction: { minHeight: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border, backgroundColor: 'rgba(255,255,255,0.84)' },
   familySecondaryActionText: { color: palette.ink, fontSize: 14, fontWeight: '900' },
-  familyChooseLabel: { color: palette.coralDark, fontSize: 11, fontWeight: '900', letterSpacing: 1.1, marginTop: 22, marginBottom: 9 },
-  familyActivityGrid: { gap: 9 },
-  familyActivityCard: { minHeight: 108, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 22, padding: 10, backgroundColor: '#FFFFFF' },
+  familyChooseLabel: { color: palette.coralDark, fontSize: 11, fontWeight: '900', letterSpacing: 1.1, marginBottom: 3 },
+  familyChooseHint: { color: palette.muted, fontSize: 13, lineHeight: 18, marginBottom: 9 },
+  familyActivityGrid: { gap: 9, paddingRight: 14 },
+  familyActivityCard: { width: 270, minHeight: 108, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 22, padding: 10, backgroundColor: '#FFFFFF' },
   familyActivityCardSelected: { borderColor: palette.coral, backgroundColor: '#FFF8F0' },
   familyActivityPreview: { width: 82, height: 82, borderRadius: 17, backgroundColor: palette.paper, padding: 5 },
   familyActivityCopy: { flex: 1, gap: 5 },
@@ -3674,7 +3718,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   brandMark: {
     width: 48,
@@ -3693,20 +3737,20 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: palette.ink,
-    fontSize: 35,
-    lineHeight: 36,
-    letterSpacing: -1.6,
+    fontSize: 30,
+    lineHeight: 32,
+    letterSpacing: -1.2,
     fontWeight: '900',
   },
   heroCopy: {
     color: palette.muted,
     fontSize: 15,
-    lineHeight: 22,
-    marginTop: 12,
+    lineHeight: 20,
+    marginTop: 8,
   },
   uploadPill: {
-    minHeight: 78,
-    marginTop: 18,
+    minHeight: 68,
+    marginTop: 12,
     borderRadius: 25,
     borderWidth: 1,
     borderColor: 'rgba(255, 121, 93, 0.28)',
@@ -3731,7 +3775,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   customTextCard: {
-    marginTop: 14,
+    marginTop: 10,
     borderRadius: 25,
     borderWidth: 1,
     borderColor: palette.border,
@@ -3778,11 +3822,11 @@ const styles = StyleSheet.create({
   traceSurfaceSwitch: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 18,
+    marginTop: 12,
   },
   traceSurfaceOption: {
     flex: 1,
-    minHeight: 78,
+    minHeight: 70,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: palette.border,

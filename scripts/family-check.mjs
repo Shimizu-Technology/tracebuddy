@@ -38,6 +38,21 @@ try {
   await page.waitForFunction(() => window.scrollY === 0)
   assert(await page.$$eval('[data-family-activity-id]', (cards) => cards.length) === 12, 'Together library did not render all 12 activities')
 
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  const mobileActivityLayout = await page.evaluate(() => {
+    const library = document.querySelector('.family-library')
+    const feature = document.querySelector('.family-feature')
+    return {
+      libraryTop: library?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY,
+      featureTop: feature?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY,
+      libraryClientWidth: library?.clientWidth ?? 0,
+      libraryScrollWidth: library?.scrollWidth ?? 0,
+    }
+  })
+  assert(mobileActivityLayout.libraryTop < mobileActivityLayout.featureTop, `The mobile activity chooser should appear before the selected activity: ${JSON.stringify(mobileActivityLayout)}`)
+  assert(mobileActivityLayout.libraryScrollWidth > mobileActivityLayout.libraryClientWidth, `The mobile activity chooser should be a compact horizontal rail: ${JSON.stringify(mobileActivityLayout)}`)
+  await page.setViewport({ width: 1180, height: 900, deviceScaleFactor: 1 })
+
   await page.click('[data-family-activity-id="guam-memory-map"]')
   assert(await page.$eval('.family-feature h2', (node) => node.textContent?.trim()) === 'Guam Memory Map', 'Selecting an activity did not update the feature')
   assert(await page.$$eval('.family-feature ol li', (steps) => steps.length) === 3, 'Selected activity did not show three steps')
