@@ -33,6 +33,30 @@ import './App.css'
 
 type AppMode = 'welcome' | 'picker' | 'together' | 'learn' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
+
+const routeByMode: Record<AppMode, string> = {
+  welcome: '#home',
+  picker: '#pictures',
+  together: '#together',
+  learn: '#learn',
+  trace: '#camera',
+  practice: '#practice',
+}
+
+const modeByRoute = Object.fromEntries(Object.entries(routeByMode).map(([mode, route]) => [route, mode])) as Record<string, AppMode>
+
+function modeFromLocation(): AppMode {
+  return modeByRoute[window.location.hash.toLowerCase()] ?? 'welcome'
+}
+
+const modeLabels: Record<AppMode, string> = {
+  welcome: 'Home',
+  picker: 'Pictures',
+  together: 'Together activities',
+  learn: 'Guided learning',
+  trace: 'Camera tracing',
+  practice: 'On-screen practice',
+}
 type CameraStatus = 'idle' | 'starting' | 'ready' | 'blocked' | 'unsupported'
 type Direction = 'up' | 'right' | 'down' | 'left'
 type LocalSaveStatus = 'saved' | 'saving' | 'error'
@@ -1269,7 +1293,9 @@ function assessPaperFrame(canvas: HTMLCanvasElement): { status: 'too-dark' | 'to
 }
 
 function App() {
-  const [mode, setMode] = useState<AppMode>('welcome')
+  const [mode, setMode] = useState<AppMode>(modeFromLocation)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const closeHelp = useCallback(() => setHelpOpen(false), [])
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImageState | null>(null)
   const [uploadedImageGeneration, setUploadedImageGeneration] = useState(0)
@@ -1318,6 +1344,8 @@ function App() {
   const learningProgressRef = useRef(learningProgress)
   const drawingPreferencesClearInProgressRef = useRef(false)
   const previousWorkOperationGenerationRef = useRef(0)
+  const historyReadyRef = useRef(false)
+  const historyNavigationRef = useRef(false)
 
   const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
   const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
@@ -1614,6 +1642,56 @@ function App() {
 
     return () => window.clearTimeout(task)
   }, [mode, releaseWakeLock, requestWakeLock, stopCamera])
+
+  useEffect(() => {
+    const route = routeByMode[mode]
+    if (!historyReadyRef.current) {
+      window.history.replaceState({ traceBuddyMode: mode }, '', route)
+      historyReadyRef.current = true
+    } else if (historyNavigationRef.current) {
+      historyNavigationRef.current = false
+      if (window.location.hash !== route) window.history.replaceState({ traceBuddyMode: mode }, '', route)
+    } else if (window.location.hash !== route) {
+      window.history.pushState({ traceBuddyMode: mode }, '', route)
+    }
+
+    document.title = `${modeLabels[mode]} · TraceBuddy`
+    const focusTask = window.requestAnimationFrame(() => {
+      const heading = document.querySelector<HTMLElement>('.app-screen-heading, .hero-screen h1, .picker-screen h1, .family-screen h1, .learning-screen h1, .trace-screen h1, .practice-screen h1')
+      if (!heading) return
+      heading.tabIndex = -1
+      heading.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(focusTask)
+  }, [mode])
+
+  useEffect(() => {
+    const onPopState = () => {
+      setHelpOpen(false)
+      const targetMode = modeFromLocation()
+      if (targetMode === modeRef.current) return
+      const currentMode = modeRef.current
+      const applyHistoryNavigation = () => {
+        historyNavigationRef.current = true
+        setMode(targetMode)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+      const saveHandler = currentMode === 'practice' ? practiceSaveHandlerRef.current : null
+      if (!saveHandler) {
+        applyHistoryNavigation()
+        return
+      }
+      void saveHandler().then((saved) => {
+        if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Leave this drawing without saving them?')) {
+          applyHistoryNavigation()
+        } else {
+          window.history.pushState({ traceBuddyMode: currentMode }, '', routeByMode[currentMode])
+        }
+      })
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   const startCameraAfterSetup = useCallback(() => {
     if (modeRef.current !== 'trace' || cameraMayStartRef.current) return
@@ -2180,8 +2258,20 @@ function App() {
           <button className={mode === 'learn' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('learn'))} aria-current={mode === 'learn' ? 'page' : undefined}>Learn</button>
           <button className={mode === 'trace' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openTrace())} aria-current={mode === 'trace' ? 'page' : undefined}>Camera</button>
           <button className={mode === 'practice' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openPractice())} aria-current={mode === 'practice' ? 'page' : undefined}>Practice</button>
+          <button className="topbar-help" type="button" onClick={() => setHelpOpen(true)}>Help</button>
         </nav>
       </header>
+
+      <p className="sr-only" aria-live="polite">{modeLabels[mode]} screen</p>
+
+      {helpOpen && (
+        <ParentHelpDialog
+          onClose={closeHelp}
+          onPictures={() => navigateWithPracticeFlush(() => setMode('picker'))}
+          onPractice={() => navigateWithPracticeFlush(() => openPractice())}
+          onCamera={() => navigateWithPracticeFlush(() => openTrace())}
+        />
+      )}
 
       {mode === 'welcome' && <WelcomeScreen onStart={() => setMode('picker')} onTogether={openTogether} onLearn={() => setMode('learn')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
       {mode === 'picker' && (
@@ -2293,6 +2383,97 @@ function App() {
         />
       )}
     </main>
+  )
+}
+
+function ParentHelpDialog({
+  onClose,
+  onPictures,
+  onPractice,
+  onCamera,
+}: {
+  onClose: () => void
+  onPictures: () => void
+  onPractice: () => void
+  onCamera: () => void
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const backgroundElements = [
+      document.querySelector<HTMLElement>('.topbar'),
+      document.querySelector<HTMLElement>('.app-shell > section'),
+    ].filter((element): element is HTMLElement => Boolean(element))
+    backgroundElements.forEach((element) => { element.inert = true })
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const focusableSelector = 'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const focusableElements = () => Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+    focusableElements()[0]?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = focusableElements()
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+      backgroundElements.forEach((element) => { element.inert = false })
+      returnFocusRef.current?.focus()
+    }
+  }, [onClose])
+
+  const choose = (action: () => void) => {
+    onClose()
+    action()
+  }
+
+  return (
+    <div className="parent-help-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <div ref={dialogRef} className="parent-help-dialog" role="dialog" aria-modal="true" aria-labelledby="parent-help-title">
+        <div className="parent-help-heading">
+          <div>
+            <p className="eyebrow">Parent help</p>
+            <h2 id="parent-help-title">What would you like to do?</h2>
+          </div>
+          <button className="parent-help-close" type="button" aria-label="Close parent help" onClick={onClose}>×</button>
+        </div>
+        <p className="parent-help-intro">Pick the simplest path for today. You can always come back here, and there are no scores or wrong answers.</p>
+        <div className="parent-help-choices">
+          <button type="button" onClick={() => choose(onPictures)}><strong>Choose a picture</strong><span>Browse the full drawing library.</span></button>
+          <button type="button" onClick={() => choose(onPractice)}><strong>Draw on this screen</strong><span>Use a finger, stylus, or mouse.</span></button>
+          <button type="button" onClick={() => choose(onCamera)}><strong>Trace on paper</strong><span>Start with the safe setup checklist.</span></button>
+        </div>
+        <div className="parent-help-note">
+          <strong>Your family’s work stays on this device.</strong>
+          <span>TraceBuddy has no account, ads, or cloud upload. Saved drawings and preferences can be cleared from the Pictures screen.</span>
+        </div>
+        <div className="parent-help-links">
+          <a href="/support.html" target="_blank" rel="noreferrer">Support & tips</a>
+          <a href="/privacy.html" target="_blank" rel="noreferrer">Privacy policy</a>
+        </div>
+      </div>
+    </div>
   )
 }
 

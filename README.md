@@ -26,7 +26,7 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 
 - Mobile-first responsive interface
 - Clean, modern, kid-friendly visual design
-- 73 built-in SVG tracing templates with category, difficulty, and text search filters
+- 54 individually reviewed SVG tracing templates with category, difficulty, and text search filters
 - Local favorites and recent picks for quickly returning to family favorites
 - Eight gentle guided lessons with highlighted new strokes, resumable local progress, and no scores or failure states
 - A handwriting studio for turning a name, word, number, or short family message into an on-screen practice guide
@@ -135,6 +135,7 @@ CHECK_URL=http://127.0.0.1:4173 npm run check:discovery
 CHECK_URL=http://127.0.0.1:4173 npm run check:learning
 CHECK_URL=http://127.0.0.1:4173 npm run check:setup
 CHECK_URL=http://127.0.0.1:4173 npm run check:family
+CHECK_URL=http://127.0.0.1:4173 npm run check:navigation
 ```
 
 Or against another local port:

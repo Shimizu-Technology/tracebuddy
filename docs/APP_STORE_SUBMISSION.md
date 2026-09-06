@@ -259,7 +259,7 @@ TraceBuddy has no accounts, ads, analytics, backend, automatic cloud uploads, or
 ```text
 TraceBuddy 1.2 is a major family-focused update:
 
-• 73 reviewed tracing pictures with search, categories, difficulty, favorites, and recent picks
+• 54 individually reviewed tracing pictures with search, categories, difficulty, favorites, and recent picks
 • Eight gentle guided drawing lessons and custom handwriting practice
 • Twelve no-score Together activities for kids and grown-ups
 • Printable/shareable worksheets and finished-drawing keepsakes

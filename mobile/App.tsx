@@ -8,6 +8,7 @@ import {
   AppState,
   FlatList,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -62,6 +63,9 @@ import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferen
 type ScreenMode = 'picker' | 'together' | 'learn' | 'trace' | 'practice'
 type TraceSurface = 'camera' | 'screen'
 type PickerCategoryId = DrawingFilterId
+
+const supportUrl = 'https://tracebuddy-gu.netlify.app/support.html'
+const privacyUrl = 'https://tracebuddy-gu.netlify.app/privacy.html'
 
 type PracticePoint = {
   x: number
@@ -831,6 +835,7 @@ function TraceBuddyMobile() {
   const [selectedLesson, setSelectedLesson] = useState<GuidedLesson>(guidedLessons[0])
   const [savedAlignment, setSavedAlignment] = useState<TraceAlignment | null>(null)
   const [setupCoachOpen, setSetupCoachOpen] = useState(false)
+  const [parentHelpOpen, setParentHelpOpen] = useState(false)
   const [cameraPromptAllowed, setCameraPromptAllowed] = useState(false)
   const [setupChecks, setSetupChecks] = useState({ stable: false, page: false, light: false })
   const [parentSetupHydrated, setParentSetupHydrated] = useState(false)
@@ -1491,10 +1496,62 @@ function TraceBuddyMobile() {
     }
   }, [])
 
+  const openInfoPage = useCallback(async (url: string, label: string) => {
+    try {
+      await Linking.openURL(url)
+    } catch {
+      Alert.alert(`Could not open ${label}`, 'Check your internet connection and try again.')
+    }
+  }, [])
+
+  useEffect(() => {
+    const labels: Record<ScreenMode, string> = {
+      picker: 'Picture picker',
+      together: 'Together activities',
+      learn: 'Guided learning',
+      trace: 'Camera tracing',
+      practice: 'On-screen practice',
+    }
+    AccessibilityInfo.announceForAccessibility(labels[mode])
+    const closeTask = requestAnimationFrame(() => setParentHelpOpen(false))
+    return () => cancelAnimationFrame(closeTask)
+  }, [mode])
+
   if (mode === 'picker') {
     return (
       <View style={styles.appShell}>
         <StatusBar style="dark" />
+        <Modal visible={parentHelpOpen} transparent animationType="fade" onRequestClose={() => setParentHelpOpen(false)}>
+          <Pressable style={styles.parentHelpBackdrop} onPress={() => setParentHelpOpen(false)} accessible={false}>
+            <ScrollView contentContainerStyle={styles.parentHelpScroll}>
+              <Pressable style={styles.parentHelpCard} onPress={(event) => event.stopPropagation()} accessible={false}>
+                <View style={styles.parentHelpHeading}>
+                  <View style={styles.parentHelpHeadingCopy}>
+                    <Text style={styles.parentHelpEyebrow}>PARENT HELP</Text>
+                    <Text style={styles.parentHelpTitle}>Choose the simplest path for today.</Text>
+                  </View>
+                  <Pressable style={styles.parentHelpClose} onPress={() => setParentHelpOpen(false)} accessibilityRole="button" accessibilityLabel="Close parent help">
+                    <Text style={styles.parentHelpCloseText}>×</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.parentHelpIntro}>There are no scores or wrong answers. Pick a picture below, then choose camera tracing for paper or on-screen practice for a finger or stylus.</Text>
+                <View style={styles.parentHelpSteps}>
+                  <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>1</Text><Text style={styles.parentHelpStepText}>Choose Camera + paper or On-screen practice.</Text></View>
+                  <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>2</Text><Text style={styles.parentHelpStepText}>Pick any picture, word, or local image.</Text></View>
+                  <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>3</Text><Text style={styles.parentHelpStepText}>Align and lock the guide, then draw at your own pace.</Text></View>
+                </View>
+                <View style={styles.parentHelpPrivacy}>
+                  <Text style={styles.parentHelpPrivacyTitle}>Your family’s work stays on this device.</Text>
+                  <Text style={styles.parentHelpPrivacyText}>TraceBuddy has no account, ads, analytics, or cloud upload.</Text>
+                </View>
+                <View style={styles.parentHelpLinks}>
+                  <Pressable style={styles.parentHelpLink} onPress={() => { void openInfoPage(supportUrl, 'support') }} accessibilityRole="link"><Text style={styles.parentHelpLinkText}>Support & tips</Text></Pressable>
+                  <Pressable style={styles.parentHelpLink} onPress={() => { void openInfoPage(privacyUrl, 'privacy policy') }} accessibilityRole="link"><Text style={styles.parentHelpLinkText}>Privacy policy</Text></Pressable>
+                </View>
+              </Pressable>
+            </ScrollView>
+          </Pressable>
+        </Modal>
         <FlatList
           data={visibleDrawings}
           numColumns={2}
@@ -1509,6 +1566,9 @@ function TraceBuddyMobile() {
                     <TraceIcon />
                   </View>
                   <Text style={styles.eyebrow}>TraceBuddy mobile</Text>
+                  <Pressable style={styles.parentHelpButton} onPress={() => setParentHelpOpen(true)} accessibilityRole="button">
+                    <Text style={styles.parentHelpButtonText}>Parent help</Text>
+                  </Pressable>
                 </View>
                 <Text style={styles.heroTitle}>Pick a picture, then trace your way.</Text>
                 <Text style={styles.heroCopy}>Use the camera for paper tracing, or practice directly on the screen with your finger or stylus. Everything stays local on this phone.</Text>
@@ -3733,6 +3793,150 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginBottom: 12,
+  },
+  parentHelpButton: {
+    minHeight: 44,
+    marginLeft: 'auto',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(164,70,50,0.22)',
+    borderRadius: 999,
+    backgroundColor: '#FFF7F0',
+    paddingHorizontal: 12,
+  },
+  parentHelpButtonText: {
+    color: palette.coralDark,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  parentHelpBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(20,32,51,0.58)',
+  },
+  parentHelpScroll: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+    padding: 8,
+  },
+  parentHelpCard: {
+    maxHeight: '92%',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 30,
+    backgroundColor: palette.surface,
+    padding: 20,
+    gap: 14,
+  },
+  parentHelpHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  parentHelpHeadingCopy: {
+    flex: 1,
+    gap: 5,
+  },
+  parentHelpEyebrow: {
+    color: palette.coralDark,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+  parentHelpTitle: {
+    color: palette.ink,
+    fontSize: 27,
+    lineHeight: 29,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  parentHelpClose: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  parentHelpCloseText: {
+    color: palette.ink,
+    fontSize: 30,
+    lineHeight: 31,
+  },
+  parentHelpIntro: {
+    color: palette.muted,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  parentHelpSteps: {
+    gap: 9,
+  },
+  parentHelpStep: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    padding: 9,
+  },
+  parentHelpStepNumber: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: palette.ink,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 30,
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
+  parentHelpStepText: {
+    flex: 1,
+    color: palette.ink,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
+  parentHelpPrivacy: {
+    gap: 3,
+    borderRadius: 19,
+    backgroundColor: '#ECFBF5',
+    padding: 12,
+  },
+  parentHelpPrivacyTitle: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  parentHelpPrivacyText: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  parentHelpLinks: {
+    flexDirection: 'row',
+    gap: 9,
+  },
+  parentHelpLink: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 17,
+    backgroundColor: palette.paperStrong,
+    paddingHorizontal: 10,
+  },
+  parentHelpLinkText: {
+    color: palette.coralDark,
+    fontSize: 13,
+    fontWeight: '900',
   },
   brandMark: {
     width: 48,
