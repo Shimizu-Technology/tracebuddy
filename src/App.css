@@ -1491,13 +1491,12 @@ button.active:disabled {
 }
 
 .practice-toolbar-ribbon {
-  position: sticky;
-  top: 86px;
   z-index: 20;
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: 0.55rem;
-  overflow-x: auto;
+  overflow: visible;
   border: 1px solid rgba(20, 32, 51, 0.08);
   border-radius: 28px;
   padding: 0.55rem;
@@ -1508,6 +1507,25 @@ button.active:disabled {
 }
 
 .practice-toolbar-ribbon::-webkit-scrollbar {
+  display: none;
+}
+
+.practice-toolbar-primary,
+.practice-toolbar-more-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.practice-toolbar-primary {
+  flex: 1 1 auto;
+}
+
+.practice-toolbar-more {
+  flex: 1 1 100%;
+}
+
+.practice-toolbar-more > summary {
   display: none;
 }
 
@@ -2881,26 +2899,101 @@ input[type='range'] {
   }
 
   .practice-toolbar-ribbon {
-    top: 72px;
-    margin-right: -0.5rem;
-    margin-left: -0.5rem;
+    position: static;
+    display: grid;
+    overflow: visible;
     border-radius: 24px;
     padding: 0.48rem;
   }
 
+  .practice-toolbar-primary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.48rem;
+  }
+
+  .practice-toolbar-primary > .mode,
+  .practice-toolbar-primary > .color-tool,
+  .practice-toolbar-primary > [aria-label="Brush type"] {
+    grid-column: 1 / -1;
+  }
+
+  .practice-toolbar-more {
+    display: block;
+  }
+
+  .practice-toolbar-more > summary {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid rgba(20, 32, 51, 0.08);
+    border-radius: 18px;
+    background: #ffffff;
+    color: var(--ink);
+    cursor: pointer;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 950;
+  }
+
+  .practice-toolbar-more > summary::after {
+    content: 'Show';
+    color: var(--coral-dark);
+    font-size: 0.74rem;
+  }
+
+  .practice-toolbar-more[open] > summary::after {
+    content: 'Hide';
+  }
+
+  .practice-toolbar-more:not([open]) > .practice-toolbar-more-content {
+    display: none;
+  }
+
+  .practice-toolbar-more[open] > .practice-toolbar-more-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.48rem;
+    padding-top: 0.48rem;
+  }
+
+  .practice-toolbar-more-content > .guide-tool {
+    grid-column: 1 / -1;
+  }
+
   .studio-tool,
   .studio-tool-group {
+    min-width: 0;
     min-height: 58px;
     border-radius: 18px;
   }
 
   .color-tool {
-    min-width: 224px;
+    min-width: 0;
   }
 
   .compact-swatches button {
-    width: 1.36rem;
-    height: 1.36rem;
+    width: 44px;
+    height: 44px;
+  }
+
+  .compact-swatches,
+  .compact-segmented,
+  .compact-stepper {
+    flex-wrap: wrap;
+  }
+
+  .compact-segmented button,
+  .compact-stepper button {
+    flex: 1 1 auto;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .brush-type-buttons button,
+  .size-buttons button {
+    min-width: 64px;
   }
 
   .practice-status-strip {

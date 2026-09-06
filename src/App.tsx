@@ -1305,6 +1305,7 @@ function App() {
   const streamRef = useRef<MediaStream | null>(null)
   const dragRef = useRef({ active: false, startX: 0, startY: 0, baseX: 0, baseY: 0 })
   const cameraRequestRef = useRef(0)
+  const cameraMayStartRef = useRef(false)
   const mountedRef = useRef(false)
   const modeRef = useRef<AppMode>(mode)
   const paperLockEnabledRef = useRef(false)
@@ -1599,19 +1600,26 @@ function App() {
 
     const task = window.setTimeout(() => {
       if (mode === 'trace') {
-        void startCamera()
         void requestWakeLock()
       } else if (mode === 'practice') {
+        cameraMayStartRef.current = false
         stopCamera()
         void requestWakeLock()
       } else {
+        cameraMayStartRef.current = false
         stopCamera()
         void releaseWakeLock()
       }
     }, 0)
 
     return () => window.clearTimeout(task)
-  }, [mode, releaseWakeLock, requestWakeLock, startCamera, stopCamera])
+  }, [mode, releaseWakeLock, requestWakeLock, stopCamera])
+
+  const startCameraAfterSetup = useCallback(() => {
+    if (modeRef.current !== 'trace' || cameraMayStartRef.current) return
+    cameraMayStartRef.current = true
+    void startCamera()
+  }, [startCamera])
 
   useEffect(() => {
     paperLockEnabledRef.current = paperLockEnabled
@@ -1620,7 +1628,7 @@ function App() {
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible' && (modeRef.current === 'trace' || modeRef.current === 'practice')) {
-        if (modeRef.current === 'trace') ensureCameraStream()
+        if (modeRef.current === 'trace' && cameraMayStartRef.current) ensureCameraStream()
         void requestWakeLock()
       }
     }
@@ -2253,6 +2261,7 @@ function App() {
           onUpload={(input) => onUpload(input)}
           onPicker={() => setMode('picker')}
           onPractice={() => openPractice()}
+          onCameraSetupReady={startCameraAfterSetup}
           onRetryCamera={startCamera}
           onFindPaper={findPaper}
           onTogglePaperLock={togglePaperLock}
@@ -2878,6 +2887,7 @@ function TraceScreen({
   onUpload,
   onPicker,
   onPractice,
+  onCameraSetupReady,
   onRetryCamera,
   onFindPaper,
   onTogglePaperLock,
@@ -2915,6 +2925,7 @@ function TraceScreen({
   onUpload: (input: HTMLInputElement) => void
   onPicker: () => void
   onPractice: () => void
+  onCameraSetupReady: () => void
   onRetryCamera: () => void
   onFindPaper: () => void
   onTogglePaperLock: () => void
@@ -2942,6 +2953,10 @@ function TraceScreen({
   const manualTransformDisabled = paperLockEnabled
   const paperTrackingPaused = paperLockEnabled && cameraStatus !== 'ready'
   const setupReady = Object.values(setupChecks).every(Boolean)
+
+  useEffect(() => {
+    if (!setupOpen) onCameraSetupReady()
+  }, [onCameraSetupReady, setupOpen])
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -3380,6 +3395,7 @@ function PracticeScreen({
   const visibleSaveStatus: LocalSaveStatus = uploadedImageSaveFailed ? 'error' : saveStatus
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
+  const [moreToolsOpen, setMoreToolsOpen] = useState(() => window.matchMedia('(min-width: 721px)').matches)
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
@@ -3418,6 +3434,13 @@ function PracticeScreen({
   })
   const practiceSourceRef = useRef(practiceSource)
   const topGuideOpacity = Math.max(guideOpacity, 0.48)
+
+  useEffect(() => {
+    const desktopToolbar = window.matchMedia('(min-width: 721px)')
+    const syncToolbarDisclosure = () => setMoreToolsOpen(desktopToolbar.matches)
+    desktopToolbar.addEventListener('change', syncToolbarDisclosure)
+    return () => desktopToolbar.removeEventListener('change', syncToolbarDisclosure)
+  }, [])
 
   useEffect(() => {
     practiceSourceRef.current = practiceSource
@@ -4103,69 +4126,76 @@ function PracticeScreen({
 
       <div className="practice-studio-shell">
         <div className="practice-toolbar-ribbon" aria-label="Coloring tools">
-          <button className={viewportLocked ? 'studio-tool mode active' : 'studio-tool mode'} type="button" aria-pressed={viewportLocked} onClick={toggleViewportMode}>
-            <span>{viewportLocked ? 'Locked' : 'Move'}</span>
-            <small>{viewportLocked ? 'Draw mode' : 'Pan + zoom'}</small>
-          </button>
+          <div className="practice-toolbar-primary">
+            <button className={viewportLocked ? 'studio-tool mode active' : 'studio-tool mode'} type="button" aria-pressed={viewportLocked} onClick={toggleViewportMode}>
+              <span>{viewportLocked ? 'Locked' : 'Move'}</span>
+              <small>{viewportLocked ? 'Draw mode' : 'Pan + zoom'}</small>
+            </button>
 
-          <div className="studio-tool-group color-tool" aria-label="Marker colors" role="group">
-            <span>Color</span>
-            <div className="compact-swatches">
-              {markerColors.map((color) => (
-                <button key={color} type="button" className={markerColor === color ? 'active' : ''} style={{ backgroundColor: color }} aria-label={`Use marker color ${color}`} aria-pressed={markerColor === color} onClick={() => setMarkerColor(color)} />
-              ))}
+            <div className="studio-tool-group color-tool" aria-label="Marker colors" role="group">
+              <span>Color</span>
+              <div className="compact-swatches">
+                {markerColors.map((color) => (
+                  <button key={color} type="button" className={markerColor === color ? 'active' : ''} style={{ backgroundColor: color }} aria-label={`Use marker color ${color}`} aria-pressed={markerColor === color} onClick={() => setMarkerColor(color)} />
+                ))}
+              </div>
+            </div>
+
+            <div className="studio-tool-group" aria-label="Brush type" role="group">
+              <span>Brush</span>
+              <div className="compact-segmented brush-type-buttons">
+                {brushTools.map((tool) => (
+                  <button key={tool.id} type="button" className={brushToolId === tool.id ? 'active' : ''} aria-pressed={brushToolId === tool.id} onClick={() => setBrushToolId(tool.id)}>{tool.label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="studio-tool-group size-tool" aria-label="Brush size" role="group">
+              <span>Size</span>
+              <div className="compact-segmented size-buttons">
+                {brushSizes.map((size) => (
+                  <button key={size.value} type="button" className={markerWidth === size.value ? 'active' : ''} aria-pressed={markerWidth === size.value} onClick={() => setMarkerWidth(size.value)}>{size.label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="studio-tool-group action-tool" aria-label="Drawing actions" role="group">
+              <span>Actions</span>
+              <div className="compact-stepper">
+                <button type="button" onClick={undoPracticeStroke} disabled={strokes.length === 0}>Undo</button>
+                <button type="button" onClick={confirmClearPractice} disabled={strokes.length === 0 && !activePath}>Clear all</button>
+              </div>
             </div>
           </div>
 
-          <div className="studio-tool-group" aria-label="Brush type" role="group">
-            <span>Brush</span>
-            <div className="compact-segmented brush-type-buttons">
-              {brushTools.map((tool) => (
-                <button key={tool.id} type="button" className={brushToolId === tool.id ? 'active' : ''} aria-pressed={brushToolId === tool.id} onClick={() => setBrushToolId(tool.id)}>{tool.label}</button>
-              ))}
-            </div>
-          </div>
+          <details className="practice-toolbar-more" open={moreToolsOpen} onToggle={(event) => setMoreToolsOpen(event.currentTarget.open)}>
+            <summary>Guide and zoom</summary>
+            <div className="practice-toolbar-more-content">
+              <div className="studio-tool-group guide-tool" aria-label="Guide visibility" role="group">
+                <span>Guide {Math.round(guideOpacity * 100)}%</span>
+                <div className="compact-stepper">
+                  <button type="button" aria-label="Make guide lighter" onClick={() => setGuideOpacity((current) => clamp(current - 0.05, 0.08, 0.72))}>Less</button>
+                  <button type="button" aria-label="Make guide darker" onClick={() => setGuideOpacity((current) => clamp(current + 0.05, 0.08, 0.72))}>More</button>
+                </div>
+              </div>
 
-          <div className="studio-tool-group" aria-label="Brush size" role="group">
-            <span>Size</span>
-            <div className="compact-segmented size-buttons">
-              {brushSizes.map((size) => (
-                <button key={size.value} type="button" className={markerWidth === size.value ? 'active' : ''} aria-pressed={markerWidth === size.value} onClick={() => setMarkerWidth(size.value)}>{size.label}</button>
-              ))}
-            </div>
-          </div>
+              <div className="studio-tool-group" aria-label="Outline layer" role="group">
+                <span>Lines</span>
+                <div className="compact-stepper">
+                  <button type="button" className={guideOnTop ? 'active' : ''} aria-pressed={guideOnTop} onClick={() => setGuideOnTop((current) => !current)}>{guideOnTop ? 'On top' : 'Behind'}</button>
+                </div>
+              </div>
 
-          <div className="studio-tool-group guide-tool" aria-label="Guide visibility" role="group">
-            <span>Guide {Math.round(guideOpacity * 100)}%</span>
-            <div className="compact-stepper">
-              <button type="button" aria-label="Make guide lighter" onClick={() => setGuideOpacity((current) => clamp(current - 0.05, 0.08, 0.72))}>Less</button>
-              <button type="button" aria-label="Make guide darker" onClick={() => setGuideOpacity((current) => clamp(current + 0.05, 0.08, 0.72))}>More</button>
+              <div className="studio-tool-group zoom-tool" aria-label="Canvas zoom" role="group">
+                <span>Zoom {Math.round(viewport.scale * 100)}%</span>
+                <div className="compact-stepper">
+                  <button type="button" disabled={viewportLocked} aria-label="Zoom out" onClick={() => zoomPractice(-0.35)}>−</button>
+                  <button type="button" disabled={viewportLocked} aria-label="Zoom in" onClick={() => zoomPractice(0.35)}>+</button>
+                  <button type="button" disabled={viewport.scale === 1 && viewport.x === 0 && viewport.y === 0} onClick={resetPracticeViewport}>Reset</button>
+                </div>
+              </div>
             </div>
-          </div>
-
-          <div className="studio-tool-group" aria-label="Outline layer" role="group">
-            <span>Lines</span>
-            <div className="compact-stepper">
-              <button type="button" className={guideOnTop ? 'active' : ''} aria-pressed={guideOnTop} onClick={() => setGuideOnTop((current) => !current)}>{guideOnTop ? 'On top' : 'Behind'}</button>
-            </div>
-          </div>
-
-          <div className="studio-tool-group zoom-tool" aria-label="Canvas zoom" role="group">
-            <span>Zoom {Math.round(viewport.scale * 100)}%</span>
-            <div className="compact-stepper">
-              <button type="button" disabled={viewportLocked} aria-label="Zoom out" onClick={() => zoomPractice(-0.35)}>−</button>
-              <button type="button" disabled={viewportLocked} aria-label="Zoom in" onClick={() => zoomPractice(0.35)}>+</button>
-              <button type="button" disabled={viewport.scale === 1 && viewport.x === 0 && viewport.y === 0} onClick={resetPracticeViewport}>Reset</button>
-            </div>
-          </div>
-
-          <div className="studio-tool-group action-tool" aria-label="Drawing actions" role="group">
-            <span>Actions</span>
-            <div className="compact-stepper">
-              <button type="button" onClick={undoPracticeStroke} disabled={strokes.length === 0}>Undo</button>
-              <button type="button" onClick={confirmClearPractice} disabled={strokes.length === 0 && !activePath}>Clear all</button>
-            </div>
-          </div>
+          </details>
         </div>
 
         <div className="practice-card studio-card">
