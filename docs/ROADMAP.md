@@ -17,7 +17,7 @@ TraceBuddy should stay simple until real-device testing proves a more complex fe
 - Expo native mobile app distributed through development and TestFlight builds.
 - On-screen coloring/practice mode for tracing without a paper/camera setup.
 - Custom word/name/phrase tracing, expanded colors including pinks, brush styles, and locked pan/zoom controls.
-- Shared 73-template SVG line-art library with search, category and difficulty filters, local favorites, and recent picks.
+- Shared 54-template, individually reviewed SVG line-art library with search, category and difficulty filters, local favorites, and recent picks.
 - Eight guided drawing lessons with local progress, gentle step prompts, and direct handoff to paper or on-screen tracing.
 - A handwriting studio for custom names, words, numbers, and short family messages.
 - Twelve no-score Together activities with paper and on-screen paths.

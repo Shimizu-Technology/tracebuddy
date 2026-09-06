@@ -112,8 +112,10 @@ async function checkViewport(name, width, height, expectedSelector, action) {
 try {
   await checkViewport('desktop-home', 1440, 1100, '.hero-screen')
   await checkViewport('mobile-home', 390, 950, '.hero-screen')
+  await checkViewport('narrow-mobile-home', 320, 700, '.hero-screen')
   await checkViewport('desktop-picker', 1440, 1100, '.picker-screen', (page) => clickByText(page, 'Pick a picture'))
   await checkViewport('mobile-picker', 390, 950, '.picker-screen', (page) => clickByText(page, 'Pick a picture'))
+  await checkViewport('narrow-mobile-picker', 320, 700, '.picker-screen', (page) => clickByText(page, 'Pick a picture'))
   await checkViewport('desktop-together', 1440, 1100, '.family-screen', (page) => clickByText(page, 'Play together'))
   await checkViewport('mobile-together', 390, 950, '.family-screen', (page) => clickByText(page, 'Play together'))
   await checkViewport('phone-landscape-together', 844, 390, '.family-screen', (page) => clickByText(page, 'Play together'))

@@ -98,7 +98,6 @@ try {
   await clickByText(page, 'Close for now')
   await page.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Parent setup')
   await page.reload({ waitUntil: 'networkidle0' })
-  await clickByText(page, 'Try camera trace')
   await waitForSelector(page, '.trace-screen')
   assert(await page.$('.setup-coach-backdrop') === null, 'Completed parent setup reopened automatically after reload')
 

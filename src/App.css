@@ -55,6 +55,10 @@ label {
   overflow-x: hidden;
 }
 
+.app-shell h1[tabindex='-1']:focus {
+  outline: none;
+}
+
 .topbar {
   position: sticky;
   top: 0;
@@ -139,6 +143,137 @@ label {
 .topbar nav button[aria-current='page'] {
   background: #fff1dc;
   color: var(--ink);
+}
+
+.topbar nav .topbar-help {
+  min-inline-size: 44px;
+  color: #a44632;
+}
+
+.parent-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgba(20, 32, 51, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.parent-help-dialog {
+  width: min(680px, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  border: 1px solid rgba(20, 32, 51, 0.1);
+  border-radius: 32px;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: #fffdf9;
+  box-shadow: rgba(20, 32, 51, 0.28) 0 36px 90px -28px;
+}
+
+.parent-help-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.parent-help-heading .eyebrow {
+  margin-bottom: 0.35rem;
+}
+
+.parent-help-heading h2 {
+  margin: 0;
+  font-size: clamp(1.75rem, 5vw, 2.65rem);
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.parent-help-close {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.parent-help-intro {
+  margin: 0.85rem 0 1rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.parent-help-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.parent-help-choices button {
+  display: grid;
+  min-height: 118px;
+  align-content: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(20, 32, 51, 0.1);
+  border-radius: 22px;
+  padding: 0.9rem;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.parent-help-choices button:hover,
+.parent-help-choices button:focus-visible {
+  border-color: rgba(255, 121, 93, 0.55);
+  background: #fff7ed;
+}
+
+.parent-help-choices strong {
+  font-size: 1rem;
+}
+
+.parent-help-choices span,
+.parent-help-note span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.parent-help-note {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.8rem;
+  border-radius: 20px;
+  padding: 0.9rem 1rem;
+  background: #effcf7;
+}
+
+.parent-help-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+}
+
+.parent-help-links a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.65rem 0.9rem;
+  background: #fff1dc;
+  color: #a44632;
+  font-size: 0.85rem;
+  font-weight: 900;
+  text-decoration: none;
 }
 
 .hero-screen,
@@ -2709,13 +2844,32 @@ input[type='range'] {
   }
 }
 
+@media (max-width: 900px) {
+  .topbar {
+    padding-inline: 1rem;
+  }
+
+  .brand > span:last-child {
+    display: none;
+  }
+
+  .topbar nav {
+    gap: 0.15rem;
+  }
+
+  .topbar nav button {
+    padding-inline: 0.6rem;
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 720px) {
   .topbar {
     min-height: 66px;
     padding: 0.7rem 0.9rem;
   }
 
-  .brand small,
+  .brand > span:last-child,
   .topbar nav button:nth-child(1),
   .topbar nav button:nth-child(5) {
     display: none;
@@ -2733,8 +2887,27 @@ input[type='range'] {
   }
 
   .topbar nav button {
-    padding: 0.48rem 0.48rem;
-    font-size: 0.78rem;
+    min-height: 44px;
+    padding: 0.42rem 0.38rem;
+    font-size: 0.72rem;
+  }
+
+  .parent-help-backdrop {
+    align-items: end;
+    padding: 0.5rem;
+  }
+
+  .parent-help-dialog {
+    max-height: calc(100dvh - 1rem);
+    border-radius: 28px;
+  }
+
+  .parent-help-choices {
+    grid-template-columns: 1fr;
+  }
+
+  .parent-help-choices button {
+    min-height: 80px;
   }
 
   .hero-screen,
@@ -3120,6 +3293,16 @@ input[type='range'] {
   .cleanup-mode-grid button {
     min-height: 58px;
     font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .topbar nav button:nth-child(3) {
+    display: none;
+  }
+
+  .picker-screen .drawing-grid {
+    grid-template-columns: 1fr;
   }
 }
 

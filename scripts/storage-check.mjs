@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { clickByText, closeBrowser, findChromeExecutable, waitForSelector } from './browser-utils.mjs'
 
 const url = process.env.CHECK_URL || 'http://127.0.0.1:5173'
+const baseUrl = url.replace(/[?#].*$/, '')
 const browser = await puppeteer.launch({
   executablePath: findChromeExecutable(),
   headless: true,
@@ -298,7 +299,7 @@ try {
     localStorage.setItem('tracebuddy.previousWork.v1.index', '{corrupt')
   })
   assert(await countUploadedImages(page) === 1, 'Could not seed a referenced upload record')
-  await page.reload({ waitUntil: 'networkidle0' })
+  await page.goto(`${baseUrl}?storage-restart=corrupt-index#home`, { waitUntil: 'networkidle0' })
   await waitForSelector(page, '.hero-screen')
   await page.waitForFunction(() => {
     try {
@@ -334,7 +335,7 @@ try {
     db.close()
   })
   assert(await countUploadedImages(page) === 1, 'Could not seed an orphan upload record')
-  await page.reload({ waitUntil: 'networkidle0' })
+  await page.goto(`${baseUrl}?storage-restart=orphan-cleanup#home`, { waitUntil: 'networkidle0' })
   await waitForSelector(page, '.hero-screen')
   await page.waitForFunction(async () => {
     const request = indexedDB.open('tracebuddy-uploaded-images', 1)
