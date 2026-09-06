@@ -146,6 +146,7 @@ label {
 }
 
 .topbar nav .topbar-help {
+  min-inline-size: 44px;
   color: #a44632;
 }
 
