@@ -31,10 +31,15 @@ try {
 
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
   const mobileLessonOrder = await page.evaluate(() => ({
-    stage: document.querySelector('.lesson-stage-card')?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY,
-    library: document.querySelector('.lesson-library')?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY,
+    stage: document.querySelector('.lesson-stage-card')?.getBoundingClientRect().top ?? null,
+    library: document.querySelector('.lesson-library')?.getBoundingClientRect().top ?? null,
   }))
-  assert(mobileLessonOrder.stage < mobileLessonOrder.library, `The active mobile lesson should appear before the lesson library: ${JSON.stringify(mobileLessonOrder)}`)
+  assert(
+    mobileLessonOrder.stage !== null
+      && mobileLessonOrder.library !== null
+      && mobileLessonOrder.stage < mobileLessonOrder.library,
+    `The active mobile lesson and lesson library must exist in the expected order: ${JSON.stringify(mobileLessonOrder)}`,
+  )
   await page.setViewport({ width: 1180, height: 900, deviceScaleFactor: 1 })
 
   await clickByText(page, 'Next step')
