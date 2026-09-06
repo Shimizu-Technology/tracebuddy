@@ -1784,9 +1784,9 @@ function TraceBuddyMobile() {
     <View style={styles.traceShell}>
       <StatusBar style="light" hidden={childTraceMode} />
       <Modal visible={setupCoachOpen} transparent animationType="fade" onRequestClose={() => setSetupCoachOpen(false)}>
-        <View style={styles.setupCoachBackdrop}>
+        <Pressable style={styles.setupCoachBackdrop} onPress={() => setSetupCoachOpen(false)} accessible={false}>
           <ScrollView contentContainerStyle={styles.setupCoachScroll}>
-            <View style={styles.setupCoachCard}>
+            <Pressable style={styles.setupCoachCard} onPress={(event) => event.stopPropagation()} accessible={false}>
               <Text style={styles.setupCoachTime}>30-SECOND PARENT SETUP</Text>
               <Text style={styles.setupCoachTitle}>Make the tracing space safe and easy.</Text>
               <Text style={styles.setupCoachCopy}>Check these three things before handing the pencil to your child.</Text>
@@ -1811,9 +1811,9 @@ function TraceBuddyMobile() {
                 <Pressable style={styles.setupCoachSecondary} onPress={() => setSetupCoachOpen(false)} accessibilityRole="button"><Text style={styles.setupCoachSecondaryText}>Close for now</Text></Pressable>
                 <Pressable style={[styles.setupCoachPrimary, !setupReady && styles.lessonButtonDisabled]} disabled={!setupReady} onPress={finishParentSetup} accessibilityRole="button"><Text style={styles.setupCoachPrimaryText}>Ready to align</Text></Pressable>
               </View>
-            </View>
+            </Pressable>
           </ScrollView>
-        </View>
+        </Pressable>
       </Modal>
 
       {childTraceMode ? (
@@ -3231,7 +3231,13 @@ function PracticeScreen({
         </View>
 
         {activePanel && (
-          <View style={[styles.practiceRibbonPanel, { top: practiceRibbonPanelTop }]} pointerEvents="box-none">
+          <>
+            <Pressable
+              style={[styles.practicePanelDismissLayer, { top: practiceRibbonPanelTop }]}
+              onPress={() => setActivePanel(null)}
+              accessible={false}
+            />
+            <View style={[styles.practiceRibbonPanel, { top: practiceRibbonPanelTop }]} pointerEvents="box-none">
             {activePanel === 'tool' && (
               <View style={styles.practicePanelCard}>
                 <View style={styles.practicePanelHeader}>
@@ -3356,7 +3362,8 @@ function PracticeScreen({
                 <Text style={styles.practicePanelFootnote}>{viewportLocked ? 'Switch to Move before zooming or panning.' : `Zoom ${Math.round(viewport.scale * 100)}% · Guide ${Math.round(guideOpacity * 100)}%`}</Text>
               </View>
             )}
-          </View>
+            </View>
+          </>
         )}
 
         <View style={styles.practiceStatusRow} accessibilityLiveRegion="polite">
@@ -4399,6 +4406,13 @@ const styles = StyleSheet.create({
   practiceRibbonButtonActive: {
     backgroundColor: palette.ink,
     borderColor: palette.ink,
+  },
+  practicePanelDismissLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
   },
   practiceRibbonLabel: {
     color: palette.ink,

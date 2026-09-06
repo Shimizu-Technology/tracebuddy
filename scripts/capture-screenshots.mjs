@@ -25,7 +25,7 @@ async function desktop() {
   await page.screenshot({ path: '/tmp/tracebuddy-01-home-desktop.png', fullPage: true })
   await click(page, 'Pick a picture')
   await page.screenshot({ path: '/tmp/tracebuddy-02-picker-desktop.png', fullPage: true })
-  await click(page, 'Island Turtle')
+  await click(page, 'Sea Turtle')
   await page.screenshot({ path: '/tmp/tracebuddy-03-trace-desktop.png', fullPage: true })
   await click(page, 'Practice')
   await page.screenshot({ path: '/tmp/tracebuddy-04-practice-desktop.png', fullPage: true })

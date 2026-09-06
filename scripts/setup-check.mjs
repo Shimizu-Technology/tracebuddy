@@ -31,6 +31,15 @@ try {
   await clickByText(page, 'Try camera trace')
   await waitForSelector(page, '.setup-coach-backdrop')
 
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.setup-coach-backdrop', { hidden: true })
+  await clickByText(page, 'Parent setup')
+  await waitForSelector(page, '.setup-coach-backdrop')
+  await page.$eval('.setup-coach-backdrop', (backdrop) => backdrop.click())
+  await page.waitForSelector('.setup-coach-backdrop', { hidden: true })
+  await clickByText(page, 'Parent setup')
+  await waitForSelector(page, '.setup-coach-backdrop')
+
   assert(await page.evaluate(() => document.activeElement?.textContent?.includes('Stand is stable')), 'Setup did not move keyboard focus into the dialog')
   await page.keyboard.down('Shift')
   await page.keyboard.press('Tab')
@@ -76,7 +85,7 @@ try {
   assert(await page.$('.setup-coach-backdrop') === null, 'Completed parent setup reopened automatically after reload')
 
   assert(pageErrors.length === 0, `Parent setup flow emitted page errors: ${pageErrors.join(' | ')}`)
-  console.log('Parent setup coach, saved alignment, child trace mode, and setup persistence passed')
+  console.log('Parent setup dismissal, focus trap, saved alignment, child trace mode, and setup persistence passed')
 } finally {
   await page.close().catch(() => undefined)
   await closeBrowser(browser)

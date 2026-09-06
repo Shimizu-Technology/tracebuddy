@@ -2932,7 +2932,12 @@ function TraceScreen({
     const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
     const focusableElements = () => Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
     focusableElements()[0]?.focus()
-    const trapFocus = (event: KeyboardEvent) => {
+    const handleDialogKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setSetupOpen(false)
+        return
+      }
       if (event.key !== 'Tab') return
       const focusable = focusableElements()
       if (focusable.length === 0) {
@@ -2950,10 +2955,10 @@ function TraceScreen({
         first.focus()
       }
     }
-    dialog.addEventListener('keydown', trapFocus)
+    dialog.addEventListener('keydown', handleDialogKeydown)
 
     return () => {
-      dialog.removeEventListener('keydown', trapFocus)
+      dialog.removeEventListener('keydown', handleDialogKeydown)
       backgroundElements.forEach((element) => { element.inert = false })
       const returnFocus = setupReturnFocusRef.current
       setupReturnFocusRef.current = null
@@ -3025,7 +3030,17 @@ function TraceScreen({
   return (
     <section ref={traceSectionRef} className={`trace-screen ${childTraceMode ? 'child-trace-mode' : ''}`}>
       {setupOpen && (
-        <div ref={setupDialogRef} className="setup-coach-backdrop" role="dialog" aria-modal="true" aria-labelledby="setup-coach-title" tabIndex={-1}>
+        <div
+          ref={setupDialogRef}
+          className="setup-coach-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="setup-coach-title"
+          tabIndex={-1}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setSetupOpen(false)
+          }}
+        >
           <div className="setup-coach">
             <div className="setup-coach-heading">
               <span className="setup-coach-time">30-second parent setup</span>
