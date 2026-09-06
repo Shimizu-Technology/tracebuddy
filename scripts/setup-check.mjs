@@ -46,6 +46,11 @@ try {
   await page.keyboard.press('Escape')
   await page.waitForSelector('.setup-coach-backdrop', { hidden: true })
   await page.waitForFunction(() => window.__traceBuddyCameraRequestCount === 1)
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert(
+    await page.evaluate(() => window.__traceBuddyCameraRequestCount) === 1,
+    'Camera permission was requested more than once after the parent setup closed',
+  )
   await clickByText(page, 'Parent setup')
   await waitForSelector(page, '.setup-coach-backdrop')
   await page.$eval('.setup-coach-backdrop', (backdrop) => backdrop.click())

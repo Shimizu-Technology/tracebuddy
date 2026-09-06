@@ -130,6 +130,16 @@ try {
   await checkViewport('tablet-landscape-trace', 1180, 820, '.trace-screen', (page) => clickByText(page, 'Try camera trace'))
   await checkViewport('desktop-practice', 1440, 1100, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
   await checkViewport('mobile-practice', 390, 950, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
+  await checkViewport('mobile-to-desktop-practice', 390, 950, '.practice-screen', async (page) => {
+    await clickByText(page, 'Practice on screen')
+    await page.setViewport({ width: 1440, height: 1100, deviceScaleFactor: 1, isMobile: true })
+    await page.waitForFunction(() => {
+      const details = document.querySelector('.practice-toolbar-more')
+      const summary = document.querySelector('.practice-toolbar-more > summary')
+      return details?.hasAttribute('open')
+        || (summary && getComputedStyle(summary).display !== 'none' && summary.getBoundingClientRect().height >= 44)
+    })
+  })
   await checkViewport('phone-landscape-practice', 844, 390, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
   await checkViewport('tablet-portrait-practice', 820, 1180, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
   await checkViewport('tablet-landscape-practice', 1180, 820, '.practice-screen', (page) => clickByText(page, 'Practice on screen'))
