@@ -532,6 +532,37 @@ button.active:disabled {
   box-shadow: rgba(20, 32, 51, 0.08) 0 22px 60px -42px;
 }
 
+.picker-more {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: clamp(2.5rem, 7vw, 5rem);
+}
+
+.local-data-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid rgba(20, 32, 51, 0.08);
+  padding: 1rem 0.25rem 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.local-data-footer button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  border: 1px solid rgba(164, 70, 50, 0.2);
+  border-radius: 999px;
+  background: #fff7f3;
+  color: #9f3f2e;
+  cursor: pointer;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  font-weight: 900;
+}
+
 .previous-work-heading {
   display: flex;
   align-items: center;
@@ -990,6 +1021,7 @@ button.active:disabled {
   border-radius: 36px;
   padding: clamp(1.2rem, 4vw, 2.5rem);
   box-shadow: var(--shadow-soft);
+  margin-top: 1rem;
 }
 
 .family-feature.tone-coral { background: linear-gradient(135deg, #fff0eb, #fffaf2); }
@@ -1064,6 +1096,19 @@ button.active:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.8rem;
   margin-top: 1rem;
+}
+
+.family-library-heading {
+  margin-top: 1rem;
+}
+
+.family-library-heading p {
+  margin: 0;
+}
+
+.family-library-heading p:last-child {
+  margin-top: 0.2rem;
+  color: var(--muted);
 }
 
 .family-activity-card {
@@ -2673,7 +2718,7 @@ input[type='range'] {
   }
 
   h1 {
-    font-size: clamp(2.65rem, 13vw, 3.65rem);
+    font-size: clamp(2.2rem, 10.5vw, 3rem);
     letter-spacing: -0.07em;
   }
 
@@ -2689,6 +2734,10 @@ input[type='range'] {
     gap: 0.9rem;
   }
 
+  .section-heading {
+    margin-bottom: 1.15rem;
+  }
+
   .upload-pill {
     width: 100%;
     min-height: 72px;
@@ -2699,8 +2748,18 @@ input[type='range'] {
     grid-template-columns: 1fr;
   }
 
+  .local-data-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .picker-heading h1 {
-    font-size: clamp(2.25rem, 10vw, 3rem);
+    font-size: clamp(2rem, 9vw, 2.55rem);
+  }
+
+  .picker-heading > div > p:not(.eyebrow) {
+    font-size: 0.92rem;
+    line-height: 1.5;
   }
 
   .family-heading,
@@ -2723,7 +2782,20 @@ input[type='range'] {
   }
 
   .family-library {
-    grid-template-columns: 1fr;
+    display: flex;
+    gap: 0.65rem;
+    margin-right: -0.5rem;
+    margin-left: -0.5rem;
+    padding: 0.1rem 0.5rem 0.7rem;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline proximity;
+    scrollbar-width: thin;
+  }
+
+  .family-activity-card {
+    flex: 0 0 min(78vw, 290px);
+    scroll-snap-align: start;
   }
 
   .category-strip {
@@ -2971,6 +3043,10 @@ input[type='range'] {
 
   .lesson-library {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lesson-stage-card {
+    order: -1;
   }
 
   .lesson-library-heading {

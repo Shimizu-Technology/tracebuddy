@@ -83,6 +83,19 @@ try {
   await assertFavoriteControlsClearArtwork('Desktop')
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
   await assertFavoriteControlsClearArtwork('Mobile')
+  const mobilePickerOrder = await page.evaluate(() => {
+    const top = (selector) => document.querySelector(selector)?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY
+    return {
+      discovery: top('.discovery-panel'),
+      firstDrawing: top('[data-drawing-id]'),
+      moreWays: top('.picker-more'),
+    }
+  })
+  assert(
+    mobilePickerOrder.discovery < mobilePickerOrder.firstDrawing && mobilePickerOrder.firstDrawing < mobilePickerOrder.moreWays,
+    `Mobile picker should put discovery and drawings before secondary content: ${JSON.stringify(mobilePickerOrder)}`,
+  )
+  assert(mobilePickerOrder.firstDrawing < 1900, `The first mobile drawing is still buried too far down the page: ${mobilePickerOrder.firstDrawing}px`)
   await page.setViewport({ width: 1180, height: 900, deviceScaleFactor: 1 })
 
   await page.type('.drawing-search input', 'Guam')

@@ -2489,6 +2489,23 @@ function FamilyActivitiesScreen({
         <button className="secondary-button compact" type="button" onClick={onPictures}>Browse pictures</button>
       </div>
 
+      <div className="family-library-heading">
+        <p className="eyebrow">Choose an activity</p>
+        <p>Swipe or scroll to find one that feels fun today.</p>
+      </div>
+      <div className="family-library" aria-label="Family activities">
+        {familyActivities.map((candidate) => {
+          const starter = drawingForFamilyActivity(candidate)
+          const selected = candidate.id === activity.id
+          return (
+            <button key={candidate.id} type="button" data-family-activity-id={candidate.id} className={`family-activity-card tone-${candidate.tone} ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => selectActivity(candidate.id)}>
+              <img src={drawingImageSrc(starter)} alt="" aria-hidden="true" />
+              <span><strong>{candidate.title}</strong><small>{candidate.minutes} min · {candidate.people}</small></span>
+            </button>
+          )
+        })}
+      </div>
+
       <article ref={featureRef} className={`family-feature tone-${activity.tone}`} aria-live="polite">
         <div className="family-feature-art"><img src={drawingImageSrc(drawing)} alt={`${drawing.name} starter`} /></div>
         <div className="family-feature-copy">
@@ -2505,18 +2522,60 @@ function FamilyActivitiesScreen({
           </div>
         </div>
       </article>
+    </section>
+  )
+}
 
-      <div className="family-library" aria-label="Family activities">
-        {familyActivities.map((candidate) => {
-          const starter = drawingForFamilyActivity(candidate)
-          const selected = candidate.id === activity.id
-          return (
-            <button key={candidate.id} type="button" data-family-activity-id={candidate.id} className={`family-activity-card tone-${candidate.tone} ${selected ? 'active' : ''}`} aria-pressed={selected} onClick={() => selectActivity(candidate.id)}>
-              <img src={drawingImageSrc(starter)} alt="" aria-hidden="true" />
-              <span><strong>{candidate.title}</strong><small>{candidate.minutes} min · {candidate.people}</small></span>
+function PreviousWorkSection({
+  sessions,
+  clearInProgress,
+  onResume,
+  onStartFresh,
+  onDuplicate,
+  onDelete,
+  onDeleteAll,
+}: {
+  sessions: SavedPracticeSession[]
+  clearInProgress: boolean
+  onResume: (session: SavedPracticeSession) => void
+  onStartFresh: (session: SavedPracticeSession) => void
+  onDuplicate: (session: SavedPracticeSession) => void
+  onDelete: (session: SavedPracticeSession) => void
+  onDeleteAll: () => void
+}) {
+  return (
+    <section className="previous-work-section" aria-labelledby="previous-work-title">
+      <div className="previous-work-heading">
+        <div>
+          <p className="eyebrow">Saved in this browser</p>
+          <h2 id="previous-work-title">Previous work</h2>
+        </div>
+        <div className="previous-work-summary">
+          <span>{sessions.length}</span>
+          <button type="button" disabled={clearInProgress} onClick={onDeleteAll}>{clearInProgress ? 'Clearing...' : 'Clear local work'}</button>
+        </div>
+      </div>
+      <div className="previous-work-grid">
+        {sessions.map((session) => (
+          <article key={session.sessionId} className="previous-work-card">
+            <button type="button" className="previous-work-preview" disabled={clearInProgress} onClick={() => onResume(session)} aria-label={`Resume ${session.title}`}>
+              <img src={session.source.kind === 'upload' && session.source.uploadedImage?.processedSrc ? session.source.uploadedImage.processedSrc : drawingImageSrc(drawingFromPracticeSource(session.source))} alt="" aria-hidden="true" />
+              <svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-18).map((stroke, index) => (
+                  <path key={`${session.sessionId}-preview-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width, opacity: stroke.opacity, strokeDasharray: stroke.dasharray }} />
+                ))}
+              </svg>
             </button>
-          )
-        })}
+            <strong>{session.title}</strong>
+            <small>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes</small>
+            <div className="previous-work-actions">
+              <button type="button" disabled={clearInProgress} onClick={() => onResume(session)}>Resume</button>
+              <button type="button" disabled={clearInProgress} onClick={() => onStartFresh(session)}>Fresh</button>
+              <button type="button" disabled={clearInProgress} onClick={() => onDuplicate(session)}>Copy</button>
+              <button type="button" disabled={clearInProgress} onClick={() => onDelete(session)}>Delete</button>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   )
@@ -2635,72 +2694,17 @@ function PickerScreen({
         </label>
       </div>
 
-      <section className="learning-callout" aria-labelledby="learning-callout-title">
-        <div className="learning-callout-copy">
-          <p className="eyebrow">Learn, don’t just copy</p>
-          <h2 id="learning-callout-title">Build a drawing one friendly step at a time.</h2>
-          <p>Eight short lessons teach lines, curves, shapes, and recognizable pictures. There are no scores or wrong answers.</p>
-          <div className="learning-callout-progress" aria-label={`${learningProgress.completedLessonIds.length} of ${guidedLessons.length} lessons finished`}>
-            <span style={{ width: `${(learningProgress.completedLessonIds.length / guidedLessons.length) * 100}%` }} />
-          </div>
-          <small>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished on this device</small>
-        </div>
-        <div className="learning-callout-lessons">
-          {guidedLessons.slice(0, 3).map((lesson) => (
-            <button key={lesson.id} type="button" data-lesson-id={lesson.id} onClick={() => onOpenLesson(lesson)}>
-              <img src={drawingImageSrc(guidedLessonPreviewDrawing(lesson))} alt="" aria-hidden="true" />
-              <span><strong>{lesson.title}</strong><small>{lesson.steps.length} steps · {lesson.estimatedMinutes} min</small></span>
-              {learningProgress.completedLessonIds.includes(lesson.id) && <span className="lesson-complete-mark" aria-label="Finished">✓</span>}
-            </button>
-          ))}
-          <button className="learning-see-all" type="button" onClick={() => onOpenLesson(guidedLessons[0])}>See all guided lessons</button>
-        </div>
-      </section>
-
-      <section className="family-callout" aria-labelledby="family-callout-title">
-        <div>
-          <p className="eyebrow">Make something together</p>
-          <h2 id="family-callout-title">Twelve no-score activities for kids and grown-ups.</h2>
-          <p>Pass the page, invent a story, map a family memory, or make a small gift. Every activity works on paper or on screen.</p>
-        </div>
-        <button className="primary-button" type="button" onClick={onTogether}>Open family activities</button>
-      </section>
-
-      <section className="previous-work-section" aria-labelledby="previous-work-title">
-          <div className="previous-work-heading">
-            <div>
-              <p className="eyebrow">Saved in this browser</p>
-              <h2 id="previous-work-title">Previous work</h2>
-            </div>
-            <div className="previous-work-summary">
-              <span>{previousWorkSessions.length}</span>
-              <button type="button" disabled={previousWorkClearInProgress} onClick={onDeleteAllWork}>{previousWorkClearInProgress ? 'Clearing...' : 'Clear local work'}</button>
-            </div>
-          </div>
-          <div className="previous-work-grid">
-            {previousWorkSessions.map((session) => (
-              <article key={session.sessionId} className="previous-work-card">
-                <button type="button" className="previous-work-preview" disabled={previousWorkClearInProgress} onClick={() => onResumeWork(session)} aria-label={`Resume ${session.title}`}>
-                  <img src={session.source.kind === 'upload' && session.source.uploadedImage?.processedSrc ? session.source.uploadedImage.processedSrc : drawingImageSrc(drawingFromPracticeSource(session.source))} alt="" aria-hidden="true" />
-                  <svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-                    {session.strokes.filter((stroke) => stroke.mode === 'draw').slice(-18).map((stroke, index) => (
-                      <path key={`${session.sessionId}-preview-${index}`} d={stroke.path} style={{ stroke: stroke.color, strokeWidth: stroke.width, opacity: stroke.opacity, strokeDasharray: stroke.dasharray }} />
-                    ))}
-                  </svg>
-                </button>
-                <strong>{session.title}</strong>
-                <small>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes</small>
-                <div className="previous-work-actions">
-                  <button type="button" disabled={previousWorkClearInProgress} onClick={() => onResumeWork(session)}>Resume</button>
-                  <button type="button" disabled={previousWorkClearInProgress} onClick={() => onStartFreshWork(session)}>Fresh</button>
-                  <button type="button" disabled={previousWorkClearInProgress} onClick={() => onDuplicateWork(session)}>Copy</button>
-                  <button type="button" disabled={previousWorkClearInProgress} onClick={() => onDeleteWork(session)}>Delete</button>
-                </div>
-              </article>
-            ))}
-          </div>
-          {previousWorkSessions.length === 0 && <p className="previous-work-empty">No saved drawings yet. Clear local work can also remove favorites, recent picks, stored uploads, or repair local storage.</p>}
-        </section>
+      {previousWorkSessions.length > 0 && (
+        <PreviousWorkSection
+          sessions={previousWorkSessions}
+          clearInProgress={previousWorkClearInProgress}
+          onResume={onResumeWork}
+          onStartFresh={onStartFreshWork}
+          onDuplicate={onDuplicateWork}
+          onDelete={onDeleteWork}
+          onDeleteAll={onDeleteAllWork}
+        />
+      )}
 
       <section className="discovery-panel" aria-labelledby="find-picture-title">
         <div className="discovery-heading">
@@ -2804,6 +2808,45 @@ function PickerScreen({
           {filtersAreActive && <button type="button" onClick={clearDiscoveryFilters}>Show all pictures</button>}
         </div>
       )}
+
+      <div className="picker-more" aria-label="More ways to create">
+        <section className="learning-callout" aria-labelledby="learning-callout-title">
+          <div className="learning-callout-copy">
+            <p className="eyebrow">Learn, don’t just copy</p>
+            <h2 id="learning-callout-title">Build a drawing one friendly step at a time.</h2>
+            <p>Eight short lessons teach lines, curves, shapes, and recognizable pictures. There are no scores or wrong answers.</p>
+            <div className="learning-callout-progress" aria-label={`${learningProgress.completedLessonIds.length} of ${guidedLessons.length} lessons finished`}>
+              <span style={{ width: `${(learningProgress.completedLessonIds.length / guidedLessons.length) * 100}%` }} />
+            </div>
+            <small>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished on this device</small>
+          </div>
+          <div className="learning-callout-lessons">
+            {guidedLessons.slice(0, 3).map((lesson) => (
+              <button key={lesson.id} type="button" data-lesson-id={lesson.id} onClick={() => onOpenLesson(lesson)}>
+                <img src={drawingImageSrc(guidedLessonPreviewDrawing(lesson))} alt="" aria-hidden="true" />
+                <span><strong>{lesson.title}</strong><small>{lesson.steps.length} steps · {lesson.estimatedMinutes} min</small></span>
+                {learningProgress.completedLessonIds.includes(lesson.id) && <span className="lesson-complete-mark" aria-label="Finished">✓</span>}
+              </button>
+            ))}
+            <button className="learning-see-all" type="button" onClick={() => onOpenLesson(guidedLessons[0])}>See all guided lessons</button>
+          </div>
+        </section>
+
+        <section className="family-callout" aria-labelledby="family-callout-title">
+          <div>
+            <p className="eyebrow">Make something together</p>
+            <h2 id="family-callout-title">Twelve no-score activities for kids and grown-ups.</h2>
+            <p>Pass the page, invent a story, map a family memory, or make a small gift. Every activity works on paper or on screen.</p>
+          </div>
+          <button className="primary-button" type="button" onClick={onTogether}>Open family activities</button>
+        </section>
+
+        <div className="local-data-footer">
+          <span>Favorites, progress, uploads, and drawings stay on this device.</span>
+          <button type="button" disabled={previousWorkClearInProgress} onClick={onDeleteAllWork}>{previousWorkClearInProgress ? 'Clearing...' : 'Clear local work'}</button>
+        </div>
+
+      </div>
     </section>
   )
 }

@@ -29,6 +29,14 @@ try {
   assert(await page.$$eval('.lesson-library [data-lesson-id]', (cards) => cards.length) === 8, 'Learning library should show eight guided lessons')
   assert(await page.$eval('.lesson-instruction h3', (heading) => heading.textContent?.includes('slow line across')), 'First lesson did not start on its first prompt')
 
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
+  const mobileLessonOrder = await page.evaluate(() => ({
+    stage: document.querySelector('.lesson-stage-card')?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY,
+    library: document.querySelector('.lesson-library')?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY,
+  }))
+  assert(mobileLessonOrder.stage < mobileLessonOrder.library, `The active mobile lesson should appear before the lesson library: ${JSON.stringify(mobileLessonOrder)}`)
+  await page.setViewport({ width: 1180, height: 900, deviceScaleFactor: 1 })
+
   await clickByText(page, 'Next step')
   await page.waitForFunction(() => document.querySelector('.lesson-step-dots button.active')?.textContent === '2')
   const storedStep = await page.evaluate(() => JSON.parse(localStorage.getItem('tracebuddy.learningProgress.v1') || 'null')?.stepByLessonId?.['line-control'])
