@@ -2843,6 +2843,25 @@ input[type='range'] {
   }
 }
 
+@media (max-width: 900px) {
+  .topbar {
+    padding-inline: 1rem;
+  }
+
+  .brand > span:last-child {
+    display: none;
+  }
+
+  .topbar nav {
+    gap: 0.15rem;
+  }
+
+  .topbar nav button {
+    padding-inline: 0.6rem;
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 720px) {
   .topbar {
     min-height: 66px;
