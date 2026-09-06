@@ -41,6 +41,11 @@ try {
   await page.goForward()
   await waitForRoute('#pictures', '.picker-screen')
 
+  await page.evaluate(() => { window.location.hash = '#together' })
+  await waitForRoute('#together', '.family-screen')
+  await page.evaluate(() => { window.location.hash = '#pictures' })
+  await waitForRoute('#pictures', '.picker-screen')
+
   await clickByText(page, 'Help')
   await waitForSelector(page, '.parent-help-dialog')
   const helpState = await page.evaluate(() => ({
@@ -100,12 +105,24 @@ try {
   await page.goBack()
   await page.waitForFunction(() => window.location.hash === '#practice')
   assert(leaveWarning.includes('could not save'), `Browser Back did not protect unsaved work: ${leaveWarning}`)
+
+  let hashWarning = ''
+  page.once('dialog', async (dialog) => {
+    hashWarning = dialog.message()
+    await dialog.dismiss()
+  })
+  await page.evaluate(() => { window.location.hash = '#pictures' })
+  await page.waitForFunction(() => window.location.hash === '#practice')
+  assert(hashWarning.includes('could not save'), `Hash navigation did not protect unsaved work: ${hashWarning}`)
   await page.evaluate(() => {
     Storage.prototype.setItem = window.__traceBuddyOriginalSetItem
     delete window.__traceBuddyOriginalSetItem
   })
-  await page.goBack()
+  await page.evaluate(() => { window.location.hash = '#home' })
   await waitForRoute('#home', '.hero-screen')
+
+  await page.evaluate(() => { window.location.hash = '#not-a-tracebuddy-screen' })
+  await page.waitForFunction(() => window.location.hash === '#home')
 
   assert(pageErrors.length === 0, `Navigation and help flow emitted page errors: ${pageErrors.join(' | ')}`)
   console.log('Browser history, route focus, parent help, modal dismissal, touch targets, and policy links passed')

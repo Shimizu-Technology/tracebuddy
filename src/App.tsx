@@ -1346,6 +1346,8 @@ function App() {
   const previousWorkOperationGenerationRef = useRef(0)
   const historyReadyRef = useRef(false)
   const historyNavigationRef = useRef(false)
+  const historyEventHashRef = useRef('')
+  const historyRouteRequestRef = useRef(0)
 
   const overlaySrc = uploadedImage?.processedSrc ?? drawingImageSrc(selectedDrawing)
   const pictureName = uploadedImage ? uploadedImage.fileName : selectedDrawing.name
@@ -1645,6 +1647,7 @@ function App() {
 
   useEffect(() => {
     const route = routeByMode[mode]
+    historyEventHashRef.current = route
     if (!historyReadyRef.current) {
       window.history.replaceState({ traceBuddyMode: mode }, '', route)
       historyReadyRef.current = true
@@ -1666,12 +1669,24 @@ function App() {
   }, [mode])
 
   useEffect(() => {
-    const onPopState = () => {
+    const onRouteChange = () => {
+      const requestedHash = window.location.hash.toLowerCase()
+      if (historyEventHashRef.current === requestedHash) return
+      historyEventHashRef.current = requestedHash
       setHelpOpen(false)
       const targetMode = modeFromLocation()
-      if (targetMode === modeRef.current) return
+      if (targetMode === modeRef.current) {
+        const canonicalRoute = routeByMode[targetMode]
+        if (requestedHash !== canonicalRoute) {
+          historyEventHashRef.current = canonicalRoute
+          window.history.replaceState({ traceBuddyMode: targetMode }, '', canonicalRoute)
+        }
+        return
+      }
       const currentMode = modeRef.current
+      const routeRequest = ++historyRouteRequestRef.current
       const applyHistoryNavigation = () => {
+        if (routeRequest !== historyRouteRequestRef.current || modeFromLocation() !== targetMode) return
         historyNavigationRef.current = true
         setMode(targetMode)
         window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1682,15 +1697,21 @@ function App() {
         return
       }
       void saveHandler().then((saved) => {
+        if (routeRequest !== historyRouteRequestRef.current || modeFromLocation() !== targetMode) return
         if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Leave this drawing without saving them?')) {
           applyHistoryNavigation()
         } else {
+          historyEventHashRef.current = routeByMode[currentMode]
           window.history.pushState({ traceBuddyMode: currentMode }, '', routeByMode[currentMode])
         }
       })
     }
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
+    window.addEventListener('popstate', onRouteChange)
+    window.addEventListener('hashchange', onRouteChange)
+    return () => {
+      window.removeEventListener('popstate', onRouteChange)
+      window.removeEventListener('hashchange', onRouteChange)
+    }
   }, [])
 
   const startCameraAfterSetup = useCallback(() => {

@@ -7,6 +7,7 @@ import {
   Alert,
   AppState,
   FlatList,
+  findNodeHandle,
   Image,
   Linking,
   Modal,
@@ -848,6 +849,7 @@ function TraceBuddyMobile() {
   const [overlayLocked, setOverlayLocked] = useState(false)
   const [controlsOpen, setControlsOpen] = useState(true)
   const [isPickingImage, setIsPickingImage] = useState(false)
+  const parentHelpCloseRef = useRef<View | null>(null)
   const cameraPromptedRef = useRef(false)
   const overlayLockedRef = useRef(false)
   const overlayDraggingRef = useRef(false)
@@ -1504,6 +1506,13 @@ function TraceBuddyMobile() {
     }
   }, [])
 
+  const focusParentHelpClose = useCallback(() => {
+    requestAnimationFrame(() => {
+      const closeButtonHandle = findNodeHandle(parentHelpCloseRef.current)
+      if (closeButtonHandle) AccessibilityInfo.setAccessibilityFocus(closeButtonHandle)
+    })
+  }, [])
+
   useEffect(() => {
     const labels: Record<ScreenMode, string> = {
       picker: 'Picture picker',
@@ -1521,16 +1530,16 @@ function TraceBuddyMobile() {
     return (
       <View style={styles.appShell}>
         <StatusBar style="dark" />
-        <Modal visible={parentHelpOpen} transparent animationType="fade" onRequestClose={() => setParentHelpOpen(false)}>
-          <Pressable style={styles.parentHelpBackdrop} onPress={() => setParentHelpOpen(false)} accessible={false}>
-            <ScrollView contentContainerStyle={styles.parentHelpScroll}>
+        <Modal visible={parentHelpOpen} transparent animationType="fade" onShow={focusParentHelpClose} onRequestClose={() => setParentHelpOpen(false)}>
+          <Pressable style={styles.parentHelpBackdrop} onPress={() => setParentHelpOpen(false)} accessible={false} accessibilityViewIsModal>
+            <ScrollView contentContainerStyle={[styles.parentHelpScroll, { paddingBottom: insets.bottom + 8 }]}>
               <Pressable style={styles.parentHelpCard} onPress={(event) => event.stopPropagation()} accessible={false}>
                 <View style={styles.parentHelpHeading}>
                   <View style={styles.parentHelpHeadingCopy}>
                     <Text style={styles.parentHelpEyebrow}>PARENT HELP</Text>
                     <Text style={styles.parentHelpTitle}>Choose the simplest path for today.</Text>
                   </View>
-                  <Pressable style={styles.parentHelpClose} onPress={() => setParentHelpOpen(false)} accessibilityRole="button" accessibilityLabel="Close parent help">
+                  <Pressable ref={parentHelpCloseRef} style={styles.parentHelpClose} onPress={() => setParentHelpOpen(false)} accessibilityRole="button" accessibilityLabel="Close parent help">
                     <Text style={styles.parentHelpCloseText}>×</Text>
                   </Pressable>
                 </View>
@@ -1565,7 +1574,7 @@ function TraceBuddyMobile() {
                   <View style={styles.brandMark}>
                     <TraceIcon />
                   </View>
-                  <Text style={styles.eyebrow}>TraceBuddy mobile</Text>
+                  <Text style={[styles.eyebrow, styles.heroBadgeEyebrow]}>TraceBuddy mobile</Text>
                   <Pressable style={styles.parentHelpButton} onPress={() => setParentHelpOpen(true)} accessibilityRole="button">
                     <Text style={styles.parentHelpButtonText}>Parent help</Text>
                   </Pressable>
@@ -3794,6 +3803,9 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 12,
   },
+  heroBadgeEyebrow: {
+    flexShrink: 1,
+  },
   parentHelpButton: {
     minHeight: 44,
     marginLeft: 'auto',
@@ -3821,7 +3833,6 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   parentHelpCard: {
-    maxHeight: '92%',
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 30,
