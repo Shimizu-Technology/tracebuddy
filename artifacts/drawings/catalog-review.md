@@ -1,6 +1,6 @@
 # Drawing catalog review
 
-Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size in September 2026. A pass requires a readable silhouette, rounded TraceBuddy strokes, safe canvas margins, no accidental line collisions, and a traceable amount of detail. The nine retired entries remain valid saved-work IDs but no longer appear in the picker.
+Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size in September 2026. A pass requires a readable silhouette, rounded TraceBuddy strokes, safe canvas margins, no accidental line collisions, and a traceable amount of detail. The 54 passing entries remain in the picker; the eighteen retired entries remain valid saved-work IDs but no longer appear there.
 
 | Prior catalog position | Drawing ID | Decision | Review note |
 |---:|---|---|---|
@@ -15,43 +15,42 @@ Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size i
 | 14 | `cozy-house` | Redrawn — pass | Smaller equal-size windows have stroke-aware clearance from the wider door; the roof stops at the chimney instead of passing through it. |
 | 15 | `friendly-sun` | Retained — pass | Existing rays, face, spacing, and stroke weight are clear. |
 | 16 | `butterfly` | Redrawn — pass | Mirrored wing panels and spots add useful tracing detail without crowding the centered body. |
-| 17 | `puppy` | Redrawn — pass | Floppy ears, muzzle, collar and tag, seated body, paws, and tail define the puppy. |
-| 18 | `sleepy-cat` | Redrawn — pass | Curled sleeping body, closed eyes, triangular ears, whiskers, and wrapped tail. |
-| 19 | `bunny` | Redrawn — pass | Full seated body, long ears, haunches, feet, and tail replace the generic face card. |
-| 20 | `gentle-elephant` | Redrawn — pass | Side profile uses a smaller foreground ear, an uninterrupted head and trunk, aligned grounded legs, and a distinct eye. |
-| 21 | `panda` | Redrawn — pass | Round ears, angled eye patches, a distinct muzzle, and seated body create a recognizable panda without relying on opaque fills. |
-| 22 | `little-duck` | Redrawn — pass | Full side profile, flat bill, wing, eye, body, and water line remain separated. |
-| 23 | `curly-snail` | Redrawn — pass | Large spiral shell sits cleanly above a distinct head, feelers, foot, and tail. |
+| 17 | `puppy` | Retired — removed | Removed from the picker after repeated visual review; retained only for saved-session compatibility. |
+| 18 | `sleepy-cat` | Redrawn — pass | Simplified after iterative review into a centered sleeping-kitten portrait with integrated ears, closed eyes, a small muzzle, and balanced whiskers; ambiguous paws and tail were removed. |
+| 19 | `bunny` | Retired — removed | Removed from the picker after repeated visual review; retained only for saved-session compatibility. |
+| 20 | `gentle-elephant` | Retired — removed | Removed from the picker after repeated visual review; retained only for saved-session compatibility. |
+| 21 | `panda` | Retired — removed | Removed from the picker after repeated visual review; retained only for saved-session compatibility. |
+| 22 | `little-duck` | Retired — removed | Removed from the picker after repeated visual review; retained only for saved-session compatibility. |
+| 23 | `curly-snail` | Redrawn — pass | Organic shell and one broad flowing spiral connect cleanly to a continuous body, rounded head, expressive eyestalks, and smile. |
 | 24 | `island-turtle` | Redrawn — pass | A consistent top-down silhouette uses an oval scuted shell, four broad flippers, head, and tail instead of mixing viewpoints. |
-| 25 | `friendly-fish` | Redrawn — pass | Body, forked tail, dorsal and lower fins, gill, eye, and smile are separated. |
-| 26 | `seahorse` | Redrawn — pass | A long horizontal snout, crown, arched neck, dorsal fin, belly marks, and curled tail form one unmistakable upright silhouette. |
-| 27 | `starfish` | Redrawn — pass | Uniform five-point sea star with centered face. |
+| 25 | `friendly-fish` | Redrawn — pass | Rounded body and forked tail form one clean silhouette; the single enclosed side fin, gill, eye, and smile avoid ambiguous fins or overlapping construction lines. |
+| 26 | `seahorse` | Retired — removed | Removed from the picker after repeated visual review; retained only for saved-session compatibility. |
+| 27 | `starfish` | Redrawn — pass | Five broad, tapered arms radiate from a roomy center with balanced organic curves and a centered face; the incorrect six-arm silhouette is removed. |
 | 28 | `happy-crab` | Redrawn — pass | Eyestalks, two large open pincers, body shell, face, and separated legs form a complete crab. |
-| 29 | `tiny-whale` | Redrawn — pass | Broad whale body, two-part tail fluke, fin, face, blowhole, and connected three-part spout are cleanly separated. |
-| 30 | `octopus` | Redrawn — pass | One continuous silhouette gives the smiling octopus eight clean arm lobes with no interior crossings, keeping it distinct from the four-tentacle jellyfish. |
-| 31 | `shell` | Redrawn — pass | Nautilus-style outer shell, open center spiral, and restrained growth ribs stay clear at thumbnail size. |
-| 32 | `dream-unicorn` | Redrawn — pass | Shorter neck, larger pony body, long horn, layered mane and tail, and two visible grounded legs remain readable in side profile at picker size. |
-| 33 | `fairy-wand` | Redrawn — pass | Centered star and diagonal handle with balanced sparkles. |
-| 34 | `storybook-castle` | Redrawn — pass | Three aligned towers, centered door, and no intersecting rooms. |
-| 35 | `tiny-dragon` | Redrawn — pass | A front-facing hatchling has horns, a broad muzzle, nostrils, webbed wings, belly, grounded feet, and a curled tail instead of the former winged-cat silhouette. |
+| 29 | `tiny-whale` | Retired — removed | Removed from the picker after repeated visual review; retained only for saved-session compatibility. |
+| 30 | `octopus` | Redrawn — pass | A narrower rounded mantle flows into eight clearly countable arms: two raised, two side-reaching, and four long lower arms with rounded tips and no crossings. |
+| 31 | `shell` | Redrawn — pass | A continuous centered spiral stays clear of the lower aperture, while three evenly spaced growth ribs and a broad outer whorl remain legible at thumbnail size. |
+| 32 | `dream-unicorn` | Redrawn — pass | A standing horse silhouette now has a long muzzle, sloped neck, level back, four separated legs with subtle hooves, a tapered flowing tail, two mane strands, pointed ear, and clean striped horn. |
+| 33 | `fairy-wand` | Redrawn — pass | The star is rotated onto the wand axis so the outlined handle joins one valley evenly and its centerline passes through the star center; fixed sparkles frame the diagonal composition. |
+| 34 | `storybook-castle` | Redrawn — pass | A taller center tower, three pennant flags, arched windows, small crenellated connectors, and a centered double gate make the silhouette read as a storybook castle rather than three houses. |
+| 35 | `tiny-dragon` | Retired — removed | Removed from the picker after repeated visual review; retained only for saved-session compatibility. |
 | 36 | `royal-crown` | Retained — pass | Existing crown is centered, open, and easy to trace. |
-| 37 | `rainbow-cloud` | Redrawn — pass | Three centered rainbow bands meet a balanced cloud without crowding or drifting off-center. |
-| 38 | `rocket-ship` | Redrawn — pass | The single remaining rocket uses a centered capsule, window, fins, bands, and open flame. |
-| 39 | `race-car` | Redrawn — pass | Low aerodynamic body, open driver cockpit, front and rear wings, nose, and exposed wheels read as a formula-style race car. |
-| 40 | `airplane` | Redrawn — pass | Passenger-jet profile has a coherent fuselage, swept wings, and a single readable tail assembly. |
-| 41 | `delivery-truck` | Redrawn — pass | Both wheel areas interrupt the truck body consistently. |
-| 42 | `sailboat` | Redrawn — pass | Centered mast, two sails, hull, and water line. |
-| 43 | `scooter` | Redrawn — pass | A defined low deck, angled steering column, T-bar handle, and two aligned wheels form a coherent kick scooter. |
+| 37 | `rainbow-cloud` | Redrawn — pass | Four uniformly spaced nested arches terminate directly into two balanced, puffy side clouds, removing the former floating endpoints and oversized inner gap while preserving a recognizable silhouette at picker size. |
+| 38 | `rocket-ship` | Redrawn — pass | The single remaining rocket uses a centered capsule, window, bands, and open flame; both stabilizing fins now stop flush on the fuselage contour without crossing into the body or creating doubled round-cap bumps. |
+| 39 | `race-car` | Redrawn — pass | Simplified into a front-left-facing cartoon racing coupe with a clearly lowered nose and headlight, upright racing number, two equal oversized wheels, divided cabin, and compact spoiler correctly positioned over the right rear wheel. |
+| 40 | `airplane` | Redrawn — pass | Rebuilt as a balanced top-down passenger jet with mirrored main wings and rear stabilizers, a centered fuselage, paired windows, and a distinct cockpit; the silhouette now reads evenly at card and thumbnail sizes. |
+| 41 | `delivery-truck` | Redrawn — pass | Rebuilt with a large cargo box, centered parcel symbol, distinct cab and windshield, small headlight, and two equal wheels with hubs; both wheel areas interrupt the lower body consistently. |
+| 42 | `sailboat` | Redrawn — pass | Rebuilt with a centered mast, small pennant, two distinct curved sails, a broad rounded hull with two portholes, and one separated wave that no longer collides with the hull. |
+| 43 | `scooter` | Redrawn — pass | Rebuilt with a low flat deck, one straight steering stem, centered T-bar and clamp, a small rear fender, and two equal wheels with hubs; the frame meets each wheel without crossing its interior. |
 | 44 | `abc-practice` | Redrawn — pass | Large dashed letters with clear spacing and a baseline. |
-| 45 | `numbers-123` | Redrawn — pass | Large dashed numerals with clear spacing and a baseline. |
-| 46 | `big-heart-word` | Redrawn — pass | LOVE is smaller and centered inside the heart with generous edge clearance. |
+| 45 | `numbers-123` | Redrawn — pass | Large dashed numerals now share one cap height and baseline, with consistent spacing and an unobtrusive writing guide below. |
+| 46 | `big-heart-word` | Redrawn — pass | LOVE is centered in the heart's visual upper body rather than its pointed geometric center, with generous clearance from every edge. |
 | 47 | `name-banner` | Redrawn — pass | Separate banner and three evenly spaced writing guides. |
 | 48 | `latte-stone` | Redrawn — pass | The tåsa is flat-side-up and curved-side-down over a centered tapered haligi, matching the traditional latte profile. |
 | 49 | `palm-island` | Redrawn — pass | Five natural fronds stop around rather than pass through the coconut cluster; a gently curved banded trunk begins below it. |
-| 50 | `hibiscus` | Redrawn — pass | Five broad petals, restrained fold lines, a centered throat, and a long dotted stamen read as a hibiscus without tangled center lines. |
-| 51 | `proa-canoe` | Redrawn — pass | A single asymmetric lateen sail, narrow main hull, diagonal booms, and a smaller offset ama clarify the proa. |
-| 52 | `beach-hut` | Redrawn — pass | Centered raised island hut has layered thatch, one door, one window, and four posts. |
-| 53 | `pumpkin` | Redrawn — pass | Even pumpkin sections and an uncluttered stem and vine. |
+| 51 | `proa-canoe` | Redrawn — pass | A single asymmetric lateen sail, narrow double-ended hull, parallel booms, and a smaller offset ama make the proa distinct at picker size. |
+| 52 | `beach-hut` | Redrawn — pass | The raised island hut uses an oversized thatched roof, centered door, balanced windows, open posts, and broad steps. |
+| 53 | `pumpkin` | Redrawn — pass | A broad front lobe, softly receding side sections, and sturdy tapered stalk form one continuous silhouette; every rib and stem edge now terminates directly on the outer contour. |
 | 54 | `snowflake` | Redrawn — pass | One arm is rotated six times, guaranteeing exact 60-degree symmetry and identical branch placement. |
 | 55 | `heart-balloons` | Redrawn — pass | Two complete, closed heart balloons sit side by side with separate knots and cords; neither outline is clipped or crossed. |
 | 56 | `flying-kite` | Redrawn — pass | Symmetric diamond, crossbars, curved tail, and separated wind marks. |
@@ -60,14 +59,13 @@ Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size i
 | 59 | `waves-zigzags` | Redrawn — pass | Three full-width rows with consistent vertical spacing. |
 | 60 | `loops-spirals` | Redrawn — pass | Three separated closed loops and one isolated spiral provide the promised curve practice without collisions. |
 | 61 | `easy-tree` | Redrawn — pass | A stable tapered trunk, two branches, and a centered rounded canopy use a small number of clean paths. |
-| 62 | `big-leaf` | Redrawn — pass | Strong outer contour with an even stem and vein pattern. |
-| 63 | `rain-cloud` | Redrawn — pass | Open cloud silhouette and four evenly spaced rain lines. |
-| 64 | `baby-dinosaur` | Redrawn — pass | A larger friendly body, balanced neck and head, spots, tapered tail, and two visible grounded legs create a clear side-profile young sauropod. |
+| 62 | `big-leaf` | Redrawn — pass | Strong outer contour with an even stem and three consistently alternating vein pairs, avoiding crowded six-way junctions. |
+| 63 | `rain-cloud` | Redrawn — pass | Open cloud silhouette with four evenly spaced rain lines centered beneath its visual width. |
+| 64 | `baby-dinosaur` | Redrawn — pass | Rebuilt from baby-sauropod references with a lifted tapering tail, rounded body, S-curved neck, compact smiling head, three clean side-view legs, and three simple back markings. |
 | 65 | `ladybug` | Redrawn — pass | Separate head, symmetric shell, center line, spots, antennae, and six legs complete the insect. |
 | 66 | `jellyfish` | Redrawn — pass | Simple bell, four scallops, and four untangled tentacles. |
 | 67 | `happy-train` | Redrawn — pass | Simplified chimney and steam, a clear boiler and cab hierarchy, cowcatcher, drive rod, and unobstructed wheels form a readable steam engine. |
 | 68 | `guam-outline` | Redrawn — pass | Simplified from the official U.S. Census Guam boundary instead of a guessed blob. |
-| 69 | `coconut-crab` | Redrawn — pass | An asymmetric three-quarter profile uses a broad ridged abdomen, distinct head and feelers, one dominant crusher claw, a smaller rear claw, and four jointed walking legs instead of a roach-like oval. |
 
 ## Retired picker entries
 
@@ -82,10 +80,10 @@ Reviewed one by one at both 160 × 160 picker size and 420 × 420 tracing size i
 | `curated-fish-118` | Redundant fish with poor source geometry. |
 | `curated-flower-120` | Redundant flower with hairline imported strokes. |
 | `curated-long-stem-flower-257` | Redundant daisy with hairline imported strokes. |
+| `hibiscus` | Repeated redesigns did not meet the visual-quality bar; removed rather than shipping another weak flower. |
 
-Reference checks used Guampedia’s traditional proa and latte overviews, U.S. Fish and Wildlife Service coconut-crab photography, and the U.S. Census Bureau’s 2024 1:500,000 Guam boundary file. The drawings are original simplified tracing geometry rather than copied source artwork.
+Reference checks used Guampedia’s traditional proa and latte overviews and the U.S. Census Bureau’s 2024 1:500,000 Guam boundary file. The drawings are original simplified tracing geometry rather than copied source artwork.
 
 - Proa reference: <https://www.guampedia.com/proa-and-navigation/>
 - Latte-stone reference: <https://www.guampedia.com/lattes-significance/>
-- Coconut-crab reference: <https://www.fws.gov/media/coconut-crab-0>
 - Guam boundary source: <https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_state_500k.zip>

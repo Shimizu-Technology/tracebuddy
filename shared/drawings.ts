@@ -696,13 +696,20 @@ const addedDrawings: Drawing[] = [
   { id: 'jellyfish', name: 'Jellyfish', theme: 'Ocean curves', category: 'ocean', difficulty: 'Starter', svg: revisedTemplateSvgs.jellyfish },
   { id: 'happy-train', name: 'Happy Train', theme: 'Vehicle shapes', category: 'vehicles', difficulty: 'Medium', svg: revisedTemplateSvgs['happy-train'] },
   { id: 'guam-outline', name: 'Guam Outline', theme: 'Island shape', category: 'island', difficulty: 'Starter', svg: revisedTemplateSvgs['guam-outline'] },
-  { id: 'coconut-crab', name: 'Coconut Crab', theme: 'Island animal', category: 'island', difficulty: 'Medium', svg: revisedTemplateSvgs['coconut-crab'] },
 ]
 
 // These concepts were deliberately consolidated in the 2026 catalog review.
 // They remain in the compatibility catalog below so older saved sessions that
 // predate SVG snapshots can still restore the correct guide.
 const retiredDrawingIds = new Set([
+  'puppy',
+  'bunny',
+  'gentle-elephant',
+  'panda',
+  'little-duck',
+  'seahorse',
+  'tiny-whale',
+  'tiny-dragon',
   'curated-cute-crab-056',
   'curated-rocket-064',
   'curated-kite-070',
@@ -712,6 +719,7 @@ const retiredDrawingIds = new Set([
   'curated-fish-118',
   'curated-flower-120',
   'curated-long-stem-flower-257',
+  'hibiscus',
 ])
 
 const compatibilityDrawings: Drawing[] = [...legacyDrawings, ...addedDrawings]

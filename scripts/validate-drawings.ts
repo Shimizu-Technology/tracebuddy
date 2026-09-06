@@ -4,6 +4,14 @@ import { drawingById, drawingByNameAndTheme, drawingCategories, drawings, type D
 import { revisedTemplateSvgs } from '../shared/revisedTemplates'
 
 const retiredIds = [
+  'puppy',
+  'bunny',
+  'gentle-elephant',
+  'panda',
+  'little-duck',
+  'seahorse',
+  'tiny-whale',
+  'tiny-dragon',
   'curated-cute-crab-056',
   'curated-rocket-064',
   'curated-kite-070',
@@ -13,6 +21,7 @@ const retiredIds = [
   'curated-fish-118',
   'curated-flower-120',
   'curated-long-stem-flower-257',
+  'hibiscus',
 ] as const
 
 const approvedUnchangedIds = [
@@ -32,12 +41,12 @@ const inlineApprovedUnchangedIds = [
 const expectedCategoryCounts: Record<DrawingCategoryId, number> = {
   starters: 7,
   nature: 6,
-  animals: 10,
-  ocean: 10,
-  magic: 6,
+  animals: 5,
+  ocean: 8,
+  magic: 5,
   vehicles: 8,
   letters: 3,
-  island: 7,
+  island: 5,
   seasonal: 7,
 }
 
@@ -53,7 +62,7 @@ function assertExactSet(actual: readonly string[], expected: readonly string[], 
   assert(JSON.stringify(sorted(actual)) === JSON.stringify(sorted(expected)), `${label} do not match the review ledger`)
 }
 
-assert(drawings.length === 64, `Expected 64 drawings, received ${drawings.length}`)
+assert(drawings.length === 54, `Expected 54 drawings, received ${drawings.length}`)
 assert(new Set(drawings.map(({ id }) => id)).size === drawings.length, 'Drawing IDs must be unique')
 assert(new Set(drawings.map(({ name }) => name)).size === drawings.length, 'Drawing names must be unique')
 assert(retiredIds.every((id) => !drawings.some((drawing) => drawing.id === id)), 'Retired drawings must not remain discoverable')
@@ -115,4 +124,4 @@ for (const drawing of drawings) {
   }
 }
 
-console.log('Drawing catalog valid: 64 drawings, 60 revised templates, 4 approved unchanged templates, and 9 retired duplicates.')
+console.log('Drawing catalog valid: 54 drawings, 50 revised templates, 4 approved unchanged templates, and 18 retired drawings.')
