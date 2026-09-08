@@ -165,6 +165,25 @@ Pass if the complete cached app shell loads and a static page never replaces the
 
 ## Native mobile app scenarios
 
+### Paper Lock release gate
+
+Paper Lock must be evaluated on physical AR-capable hardware. The Simulator can prove only that the native module links and the fallback UI works.
+
+- Print a calibration page with corner crosses and a 10 mm grid. For Marker Lock, print the in-app marker at 100% scale and verify the square is 50 mm wide.
+- Test Letter and A4 in portrait and landscape, on dark and light tables, under ordinary indoor light.
+- Run ten Surface Lock and ten Marker Lock attempts on the oldest supported non-LiDAR iPhone available and a supported iPad. Add a current iPhone and LiDAR device when available.
+- Require at least 9/10 Surface Lock attempts to show a placeable guide within five seconds in normal conditions, and 9/10 marker attempts to recognize a fully visible marker within three seconds.
+- After parent confirmation, target registration error at four measured points is no more than 8 mm for Surface Lock and 5 mm for Marker Lock.
+- On a stable stand, target peak-to-peak jitter is no more than 3 mm over ten seconds.
+- Move the device 10–20 cm and tilt it about 20 degrees. After settling, target residual error remains within 8 mm for Surface Lock and 5 mm for Marker Lock.
+- Run a ten-minute trace with no crash, freeze over one second, or serious/critical thermal state. Record battery change.
+- Cover the page/marker with a hand or pencil for 2–3 seconds. The UI must leave the safe locked state, prevent child mode, then recover or offer Reset within eight seconds.
+- Slide the page 5–10 cm and rotate it 15 degrees. Marker Lock should follow when the marker moves with the page. Surface Lock must explain that it is table-anchored and require relocking.
+- Background the app, open Control Center, rotate the device, and exercise iPad multitasking. Each interruption must recover within eight seconds or show a working Reset/Camera Trace path.
+- Try dim light, glare, a white table, rapid motion, a partial marker, and a marker outside the frame. Each case must give specific guidance instead of silently showing a stale guide.
+
+If those tolerances are not repeatable, change the product claim or default placement path before App Store release. Do not treat a visually convincing screenshot as measurement evidence.
+
 ### 1. Development or TestFlight launch
 
 - Install an Expo SDK 56 development build or the latest TraceBuddy TestFlight build. The public App Store version of Expo Go is not compatible with this pinned runtime.

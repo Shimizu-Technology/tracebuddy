@@ -67,9 +67,9 @@ Tradeoffs:
 - Adds setup friction.
 - Needs marker design and calibration work.
 
-## Future option: native AR
+## Current iOS option: Paper Lock
 
-Native ARKit/ARCore could anchor drawings to a detected surface or paper plane more robustly.
+Version 1.3 uses native ARKit/RealityKit to anchor drawings to a horizontal surface or an optional printable 50 mm marker.
 
 Advantages:
 
@@ -79,9 +79,9 @@ Advantages:
 
 Tradeoffs:
 
-- Requires native iOS/Android app work.
+- Requires a native iOS development or TestFlight build and supported hardware.
 - Adds App Store/TestFlight complexity.
 - Slower iteration than web.
 - More device compatibility concerns.
 
-Recommendation: validate browser paper detection first, then prototype printable marker tracking before considering native AR.
+Recommendation: keep browser detection and Camera Trace as fallbacks, then compare Surface Lock and Marker Lock on physical iPhones/iPads using the release gates in `REAL_DEVICE_TESTING.md`.

@@ -129,15 +129,15 @@ Next improvements:
 - Add a simple cleanup preview before entering trace mode.
 - Explore better local foreground/background sampling.
 
-## Phase 5: iOS ARKit Trace spike
+## Phase 5: iOS Paper Lock — implemented in 1.3
 
 Goal: prove that the tracing guide can stay attached to real paper when the device moves.
 
 See `docs/AR_TRACE_PLAN.md` for the full plan.
 
-Recommended first AR scope:
+Implemented AR scope:
 
-- Add an experimental iOS-only AR Trace mode.
+- Add an iOS-only Paper Lock mode.
 - Use full ARKit with a printed TraceBuddy reference marker.
 - Detect the marker and place a transparent guide plane relative to it.
 - Render the selected tracing guide on the plane.
@@ -158,9 +158,9 @@ Tradeoffs:
 - Requires a printable marker or worksheet.
 - Android ARCore would be a separate later project.
 
-## Phase 6: AR polish and printable workflow
+## Phase 6: Paper Lock physical validation and polish
 
-If the ARKit spike works well on real devices, polish it into a reliable workflow.
+Test the 1.3 TestFlight build on real devices and use measured results to decide the next refinements.
 
 Possible follow-up features:
 

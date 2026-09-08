@@ -4,7 +4,7 @@
 
 TraceBuddy is a mobile-first tracing helper for kids and parents. A phone or iPad camera can show real paper on the table with a semi-transparent line-art overlay, and an on-screen coloring/practice mode lets a child trace or color directly with a finger or stylus when a paper setup is not available.
 
-It is intentionally simple: no account, no backend, no uploads, and no analytics. The current product is a practical camera overlay and on-screen coloring tool. A future iOS ARKit mode is planned specifically to anchor the tracing guide to real paper, not to add novelty 3D features.
+It is intentionally simple: no account, no backend, no uploads, and no analytics. The current product combines a practical camera overlay, on-screen coloring, and an iOS ARKit Paper Lock mode that anchors the tracing guide to real paper without adding novelty 3D features.
 
 ## Why we built it
 
@@ -29,7 +29,7 @@ When a child wants to practice drawing, the parent can open TraceBuddy, pick or 
 
 1. Open TraceBuddy on a phone or tablet.
 2. Pick a built-in line drawing, type custom words/names/phrases, or upload a local image.
-3. Choose camera tracing over paper or on-screen practice.
+3. On iOS, choose Paper Lock to anchor the guide in the room; otherwise choose camera tracing over paper or on-screen practice.
 4. Allow camera access when using the paper workflow.
 5. Place the device above real paper with a stand or stable prop.
 6. Use Find paper/Track paper for automatic alignment, or adjust opacity, size, rotation, and position manually.
@@ -51,7 +51,7 @@ The MVP is successful if:
 
 ## Non-goals for the MVP
 
-- Production native AR anchoring in the first App Store release.
+- Native AR anchoring on Android or the web.
 - Blank-paper AR detection without a stable marker or calibration strategy.
 - Account creation.
 - Cloud storage.
@@ -67,11 +67,11 @@ A mobile web MVP was faster to test and easier to share. Camera access is availa
 
 The native Expo app gives us a camera preview, local image picker, keep-awake behavior, and React Native controls without committing to custom AR work yet. The pinned Expo SDK requires a development build for local native testing; release candidates are distributed through TestFlight.
 
-### Camera tracing now, focused AR later
+### Camera tracing plus focused iOS AR
 
-The app starts with a lightweight camera tracing workflow and browser paper detector instead of native AR. It can find a bright sheet in the camera view and align/track the drawing locally. This is useful for small camera shifts, but physical stability still matters and manual controls remain available when detection fails.
+The app started with a lightweight camera tracing workflow and browser paper detector. It can find a bright sheet in the camera view and align/track the drawing locally. This is useful for small camera shifts, but physical stability still matters and manual controls remain available when detection fails.
 
-The planned AR direction is full iOS ARKit with a printed TraceBuddy marker/reference image. The goal is to make the selected tracing guide stay attached to the physical worksheet when the device moves. This should be built as an experimental iOS-only AR Trace mode after the first App Store MVP is submitted.
+Version 1.3 adds full iOS ARKit/RealityKit Paper Lock with horizontal-surface placement and an optional printed TraceBuddy reference marker. The selected guide is rendered at a physical Letter or A4 size and stays attached to its world or marker anchor while the device moves. Regular Camera Trace remains the fallback on unsupported devices and while real-device accuracy is being validated.
 
 ### Local-first privacy
 
@@ -86,7 +86,7 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - React + Vite + TypeScript web frontend.
 - Expo + React Native + TypeScript mobile app under `mobile/`, tested with development and TestFlight builds.
 - CSS-only visual design.
-- Shared 73-template SVG drawing library with search, category and difficulty filters, favorites, and recent picks.
+- Shared 54-drawing SVG library with search, category and difficulty filters, favorites, and recent picks.
 - Eight step-by-step lessons that introduce one highlighted stroke group at a time, remember the current step locally, and avoid scores or failure states.
 - Handwriting practice for names, words, numbers, and short family messages.
 - Twelve short Together activities that turn tracing into collaborative drawing, stories, gifts, and family memories.
@@ -94,6 +94,7 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 - Local image upload with optional browser-only cleanup.
 - Browser camera access with graceful demo fallback.
 - Native Expo camera trace mode in the mobile MVP.
+- Native iOS Paper Lock mode with ARKit/RealityKit surface and printable-marker anchoring.
 - On-screen coloring/practice mode in web and mobile for finger/stylus tracing.
 - Custom word/name/phrase guides for early writing practice.
 - Expanded colors including pinks, brush sizes, pencil/marker/crayon/paint styles, and eraser support for on-screen coloring.
@@ -117,9 +118,9 @@ Built-in drawings are inline SVG line art. They are lightweight, crisp at any si
 
 - Does the native camera experience feel better than the PWA during a real tracing session?
 - Is browser paper tracking stable enough on real iPhone/iPad setups?
-- Would printable marker-based tracking be more reliable than plain paper detection?
+- Is Surface Lock or printable Marker Lock more reliable across real family setups?
 - Are the beta uploaded-image cleanup modes good enough on real family photos?
 - Which premade drawing/template categories does Stassie use most?
 - Which discovery shortcuts do families use most: search, favorites, recent picks, category, or difficulty?
 - Does the child trace view remove enough setup distraction on real phones and tablets?
-- Does the planned ARKit marker-anchored mode improve real tracing enough to justify the native complexity?
+- Does Paper Lock improve real tracing enough to justify keeping and expanding the native AR path?

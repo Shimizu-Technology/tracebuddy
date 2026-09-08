@@ -33,6 +33,7 @@ import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg
 import { captureRef } from 'react-native-view-shot'
 
 import { isDismissedPrintSheet } from './printUtils'
+import ARTraceScreen from './src/features/ar/ARTraceScreen'
 
 import {
   addRecentDrawing,
@@ -61,8 +62,8 @@ import {
 } from '@tracebuddy/shared'
 import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, FamilyActivity, GuidedLesson, LearningProgress, TraceAlignment, WorksheetOptions } from '@tracebuddy/shared'
 
-type ScreenMode = 'picker' | 'together' | 'learn' | 'trace' | 'practice'
-type TraceSurface = 'camera' | 'screen'
+type ScreenMode = 'picker' | 'together' | 'learn' | 'trace' | 'ar' | 'practice'
+type TraceSurface = 'camera' | 'ar' | 'screen'
 type PickerCategoryId = DrawingFilterId
 
 const supportUrl = 'https://tracebuddy-gu.netlify.app/support.html'
@@ -1006,7 +1007,7 @@ function TraceBuddyMobile() {
   }, [overlayLocked])
 
   useEffect(() => {
-    if (mode !== 'trace' && mode !== 'practice') return undefined
+    if (mode !== 'trace' && mode !== 'ar' && mode !== 'practice') return undefined
 
     activateKeepAwakeAsync('tracebuddy-trace').catch(() => {
       // Keep awake is a convenience, not a blocker for tracing.
@@ -1092,7 +1093,7 @@ function TraceBuddyMobile() {
     setUploadedImage(null)
     if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
     setActivePracticeSession(null)
-    setMode(traceSurface === 'screen' ? 'practice' : 'trace')
+    setMode(traceSurface === 'screen' ? 'practice' : traceSurface === 'ar' ? 'ar' : 'trace')
     if (traceSurface === 'camera') maybeOpenParentSetup()
     setControlsOpen(true)
     resetOverlay()
@@ -1151,7 +1152,7 @@ function TraceBuddyMobile() {
         })
         if (abandonedUploadUri && abandonedUploadUri !== persistedUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
         setActivePracticeSession(null)
-        setMode(traceSurface === 'screen' ? 'practice' : 'trace')
+        setMode(traceSurface === 'screen' ? 'practice' : traceSurface === 'ar' ? 'ar' : 'trace')
         if (traceSurface === 'camera') maybeOpenParentSetup()
         setControlsOpen(true)
         resetOverlay()
@@ -1519,6 +1520,7 @@ function TraceBuddyMobile() {
       together: 'Together activities',
       learn: 'Guided learning',
       trace: 'Camera tracing',
+      ar: 'Paper Lock tracing',
       practice: 'On-screen practice',
     }
     AccessibilityInfo.announceForAccessibility(labels[mode])
@@ -1543,9 +1545,9 @@ function TraceBuddyMobile() {
                     <Text style={styles.parentHelpCloseText}>×</Text>
                   </Pressable>
                 </View>
-                <Text style={styles.parentHelpIntro}>There are no scores or wrong answers. Pick a picture below, then choose camera tracing for paper or on-screen practice for a finger or stylus.</Text>
+                <Text style={styles.parentHelpIntro}>There are no scores or wrong answers. Pick a picture below, then choose Paper Lock or Camera Trace for paper, or On-screen practice for a finger or stylus.</Text>
                 <View style={styles.parentHelpSteps}>
-                  <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>1</Text><Text style={styles.parentHelpStepText}>Choose Camera + paper or On-screen practice.</Text></View>
+                  <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>1</Text><Text style={styles.parentHelpStepText}>Choose Paper Lock, Camera + paper, or On-screen practice.</Text></View>
                   <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>2</Text><Text style={styles.parentHelpStepText}>Pick any picture, word, or local image.</Text></View>
                   <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>3</Text><Text style={styles.parentHelpStepText}>Align and lock the guide, then draw at your own pace.</Text></View>
                 </View>
@@ -1580,8 +1582,19 @@ function TraceBuddyMobile() {
                   </Pressable>
                 </View>
                 <Text style={styles.heroTitle}>Pick a picture, then trace your way.</Text>
-                <Text style={styles.heroCopy}>Use the camera for paper tracing, or practice directly on the screen with your finger or stylus. Everything stays local on this phone.</Text>
+                <Text style={styles.heroCopy}>{Platform.OS === 'ios' ? 'Lock a guide to real paper, use the regular camera overlay, or practice directly on the screen.' : 'Use the camera for paper tracing, or practice directly on the screen.'} Everything stays local on this device.</Text>
                 <View style={styles.traceSurfaceSwitch} accessibilityLabel="Tracing mode">
+                  {Platform.OS === 'ios' ? (
+                    <Pressable
+                      style={[styles.traceSurfaceOption, traceSurface === 'ar' && styles.traceSurfaceOptionActive]}
+                      onPress={() => setTraceSurface('ar')}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: traceSurface === 'ar' }}
+                    >
+                      <Text style={[styles.traceSurfaceTitle, traceSurface === 'ar' && styles.traceSurfaceTitleActive]}>Paper Lock</Text>
+                      <Text style={[styles.traceSurfaceCopy, traceSurface === 'ar' && styles.traceSurfaceCopyActive]}>Guide stays put as the device moves.</Text>
+                    </Pressable>
+                  ) : null}
                   <Pressable
                     style={[styles.traceSurfaceOption, traceSurface === 'camera' && styles.traceSurfaceOptionActive]}
                     onPress={() => setTraceSurface('camera')}
@@ -1869,6 +1882,25 @@ function TraceBuddyMobile() {
         onSessionDeleted={handlePracticeSessionDeleted}
         onPicker={() => setMode('picker')}
         onCameraTrace={openCameraTrace}
+      />
+    )
+  }
+
+  if (mode === 'ar') {
+    return (
+      <ARTraceScreen
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+        pictureName={pictureName}
+        pictureTheme={pictureTheme}
+        selectedDrawing={selectedDrawing}
+        uploadedImage={uploadedImage}
+        permissionGranted={Boolean(permission?.granted)}
+        canAskPermissionAgain={permission?.canAskAgain !== false}
+        requestPermission={requestPermission}
+        onPicker={() => setMode('picker')}
+        onCameraFallback={openCameraTrace}
+        onScreenPractice={openScreenPractice}
       />
     )
   }
