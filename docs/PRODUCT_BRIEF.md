@@ -65,7 +65,7 @@ The MVP is successful if:
 
 A mobile web MVP was faster to test and easier to share. Camera access is available through `getUserMedia`, and HTTPS deployment is enough for browser real-device validation.
 
-The native Expo app gives us a camera preview, local image picker, keep-awake behavior, and React Native controls without committing to custom AR work yet. The pinned Expo SDK requires a development build for local native testing; release candidates are distributed through TestFlight.
+The native Expo app provides the camera preview, local image picker, keep-awake behavior, and React Native controls. Version 1.3 development and TestFlight builds also include the local `tracebuddy-ar` iOS module for Paper Lock; release candidates continue to be distributed through TestFlight.
 
 ### Camera tracing plus focused iOS AR
 

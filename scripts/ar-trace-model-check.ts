@@ -58,7 +58,11 @@ assert.equal(clampARValue(4, 0.1, 1), 1)
 
 assert.equal(arPagePresets.letterPortrait.widthMeters, 0.2159)
 assert.equal(arPagePresets.letterPortrait.heightMeters, 0.2794)
-assert.equal(arPagePresets.letterLandscape.widthMeters, arPagePresets.letterPortrait.heightMeters)
-assert.equal(arPagePresets.a4Landscape.heightMeters, arPagePresets.a4Portrait.widthMeters)
+assert.equal(arPagePresets.letterLandscape.widthMeters, 0.2794)
+assert.equal(arPagePresets.letterLandscape.heightMeters, 0.2159)
+assert.equal(arPagePresets.a4Portrait.widthMeters, 0.21)
+assert.equal(arPagePresets.a4Portrait.heightMeters, 0.297)
+assert.equal(arPagePresets.a4Landscape.widthMeters, 0.297)
+assert.equal(arPagePresets.a4Landscape.heightMeters, 0.21)
 
 console.log('AR trace model checks passed.')

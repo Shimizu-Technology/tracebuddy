@@ -27,8 +27,8 @@ Implemented user flow:
 5. RealityKit previews the physical page placement.
 6. The status changes to **Locked to paper**.
 7. The selected tracing guide appears on the worksheet and stays attached as the device moves.
-8. If tracking weakens, the app shows **Lost paper — point at the marker again**.
-9. The user can tap **Recalibrate** or fall back to regular camera trace.
+8. If tracking weakens, Surface Lock asks the user to reset and relock the table placement; Marker Lock asks them to show the visible marker again so it can reacquire the moving paper.
+9. The user can tap **Reset** or fall back to regular Camera Trace.
 
 The child still traces by looking through the device screen. The app does not project onto the physical paper; it displays a camera view with a paper-anchored guide.
 

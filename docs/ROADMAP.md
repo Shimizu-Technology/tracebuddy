@@ -138,8 +138,9 @@ See `docs/AR_TRACE_PLAN.md` for the full plan.
 Implemented AR scope:
 
 - Add an iOS-only Paper Lock mode.
-- Use full ARKit with a printed TraceBuddy reference marker.
-- Detect the marker and place a transparent guide plane relative to it.
+- Use ARKit horizontal-surface raycasting for markerless Surface Lock.
+- Optionally detect a printed TraceBuddy reference marker and follow it for Marker Lock.
+- Place a transparent guide plane relative to the selected surface or marker anchor.
 - Render the selected tracing guide on the plane.
 - Show tracking states: searching, locked, limited, lost, unsupported.
 - Keep regular Camera Trace and Practice as fallback modes.
