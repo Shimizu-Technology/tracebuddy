@@ -1,6 +1,6 @@
 # TraceBuddy Mobile
 
-Expo native app for TraceBuddy's camera-over-paper tracing workflow, including custom word tracing and on-screen practice with marker colors.
+Expo native app for TraceBuddy's RealityKit Paper Lock, camera-over-paper tracing, custom word tracing, and on-screen practice workflows.
 
 ## Run locally
 
@@ -41,12 +41,13 @@ The flow covers the picture picker, a Together activity, on-screen practice, the
 This app uses Expo SDK modules that are included in its development and production builds:
 
 - `expo-camera` for the live camera preview
+- a local `tracebuddy-ar` Expo module using ARKit and RealityKit for Paper Lock
 - `expo-image-picker` for local image selection
 - `expo-keep-awake` for tracing sessions
 - `expo-print` and `expo-sharing` for user-initiated worksheet print/PDF export
 - `react-native-svg` for built-in SVG templates, custom word guides, and finger/stylus practice strokes
 
-Native AR anchoring and automatic paper tracking remain deferred. The parent setup coach, portrait/landscape presets, saved alignment, low-distraction child trace view, eight guided lessons, twelve Together activities, worksheet print/PDF sharing, resumable local lesson progress, dynamic word/name guides, private Previous Work, orphaned local-image cleanup, on-screen practice, stickers, and Photos export are implemented locally on the device.
+Paper Lock is implemented on iOS with markerless horizontal-surface placement and an optional printable 50 mm reference marker. It supports Letter/A4 sizing, opacity, scale, rotation, precise nudges, lock/relock, tracking recovery, a low-distraction child mode, and one-tap Camera Trace fallback. The iOS Simulator proves compilation and UI fallback only; spatial accuracy must be tested on physical hardware.
 
 ## TestFlight / EAS build
 
@@ -68,7 +69,7 @@ eas build -p ios --profile production
 After the build finishes, submit to App Store Connect. The production submit profile is pinned to ASC App ID `6779658138`, so EAS will use the existing TraceBuddy App Store Connect record instead of trying to create a new app:
 
 ```bash
-eas submit -p ios --latest --profile production --wait
+eas submit -p ios --id <exact-build-id> --profile production --wait
 ```
 
 If `npx eas ...` fails with a `libsimdjson` / Homebrew `node` dynamic library error, the local Homebrew Node install is broken. Fix it with:

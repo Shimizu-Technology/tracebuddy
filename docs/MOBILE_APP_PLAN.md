@@ -1,6 +1,6 @@
 # TraceBuddy Expo mobile app plan
 
-TraceBuddy is already usable as a mobile-first PWA, but tracing is a physical activity where the phone is mounted above paper and the camera view must stay stable for a long session. A native Expo app is the next practical step before deeper AR work.
+TraceBuddy is usable as a mobile-first PWA and an App Store Expo app. Because tracing is a physical activity where the device is mounted above paper, version 1.3 adds a focused native AR path for keeping the guide stable as the camera moves.
 
 ## Why build the native mobile app now?
 
@@ -8,7 +8,7 @@ TraceBuddy is already usable as a mobile-first PWA, but tracing is a physical ac
 - **Native camera lifecycle is more predictable.** Expo gives us a first-class camera preview, permission prompts, and screen-awake behavior instead of relying on browser differences.
 - **Expo Go was enough for the first proof.** The first native milestone used Expo-supported modules only: camera, image picker, SVG rendering, keep awake, and React Native controls.
 - **It keeps the product local-first.** The mobile MVP should still have no accounts, backend, uploads, analytics, or remote image processing.
-- **It gives us a clean bridge to AR.** Once the native tracing loop feels good, we can move from Expo Go to an Expo development build for AR experiments.
+- **It gives us a clean home for AR.** Production and TestFlight builds can include the local Swift module that Expo Go cannot load.
 
 ## Research notes
 
@@ -33,19 +33,19 @@ Expo Go is not appropriate for:
 
 ### AR research
 
-The preferred AR path is now a focused iOS ARKit mode implemented with a small custom native view/module. The goal is paper anchoring, not novelty 3D effects.
+The implemented AR path is a focused iOS ARKit mode built as a small custom native view/module. The goal is paper anchoring, not novelty 3D effects.
 
 Important limitation: ARKit is not available in Expo Go. It requires EAS/TestFlight builds with native iOS code.
 
-Best AR direction for TraceBuddy:
+Version 1.3 AR direction:
 
-1. Submit and validate the non-AR App Store MVP first.
-2. Add an experimental iOS-only AR Trace entry point.
-3. Start with a printable TraceBuddy marker/reference image with a known physical width.
-4. Use ARKit image anchoring to place selected line art relative to that marker or worksheet.
-5. Measure drift, setup friction, battery, device compatibility, and child/parent usability.
+1. Keep the proven Camera Trace and Screen Practice paths available.
+2. Offer an iOS-only Paper Lock entry point on supported hardware.
+3. Support quick horizontal-surface placement and a printable 50 mm reference marker.
+4. Use ARKit world/image tracking and RealityKit to render selected line art at a physical page size.
+5. Measure drift, setup friction, battery, device compatibility, and child/parent usability through TestFlight.
 
-Plain-paper AR should remain a later experiment. A marker-based ARKit approach is more likely to be stable than asking ARKit to infer a blank sheet of paper.
+Surface Lock provides a low-friction markerless option; Marker Lock provides the stronger reference when the paper may move. Physical TestFlight measurements determine which should be the recommended default.
 
 ## Patterns from other Shimizu Expo apps
 
@@ -111,17 +111,16 @@ The local Previous Work section is now part of practice mode.
 
 - Browser uploaded-image cleanup parity.
 - Browser paper rectangle detection/tracking parity.
-- ARKit/ARCore AR tracking.
-- Printable marker generation.
+- Android ARCore tracking.
 - Accounts, backend sync, cloud storage, analytics, or remote image processing.
 
 ## Implementation notes
 
 - Keep shared drawing metadata in one shared module so web and mobile use the same template library.
-- Avoid custom native modules while targeting Expo Go.
+- Isolate custom native behavior in the local `tracebuddy-ar` Expo module.
 - Keep controls large enough for one-handed setup while the phone is mounted.
 - Preserve the PWA as the production-ready path until the native app is real-device tested.
-- Document AR as the next research milestone after the native MVP, not as part of the Expo Go MVP.
+- Keep Expo Go useful for non-AR work, while using development/TestFlight builds for Paper Lock.
 
 ## Validation plan
 

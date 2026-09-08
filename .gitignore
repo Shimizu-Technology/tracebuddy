@@ -13,6 +13,10 @@ dist
 dist-ssr
 *.local
 
+# Expo generated native projects (Continuous Native Generation)
+/mobile/android
+/mobile/ios
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

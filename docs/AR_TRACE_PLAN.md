@@ -1,5 +1,11 @@
 # TraceBuddy AR Trace Plan
 
+## Implementation status
+
+Version 1.3 implements this plan as **Paper Lock** on iOS. The architecture uses a local Expo module with Swift, ARKit world tracking, and a RealityKit `ARView`. It provides two placement paths: markerless horizontal-surface raycasting and continuously updated tracking of a printable 50 mm TraceBuddy marker. Both render the selected built-in drawing, custom word, or local image as a transparent unlit page texture.
+
+The React Native flow includes camera permission and parent safety gates, Letter/A4 portrait and landscape sizes, opacity, scale, rotation, 5 mm nudges, explicit lock/reset controls, tracking recovery, accessible control alternatives, child mode, and regular Camera Trace/Screen Practice fallbacks. AR data remains on-device, and spatial maps are not persisted. Physical-device precision and ergonomics remain TestFlight release gates; simulator compilation is not evidence of spatial accuracy.
+
 ## Purpose
 
 The purpose of AR in TraceBuddy is not to add a novelty 3D experience. It is to make the tracing guide feel attached to the real worksheet.
@@ -12,17 +18,17 @@ Primary user benefit:
 
 ## Product experience
 
-Recommended user flow:
+Implemented user flow:
 
 1. A parent or child picks a drawing.
-2. They tap **AR Trace**.
-3. The app opens an iOS AR camera view with the status **Find the TraceBuddy marker**.
-4. The user points at a printed TraceBuddy worksheet or marker.
-5. ARKit recognizes the marker.
+2. They choose **Paper Lock**.
+3. The app opens an iOS AR camera view and guides the parent through safe setup.
+4. The user either finds a horizontal table surface or prints and shows the Paper Lock marker.
+5. RealityKit previews the physical page placement.
 6. The status changes to **Locked to paper**.
 7. The selected tracing guide appears on the worksheet and stays attached as the device moves.
-8. If tracking weakens, the app shows **Lost paper — point at the marker again**.
-9. The user can tap **Recalibrate** or fall back to regular camera trace.
+8. If tracking weakens, Surface Lock asks the user to reset and relock the table placement; Marker Lock asks them to show the visible marker again so it can reacquire the moving paper.
+9. The user can tap **Reset** or fall back to regular Camera Trace.
 
 The child still traces by looking through the device screen. The app does not project onto the physical paper; it displays a camera view with a paper-anchored guide.
 
@@ -74,12 +80,12 @@ Why this is the right first approach:
 
 Expo managed does not expose ARKit directly. A production AR Trace mode requires custom native iOS code.
 
-Recommended implementation:
+Implemented architecture:
 
 - Keep the existing Expo/React Native app.
 - Add a local native Expo module or native view for iOS.
 - Build with EAS/TestFlight, not Expo Go.
-- Implement an `ARSCNView` or RealityKit view in Swift.
+- Implement a RealityKit `ARView` in Swift.
 - Configure ARKit with image tracking/world tracking and bundled reference images.
 - Pass selected drawing data from React Native to the native AR view.
 - Rasterize the selected SVG into a transparent image texture for the AR plane.
@@ -192,6 +198,6 @@ AR Trace must preserve TraceBuddy's local-first promise:
 - No accounts, ads, analytics, or tracking are required.
 - Printable markers and built-in drawings are bundled with the app.
 
-## Recommendation
+## Current recommendation
 
-Build a dedicated ARKit spike after the App Store MVP is submitted. The first milestone should not try to solve every paper-detection problem. It should prove one thing well: a selected guide can be anchored to a printed TraceBuddy marker and stay aligned on a real iPhone or iPad.
+Distribute version 1.3 through TestFlight and judge Paper Lock by measured placement accuracy, jitter, drift, recovery, heat, and whether a parent can complete setup without developer help. Keep regular Camera Trace as the production fallback while those physical-device results are gathered.

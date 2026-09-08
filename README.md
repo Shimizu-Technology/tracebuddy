@@ -6,7 +6,7 @@ Kid-friendly camera overlay tracing helper built as a mobile-first React/Vite PW
 
 TraceBuddy came from a simple family use case: build a tracing app with a phone camera so Stassie can trace and draw whatever she wants.
 
-The MVP tests whether a fixed phone/iPad plus camera overlay is good enough before considering heavier native AR work. The Expo app now lets us compare the same idea against a native camera experience in a development or TestFlight build.
+The first releases proved the fixed phone/iPad camera-overlay idea. Version 1.3 adds Paper Lock, an iOS RealityKit experience that keeps the selected guide anchored to a real table or printed marker while the device moves.
 
 ## What it does
 
@@ -14,8 +14,8 @@ TraceBuddy lets a child or parent:
 
 1. Pick a simple line-art drawing.
 2. Open trace mode.
-3. Choose camera tracing over paper or on-screen practice.
-4. Place a semi-transparent drawing over real paper, or trace directly with a finger/stylus on the device.
+3. Choose Paper Lock, regular camera tracing, or on-screen practice.
+4. Anchor a semi-transparent drawing to a real surface, place it over paper with the regular camera, or trace directly with a finger/stylus.
 5. Follow the first-run parent setup check, then use paper detection or the manual alignment controls.
 6. Save a good portrait or landscape alignment and start the low-distraction child trace view.
 7. Unlock the digital canvas only when you want to pan or zoom in for detailed coloring.
@@ -46,6 +46,8 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 - Previous Work gallery for resuming, duplicating, deleting, or starting fresh from saved coloring
 - Clear-all confirmation to protect kids' work
 - Demo camera surface when camera is unavailable/blocked
+- iOS Paper Lock with RealityKit world tracking, horizontal-surface placement, and optional printed-marker tracking
+- Letter/A4 portrait and landscape sizing, opacity, scale, rotation, precise nudges, lock/relock, and child mode
 - Drag-to-position overlay
 - Mobile-friendly floating trace controls
 - A 30-second parent setup coach with stand, framing, and lighting checks
@@ -62,10 +64,10 @@ The MVP is designed for Stassie-style drawing practice: simple, friendly, privat
 
 ## Important boundaries
 
-This is a frontend MVP only.
+TraceBuddy remains deliberately local-first.
 
-- No true/native AR anchoring
-- No production native AR code
+- Paper Lock uses native ARKit/RealityKit on supported iPhones and iPads and falls back to Camera Trace elsewhere.
+- AR sessions, camera frames, anchors, and guide textures are processed on-device and are not persisted or uploaded.
 - No backend
 - No image/video upload
 - No remote or server-side image processing
@@ -110,7 +112,7 @@ eas build --platform ios --profile development
 
 Install the resulting development build on a registered device, then run `npm run start` in `mobile/` and open the project from that build. The public App Store version of Expo Go does not support this app's pinned Expo SDK 56 runtime. For release-candidate testing, use the latest TraceBuddy TestFlight build instead.
 
-The mobile MVP uses native camera, local image picker, keep-awake, shared built-in templates, and manual overlay controls. AR is not part of the native MVP.
+The mobile app uses native camera, a local RealityKit Expo module, local image picker, keep-awake, shared built-in templates, and both spatial and manual overlay controls. Paper Lock requires a development or TestFlight build and a physical AR-capable iPhone or iPad; it does not run in Expo Go or the iOS Simulator.
 
 ## Verify
 

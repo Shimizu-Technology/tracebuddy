@@ -2,7 +2,7 @@
   "expo": {
     "name": "TraceBuddy",
     "slug": "tracebuddy-mobile",
-    "version": "1.2",
+    "version": "1.3",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
       "bundleIdentifier": "com.shimizutechnology.tracebuddy",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "TraceBuddy uses your camera to show paper under the tracing overlay. Photos and drawings stay on this device.",
+        "NSCameraUsageDescription": "TraceBuddy uses your camera to find your paper, place a tracing guide on it, and keep the guide aligned as the device moves. Camera frames, photos, and drawings stay on this device.",
         "NSPhotoLibraryUsageDescription": "TraceBuddy lets you choose a local photo or drawing to trace or add as a practice sticker. Images stay on this device.",
         "NSPhotoLibraryAddUsageDescription": "TraceBuddy saves finished drawings to Photos only when you choose Save image."
       }
@@ -36,7 +36,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "TraceBuddy uses your camera to show paper under the tracing overlay. Photos and drawings stay on this device.",
+          "cameraPermission": "TraceBuddy uses your camera to find your paper, place a tracing guide on it, and keep the guide aligned as the device moves. Camera frames, photos, and drawings stay on this device.",
           "recordAudioAndroid": false
         }
       ],

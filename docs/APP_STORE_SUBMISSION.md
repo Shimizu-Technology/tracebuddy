@@ -244,14 +244,32 @@ No login is required.
 To test TraceBuddy:
 1. Open the app.
 2. Choose any built-in drawing from the picker, or open the Together card to try a family activity.
-3. Choose On-screen practice and open a drawing to test tracing, coloring, autosave, and Save image.
-4. Return to Pictures, choose Camera + paper, and open a drawing to test the parent setup and camera overlay workflow.
-5. Open Learn to try a guided lesson or custom word practice.
-6. Print or share a worksheet from a drawing card or family activity.
-7. Camera permission is used only to show the live camera preview behind the tracing guide.
-8. Photo-library permissions are optional and used only to select local images or save a finished drawing to Photos.
+3. Choose Paper Lock, open a drawing, complete the parent safety checks, and allow camera access.
+4. In Surface Lock, move the device slowly over a flat table until the guide appears. Align it with the size/rotation/nudge controls, tap Lock to paper, then move the device to confirm the guide stays in the same physical place.
+5. Optional marker path: choose Marker Lock and tap Print the 50 mm Paper Lock marker. Print at 100% scale, place the marker flat beside the paper, and keep the square visible while locking the guide.
+6. Use Reset to relock, or Camera in the header to reach the regular camera-overlay fallback without a marker.
+7. Choose On-screen practice to test tracing, coloring, autosave, and Save image. Open Learn for a guided lesson or custom word practice.
+8. Print or share a worksheet from a drawing card or family activity.
+9. Camera permission is used for the live tracing camera and on-device Paper Lock tracking. Camera frames and spatial anchors are not recorded, uploaded, or saved between sessions.
+10. Photo-library permissions are optional and used only to select local images or save a finished drawing to Photos.
 
 TraceBuddy has no accounts, ads, analytics, backend, automatic cloud uploads, or remote image processing. Camera frames are not recorded. Selected images, custom words, and practice drawings may be saved in private on-device storage for Previous Work until the user deletes them or removes the app. Worksheet sharing happens only when the user chooses it and may send the selected PDF outside the device through the system share interface.
+```
+
+## Version 1.3 TestFlight notes
+
+```text
+TraceBuddy 1.3 introduces Paper Lock, a new iOS augmented-reality tracing mode:
+
+• Lock any built-in picture, custom word, or local image to a real tabletop or printed marker
+• Move the iPhone or iPad while the guide stays in the same physical place
+• Choose Letter or A4 paper in portrait or landscape
+• Adjust opacity, size, rotation, and position with accessible controls
+• Recover from limited/lost tracking with clear status and Reset actions
+• Use the parent safety checklist and low-distraction child trace mode
+• Fall back at any time to regular Camera Trace or On-screen practice
+
+Please test Paper Lock on a physical AR-capable iPhone or iPad; AR world tracking is not available in the Simulator. Start with Surface Lock on a well-lit table. Marker Lock is optional and includes an in-app 50 mm marker print action. All AR processing stays on-device, and no spatial map is saved.
 ```
 
 ## Version 1.2 TestFlight notes

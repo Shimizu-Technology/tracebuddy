@@ -6,7 +6,7 @@ TraceBuddy is designed as a local-first tracing helper. The web and native mobil
 
 ### Camera
 
-Trace mode asks the browser for camera access using `getUserMedia`. The Expo mobile MVP asks the operating system for camera access through `expo-camera`. The camera feed is shown directly as the tracing background. On-screen practice mode does not require camera access.
+Trace mode asks the browser for camera access using `getUserMedia`. The Expo mobile app asks the operating system for camera access for Camera Trace and iOS Paper Lock. Camera Trace shows the feed behind the guide. Paper Lock uses ARKit to understand device motion, detect a horizontal surface or the bundled printed marker, and place the guide in physical space. On-screen practice does not require camera access.
 
 TraceBuddy does not record, upload, or transmit camera video. Custom words/phrases and practice strokes drawn on the screen may be saved in private local app/browser storage for Previous Work, but are never sent to TraceBuddy servers.
 
@@ -55,14 +55,15 @@ The web app needs network access to load the deployed site the first time. After
 
 An installed development build needs network access during local development to load the JavaScript bundle from the local Expo server. Production and TestFlight builds bundle the app code. None of these builds send camera video or selected images to TraceBuddy servers.
 
-## Future AR Trace mode
+## Paper Lock on iOS
 
-A planned iOS ARKit mode would use on-device ARKit processing to recognize a printed TraceBuddy marker and anchor the tracing guide to real paper. The intended privacy boundary remains the same:
+Paper Lock uses on-device ARKit processing to find a horizontal surface or recognize the optional printed TraceBuddy marker and anchor the tracing guide to real paper:
 
 - AR camera frames are processed on the device.
 - Camera video is not recorded or uploaded.
 - Selected images and tracing guides stay on the device.
 - No accounts, analytics, ads, or tracking are required.
+- Spatial anchors and world maps are not saved between sessions.
 
 ## Future changes
 
