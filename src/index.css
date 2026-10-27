@@ -9,7 +9,9 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 body {
@@ -24,7 +26,12 @@ input {
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+a:focus-visible,
 label:focus-within {
-  outline: 3px solid rgba(255, 121, 93, 0.45);
+  outline: 3px solid #963c2c;
   outline-offset: 3px;
 }
+
+input, textarea, select { font: inherit; font-size: max(16px, 1rem); }

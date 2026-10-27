@@ -58,6 +58,7 @@ jobs:
               npm run check:setup
               npm run check:family
               npm run check:navigation
+              npm run check:surfaces
               exit 0
             fi
             sleep 1

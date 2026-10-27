@@ -32,7 +32,7 @@ try {
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
   const mobileLessonOrder = await page.evaluate(() => ({
     stage: document.querySelector('.lesson-stage-card')?.getBoundingClientRect().top ?? null,
-    library: document.querySelector('.lesson-library')?.getBoundingClientRect().top ?? null,
+    library: document.querySelector('.lesson-browser')?.getBoundingClientRect().top ?? null,
   }))
   assert(
     mobileLessonOrder.stage !== null
@@ -47,6 +47,7 @@ try {
   const storedStep = await page.evaluate(() => JSON.parse(localStorage.getItem('tracebuddy.learningProgress.v1') || 'null')?.stepByLessonId?.['line-control'])
   assert(storedStep === 1, `Lesson step was not persisted: ${storedStep}`)
 
+  await page.click('.lesson-step-navigation summary')
   await page.click('.lesson-step-dots button:last-child')
   await clickByText(page, 'Finish lesson')
   await page.waitForFunction(() => document.querySelector('.lesson-finished-badge')?.textContent?.includes('Finished'))
@@ -83,6 +84,7 @@ try {
   await clickByText(page, 'Learn')
   await waitForSelector(page, '.learning-screen')
 
+  await page.click('.handwriting-disclosure summary')
   await page.type('.handwriting-card input', 'Stassie')
   await clickByText(page, 'Practice these words')
   await waitForSelector(page, '.practice-screen')
