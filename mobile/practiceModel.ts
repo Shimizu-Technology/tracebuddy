@@ -1,4 +1,4 @@
-export type NativeScreen = 'picker' | 'together' | 'learn' | 'trace' | 'ar' | 'practice'
+export type NativeScreen = 'picker' | 'gallery' | 'together' | 'learn' | 'trace' | 'ar' | 'practice'
 export type Point = { x: number; y: number }
 export type Viewport = Point & { scale: number }
 export function strokePointAction(active: boolean, point: Point | null) {
@@ -44,12 +44,12 @@ export type ResumeContext = { mode: NativeScreen; sessionId: string | null; less
 export function normalizeResumeContext(value: unknown, lessonIds: readonly string[]): ResumeContext | null {
   if (!value || typeof value !== 'object') return null
   const context = value as Partial<ResumeContext>
-  if (!['picker', 'together', 'learn', 'trace', 'ar', 'practice'].includes(context.mode ?? '')) return null
+  if (!['picker', 'gallery', 'together', 'learn', 'trace', 'ar', 'practice'].includes(context.mode ?? '')) return null
   return {
     mode: context.mode as NativeScreen,
     sessionId: typeof context.sessionId === 'string' ? context.sessionId : null,
     lessonId: lessonIds.includes(context.lessonId ?? '') ? context.lessonId! : lessonIds[0],
     source: context.mode === 'practice' ? context.source : undefined,
-    history: Array.isArray(context.history) ? context.history.filter((screen) => ['picker', 'together', 'learn', 'trace', 'ar', 'practice'].includes(screen)) : [],
+    history: Array.isArray(context.history) ? context.history.filter((screen) => ['picker', 'gallery', 'together', 'learn', 'trace', 'ar', 'practice'].includes(screen)) : [],
   }
 }

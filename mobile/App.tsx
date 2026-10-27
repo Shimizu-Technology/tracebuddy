@@ -47,6 +47,10 @@ import { createPracticePreviewCache } from './practicePreviewCache'
 
 import { captureImageKeys, createCaptureReadiness, saveTemporaryCapture } from './captureUtils'
 import { isDismissedPrintSheet } from './printUtils'
+import KeepsakeView from './KeepsakeView'
+import { KeepsakeStampBadge } from './KeepsakeStamp'
+import { continueDrawing, finishAfterSave, hasKeepsakeContent, makeNativeModePreference, modePreferenceKey, newestDrawings, normalizeModePreference, toggleStamp } from './finishFindModel'
+import type { KeepsakeStamp } from './finishFindModel'
 import ARTraceScreen from './src/features/ar/ARTraceScreen'
 import { isTraceBuddyARSupported } from './modules/tracebuddy-ar/src/TraceBuddyARModule'
 import { adjustUnlocked, childExitHoldMs, documentCapture, holdProgress, parentModeHelp, placeholderColor, selectedFamilyActivity } from './nativeSafetyModel'
@@ -94,7 +98,7 @@ function showPhotosPermissionRecovery(canAskAgain: boolean, message: string) {
   ])
 }
 
-type ScreenMode = 'picker' | 'together' | 'learn' | 'trace' | 'ar' | 'practice'
+type ScreenMode = 'gallery' | 'picker' | 'together' | 'learn' | 'trace' | 'ar' | 'practice'
 type TraceSurface = 'camera' | 'ar' | 'screen'
 type PickerCategoryId = DrawingFilterId
 
@@ -268,7 +272,7 @@ function previousWorkSessionKey(sessionId: string) {
   return `${previousWorkSessionPrefix}${sessionId}`
 }
 
-function makePracticeSaveSignature(session: Pick<SavedPracticeSession, 'source' | 'strokes' | 'stickers' | 'canvasWidth' | 'canvasHeight' | 'guideOpacity' | 'guideOnTop' | 'markerColor' | 'markerWidth' | 'brushToolId'>) {
+function makePracticeSaveSignature(session: Pick<SavedPracticeSession, 'source' | 'strokes' | 'stickers' | 'canvasWidth' | 'canvasHeight' | 'guideOpacity' | 'guideOnTop' | 'markerColor' | 'markerWidth' | 'brushToolId' | 'stamp' | 'finishedAt'>) {
   return JSON.stringify(session)
 }
 
@@ -613,9 +617,9 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
 
 async function deleteAllPreviousWorkSessions() {
   return queuePreviousWorkWrite(async () => {
-    await queueDrawingPreferencesOperation(() => AsyncStorage.multiRemove([resumeContextKey, drawingPreferencesKey, learningProgressKey, parentSetupSeenKey, savedAlignmentKey, familyActivityKey]))
+    await queueDrawingPreferencesOperation(() => AsyncStorage.multiRemove([resumeContextKey, drawingPreferencesKey, learningProgressKey, parentSetupSeenKey, savedAlignmentKey, familyActivityKey, modePreferenceKey]))
     const keys = await AsyncStorage.getAllKeys()
-    const traceBuddyKeys = keys.filter((key) => key === resumeContextKey || key === drawingPreferencesKey || key === learningProgressKey || key === parentSetupSeenKey || key === savedAlignmentKey || key === familyActivityKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
+    const traceBuddyKeys = keys.filter((key) => key === resumeContextKey || key === drawingPreferencesKey || key === learningProgressKey || key === parentSetupSeenKey || key === savedAlignmentKey || key === familyActivityKey || key === modePreferenceKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
     practicePreviewCache.clear()
     activeStoredImageUris.clear()
@@ -755,7 +759,9 @@ function TraceBuddyMobile() {
   const [activityStorageMessage, setActivityStorageMessage] = useState('')
   const [selectedActivityId, setSelectedActivityId] = useState(familyActivities[0].id)
   const [secondaryActionsOpen, setSecondaryActionsOpen] = useState(false)
-  const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
+  const [modeHydrated, setModeHydrated] = useState(false)
+  const modeInteractionRef = useRef(false)
+  const [traceSurface, setTraceSurfaceState] = useState<TraceSurface>('camera')
   const [customText, setCustomText] = useState('')
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
   const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
@@ -784,6 +790,13 @@ function TraceBuddyMobile() {
     const allowed = !drawingPreferencesClearInProgressRef.current
     return operationGuard(previousWorkOperationGenerationRef.current, () => previousWorkOperationGenerationRef.current, () => allowed && !drawingPreferencesClearInProgressRef.current)
   }, [])
+  const setTraceSurface = useCallback((surface: TraceSurface) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const next = normalizeModePreference(surface, arSupported)
+    modeInteractionRef.current = true
+    setTraceSurfaceState(next)
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(modePreferenceKey, JSON.stringify(makeNativeModePreference(next))), captureWorkOperation()).catch(() => setDrawingPreferencesMessage('This tracing mode will last for this visit only.'))
+  }, [arSupported, captureWorkOperation])
   const worksheetActionInProgressRef = useRef(false)
   const legacyMigrationCanvasSizeRef = useRef({
     width: Math.max(1, width - 20),
@@ -909,6 +922,16 @@ function TraceBuddyMobile() {
     return () => { cancelled = true }
   }, [captureWorkOperation])
 
+  useEffect(() => {
+    let cancelled = false
+    const isCurrent = captureWorkOperation()
+    void AsyncStorage.getItem(modePreferenceKey).then((preferredMode) => {
+      if (cancelled || !isCurrent() || modeInteractionRef.current) return
+      setTraceSurfaceState(normalizeModePreference(preferredMode, arSupported))
+    }).catch(() => { if (!cancelled && isCurrent()) setDrawingPreferencesMessage('The tracing mode could not be restored. You can choose one below.') }).finally(() => { if (!cancelled) setModeHydrated(true) })
+    return () => { cancelled = true }
+  }, [arSupported, captureWorkOperation])
+
   const chooseFamilyActivity = useCallback((id: string) => {
     if (drawingPreferencesClearInProgressRef.current) return
     const next = selectedFamilyActivity(id, familyActivities.map((activity) => activity.id))
@@ -958,6 +981,8 @@ function TraceBuddyMobile() {
   const recentDrawings = useMemo(() => drawingsFromIds(drawingPreferences.recentIds), [drawingPreferences.recentIds])
   const favoriteIds = useMemo(() => new Set(drawingPreferences.favoriteIds), [drawingPreferences.favoriteIds])
 
+  const orderedSessions = useMemo(() => newestDrawings(previousWorkSessions), [previousWorkSessions])
+  const continueTarget = useMemo(() => continueDrawing(previousWorkSessions), [previousWorkSessions])
   const pictureName = uploadedImage?.name ?? selectedDrawing.name
   const pictureTheme = uploadedImage ? 'Local image' : selectedDrawing.theme
   const overlayBaseSize = Math.min(width * 0.78, height * 0.44, 430)
@@ -1044,7 +1069,6 @@ function TraceBuddyMobile() {
   }, [savedAlignment, setOverlayTransform])
 
   const startChildTraceMode = useCallback(() => {
-    milestoneHaptic()
     setOverlayLocked(true)
     setControlsOpen(false)
     setChildTraceMode(true)
@@ -1171,14 +1195,14 @@ function TraceBuddyMobile() {
     setControlsOpen(true)
     resetOverlay()
     maybeOpenParentSetup()
-  }, [maybeOpenParentSetup, resetOverlay])
+  }, [setTraceSurface, maybeOpenParentSetup, resetOverlay])
 
   const openScreenPractice = useCallback(() => {
     setTraceSurface('screen')
     latestPracticeSessionRef.current = null
     setActivePracticeSession(null)
     setMode('practice')
-  }, [])
+  }, [setTraceSurface])
 
   const shouldStartOverlayDrag = useCallback(() => !overlayLockedRef.current, [])
 
@@ -1244,7 +1268,6 @@ function TraceBuddyMobile() {
     const { drawing, uploadedImage: savedUploadedImage } = drawingFromPracticeSource(source)
     setSelectedDrawing(drawing)
     setUploadedImage(savedUploadedImage)
-    setTraceSurface('screen')
     resetOverlay()
   }, [resetOverlay])
 
@@ -1275,7 +1298,7 @@ function TraceBuddyMobile() {
           navigationRef.current = { current: 'practice', history: context.history?.length ? context.history : ['picker'] }
           setMode('practice')
         }
-      } else if (!cancelled && isCurrent() && ['learn', 'together'].includes(context.mode)) {
+      } else if (!cancelled && isCurrent() && ['learn', 'together', 'gallery'].includes(context.mode)) {
         navigationRef.current = { current: context.mode, history: context.history?.length ? context.history : ['picker'] }
         setMode(context.mode)
       }
@@ -1370,7 +1393,7 @@ function TraceBuddyMobile() {
   }, [activePracticeSession?.sessionId, isWorkOperationCurrent, uploadedImage?.uri])
 
   const deleteAllPreviousWork = useCallback(() => {
-    Alert.alert('Clear all local work?', 'This removes every Previous Work session, favorite, recent pick, guided-lesson progress, and TraceBuddy image stored inside the app. Images already saved to Photos stay there.', [
+    Alert.alert('Clear all local work?', 'This removes all drawings, stamps, favorites, recent picks, lesson progress, stored TraceBuddy images, and tracing preferences on this device. Images already saved to Photos stay there.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear all',
@@ -1401,6 +1424,8 @@ function TraceBuddyMobile() {
               activityInteractionRef.current = true
               setSelectedActivityId(familyActivities[0].id)
               setActivityStorageMessage('')
+              modeInteractionRef.current = true
+              setTraceSurfaceState('camera')
               resumeSessionIdRef.current = null
               navigationRef.current = { current: 'picker', history: [] }
               parentSetupSeenRef.current = false
@@ -1447,12 +1472,10 @@ function TraceBuddyMobile() {
   }, [])
 
   const changeGuidedLessonStep = useCallback((stepIndex: number) => {
-    if (stepIndex > (learningProgressRef.current.stepByLessonId[selectedLesson.id] ?? 0)) milestoneHaptic()
     saveLearningProgress(updateLearningStep(learningProgressRef.current, selectedLesson, stepIndex))
   }, [saveLearningProgress, selectedLesson])
 
   const finishGuidedLesson = useCallback(() => {
-    milestoneHaptic()
     saveLearningProgress(completeGuidedLesson(learningProgressRef.current, selectedLesson))
   }, [saveLearningProgress, selectedLesson])
 
@@ -1470,7 +1493,7 @@ function TraceBuddyMobile() {
     if (surface === 'camera') maybeOpenParentSetup()
     setControlsOpen(true)
     resetOverlay()
-  }, [maybeOpenParentSetup, resetOverlay, selectedLesson, uploadedImage])
+  }, [setTraceSurface, maybeOpenParentSetup, resetOverlay, selectedLesson, uploadedImage])
 
   const openGuidedWords = useCallback((value: string) => {
     const safeText = sanitizeTraceText(value)
@@ -1488,7 +1511,7 @@ function TraceBuddyMobile() {
     setTraceSurface('screen')
     setMode('practice')
     resetOverlay()
-  }, [resetOverlay, uploadedImage])
+  }, [setTraceSurface, resetOverlay, uploadedImage])
 
   const openFamilyActivity = useCallback((activity: FamilyActivity, surface: TraceSurface) => {
     const drawing = drawingForFamilyActivity(activity)
@@ -1505,7 +1528,7 @@ function TraceBuddyMobile() {
     if (surface === 'camera') maybeOpenParentSetup()
     setControlsOpen(true)
     resetOverlay()
-  }, [maybeOpenParentSetup, resetOverlay, saveDrawingPreferences, uploadedImage])
+  }, [setTraceSurface, maybeOpenParentSetup, resetOverlay, saveDrawingPreferences, uploadedImage])
 
   const printDrawingWorksheet = useCallback(
     /** Opens the native print sheet while treating an explicit iOS dismissal as cancellation. */
@@ -1560,6 +1583,7 @@ function TraceBuddyMobile() {
   useEffect(() => {
     const labels: Record<ScreenMode, string> = {
       picker: 'Picture picker',
+      gallery: 'My drawings',
       together: 'Together activities',
       learn: 'Guided learning',
       trace: 'Camera tracing',
@@ -1571,7 +1595,14 @@ function TraceBuddyMobile() {
     return () => cancelAnimationFrame(closeTask)
   }, [mode])
 
-  if (!resumeHydrated) return <View style={[styles.appShell, { justifyContent: 'center', alignItems: 'center' }]}><Text style={{ color: palette.ink }}>Opening your drawing…</Text></View>
+  if (!resumeHydrated || !modeHydrated) return <View style={[styles.appShell, { justifyContent: 'center', alignItems: 'center' }]}><Text style={{ color: palette.ink }}>Opening your drawing…</Text></View>
+
+  if (mode === 'gallery') return <View style={[styles.appShell, { paddingTop: insets.top + 8, paddingBottom: insets.bottom, paddingLeft: insets.left + 12, paddingRight: insets.right + 12 }]}>
+    <StatusBar style="dark" />
+    <Pressable style={styles.familyBackButton} onPress={navigateBack} accessibilityRole="button"><Text style={styles.familyBackButtonText}>‹ Back</Text></Pressable>
+    {orderedSessions.length === 0 && <View style={{ padding: 16, gap: 12 }}><Text style={styles.previousWorkEmpty}>Your drawings will appear here</Text><Pressable style={styles.familyPrimaryAction} onPress={() => setMode('picker')} accessibilityRole="button"><Text style={styles.familyPrimaryActionText}>Pictures</Text></Pressable></View>}
+    <PreviousWorkSection grid sessions={orderedSessions} disabled={drawingPreferencesClearInProgress} onResume={openPreviousWorkSession} onStartFresh={startFreshFromPreviousWork} onDuplicate={duplicatePreviousWorkSession} onDelete={deletePreviousWork} onDeleteAll={deleteAllPreviousWork} />
+  </View>
 
   if (mode === 'picker') {
     return (
@@ -1620,12 +1651,17 @@ function TraceBuddyMobile() {
           contentContainerStyle={[styles.pickerContent, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 32 }]}
           ListHeaderComponent={(
             <View>
-              <View style={styles.heroCard}>
-                <View style={styles.heroBadgeRow}>
+              {continueTarget && <View style={[styles.heroCard, { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' }]}>
+                <View style={{ width: 104, height: 104 }}><SavedDrawingPreview session={continueTarget} /></View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}><Text style={styles.previousWorkName}>{continueTarget.title}</Text><Pressable style={[styles.familyPrimaryAction, { minHeight: 56 }]} onPress={() => openPreviousWorkSession(continueTarget)} accessibilityRole="button" accessibilityLabel={`Continue ${continueTarget.title}`}><Text style={styles.familyPrimaryActionText}>Continue</Text></Pressable><Pressable style={styles.familySecondaryAction} onPress={() => setMode('gallery')} accessibilityRole="button"><Text style={styles.familySecondaryActionText}>My drawings</Text></Pressable></View>
+              </View>}
+              <View style={[styles.heroCard, { padding: 12 }]}>
+                <View style={[styles.heroBadgeRow, { flexWrap: 'wrap' }]}>
                   <View style={styles.brandMark}>
                     <TraceIcon />
                   </View>
-                  <Text style={[styles.eyebrow, styles.heroBadgeEyebrow]}>TraceBuddy mobile</Text>
+                  <Text style={[styles.eyebrow, styles.heroBadgeEyebrow]}>TraceBuddy</Text>
+                  <Pressable style={styles.parentHelpButton} onPress={() => setMode('gallery')} accessibilityRole="button"><Text style={styles.parentHelpButtonText}>My drawings</Text></Pressable>
                   <Pressable style={styles.parentHelpButton} onPress={() => setParentHelpOpen(true)} accessibilityRole="button">
                     <Text style={styles.parentHelpButtonText}>Parent help</Text>
                   </Pressable>
@@ -1663,17 +1699,10 @@ function TraceBuddyMobile() {
                 </View>}
               </View>
 
-              {previousWorkSessions.length > 0 ? (
-                <PreviousWorkSection
-                  sessions={previousWorkSessions}
-                  disabled={drawingPreferencesClearInProgress}
-                  onResume={openPreviousWorkSession}
-                  onStartFresh={startFreshFromPreviousWork}
-                  onDuplicate={duplicatePreviousWorkSession}
-                  onDelete={deletePreviousWork}
-                  onDeleteAll={deleteAllPreviousWork}
-                />
-              ) : null}
+              {orderedSessions.length > 0 && <View style={{ marginBottom: 12, gap: 8 }}>
+                <Pressable style={[styles.familySecondaryAction, { flexDirection: 'row', justifyContent: 'space-between' }]} onPress={() => setMode('gallery')} accessibilityRole="button"><Text style={styles.familySecondaryActionText}>My drawings</Text><Text style={styles.familySecondaryActionText}>See all ›</Text></Pressable>
+                <FlatList horizontal data={orderedSessions.slice(0, 10)} keyExtractor={(session) => session.sessionId} showsHorizontalScrollIndicator contentContainerStyle={{ gap: 8, paddingBottom: 8 }} renderItem={({ item: session }) => <Pressable style={{ width: 112, gap: 4 }} onPress={() => openPreviousWorkSession(session)} accessibilityRole="button" accessibilityLabel={`Resume ${session.title}`}><View style={{ height: 112 }}><SavedDrawingPreview session={session} /></View><Text style={styles.previousWorkMeta} numberOfLines={2}>{session.title}</Text></Pressable>} />
+              </View>}
 
               <View style={styles.discoveryPanel}>
                 <View style={styles.discoveryHeading}>
@@ -1821,7 +1850,7 @@ function TraceBuddyMobile() {
                 style={styles.drawingCardAction}
                 onPress={() => openTraceWithDrawing(item)}
                 accessibilityRole="button"
-                accessibilityLabel={`Trace ${item.name}. ${item.difficulty} difficulty. ${item.theme}.`}
+                accessibilityLabel={`${traceSurface === 'screen' ? 'Draw on screen' : traceSurface === 'ar' ? 'Paper Lock Beta' : 'Trace on paper'}: ${item.name}. ${item.difficulty} difficulty. ${item.theme}.`}
               >
                 <View style={styles.drawingPreview}>
                   <SvgXml xml={item.svg} width="100%" height="100%" />
@@ -1830,7 +1859,8 @@ function TraceBuddyMobile() {
                   <Text style={styles.drawingName} numberOfLines={1}>{item.name}</Text>
                   <Text style={styles.drawingTheme} numberOfLines={1}>{item.theme}</Text>
                 </View>
-                <Text style={styles.difficultyBadge}>{item.difficulty}</Text>
+                <Text style={styles.difficultyBadge}>{traceSurface === 'screen' ? 'On screen' : traceSurface === 'ar' ? 'Paper Lock (Beta)' : 'On paper'}</Text>
+                <Text style={styles.drawingTheme}>{item.difficulty}</Text>
               </Pressable>
               <View style={styles.drawingExportRow} accessibilityLabel={`${item.name} actions`}>
                 <Pressable style={styles.drawingExportButton} onPress={() => { void printDrawingWorksheet(item) }} accessibilityRole="button" accessibilityLabel={`Print ${item.name} worksheet`}>
@@ -1909,6 +1939,7 @@ function TraceBuddyMobile() {
         onSessionDeleted={handlePracticeSessionDeleted}
         onPicker={navigateBack}
         onCameraTrace={openCameraTrace}
+        onGallery={() => setMode('gallery')}
       />
     )
   }
@@ -1996,7 +2027,7 @@ function TraceBuddyMobile() {
           <Text style={styles.traceTitle} numberOfLines={1}>{pictureName}</Text>
           <Text style={styles.traceSubtitle} numberOfLines={1}>{pictureTheme} · {overlayLocked ? 'Locked' : 'Drag to move'}</Text>
         </View>
-        <Pressable style={styles.iconButton} onPress={() => { milestoneHaptic(); setOverlayLocked((locked) => !locked) }} accessibilityRole="button" accessibilityLabel={overlayLocked ? 'Unlock overlay' : 'Lock overlay'}>
+        <Pressable style={styles.iconButton} onPress={() => { setOverlayLocked((locked) => !locked) }} accessibilityRole="button" accessibilityLabel={overlayLocked ? 'Unlock overlay' : 'Lock overlay'}>
           {overlayLocked ? <LockIcon /> : <UnlockIcon />}
         </Pressable>
       </View> : null}
@@ -2109,7 +2140,7 @@ function TraceBuddyMobile() {
             </View>
 
             <View style={styles.actionRow}>
-              <Pressable style={[styles.actionButton, overlayLocked && styles.actionButtonActive]} onPress={() => { milestoneHaptic(); setOverlayLocked((locked) => !locked) }} accessibilityRole="button">
+              <Pressable style={[styles.actionButton, overlayLocked && styles.actionButtonActive]} onPress={() => { setOverlayLocked((locked) => !locked) }} accessibilityRole="button">
                 <Text style={[styles.actionButtonText, overlayLocked && styles.actionButtonTextActive]}>{overlayLocked ? 'Unlock overlay' : 'Lock overlay'}</Text>
               </Pressable>
               <Pressable style={[styles.actionButton, overlayLocked && styles.lessonButtonDisabled]} disabled={overlayLocked} onPress={resetOverlay} accessibilityRole="button">
@@ -2370,55 +2401,8 @@ function GuidedLearningScreen({
   )
 }
 
-function PreviousWorkSection({
-  sessions,
-  disabled,
-  onResume,
-  onStartFresh,
-  onDuplicate,
-  onDelete,
-  onDeleteAll,
-}: {
-  sessions: SavedPracticeSession[]
-  disabled: boolean
-  onResume: (session: SavedPracticeSession) => void
-  onStartFresh: (session: SavedPracticeSession) => void
-  onDuplicate: (session: SavedPracticeSession) => void
-  onDelete: (session: SavedPracticeSession) => void
-  onDeleteAll: () => void
-}) {
+function SavedDrawingPreview({ session }: { session: SavedPracticeSession }) {
   return (
-    <View style={styles.previousWorkSection}>
-      <View style={styles.previousWorkHeader}>
-        <View>
-          <Text style={styles.previousWorkEyebrow}>Saved on this phone</Text>
-          <Text style={styles.previousWorkTitle}>Previous work</Text>
-        </View>
-        <View style={styles.previousWorkHeaderActions}>
-          <View style={styles.previousWorkCount}>
-            <Text style={styles.previousWorkCountText}>{sessions.length}</Text>
-          </View>
-          <Pressable style={[styles.previousWorkClear, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={onDeleteAll} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel="Clear all local Previous Work">
-            <Text style={styles.previousWorkClearText}>{disabled ? 'Clearing...' : 'Clear local work'}</Text>
-          </Pressable>
-        </View>
-      </View>
-      {sessions.length === 0 && (
-        <Text style={styles.previousWorkEmpty}>No saved drawings yet. Clear local work can also remove favorites, recent picks, and stored TraceBuddy images.</Text>
-      )}
-      <FlatList
-        horizontal
-        data={sessions}
-        keyExtractor={(session) => session.sessionId}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.previousWorkRail}
-        initialNumToRender={2}
-        maxToRenderPerBatch={2}
-        windowSize={3}
-        getItemLayout={(_, index) => ({ length: 220, offset: 220 * index, index })}
-        renderItem={({ item: session }) => (
-          <View key={session.sessionId} style={styles.previousWorkCard}>
-            <Pressable style={[styles.previousWorkPreview, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onResume(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Resume ${session.title}`}>
               <View style={styles.previousWorkPreviewContent} pointerEvents="none">
                 <View style={styles.practiceGuide}>
                 {session.source.kind === 'upload' && session.source.uploadedImage ? (
@@ -2431,11 +2415,72 @@ function PreviousWorkSection({
                   <PracticeStickerView key={`${session.sessionId}-${sticker.stickerId}`} sticker={sticker} frameStyle={percentageStickerFrame(sticker)} />
                 ))}
                 <PracticeInkThumbnail key={practicePreviewCache.key(session.sessionId, session.strokes)} session={session} />
+                <KeepsakeStampBadge stamp={session.stamp} />
               </View>
+  )
+}
+
+function PreviousWorkSection({
+  grid = false,
+  sessions,
+  disabled,
+  onResume,
+  onStartFresh,
+  onDuplicate,
+  onDelete,
+  onDeleteAll,
+}: {
+  grid?: boolean
+  sessions: SavedPracticeSession[]
+  disabled: boolean
+  onResume: (session: SavedPracticeSession) => void
+  onStartFresh: (session: SavedPracticeSession) => void
+  onDuplicate: (session: SavedPracticeSession) => void
+  onDelete: (session: SavedPracticeSession) => void
+  onDeleteAll: () => void
+}) {
+  const { width, fontScale } = useWindowDimensions()
+  const columns = width < 600 && fontScale >= 1.5 ? 1 : 2
+  return (
+    <View style={[styles.previousWorkSection, grid && { flex: 1 }]}>
+      <View style={[styles.previousWorkHeader, { flexWrap: 'wrap' }]}>
+        <View>
+          <Text style={styles.previousWorkEyebrow}>Saved on this device</Text>
+          <Text style={styles.previousWorkTitle}>My drawings</Text>
+        </View>
+        <View style={styles.previousWorkHeaderActions}>
+          <View style={styles.previousWorkCount}>
+            <Text style={styles.previousWorkCountText}>{sessions.length}</Text>
+          </View>
+          <Pressable style={[styles.previousWorkClear, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={onDeleteAll} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel="Clear all local Previous Work">
+            <Text style={styles.previousWorkClearText}>{disabled ? 'Clearing...' : 'Clear local work'}</Text>
+          </Pressable>
+        </View>
+      </View>
+      {sessions.length === 0 && !grid && (
+        <Text style={styles.previousWorkEmpty}>No saved drawings yet. Clear local work can also remove favorites, recent picks, and stored TraceBuddy images.</Text>
+      )}
+      <FlatList
+        key={grid ? `grid-${columns}` : 'rail'}
+        horizontal={!grid}
+        numColumns={grid ? columns : undefined}
+        columnWrapperStyle={grid && columns > 1 ? { gap: 10 } : undefined}
+        data={sessions}
+        keyExtractor={(session) => session.sessionId}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={grid ? { gap: 12, paddingBottom: 16 } : styles.previousWorkRail}
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        getItemLayout={grid ? undefined : (_, index) => ({ length: 220, offset: 220 * index, index })}
+        renderItem={({ item: session }) => (
+          <View key={session.sessionId} style={[styles.previousWorkCard, grid && { width: columns === 1 ? '100%' : '48%', minWidth: 0, flex: 1 }]}>
+            <Pressable style={[styles.previousWorkPreview, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onResume(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Resume ${session.title}`}>
+              <SavedDrawingPreview session={session} />
             </Pressable>
-            <Text style={styles.previousWorkName} numberOfLines={1}>{session.title}</Text>
+            <Text style={styles.previousWorkName}>{session.title}</Text>
             <Text style={styles.previousWorkMeta} numberOfLines={1}>{formatPreviousWorkDate(session.updatedAt)} · {session.strokes.length} strokes{session.stickers.length > 0 ? ` · ${session.stickers.length} pieces` : ''}</Text>
-            <View style={styles.previousWorkActions}>
+            <View style={[styles.previousWorkActions, { flexWrap: 'wrap' }]}>
               <Pressable style={[styles.previousWorkAction, styles.previousWorkActionPrimary, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onResume(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Resume ${session.title}`}>
                 <Text style={[styles.previousWorkActionText, styles.previousWorkActionTextPrimary]}>Resume</Text>
               </Pressable>
@@ -2443,7 +2488,7 @@ function PreviousWorkSection({
                 <Text style={styles.previousWorkActionText}>Fresh</Text>
               </Pressable>
             </View>
-            <View style={styles.previousWorkActions}>
+            <View style={[styles.previousWorkActions, { flexWrap: 'wrap' }]}>
               <Pressable style={[styles.previousWorkAction, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onDuplicate(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Copy ${session.title}`}>
                 <Text style={styles.previousWorkActionText}>Copy</Text>
               </Pressable>
@@ -2548,8 +2593,8 @@ const PracticeInkHistory = memo(function PracticeInkHistory({ strokes, idPrefix 
 
 })
 
-function PracticeDocument({ side, uploadedImage, selectedDrawing, guideOpacity, guideOnTop, stickers, selectedStickerId = null, practiceStrokes, activePath = '', activeStrokeRender = null, idPrefix, onImageLoad, onImageError }: {
-  side: number; uploadedImage: UploadedImage | null; selectedDrawing: Drawing; guideOpacity: number; guideOnTop: boolean; stickers: PracticeSticker[]; selectedStickerId?: string | null; practiceStrokes: PracticeStroke[]; activePath?: string; activeStrokeRender?: PracticeStroke | null; idPrefix: string; onImageLoad?: (key: string) => void; onImageError?: (key: string) => void
+function PracticeDocument({ side, uploadedImage, selectedDrawing, guideOpacity, guideOnTop, stickers, selectedStickerId = null, practiceStrokes, activePath = '', activeStrokeRender = null, stamp, idPrefix, onImageLoad, onImageError }: {
+  side: number; uploadedImage: UploadedImage | null; selectedDrawing: Drawing; guideOpacity: number; guideOnTop: boolean; stickers: PracticeSticker[]; selectedStickerId?: string | null; practiceStrokes: PracticeStroke[]; activePath?: string; activeStrokeRender?: PracticeStroke | null; stamp?: KeepsakeStamp; idPrefix: string; onImageLoad?: (key: string) => void; onImageError?: (key: string) => void
 }) {
   const topGuideOpacity = Math.max(guideOpacity, 0.48)
   return (
@@ -2587,6 +2632,7 @@ function PracticeDocument({ side, uploadedImage, selectedDrawing, guideOpacity, 
                 )}
               </View>
             )}
+            <KeepsakeStampBadge stamp={stamp} size={side * 0.12} />
             </View>
   )
 }
@@ -2605,6 +2651,7 @@ function PracticeScreen({
   onSessionDeleted,
   onPicker,
   onCameraTrace,
+  onGallery,
 }: {
   insetsTop: number
   insetsBottom: number
@@ -2619,11 +2666,21 @@ function PracticeScreen({
   onSessionDeleted: (sessionId: string) => void
   onPicker: () => void
   onCameraTrace: () => void
+  onGallery: () => void
 }) {
   const safeInsets = useSafeAreaInsets()
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions()
+  const { width: windowWidth, height: windowHeight, fontScale } = useWindowDimensions()
   const compact = windowHeight < 600
   const childTarget = Math.min(windowWidth, windowHeight) >= 600 ? 56 : 48
+  const reduceMotion = useReduceMotion()
+  const [keepsakeOpen, setKeepsakeOpen] = useState(false)
+  const [keepsakeDate, setKeepsakeDate] = useState(() => formatPreviousWorkDate(initialSession?.finishedAt ?? new Date().toISOString()))
+  const [completing, setCompleting] = useState(false)
+  const completingRef = useRef(false)
+  const doneButtonRef = useRef<View | null>(null)
+  const [stamp, setStamp] = useState<KeepsakeStamp | undefined>(initialSession?.stamp)
+  const stampRef = useRef(stamp)
+  const finishedAtRef = useRef(initialSession?.finishedAt)
   const touchOwnerRef = useRef<string | number | null>(null)
   const leaveInProgressRef = useRef(false)
   const [parentActionsOpen, setParentActionsOpen] = useState(false)
@@ -2755,6 +2812,9 @@ function PracticeScreen({
       setActiveStrokeRender(null)
       setPracticeStrokes(nextStrokes)
       setStickers(nextStickers)
+      stampRef.current = initialSession?.stamp
+      setStamp(initialSession?.stamp)
+      finishedAtRef.current = initialSession?.finishedAt
       setSelectedStickerId(null)
       setSessionTitle(initialSession?.title ?? makePracticeSessionTitle(practiceSource))
       setGuideOpacity(nextGuideOpacity)
@@ -2776,6 +2836,8 @@ function PracticeScreen({
         markerColor: nextMarkerColor,
         markerWidth: nextMarkerWidth,
         brushToolId: nextBrushToolId,
+        stamp: initialSession?.stamp,
+        finishedAt: initialSession?.finishedAt,
       })
       autosaveReadyRef.current = true
     }
@@ -2856,7 +2918,7 @@ function PracticeScreen({
     const snapshotStrokes = activeStroke ? [...practiceStrokesRef.current, activeStroke] : practiceStrokesRef.current
     const snapshotStickers = stickersRef.current
 
-    if (snapshotStrokes.length === 0 && snapshotStickers.length === 0) {
+    if (!hasKeepsakeContent(snapshotStrokes.length, snapshotStickers.length, stampRef.current, finishedAtRef.current)) {
       if (!persistedSessionRef.current) {
         setSaveStatus('saved')
         return true
@@ -2903,6 +2965,8 @@ function PracticeScreen({
       markerColor,
       markerWidth,
       brushToolId,
+      stamp: stampRef.current,
+      finishedAt: finishedAtRef.current,
     }
 
     const nextSignature = makePracticeSaveSignature(savedSession)
@@ -2972,15 +3036,24 @@ function PracticeScreen({
     })
   }, [savePracticeSessionNow])
 
+  const closeKeepsake = useCallback(() => {
+    setKeepsakeOpen(false)
+    requestAnimationFrame(() => {
+      const handle = findNodeHandle(doneButtonRef.current)
+      if (handle) AccessibilityInfo.setAccessibilityFocus(handle)
+    })
+  }, [])
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (keepsakeOpen) { closeKeepsake(); return true }
       if (activePanel) { setActivePanel(null); return true }
       if (parentActionsOpen) { setParentActionsOpen(false); return true }
       leavePractice(onPicker)
       return true
     })
     return () => subscription.remove()
-  }, [activePanel, leavePractice, onPicker, parentActionsOpen])
+  }, [activePanel, closeKeepsake, keepsakeOpen, leavePractice, onPicker, parentActionsOpen])
 
   const scheduleActivePathUpdate = useCallback(() => {
     if (activePathFrameRef.current !== null) return
@@ -3124,7 +3197,6 @@ function PracticeScreen({
   const toggleViewportMode = useCallback(() => {
     finishPracticeStroke()
     resetViewportGestureState()
-    milestoneHaptic()
     setViewportLocked((locked) => !locked)
   }, [finishPracticeStroke, resetViewportGestureState])
 
@@ -3275,6 +3347,9 @@ function PracticeScreen({
     stickersRef.current = []
     setPracticeStrokes([])
     setStickers([])
+    stampRef.current = undefined
+    setStamp(undefined)
+    finishedAtRef.current = undefined
     setSelectedStickerId(null)
     persistedSessionRef.current = false
     sessionIdRef.current = createPracticeSessionId()
@@ -3287,13 +3362,13 @@ function PracticeScreen({
   }, [cancelActivePathUpdate, savePracticeSessionNow, stickers])
 
   const confirmClearPracticeStrokes = useCallback(() => {
-    if (practiceStrokes.length === 0 && stickers.length === 0 && !activePath) return
+    if (practiceStrokes.length === 0 && stickers.length === 0 && !activePath && !stamp) return
 
     Alert.alert('Clear drawing?', 'This removes all coloring and added pieces saved in this work.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear all', style: 'destructive', onPress: clearPracticeStrokes },
     ])
-  }, [activePath, clearPracticeStrokes, practiceStrokes.length, stickers.length])
+  }, [activePath, clearPracticeStrokes, practiceStrokes.length, stamp, stickers.length])
 
   const lightenGuide = useCallback(() => {
     setGuideOpacity((current) => clamp(current - 0.06, 0.08, 0.66))
@@ -3441,6 +3516,8 @@ function PracticeScreen({
 
     try {
       setIsSavingImage(true)
+      finishPracticeStroke()
+      if (!await savePracticeSessionNow()) return
       const permission = await MediaLibrary.requestPermissionsAsync(true)
       if (!isCurrent()) return
       if (!photoAccessAllowed(permission)) {
@@ -3473,7 +3550,35 @@ function PracticeScreen({
         setIsSavingImage(false)
       }
     }
-  }, [guideOnTop, stickers, uploadedImage])
+  }, [finishPracticeStroke, guideOnTop, savePracticeSessionNow, stickers, uploadedImage])
+
+
+
+  const finishDrawing = useCallback(async () => {
+    if (completingRef.current) return
+    completingRef.current = true
+    setCompleting(true)
+    finishPracticeStroke()
+    const finishedAt = new Date().toISOString()
+    finishedAtRef.current = finishedAt
+    setKeepsakeDate(formatPreviousWorkDate(finishedAt))
+    try {
+      await finishAfterSave(savePracticeSessionNow, () => {
+        setActivePanel(null)
+        milestoneHaptic()
+        setKeepsakeOpen(true)
+      })
+    } finally {
+      completingRef.current = false
+      setCompleting(false)
+    }
+  }, [finishPracticeStroke, savePracticeSessionNow])
+
+  const chooseStamp = useCallback((next: KeepsakeStamp) => {
+    stampRef.current = toggleStamp(stampRef.current, next)
+    setStamp(stampRef.current)
+    void savePracticeSessionNow()
+  }, [savePracticeSessionNow])
 
   const practiceRibbonPanelTop = practiceRibbonHeight + 12
 
@@ -3481,9 +3586,10 @@ function PracticeScreen({
     <View style={[styles.practiceShell, { paddingLeft: safeInsets.left, paddingRight: safeInsets.right }]}>
       {isSavingImage && <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', left: -2000, top: 0 }}>
         <View ref={exportDocumentRef} collapsable={false}>
-          <PracticeDocument side={documentCapture.side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} practiceStrokes={practiceStrokes} activePath={activePath} activeStrokeRender={activeStrokeRender} idPrefix="export" onImageLoad={exportReadiness?.loaded} onImageError={exportReadiness?.failed} />
+          <PracticeDocument side={documentCapture.side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} practiceStrokes={practiceStrokes} activePath={activePath} activeStrokeRender={activeStrokeRender} stamp={stamp} idPrefix="export" onImageLoad={exportReadiness?.loaded} onImageError={exportReadiness?.failed} />
         </View>
       </View>}
+      {keepsakeOpen && <KeepsakeView title={sessionTitle} date={keepsakeDate} stamp={stamp} reduceMotion={reduceMotion} saving={isSavingImage} saveFailed={saveStatus === 'error'} onClose={closeKeepsake} onSave={() => void savePracticeImage()} onGallery={() => leavePractice(onGallery)} onStamp={chooseStamp} onRetry={() => void savePracticeSessionNow()} renderDocument={(side) => <PracticeDocument side={side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} practiceStrokes={practiceStrokes} stamp={stamp} idPrefix="keepsake" />} />}
       <StatusBar style="dark" />
       <View style={[styles.practiceHeader, { paddingTop: insetsTop + (compact ? 2 : 8) }]}>
         <Pressable style={[styles.practiceHeaderButton, { minHeight: childTarget }]} onPress={() => leavePractice(onPicker)} disabled={isSavingImage} accessibilityState={{ disabled: isSavingImage, busy: isSavingImage }} accessibilityRole="button" accessibilityLabel={isSavingImage ? 'Saving picture. Please wait' : 'Go back'}>
@@ -3521,7 +3627,7 @@ function PracticeScreen({
               accessibilityLabel={`Open color and brush tools. Current brush ${brushTool.label}.`}
             >
               <PracticeRibbonIcon kind="tool" color={activePanel === 'tool' ? '#FFFFFF' : palette.ink} markerColor={markerColor} />
-              <Text style={[styles.practiceRibbonLabel, activePanel === 'tool' && styles.practiceRibbonLabelActive]}>Tools</Text>
+              {fontScale < 1.5 && <Text style={[styles.practiceRibbonLabel, activePanel === 'tool' && styles.practiceRibbonLabelActive]}>Tools</Text>}
             </Pressable>
 
             {parentActionsOpen && <Pressable
@@ -3547,6 +3653,7 @@ function PracticeScreen({
             </Pressable>}
             {parentActionsOpen && <Pressable style={[styles.practicePanelChoice, { minHeight: childTarget }, brushToolId === 'eraser' && styles.practicePanelChoiceActive]} onPress={() => setBrushToolId((tool) => tool === 'eraser' ? 'marker' : 'eraser')} accessibilityRole="button" accessibilityState={{ selected: brushToolId === 'eraser' }}><Text style={[styles.practicePanelChoiceText, brushToolId === 'eraser' && styles.practicePanelChoiceTextActive]}>Eraser</Text></Pressable>}
             <Pressable style={[styles.practicePanelChoice, { minHeight: childTarget }]} onPress={undoPracticeStroke} disabled={practiceStrokes.length === 0} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Undo</Text></Pressable>
+            <Pressable ref={doneButtonRef} style={[styles.practicePanelChoice, { minHeight: 56, minWidth: 72, backgroundColor: palette.coral }]} onPress={() => void finishDrawing()} disabled={completing} accessibilityRole="button" accessibilityLabel="Done drawing"><Text style={styles.practicePanelChoiceText}>{completing ? 'Saving…' : '✓ Done'}</Text></Pressable>
           </View>
         </View>
 
@@ -3731,7 +3838,7 @@ function PracticeScreen({
             pointerEvents="none"
           >
             <View style={{ position: 'absolute', left: pageFrame.x, top: pageFrame.y }}>
-              <PracticeDocument side={pageFrame.side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} selectedStickerId={selectedStickerId} practiceStrokes={practiceStrokes} activePath={activePath} activeStrokeRender={activeStrokeRender} idPrefix="canvas" />
+              <PracticeDocument side={pageFrame.side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} selectedStickerId={selectedStickerId} practiceStrokes={practiceStrokes} activePath={activePath} activeStrokeRender={activeStrokeRender} stamp={stamp} idPrefix="canvas" />
             </View>
           </View>
         </View>
@@ -3742,7 +3849,7 @@ function PracticeScreen({
         <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && styles.practiceToolButtonDisabled]} onPress={undoPracticeStroke} disabled={practiceStrokes.length === 0} accessibilityRole="button">
           <Text style={styles.practiceToolButtonText}>Undo</Text>
         </Pressable>
-        <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && stickers.length === 0 && !activePath && styles.practiceToolButtonDisabled]} onPress={confirmClearPracticeStrokes} disabled={practiceStrokes.length === 0 && stickers.length === 0 && !activePath} accessibilityRole="button">
+        <Pressable style={[styles.practiceToolButton, practiceStrokes.length === 0 && stickers.length === 0 && !activePath && !stamp && styles.practiceToolButtonDisabled]} onPress={confirmClearPracticeStrokes} disabled={practiceStrokes.length === 0 && stickers.length === 0 && !activePath && !stamp} accessibilityRole="button">
           <Text style={styles.practiceToolButtonText}>Clear</Text>
         </Pressable>
         <Pressable style={[styles.practiceToolButton, isSavingImage && styles.practiceToolButtonDisabled]} onPress={savePracticeImage} disabled={isSavingImage} accessibilityRole="button" accessibilityLabel="Save drawing image to Photos">
@@ -4303,7 +4410,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   previousWorkClear: {
-    minHeight: 34,
+    minHeight: 48,
     justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,

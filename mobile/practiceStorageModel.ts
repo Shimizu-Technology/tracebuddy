@@ -1,3 +1,6 @@
+import { normalizeStamp } from './finishFindModel'
+import type { KeepsakeStamp } from './finishFindModel'
+
 // Pure Previous Work model: input, persistence and SVG rendering share document units.
 // 1,000,000 covers all existing native widths (even a 1 pt canvas and legacy
 // pixel-to-document migration), with headroom and a finite SVG geometry bound.
@@ -74,6 +77,8 @@ export type SavedPracticeSession = {
   markerColor: string
   markerWidth: number
   brushToolId: BrushToolId
+  stamp?: KeepsakeStamp
+  finishedAt?: string
 }
 
 export type UploadedImage = {
@@ -180,6 +185,8 @@ export function normalizeSavedPracticeSession(value: unknown): SavedPracticeSess
 
   return {
     version: 2,
+    stamp: normalizeStamp(session.stamp),
+    finishedAt: typeof session.finishedAt === 'string' && Number.isFinite(Date.parse(session.finishedAt)) ? session.finishedAt : undefined,
     sessionId: session.sessionId,
     title: typeof session.title === 'string' ? session.title : makePracticeSessionTitle(source),
     source,
