@@ -4,6 +4,12 @@
     "package": "zod",
     "via": "expo@56 -> @expo/cli@56.1.27 -> zod@^3.25.76",
     "reason": "Only the Expo CLI uses this zod copy, on the build machine, to validate local project config. It is not in the shipped app bundle. No zod 3.x release is patched, and @expo/cli 56 requires zod 3, so forcing zod 4 risks breaking expo and eas builds.",
-    "reviewBy": "2027-01-31"
+    "reviewBy": "2027-01-31",
+    "project": "mobile",
+    "isDirect": false,
+    "nodes": [
+      "node_modules/zod"
+    ],
+    "range": "<4.6.6"
   }
 ]

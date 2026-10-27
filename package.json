@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "check": "npm run lint && npm run build && npm run check:discovery-model && npm run check:learning-model && npm run check:setup-model && npm run check:family-model && npm run check:mobile-print && npm run check:ar-model && npm run check:native-practice-model && npm run mobile:typecheck && npm run mobile:doctor",
+    "check": "npm run lint && npm run build && npm run check:discovery-model && npm run check:learning-model && npm run check:setup-model && npm run check:family-model && npm run check:mobile-print && npm run check:ar-model && npm run check:native-practice-model && npm run check:audit-model && npm run mobile:typecheck && npm run mobile:doctor",
     "check:viewports": "node scripts/viewport-check.mjs",
     "check:storage": "node scripts/storage-check.mjs",
     "check:offline": "node scripts/offline-check.mjs",
@@ -33,7 +33,8 @@
     "mobile:start": "npm --prefix mobile run start",
     "mobile:typecheck": "npm --prefix mobile run typecheck",
     "mobile:doctor": "npm --prefix mobile run doctor",
-    "check:native-practice-model": "tsx scripts/native-practice-model-check.ts"
+    "check:native-practice-model": "tsx scripts/native-practice-model-check.ts",
+    "check:audit-model": "node scripts/audit-model-check.mjs"
   },
   "dependencies": {
     "react": "^19.2.6",

@@ -57,3 +57,54 @@ assert.equal(ownedTouch([{ identifier: '7', locationX: 2, locationY: 3 }], '7')?
 console.log('Temporary capture cleanup checks passed (save, denied, failed capture); lesson back history restored')
 
 assert.equal(ownedTouch({ 0: palm, 1: primary, length: 2 }, 7), primary)
+
+// Previous Work uses this exact session normalizer after AsyncStorage JSON
+// hydration. Reopen every real tool/size at compact 200 pt, plus the 1 pt
+// layout guard (the smallest possible frame), without changing ink or masks.
+const { brushSizes, brushTools, documentStrokeWidth, maxPracticeStrokeWidth, normalizeSavedPracticeSession, normalizeSavedPracticeStroke, practiceStrokeWidth } = await import('../mobile/practiceStorageModel.ts')
+let widthRoundTrips = 0
+for (const side of [1, 200]) {
+  for (const zoom of [1, 1.7, 5]) {
+    for (const tool of brushTools) {
+      for (const size of brushSizes) {
+        const stroke = {
+          path: 'M 100 500 L 900 500', color: '#18243A',
+          width: documentStrokeWidth(size.value, tool.widthMultiplier, side, zoom),
+          opacity: tool.opacity, mode: tool.mode, dasharray: tool.dasharray,
+        }
+        const stored = JSON.stringify({
+          version: 2, sessionId: 'width-round-trip', title: 'Previous Work fixture',
+          source: { kind: 'drawing', drawingId: 'flower', drawingName: 'Flower', drawingTheme: 'Nature' },
+          strokes: [stroke], stickers: [], canvasWidth: 1000, canvasHeight: 1000,
+        })
+        const reopened = normalizeSavedPracticeSession(JSON.parse(stored))!
+        assert.deepEqual(reopened.strokes, [stroke])
+        const reopenedAgain = normalizeSavedPracticeSession(JSON.parse(JSON.stringify(reopened)))!
+        assert.deepEqual(reopenedAgain.strokes, [stroke])
+        assert.ok(stroke.width > 0 && stroke.width <= maxPracticeStrokeWidth)
+        widthRoundTrips++
+      }
+    }
+  }
+}
+const erasedWork = normalizeSavedPracticeSession({
+  sessionId: 'erased-region', source: { kind: 'drawing', drawingId: 'flower', drawingName: 'Flower', drawingTheme: 'Nature' },
+  strokes: [
+    { path: 'M 100 500 L 900 500', width: 164, color: '#18243A', opacity: 1, mode: 'draw' },
+    { path: 'M 100 500 L 900 500', width: documentStrokeWidth(16, 2.2, 200, 1), color: '#18243A', opacity: 1, mode: 'erase' },
+  ],
+})!
+assert.equal(erasedWork.strokes[1].width, 176)
+const reopenErasedWork = normalizeSavedPracticeSession(JSON.parse(JSON.stringify(erasedWork)))!
+// A point 70 document units from this horizontal stroke is inked by Paint,
+// erased by the 176-wide mask, and must remain erased after reopening.
+assert.ok(erasedWork.strokes[0].width / 2 > 70)
+assert.ok(reopenErasedWork.strokes[1].width / 2 > 70)
+assert.deepEqual(reopenErasedWork.strokes, erasedWork.strokes)
+for (const width of [0.01, 80, 176, 35_200, 80_000]) {
+  assert.equal(normalizeSavedPracticeStroke({ path: 'M 0 0', width })?.width, width)
+}
+for (const width of [NaN, Infinity, -1, 0]) assert.equal(normalizeSavedPracticeStroke({ path: 'M 0 0', width }), null)
+assert.equal(practiceStrokeWidth(maxPracticeStrokeWidth * 2), maxPracticeStrokeWidth)
+assert.equal(normalizeSavedPracticeStroke({ path: 'M 0 0', width: maxPracticeStrokeWidth * 2 })?.width, maxPracticeStrokeWidth)
+console.log(`Native Previous Work widths passed: ${widthRoundTrips} brush/size/canvas/zoom round trips and preserved erased region`)
