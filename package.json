@@ -27,6 +27,7 @@
     "check:ar-model": "tsx scripts/ar-trace-model-check.ts",
     "drawings:validate": "tsx scripts/validate-drawings.ts",
     "drawings:contact-sheets": "tsx scripts/generate-drawing-contact-sheets.ts",
+    "audit:check": "node scripts/audit-check.mjs",
     "screenshots": "node scripts/capture-screenshots.mjs",
     "preview": "vite preview",
     "mobile:start": "npm --prefix mobile run start",
