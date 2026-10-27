@@ -296,13 +296,54 @@ try {
     assert.equal(await page.$$eval('.practice-ink > g > path', (paths) => paths.length), 1)
     results.push({ scenario: 'upload-reload', result: 'passed' })
 
+    // Keep the original 200% assertion, and exercise wider platform fallback
+    // fonts on both narrow phones. A real long upload also tests heading reflow.
+    const longName = `familydrawing${'withaverylongunbrokenfilename'.repeat(4)}.svg`
+    const longUpload = join(output, longName)
+    writeFileSync(longUpload, readFileSync(new URL('../public/favicon.svg', import.meta.url)))
+    await parentTools(page)
+    await (await page.$('.practice-screen input[type="file"]')).uploadFile(longUpload)
+    await page.waitForFunction((name) => document.querySelector('.practice-header h1')?.textContent === name, {}, longName)
+    await stroke(page, await point(page, 500, 500))
+    await pause(600)
+    await page.reload({ waitUntil: 'networkidle0' })
+    assert.equal(await page.$eval('.practice-header h1', (el) => el.textContent), longName)
+    assert.equal(await page.$$eval('.practice-ink > g > path', (paths) => paths.length), 1)
     await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
     await page.addStyleTag({ content: 'html {font-size:200%}' })
     await parentTools(page)
-    const enlarged = await page.$eval('.practice-screen', (el) => ({ width: el.getBoundingClientRect().width, scrollWidth: el.scrollWidth }))
-    assert(enlarged.scrollWidth <= enlarged.width + 1, JSON.stringify(enlarged))
-    await page.screenshot({ path: join(output, 'text-200-reduced-motion.png'), fullPage: true })
-    results.push({ scenario: 'enlarged-text-reduced-motion', result: 'passed', enlarged })
+    for (const font of ['default', 'wide']) {
+      const wideStyle = font === 'wide' ? await page.addStyleTag({ content: '* { font-family: Verdana, "DejaVu Sans", sans-serif !important }' }) : null
+      for (const width of [360, 390]) {
+        await page.setViewport({ width, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
+        await page.evaluate(async () => {
+          await document.fonts.ready
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        })
+        const enlarged = await page.$eval('.practice-screen', (el) => {
+          const rect = el.getBoundingClientRect()
+          // Include every element beyond the viewport in evidence, even swatches
+          // intentionally contained by the horizontal palette scroller.
+          const beyondViewport = [...document.querySelectorAll('*')].flatMap((node) => {
+            const bounds = node.getBoundingClientRect()
+            return bounds.right > innerWidth ? [{ tag: node.tagName, className: node.getAttribute('class'), label: node.getAttribute('aria-label') || node.textContent.trim().slice(0, 80), right: bounds.right, palette: Boolean(node.closest('.compact-swatches')) }] : []
+          })
+          const overflowingControls = [...el.querySelectorAll('button, summary, [role="status"], h1')].flatMap((node) => {
+            if (node.closest('.compact-swatches')) return []
+            const bounds = node.getBoundingClientRect()
+            return bounds.width && (bounds.right > rect.right + 1 || bounds.left < rect.left - 1) ? [{ label: node.getAttribute('aria-label') || node.textContent.trim(), left: bounds.left, right: bounds.right }] : []
+          })
+          return { width: rect.width, scrollWidth: el.scrollWidth, beyondViewport, overflowingControls }
+        })
+        writeFileSync(join(output, `text-200-${font}-${width}.json`), JSON.stringify(enlarged, null, 2))
+        assert(enlarged.scrollWidth <= enlarged.width + 1, JSON.stringify(enlarged))
+        assert.deepEqual(enlarged.overflowingControls, [], JSON.stringify(enlarged))
+        assert.deepEqual(enlarged.beyondViewport.filter((node) => !node.palette), [], JSON.stringify(enlarged))
+        await page.screenshot({ path: join(output, `text-200-${font}-${width}-reduced-motion.png`), fullPage: true })
+        results.push({ scenario: 'enlarged-text-reduced-motion', font, viewport: width, result: 'passed', enlarged })
+      }
+      await wideStyle?.dispose()
+    }
   } finally { await context.close() }
   assert.deepEqual(errors, [])
   writeFileSync(join(output, 'geometry-results.json'), JSON.stringify(results, null, 2))
