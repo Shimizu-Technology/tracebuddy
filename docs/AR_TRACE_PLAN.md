@@ -2,9 +2,25 @@
 
 ## Implementation status
 
-Version 1.3 implements this plan as **Paper Lock** on iOS. The architecture uses a local Expo module with Swift, ARKit world tracking, and a RealityKit `ARView`. It provides two placement paths: markerless horizontal-surface raycasting and continuously updated tracking of a printable 50 mm TraceBuddy marker. Both render the selected built-in drawing, custom word, or local image as a transparent unlit page texture.
+Version 1.3 implements this plan as **Paper Lock (Beta)** on supported iOS devices. The architecture uses a local Expo module with Swift, ARKit world tracking, and a RealityKit `ARView`. It provides two placement paths: markerless horizontal-surface raycasting and continuously updated tracking of a printable 50 mm TraceBuddy marker. Both render the selected built-in drawing, custom word, or local image as a transparent unlit page texture.
 
 The React Native flow includes camera permission and parent safety gates, Letter/A4 portrait and landscape sizes, opacity, scale, rotation, 5 mm nudges, explicit lock/reset controls, tracking recovery, accessible control alternatives, child mode, and regular Camera Trace/Screen Practice fallbacks. AR data remains on-device, and spatial maps are not persisted. Physical-device precision and ergonomics remain TestFlight release gates; simulator compilation is not evidence of spatial accuracy.
+
+## Marker geometry and sizing
+
+The 50 mm printed square matches `ARReferenceImage.physicalWidth = 0.05` meters. Print at 100%, measure the square, keep the printed top upright, align its top edge with the page, and leave 15 mm between its right edge and the page's left edge. At page scale 100%, the initial page center is `X = width/2 + 0.040 m`, `Z = height/2 - 0.025 m` relative to the marker center. Nudges are 5 mm. Adjust alignment before locking.
+
+[Apple's image sample](https://developer.apple.com/documentation/arkit/detecting-images-in-an-ar-experience) places the image horizontally in anchor-local space. [RealityKit's width/depth plane](https://developer.apple.com/documentation/realitykit/meshresource/generateplane(width:depth:cornerradius:)) uses the same XZ basis with a +Y normal. The native guide uses this basis directly, without an extra X rotation: X goes right, Z goes down the printed page. Rotation is about Y; the guide lifts 1.5 mm along Y to avoid overlapping the physical plane. `TraceBuddyARGeometry.swift` contains the pure transform, exercised at all four corners in the AR model check. Physical orientation, texture orientation and ruler alignment still need device measurements.
+
+Page scale changes the nominal Letter/A4 plane. The artwork also has an 88% inset in its captured texture (plus any whitespace in the drawing). At the default 88% page scale, the artwork occupies about 77.4% of the nominal page before that whitespace. This is not a calibrated artwork-size promise.
+
+## Tracking and recovery contract
+
+The camera tracking delegate supplies the authoritative state. Placement also requires a normal current camera frame no older than 0.5 seconds, a loaded guide, and a current raycast or tracked image. Lock rechecks placement; a prior preview event alone cannot authorize it. Missing hits clear the preview, and limited/unavailable tracking hides the guide and disables Lock/child mode. A locked Surface guide uses its world anchor while tracking is normal; a locked Marker guide still requires a currently tracked image. Reset recreates the guide from its retained texture before searching again.
+
+Frame work is coalesced to one pending main-actor task. Opacity updates the retained material; scale, page size, rotation and nudges update the unit-plane transform. The mesh/model are rebuilt for a new texture or Reset. These changes reduce allocations; thermal and frame-time results still require hardware profiling.
+
+Use [Leon's TestFlight checklist](PAPER_LOCK_TESTFLIGHT_CHECKLIST.md) to record results against the [release gate](REAL_DEVICE_TESTING.md#paper-lock-release-gate). The release gate is the source of truth.
 
 ## Purpose
 
@@ -21,12 +37,12 @@ Primary user benefit:
 Implemented user flow:
 
 1. A parent or child picks a drawing.
-2. They choose **Paper Lock**.
+2. They choose **Paper Lock (Beta)**, offered only if the native module reports AR world-tracking support.
 3. The app opens an iOS AR camera view and guides the parent through safe setup.
 4. The user either finds a horizontal table surface or prints and shows the Paper Lock marker.
 5. RealityKit previews the physical page placement.
-6. The status changes to **Locked to paper**.
-7. The selected tracing guide appears on the worksheet and stays attached as the device moves.
+6. With normal camera tracking and a fresh placement, the parent taps **Lock to paper**.
+7. The guide uses a table or marker anchor. The parent checks alignment before tracing and resets if it drifts.
 8. If tracking weakens, Surface Lock asks the user to reset and relock the table placement; Marker Lock asks them to show the visible marker again so it can reacquire the moving paper.
 9. The user can tap **Reset** or fall back to regular Camera Trace.
 

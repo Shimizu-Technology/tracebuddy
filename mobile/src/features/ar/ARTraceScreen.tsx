@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import {
   Alert,
@@ -24,12 +24,17 @@ import {
   arPagePresets,
   arTrackingAdvice,
   canEnterARChildMode,
+  canLockARPlacement,
   clampARValue,
   deriveARDisplayState,
   initialARNativeState,
+  isCurrentAREvent,
+  currentARGuide,
+  arGuideGenerationKey,
   normalizeARNativeState,
 } from './arTraceState'
-import type { ARNativeState, ARPagePreset, ARPlacementMode } from './arTraceState'
+import { prepareARGuide } from './arGuideCapture'
+import type { ARGuideCapture, ARNativeState, ARPagePreset, ARPlacementMode } from './arTraceState'
 
 type UploadedGuide = { uri: string; name: string }
 
@@ -77,12 +82,14 @@ function GuideTexture({
   selectedDrawing,
   uploadedImage,
   onReady,
+  onError,
 }: {
   captureTarget: RefObject<View | null>
   pagePreset: ARPagePreset
   selectedDrawing: Drawing
   uploadedImage: UploadedGuide | null
   onReady: () => void
+  onError: () => void
 }) {
   const page = arPagePresets[pagePreset]
   const width = 720
@@ -98,6 +105,7 @@ function GuideTexture({
               resizeMode="contain"
               style={styles.captureImage}
               onLoad={onReady}
+              onError={onError}
             />
           ) : (
             <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
@@ -109,6 +117,13 @@ function GuideTexture({
 }
 
 export default function ARTraceScreen(props: Props) {
+  // A different drawing starts a new capture/native generation, even if the
+  // parent changes A → B → A before an earlier capture has completed.
+  const drawingKey = JSON.stringify([props.selectedDrawing.id, props.selectedDrawing.svg, props.uploadedImage?.uri])
+  return <ARTraceSession key={drawingKey} {...props} />
+}
+
+function ARTraceSession(props: Props) {
   const {
     insetsTop,
     insetsBottom,
@@ -129,8 +144,10 @@ export default function ARTraceScreen(props: Props) {
   const [nativeState, setNativeState] = useState<ARNativeState>(initialARNativeState)
   const [placementMode, setPlacementMode] = useState<ARPlacementMode>('surface')
   const [pagePreset, setPagePreset] = useState<ARPagePreset>('letterPortrait')
-  const [guideUri, setGuideUri] = useState<string | null>(null)
-  const [captureReady, setCaptureReady] = useState(false)
+  const [guideCapture, setGuideCapture] = useState<ARGuideCapture | null>(null)
+  const [captureReadyKey, setCaptureReadyKey] = useState<string | null>(null)
+  const [captureErrorKey, setCaptureErrorKey] = useState<string | null>(null)
+  const [captureAttempt, setCaptureAttempt] = useState(0)
   const [opacity, setOpacity] = useState(0.72)
   const [scale, setScale] = useState(0.88)
   const [rotation, setRotation] = useState(0)
@@ -138,51 +155,80 @@ export default function ARTraceScreen(props: Props) {
   const [offsetY, setOffsetY] = useState(0)
   const [placeRevision, setPlaceRevision] = useState(0)
   const [resetRevision, setResetRevision] = useState(0)
+  const expectedResetRevision = useRef(0)
   const [controlsOpen, setControlsOpen] = useState(true)
   const [childMode, setChildMode] = useState(false)
   const captureTarget = useRef<View>(null)
   const page = arPagePresets[pagePreset]
   const setupReady = Object.values(setupChecks).every(Boolean)
-  const displayState = deriveARDisplayState(nativeState, placementMode)
+  const guideKey = arGuideGenerationKey(selectedDrawing, uploadedImage?.uri, pagePreset, captureAttempt)
+  const guideUri = currentARGuide(guideCapture, guideKey)
+  const expectedGuide = useRef({ key: guideKey, uri: guideUri })
+  useLayoutEffect(() => { expectedGuide.current = { key: guideKey, uri: guideUri } }, [guideKey, guideUri])
+  const currentNativeState = isCurrentAREvent(nativeState, resetRevision, guideUri) ? nativeState : initialARNativeState
+  const displayState = deriveARDisplayState(currentNativeState, placementMode)
   const displayCopy = arDisplayCopy[displayState]
-  const trackingAdvice = arTrackingAdvice(nativeState)
-  const childModeReady = canEnterARChildMode(nativeState)
+  const trackingAdvice = arTrackingAdvice(currentNativeState)
+  const placementReady = canLockARPlacement(currentNativeState, placementMode)
+  const childModeReady = canEnterARChildMode(currentNativeState)
 
-  const handleCaptureReady = useCallback(() => setCaptureReady(true), [])
+  const resetPlacement = useCallback(() => {
+    // Advance synchronously, before native receives the prop or queued events.
+    expectedResetRevision.current += 1
+    setResetRevision(expectedResetRevision.current)
+    setNativeState(initialARNativeState)
+    setChildMode(false)
+    setControlsOpen(true)
+  }, [])
+
+  const handleCaptureReady = useCallback(() => {
+    if (expectedGuide.current.key === guideKey) setCaptureReadyKey(guideKey)
+  }, [guideKey])
 
   useEffect(() => {
-    if (!captureReady || !captureTarget.current) return
+    if (captureReadyKey !== guideKey || !captureTarget.current) return
     let cancelled = false
-    let nextUri: string | null = null
     void waitForTwoFrames().then(async () => {
       if (cancelled || !captureTarget.current) return
-      nextUri = await captureRef(captureTarget, { format: 'png', quality: 1, result: 'tmpfile' })
-      if (cancelled) {
-        releaseCapture(nextUri)
-        return
-      }
-      setGuideUri(nextUri)
+      const uri = await prepareARGuide({
+        capture: () => captureRef(captureTarget, { format: 'png', quality: 1, result: 'tmpfile' }),
+        isCurrent: () => !cancelled && expectedGuide.current.key === guideKey,
+        release: releaseCapture,
+      })
+      if (!uri) return
+      setNativeState(initialARNativeState)
+      setChildMode(false)
+      setGuideCapture({ key: guideKey, uri })
+      setCaptureErrorKey(null)
     }).catch(() => {
-      if (!cancelled) Alert.alert('Guide not ready', 'TraceBuddy could not prepare this picture for Paper Lock. Try regular Camera Trace.')
+      if (!cancelled && expectedGuide.current.key === guideKey) {
+        setGuideCapture(null)
+        setCaptureErrorKey(guideKey)
+      }
     })
     return () => { cancelled = true }
-  }, [captureReady, pagePreset, selectedDrawing.id, uploadedImage?.uri])
+  }, [captureReadyKey, guideKey, captureAttempt])
 
   useEffect(() => () => {
-    if (guideUri) releaseCapture(guideUri)
-  }, [guideUri])
+    if (guideCapture) releaseCapture(guideCapture.uri)
+  }, [guideCapture])
+
+  const retryGuide = useCallback(() => {
+    setCaptureErrorKey(null)
+    setCaptureReadyKey(null)
+    setCaptureAttempt((value) => value + 1)
+  }, [])
 
   const changePlacementMode = useCallback((nextMode: ARPlacementMode) => {
+    resetPlacement()
     setPlacementMode(nextMode)
     setOffsetX(nextMode === 'marker' ? page.widthMeters / 2 + 0.04 : 0)
     setOffsetY(nextMode === 'marker' ? page.heightMeters / 2 - 0.025 : 0)
-    setNativeState(initialARNativeState)
-    setResetRevision((value) => value + 1)
-  }, [page.heightMeters, page.widthMeters])
+  }, [page.heightMeters, page.widthMeters, resetPlacement])
 
   const printMarker = useCallback(async () => {
     try {
-      await Print.printAsync({ html: `<!doctype html><html><body style="font-family:-apple-system;margin:20mm;color:#18243a"><h1>TraceBuddy Paper Lock marker</h1><p>Print at 100% scale. Cut out the 50 mm square and place it flat beside the top-left corner of the paper.</p><div style="width:50mm;height:50mm">${markerSvg}</div><p>Keep the entire marker visible to the camera while tracing. Paper Lock follows the marker if the page moves.</p></body></html>` })
+      await Print.printAsync({ html: `<!doctype html><html><body style="font-family:-apple-system;margin:20mm;color:#18243a"><h1>TraceBuddy Paper Lock marker</h1><p>Print at 100% scale. Cut out the 50 mm square. Align its top edge with the paper’s top edge and leave a 15 mm gap between its right edge and the paper’s left edge. Keep the printed top upright.</p><div style="width:50mm;height:50mm">${markerSvg}</div><p>Keep the entire marker visible to the camera while tracing. Marker Lock tries to follow the marker. Attach it to the page and check alignment after any movement.</p></body></html>` })
     } catch {
       Alert.alert('Could not print marker', 'Try again, or use Surface Lock without a marker.')
     }
@@ -198,15 +244,15 @@ export default function ARTraceScreen(props: Props) {
 
   if (!supported) {
     return (
-      <View style={styles.fallback}>
+      <ScrollView style={styles.setupScreen} contentContainerStyle={[styles.fallback, { paddingTop: insetsTop + 24, paddingBottom: insetsBottom + 24 }]}>
         <StatusBar style="dark" />
-        <Text style={styles.fallbackEyebrow}>PAPER LOCK</Text>
+        <Text style={styles.fallbackEyebrow}>PAPER LOCK (BETA)</Text>
         <Text style={styles.fallbackTitle}>Paper Lock is not available on this device.</Text>
         <Text style={styles.fallbackCopy}>You can still trace this picture with the regular camera overlay or practice on the screen.</Text>
         <Pressable style={styles.primaryButton} onPress={onCameraFallback} accessibilityRole="button"><Text style={styles.primaryButtonText}>Use Camera Trace</Text></Pressable>
         <Pressable style={styles.secondaryButton} onPress={onScreenPractice} accessibilityRole="button"><Text style={styles.secondaryButtonText}>Practice on screen</Text></Pressable>
         <Pressable style={styles.textButton} onPress={onPicker} accessibilityRole="button"><Text style={styles.textButtonText}>Back to pictures</Text></Pressable>
-      </View>
+      </ScrollView>
     )
   }
 
@@ -214,9 +260,9 @@ export default function ARTraceScreen(props: Props) {
     return (
       <ScrollView style={styles.setupScreen} contentContainerStyle={[styles.setupContent, { paddingTop: insetsTop + 24, paddingBottom: insetsBottom + 32 }]}>
         <StatusBar style="dark" />
-        <Text style={styles.setupEyebrow}>PARENT SETUP · PAPER LOCK</Text>
+        <Text style={styles.setupEyebrow}>PARENT SETUP · PAPER LOCK (BETA)</Text>
         <Text style={styles.setupTitle}>Make the tracing space safe and steady.</Text>
-        <Text style={styles.setupCopy}>Paper Lock keeps the guide in the same physical spot when the device moves. A stand is still the safest, easiest setup.</Text>
+        <Text style={styles.setupCopy}>Paper Lock (Beta) uses the table or a printed marker to position the guide. It can drift or lose tracking. Use a stand and check alignment before tracing. Stay with your child: Surface Lock cannot detect a covered or moved page; Marker Lock detects marker loss.</Text>
         {([
           ['stable', 'Stand is stable', 'The device cannot tip or fall into the drawing area.'],
           ['page', 'Whole page is visible', 'Leave room around every edge so tracking can recover.'],
@@ -230,23 +276,26 @@ export default function ARTraceScreen(props: Props) {
         {!permissionGranted ? (
           <View style={styles.permissionCard}>
             <Text style={styles.permissionTitle}>Camera permission</Text>
-            <Text style={styles.permissionCopy}>The camera finds the table and keeps the guide in place. Frames and tracking data stay on this device.</Text>
+            <Text style={styles.permissionCopy}>The camera tracks the table or marker to position the guide. Frames and tracking data stay on this device.</Text>
             <Pressable style={styles.secondaryButton} onPress={() => { void requestCamera() }} accessibilityRole="button"><Text style={styles.secondaryButtonText}>{canAskPermissionAgain ? 'Allow camera' : 'Open Settings'}</Text></Pressable>
           </View>
         ) : null}
-        <Pressable style={[styles.primaryButton, (!setupReady || !permissionGranted) && styles.buttonDisabled]} disabled={!setupReady || !permissionGranted} onPress={() => setSetupComplete(true)} accessibilityRole="button"><Text style={styles.primaryButtonText}>Start Paper Lock</Text></Pressable>
+        <Pressable style={[styles.primaryButton, (!setupReady || !permissionGranted) && styles.buttonDisabled]} disabled={!setupReady || !permissionGranted} accessibilityState={{ disabled: !setupReady || !permissionGranted }} onPress={() => setSetupComplete(true)} accessibilityRole="button"><Text style={styles.primaryButtonText}>Start Paper Lock</Text></Pressable>
         <Pressable style={styles.textButton} onPress={onCameraFallback} accessibilityRole="button"><Text style={styles.textButtonText}>Use regular Camera Trace instead</Text></Pressable>
         <Pressable style={styles.textButton} onPress={onPicker} accessibilityRole="button"><Text style={styles.textButtonText}>Back to pictures</Text></Pressable>
       </ScrollView>
     )
   }
 
+  const childModeActive = childMode && childModeReady
+
   return (
     <View style={styles.shell}>
-      <StatusBar style="light" hidden={childMode} />
-      <GuideTexture captureTarget={captureTarget} pagePreset={pagePreset} selectedDrawing={selectedDrawing} uploadedImage={uploadedImage} onReady={handleCaptureReady} />
+      <StatusBar style="light" hidden={childModeActive} />
+      <GuideTexture key={guideKey} captureTarget={captureTarget} pagePreset={pagePreset} selectedDrawing={selectedDrawing} uploadedImage={uploadedImage} onReady={handleCaptureReady} onError={() => { if (expectedGuide.current.key === guideKey) setCaptureErrorKey(guideKey) }} />
       {guideUri ? (
         <TraceBuddyARView
+          key={guideUri}
           style={StyleSheet.absoluteFill}
           active
           guideImageUri={guideUri}
@@ -262,6 +311,7 @@ export default function ARTraceScreen(props: Props) {
           resetRevision={resetRevision}
           onStateChange={(event) => {
             const nextState = normalizeARNativeState(event.nativeEvent)
+            if (!isCurrentAREvent(nextState, expectedResetRevision.current, expectedGuide.current.uri)) return
             setNativeState(nextState)
             if (childMode && !canEnterARChildMode(nextState)) {
               setChildMode(false)
@@ -269,49 +319,52 @@ export default function ARTraceScreen(props: Props) {
             }
           }}
         />
-      ) : <View style={styles.preparing}><Text style={styles.preparingText}>Preparing {pictureName}…</Text></View>}
+      ) : <View style={styles.preparing}>
+        <Text style={styles.preparingText}>{captureErrorKey === guideKey ? 'The guide could not be prepared.' : `Preparing ${pictureName}…`}</Text>
+      </View>}
 
-      {!childMode ? (
+      {!childModeActive ? (
         <View style={[styles.header, { paddingTop: insetsTop + 10 }]} pointerEvents="box-none">
           <Pressable style={styles.headerButton} onPress={onPicker} accessibilityRole="button" accessibilityLabel="Back to picture picker"><Text style={styles.headerButtonText}>Pictures</Text></Pressable>
-          <View style={styles.titleCard}><Text style={styles.title} numberOfLines={1}>{pictureName}</Text><Text style={styles.subtitle} numberOfLines={1}>{pictureTheme} · Paper Lock</Text></View>
+          <View style={styles.titleCard}><Text style={styles.title} numberOfLines={1}>{pictureName}</Text><Text style={styles.subtitle} numberOfLines={1}>{pictureTheme} · Paper Lock (Beta)</Text></View>
           <Pressable style={styles.headerButton} onPress={onCameraFallback} accessibilityRole="button" accessibilityLabel="Switch to regular Camera Trace"><Text style={styles.headerButtonText}>Camera</Text></Pressable>
         </View>
       ) : (
         <Pressable style={[styles.childExit, { top: insetsTop + 10 }]} onPress={() => setChildMode(false)} accessibilityRole="button"><Text style={styles.childExitText}>Exit child mode</Text></Pressable>
       )}
 
-      <View style={[styles.statusCard, { top: insetsTop + (childMode ? 66 : 76) }]} accessibilityRole="alert" accessibilityLiveRegion="polite">
+      <View style={[styles.statusCard, { top: insetsTop + (childModeActive ? 66 : 76) }]} accessibilityRole="alert" accessibilityLiveRegion="polite">
         <View style={[styles.statusDot, displayState === 'locked' && styles.statusDotReady]} />
         <View style={styles.statusCopy}><Text style={styles.statusTitle}>{displayCopy.title}</Text><Text style={styles.statusDetail}>{trackingAdvice ?? displayCopy.detail}</Text></View>
       </View>
 
-      {!childMode ? (
+      {!childModeActive ? (
         <View style={[styles.controlsDock, { paddingBottom: insetsBottom + 10 }]} pointerEvents="box-none">
           {!controlsOpen ? (
             <Pressable style={styles.openControls} onPress={() => setControlsOpen(true)} accessibilityRole="button"><Text style={styles.openControlsText}>Adjust Paper Lock</Text></Pressable>
           ) : (
             <ScrollView style={styles.controlsSheet} contentContainerStyle={styles.controlsContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>Adjust Paper Lock</Text><Text style={styles.sheetCopy}>The center square controls where the page goes.</Text></View><ARControlButton label="Hide" onPress={() => setControlsOpen(false)} /></View>
+              <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>Adjust Paper Lock</Text><Text style={styles.sheetCopy}>Place the guide with the center square. Artwork has an inset margin.</Text></View><ARControlButton label="Hide" onPress={() => setControlsOpen(false)} /></View>
+              {captureErrorKey === guideKey ? <Pressable style={styles.secondaryButton} onPress={retryGuide} accessibilityRole="button"><Text style={styles.secondaryButtonText}>Retry guide</Text></Pressable> : null}
               <View style={styles.segmentRow}>
                 <ARControlButton label="Surface Lock" selected={placementMode === 'surface'} onPress={() => changePlacementMode('surface')} />
                 <ARControlButton label="Marker Lock" selected={placementMode === 'marker'} onPress={() => changePlacementMode('marker')} />
               </View>
-              {placementMode === 'marker' ? <Pressable style={styles.markerButton} onPress={() => { void printMarker() }} accessibilityRole="button"><Text style={styles.markerButtonText}>Print the 50 mm Paper Lock marker</Text></Pressable> : <Text style={styles.modeNote}>Surface Lock stays on the table. If the paper moves, reset and lock it again.</Text>}
+              {placementMode === 'marker' ? <Pressable style={styles.markerButton} onPress={() => { void printMarker() }} accessibilityRole="button"><Text style={styles.markerButtonText}>Print the 50 mm Paper Lock marker</Text></Pressable> : <Text style={styles.modeNote}>Surface Lock stays on the table and cannot detect a covered or moved page. Stay with your child; stop if the page is hidden, and reset if it moves.</Text>}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow} accessibilityLabel="Paper size">
-                {(Object.keys(arPagePresets) as ARPagePreset[]).map((preset) => <ARControlButton key={preset} label={arPagePresets[preset].label} selected={pagePreset === preset} onPress={() => { const nextPage = arPagePresets[preset]; setPagePreset(preset); setCaptureReady(false); if (placementMode === 'marker') { setOffsetX(nextPage.widthMeters / 2 + 0.04); setOffsetY(nextPage.heightMeters / 2 - 0.025) } setResetRevision((value) => value + 1) }} />)}
+                {(Object.keys(arPagePresets) as ARPagePreset[]).map((preset) => <ARControlButton key={preset} label={arPagePresets[preset].label} selected={pagePreset === preset} onPress={() => { if (preset === pagePreset) return; const nextPage = arPagePresets[preset]; resetPlacement(); setGuideCapture(null); setCaptureReadyKey(null); setCaptureErrorKey(null); setCaptureAttempt((value) => value + 1); expectedGuide.current.uri = null; setPagePreset(preset); if (placementMode === 'marker') { setOffsetX(nextPage.widthMeters / 2 + 0.04); setOffsetY(nextPage.heightMeters / 2 - 0.025) } }} />)}
               </ScrollView>
               <View style={styles.adjustGrid}>
                 <View style={styles.adjustGroup}><Text style={styles.adjustLabel}>Opacity · {Math.round(opacity * 100)}%</Text><View style={styles.segmentRow}><ARControlButton label="Less opacity" onPress={() => setOpacity((value) => clampARValue(value - 0.08, 0.12, 1))} /><ARControlButton label="More opacity" onPress={() => setOpacity((value) => clampARValue(value + 0.08, 0.12, 1))} /></View></View>
-                <View style={styles.adjustGroup}><Text style={styles.adjustLabel}>Size · {Math.round(scale * 100)}%</Text><View style={styles.segmentRow}><ARControlButton label="Smaller" onPress={() => setScale((value) => clampARValue(value - 0.05, 0.35, 1.15))} /><ARControlButton label="Larger" onPress={() => setScale((value) => clampARValue(value + 0.05, 0.35, 1.15))} /></View></View>
+                <View style={styles.adjustGroup}><Text style={styles.adjustLabel}>Page scale · {Math.round(scale * 100)}%</Text><View style={styles.segmentRow}><ARControlButton label="Smaller" onPress={() => setScale((value) => clampARValue(value - 0.05, 0.35, 1.15))} /><ARControlButton label="Larger" onPress={() => setScale((value) => clampARValue(value + 0.05, 0.35, 1.15))} /></View></View>
                 <View style={styles.adjustGroup}><Text style={styles.adjustLabel}>Rotation · {Math.round(rotation)}°</Text><View style={styles.segmentRow}><ARControlButton label="Rotate left" onPress={() => setRotation((value) => clampARValue(value - 5, -180, 180))} /><ARControlButton label="Rotate right" onPress={() => setRotation((value) => clampARValue(value + 5, -180, 180))} /></View></View>
               </View>
               <View style={styles.nudgeGroup}><Text style={styles.adjustLabel}>Precise nudge</Text><View style={styles.segmentRow}><ARControlButton label="Nudge left" onPress={() => setOffsetX((value) => clampARValue(value - 0.005, -0.25, 0.25))} /><ARControlButton label="Nudge up" onPress={() => setOffsetY((value) => clampARValue(value - 0.005, -0.25, 0.25))} /><ARControlButton label="Nudge down" onPress={() => setOffsetY((value) => clampARValue(value + 0.005, -0.25, 0.25))} /><ARControlButton label="Nudge right" onPress={() => setOffsetX((value) => clampARValue(value + 0.005, -0.25, 0.25))} /></View></View>
               <View style={styles.actionRow}>
-                <Pressable style={[styles.placeButton, displayState !== 'readyToPlace' && styles.buttonDisabled]} disabled={displayState !== 'readyToPlace'} onPress={() => setPlaceRevision((value) => value + 1)} accessibilityRole="button"><Text style={styles.placeButtonText}>Lock to paper</Text></Pressable>
-                <Pressable style={styles.resetButton} onPress={() => { setChildMode(false); setResetRevision((value) => value + 1) }} accessibilityRole="button"><Text style={styles.resetButtonText}>Reset</Text></Pressable>
+                <Pressable style={[styles.placeButton, !placementReady && styles.buttonDisabled]} disabled={!placementReady} accessibilityState={{ disabled: !placementReady }} onPress={() => setPlaceRevision((value) => value + 1)} accessibilityRole="button"><Text style={styles.placeButtonText}>Lock to paper</Text></Pressable>
+                <Pressable style={styles.resetButton} onPress={resetPlacement} accessibilityRole="button"><Text style={styles.resetButtonText}>Reset</Text></Pressable>
               </View>
-              <Pressable style={[styles.childButton, !childModeReady && styles.buttonDisabled]} disabled={!childModeReady} onPress={() => { setControlsOpen(false); setChildMode(true) }} accessibilityRole="button"><Text style={styles.childButtonText}>Start child trace</Text></Pressable>
+              <Pressable style={[styles.childButton, !childModeReady && styles.buttonDisabled]} disabled={!childModeReady} accessibilityState={{ disabled: !childModeReady }} onPress={() => { setControlsOpen(false); setChildMode(true) }} accessibilityRole="button"><Text style={[styles.childButtonText, !childModeReady && styles.disabledButtonText]}>Start child trace</Text></Pressable>
             </ScrollView>
           )}
         </View>
@@ -363,7 +416,7 @@ const styles = StyleSheet.create({
   nudgeGroup: { padding: 10, gap: 7, borderRadius: 18, backgroundColor: '#F1F8F4' },
   actionRow: { flexDirection: 'row', gap: 8 },
   placeButton: { flex: 2, minHeight: 50, borderRadius: 18, backgroundColor: colors.coral, alignItems: 'center', justifyContent: 'center' },
-  placeButtonText: { color: '#fff', fontSize: 15, fontWeight: '900' },
+  placeButtonText: { color: colors.ink, fontSize: 15, fontWeight: '900' },
   resetButton: { flex: 1, minHeight: 50, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   resetButtonText: { color: colors.ink, fontSize: 14, fontWeight: '900' },
   childButton: { minHeight: 52, borderRadius: 18, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
@@ -374,7 +427,7 @@ const styles = StyleSheet.create({
   childExitText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   setupScreen: { flex: 1, backgroundColor: colors.paper },
   setupContent: { paddingHorizontal: 20, gap: 13 },
-  setupEyebrow: { color: colors.coral, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+  setupEyebrow: { color: colors.ink, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
   setupTitle: { color: colors.ink, fontSize: 34, lineHeight: 38, fontWeight: '900', letterSpacing: -1.2 },
   setupCopy: { color: colors.muted, fontSize: 16, lineHeight: 23, marginBottom: 6 },
   setupCheck: { minHeight: 88, flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14, borderRadius: 22, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border },
@@ -389,14 +442,15 @@ const styles = StyleSheet.create({
   permissionTitle: { color: colors.ink, fontSize: 16, fontWeight: '900' },
   permissionCopy: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   primaryButton: { minHeight: 54, borderRadius: 18, paddingHorizontal: 18, backgroundColor: colors.coral, alignItems: 'center', justifyContent: 'center' },
-  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '900' },
+  primaryButtonText: { color: colors.ink, fontSize: 16, fontWeight: '900' },
   secondaryButton: { minHeight: 50, borderRadius: 18, paddingHorizontal: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   secondaryButtonText: { color: colors.ink, fontSize: 15, fontWeight: '900' },
   textButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   textButtonText: { color: colors.ink, fontSize: 14, fontWeight: '900', textDecorationLine: 'underline' },
-  buttonDisabled: { opacity: 0.38 },
-  fallback: { flex: 1, padding: 24, justifyContent: 'center', gap: 13, backgroundColor: colors.paper },
-  fallbackEyebrow: { color: colors.coral, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+  disabledButtonText: { color: colors.ink },
+  buttonDisabled: { backgroundColor: '#E1E4E8', borderColor: '#D9E1E8' },
+  fallback: { flexGrow: 1, padding: 24, justifyContent: 'center', gap: 13, backgroundColor: colors.paper },
+  fallbackEyebrow: { color: colors.ink, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
   fallbackTitle: { color: colors.ink, fontSize: 32, lineHeight: 37, fontWeight: '900' },
   fallbackCopy: { color: colors.muted, fontSize: 16, lineHeight: 23, marginBottom: 6 },
 })

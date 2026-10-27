@@ -48,6 +48,7 @@ import { createPracticePreviewCache } from './practicePreviewCache'
 import { saveTemporaryCapture } from './captureUtils'
 import { isDismissedPrintSheet } from './printUtils'
 import ARTraceScreen from './src/features/ar/ARTraceScreen'
+import ARTraceSurfaceSelector from './src/features/ar/ARTraceSurfaceSelector'
 
 import {
   addRecentDrawing,
@@ -1556,38 +1557,8 @@ function TraceBuddyMobile() {
                   </Pressable>
                 </View>
                 <Text style={styles.heroTitle}>Pick a picture, then trace your way.</Text>
-                <Text style={styles.heroCopy}>{Platform.OS === 'ios' ? 'Lock a guide to real paper, use the regular camera overlay, or practice directly on the screen.' : 'Use the camera for paper tracing, or practice directly on the screen.'} Everything stays local on this device.</Text>
-                <View style={styles.traceSurfaceSwitch} accessibilityLabel="Tracing mode">
-                  {Platform.OS === 'ios' ? (
-                    <Pressable
-                      style={[styles.traceSurfaceOption, traceSurface === 'ar' && styles.traceSurfaceOptionActive]}
-                      onPress={() => setTraceSurface('ar')}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: traceSurface === 'ar' }}
-                    >
-                      <Text style={[styles.traceSurfaceTitle, traceSurface === 'ar' && styles.traceSurfaceTitleActive]}>Paper Lock</Text>
-                      <Text style={[styles.traceSurfaceCopy, traceSurface === 'ar' && styles.traceSurfaceCopyActive]}>Guide stays put as the device moves.</Text>
-                    </Pressable>
-                  ) : null}
-                  <Pressable
-                    style={[styles.traceSurfaceOption, traceSurface === 'camera' && styles.traceSurfaceOptionActive]}
-                    onPress={() => setTraceSurface('camera')}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: traceSurface === 'camera' }}
-                  >
-                    <Text style={[styles.traceSurfaceTitle, traceSurface === 'camera' && styles.traceSurfaceTitleActive]}>Camera + paper</Text>
-                    <Text style={[styles.traceSurfaceCopy, traceSurface === 'camera' && styles.traceSurfaceCopyActive]}>Overlay above real paper.</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.traceSurfaceOption, traceSurface === 'screen' && styles.traceSurfaceOptionActive]}
-                    onPress={() => setTraceSurface('screen')}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: traceSurface === 'screen' }}
-                  >
-                    <Text style={[styles.traceSurfaceTitle, traceSurface === 'screen' && styles.traceSurfaceTitleActive]}>On-screen practice</Text>
-                    <Text style={[styles.traceSurfaceCopy, traceSurface === 'screen' && styles.traceSurfaceCopyActive]}>Trace with finger or stylus.</Text>
-                  </Pressable>
-                </View>
+                <Text style={styles.heroCopy}>Use the camera for paper tracing, or practice directly on the screen. Everything stays local on this device.</Text>
+                <ARTraceSurfaceSelector value={traceSurface} onChange={setTraceSurface} />
                 <View style={styles.customTextCard}>
                   <View style={styles.customTextCopy}>
                     <Text style={styles.customTextTitle}>Write your own words</Text>
@@ -4163,43 +4134,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '900',
-  },
-  traceSurfaceSwitch: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-  },
-  traceSurfaceOption: {
-    flex: 1,
-    minHeight: 70,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: '#FFFDF8',
-    padding: 12,
-    justifyContent: 'center',
-  },
-  traceSurfaceOptionActive: {
-    backgroundColor: palette.ink,
-    borderColor: palette.ink,
-  },
-  traceSurfaceTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  traceSurfaceTitleActive: {
-    color: '#FFFFFF',
-  },
-  traceSurfaceCopy: {
-    color: palette.muted,
-    fontSize: 11,
-    lineHeight: 15,
-    marginTop: 4,
-    fontWeight: '700',
-  },
-  traceSurfaceCopyActive: {
-    color: 'rgba(255,255,255,0.72)',
   },
   previousWorkSection: {
     marginBottom: 16,
