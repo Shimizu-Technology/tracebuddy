@@ -2338,7 +2338,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={mode === 'practice' ? 'app-shell practice-active' : 'app-shell'}>
       <canvas ref={paperCanvasRef} className="paper-scan-canvas" aria-hidden="true" />
       <header className="topbar">
         <button className="brand" type="button" onClick={() => navigateWithPracticeFlush(() => setMode('welcome'))} aria-label="TraceBuddy home">

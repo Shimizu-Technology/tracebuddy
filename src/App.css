@@ -3413,13 +3413,21 @@ input[type='range'] {
   .practice-screen .compact-swatches button { width: 48px; height: 48px; }
 }
 @media (max-width: 600px) {
+  /* Share the actual remaining height after a wrapped navigation/header.
+     Keep these flexible rows when integrating navigation changes (#39). */
+  .app-shell.practice-active { display: flex; flex-direction: column; height: 100dvh; min-height: 100dvh; }
+  .practice-active > .topbar { flex-shrink: 0; }
+  .practice-active > .practice-screen { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .practice-screen .practice-header { flex-shrink: 0; }
+  .practice-screen .practice-studio-shell { flex: 1; min-height: 0; grid-template-rows: minmax(min-content, 1fr) auto auto; }
+  .practice-screen .studio-card { min-height: 0; grid-template-rows: auto minmax(210px, 1fr); }
   .practice-screen .practice-toolbar-primary { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
   .practice-screen .color-tool, .practice-screen [aria-label="Brush type"] { grid-column: 1 / -1; }
   .practice-screen .brush-type-buttons button { flex: 1 1 max-content; min-width: 44px; }
   .practice-screen .brush-type-buttons { display: flex; }
   .practice-screen .size-tool { grid-column: 1; }
   .practice-screen .action-tool { grid-column: 2; }
-  .practice-screen .practice-canvas { height: clamp(210px, calc(100dvh - 430px), 500px); }
+  .practice-screen .practice-canvas { height: 100%; min-height: 210px; }
 }
 @media (min-width: 700px) and (max-width: 1000px) and (max-height: 600px) {
   .practice-screen .practice-studio-shell { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }

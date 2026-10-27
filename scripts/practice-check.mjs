@@ -55,6 +55,29 @@ async function touch(client, type, points) {
 }
 
 try {
+  // Wider fallback fonts can wrap the navigation even at the default text size.
+  // The canvas must yield height so child tools remain with the visible page.
+  for (const [width, height] of (process.env.PRACTICE_FOCUS ? [] : [[360, 740], [390, 844]])) {
+    const { context, page } = await newPage(width, height)
+    try {
+      await page.addStyleTag({ content: '* { font-family: Verdana, "DejaVu Sans", sans-serif !important }' })
+      await page.evaluate(async () => {
+        await document.fonts.ready
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      })
+      const layout = await page.evaluate(() => ({
+        canvasTop: document.querySelector('.practice-canvas').getBoundingClientRect().top,
+        canvasBottom: document.querySelector('.practice-canvas').getBoundingClientRect().bottom,
+        toolsBottom: document.querySelector('.practice-toolbar-ribbon').getBoundingClientRect().bottom,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      }))
+      assert(layout.canvasTop < height / 2 && layout.canvasBottom <= height, JSON.stringify(layout))
+      assert(layout.toolsBottom <= height, `Wide-font child tools must remain with the page: ${JSON.stringify(layout)}`)
+      assert(!layout.overflow, JSON.stringify(layout))
+      await page.screenshot({ path: join(output, `wide-font-workspace-${width}.png`), fullPage: true })
+      results.push({ scenario: 'wide-font-child-workspace', viewport: [width, height], layout })
+    } finally { await context.close() }
+  }
   for (const [width, height] of (process.env.PRACTICE_FOCUS ? [] : [[390, 844], [360, 740], [820, 1180], [1180, 820], [1440, 900]])) {
     const { context, page } = await newPage(width, height)
     try {
@@ -169,7 +192,10 @@ try {
     await touch(client, 'touchStart', [[4, p.x - 20, p.y], [5, p.x + 20, p.y]])
     await touch(client, 'touchMove', [[4, p.x - 40, p.y], [5, p.x + 40, p.y]])
     await touch(client, 'touchEnd', [])
-    assert.match(await page.$eval('.practice-transform-layer', (el) => el.firstElementChild.getAttribute('transform')), /scale\(2\)/)
+    const pinchTransform = await page.$eval('.practice-transform-layer', (el) => el.firstElementChild.getAttribute('transform'))
+    const pinchScale = Number(pinchTransform.match(/scale\(([^)]+)\)/)?.[1])
+    // CDP rounds fractional screen coordinates; compare the numeric scale.
+    assert(Math.abs(pinchScale - 2) <= 0.000001, pinchTransform)
     results.push({ scenario: 'single-pointer-cancel-pen-pinch', result: 'passed', bounds })
 
     // Custom words through the handwriting UI, including all accepted characters.
