@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   option: { flexGrow: 1, flexBasis: 130, minHeight: 48, borderRadius: 18, borderWidth: 1, borderColor: '#D9E1E8', backgroundColor: '#FFFDF8', padding: 12, alignItems: 'center', justifyContent: 'center' },
   selected: { backgroundColor: '#18243A', borderColor: '#18243A' },
-  pressed: { opacity: 0.8 },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   label: { color: '#18243A', fontSize: 14, fontWeight: '900', textAlign: 'center' },
   selectedLabel: { color: '#FFFFFF' },
   detail: { color: '#5E6878', fontSize: 13, lineHeight: 18, fontWeight: '600' },
