@@ -283,7 +283,8 @@ try {
     await page.click('.practice-toolbar-more .primary-button')
     for (let i = 0; i < 40 && !existsSync(join(downloads, 'compositing-tracebuddy.png')); i++) await pause(100)
     const exported = readFileSync(join(downloads, 'compositing-tracebuddy.png')).toString('base64')
-    await page.goto(`${url}/#pictures`, { waitUntil: 'networkidle0' })
+    await page.goto(`${url}/#drawings`, { waitUntil: 'networkidle0' })
+    await page.waitForSelector('.previous-work-preview svg')
     const thumbnail = await page.$eval('.previous-work-preview svg', (svg) => {
       const clone = svg.cloneNode(true); clone.setAttribute('width', '1000'); clone.setAttribute('height', '1000'); return new XMLSerializer().serializeToString(clone)
     })
