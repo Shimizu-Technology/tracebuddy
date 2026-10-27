@@ -45,6 +45,9 @@ export async function closeBrowser(browser) {
   ownedProcessIds.forEach((processId) => signalProcess(processId, 'SIGTERM'))
   await new Promise((resolveTimeout) => setTimeout(resolveTimeout, 500))
   ownedProcessIds.forEach((processId) => signalProcess(processId, 'SIGKILL'))
+  // Detached Chrome updater/crash-reporter children can retain inherited pipes.
+  // Release only our closed browser's parent-side streams, leaving updaters alone.
+  browserProcess?.stdio.forEach((stream) => stream?.destroy())
 }
 
 function safeBrowserProcessTree(rootProcessId) {

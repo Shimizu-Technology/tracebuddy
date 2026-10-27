@@ -47,35 +47,42 @@ export function sanitizeTraceText(value: string) {
   return value.replace(/\s+/g, ' ').trim().slice(0, SVG_TEXT_LIMIT)
 }
 
-function splitTraceText(value: string) {
+export function splitTraceText(value: string) {
   const safeText = sanitizeTraceText(value)
   if (!safeText) return []
-
-  const words = safeText.split(' ')
   const lines: string[] = []
   let currentLine = ''
-
-  for (const word of words) {
-    const nextLine = currentLine ? `${currentLine} ${word}` : word
-    if (nextLine.length <= 13 || currentLine.length === 0) {
-      currentLine = nextLine
-    } else {
-      lines.push(currentLine)
-      currentLine = word
+  for (const word of safeText.split(' ')) {
+    // Segmenter keeps full graphemes together. Older native runtimes fall back
+    // to base-plus-mark clusters so decomposed accents never start a new line.
+    const clusters = typeof Intl.Segmenter === 'function'
+      ? Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(word), ({ segment }) => segment)
+      : word.match(/\P{M}\p{M}*|\p{M}+/gu) ?? []
+    const chunks: string[] = []
+    for (let index = 0; index < clusters.length; index += 12) chunks.push(clusters.slice(index, index + 12).join(''))
+    for (const chunk of chunks) {
+      const next = currentLine ? `${currentLine} ${chunk}` : chunk
+      if (Array.from(next).length > 12 && currentLine) {
+        lines.push(currentLine)
+        currentLine = chunk
+      } else currentLine = next
     }
   }
-
   if (currentLine) lines.push(currentLine)
-  return lines.slice(0, 3)
+  return lines
 }
 
 export function createTextDrawing(value: string): Drawing {
   const lines = splitTraceText(value)
-  const safeName = lines.join(' ') || 'My words'
-  const lineHeight = lines.length > 1 ? 82 : 96
-  const startY = 210 - ((lines.length - 1) * lineHeight) / 2
-  const fontSize = lines.length > 1 ? 64 : 78
-  const text = lines.map((line, index) => `<text x="210" y="${startY + index * lineHeight}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="4" fill="none" stroke="#18243a" stroke-width="2.6" stroke-linejoin="round">${escapeSvgText(line)}</text>`).join('')
+  const safeName = sanitizeTraceText(value) || 'My words'
+  const lineHeight = Math.min(74, 250 / Math.max(lines.length, 1))
+  const startY = 180 - ((lines.length - 1) * lineHeight) / 2
+  const text = lines.map((line, index) => {
+    // A full em per code point also fits CJK glyphs and wide Latin capitals.
+    // No browser-only textLength is needed by the shared native SVG renderer.
+    const fontSize = Math.min(68, 310 / Math.max(Array.from(line).length, 1))
+    return `<text x="210" y="${startY + index * lineHeight}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700" fill="none" stroke="#18243a" stroke-width="2.6" stroke-linejoin="round">${escapeSvgText(line)}</text>`
+  }).join('')
 
   return {
     id: `custom-text-${safeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'words'}`,

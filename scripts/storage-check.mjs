@@ -365,7 +365,7 @@ try {
   assert(practiceUpload, 'Practice upload input is unavailable')
   await practiceUpload.uploadFile(fileURLToPath(new URL('../public/favicon.svg', import.meta.url)))
   await page.waitForFunction(() => document.querySelector('.practice-screen h1')?.textContent === 'favicon.svg', { timeout: 3_000 })
-  await clickByText(page, 'Camera', '.practice-header button')
+  await clickByText(page, 'Camera', '.practice-toolbar-more button')
   await waitForSelector(page, '.trace-screen')
   await page.evaluate(() => {
     window.__traceBuddyOriginalIdbPut = IDBObjectStore.prototype.put

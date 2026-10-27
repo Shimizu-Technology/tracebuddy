@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "sessionId": "legacy-phone-flower",
+  "title": "Legacy phone flower",
+  "source": {"kind":"drawing","drawingId":"flower-head","drawingName":"Flower Head","drawingTheme":"Nature"},
+  "createdAt": "2026-10-26T00:00:00.000Z",
+  "updatedAt": "2026-10-26T00:00:00.000Z",
+  "strokes": [{"path":"M 500 348.6551675746166 L 540 348.6551675746166","color":"#FF4FA3","width":12,"opacity":0.9,"mode":"draw"}],
+  "guideOpacity":0.26,"guideOnTop":true,"markerColor":"#FF4FA3","markerWidth":12,"brushToolId":"marker"
+}

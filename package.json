@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "check": "npm run lint && npm run build && npm run check:discovery-model && npm run check:learning-model && npm run check:setup-model && npm run check:family-model && npm run check:mobile-print && npm run check:ar-model && npm run check:native-practice-model && npm run check:native-practice-operations && npm run check:audit-model && npm run mobile:typecheck && npm run mobile:doctor",
+    "check": "npm run lint && npm run build && npm run check:practice-model && npm run check:discovery-model && npm run check:learning-model && npm run check:setup-model && npm run check:family-model && npm run check:mobile-print && npm run check:ar-model && npm run check:native-practice-model && npm run check:native-practice-operations && npm run check:audit-model && npm run mobile:typecheck && npm run mobile:doctor",
     "check:viewports": "node scripts/viewport-check.mjs",
     "check:storage": "node scripts/storage-check.mjs",
     "check:offline": "node scripts/offline-check.mjs",
@@ -35,7 +35,9 @@
     "mobile:doctor": "npm --prefix mobile run doctor",
     "check:native-practice-model": "tsx scripts/native-practice-model-check.ts",
     "check:audit-model": "node scripts/audit-model-check.mjs",
-    "check:native-practice-operations": "tsx scripts/native-practice-operations-check.ts"
+    "check:native-practice-operations": "tsx scripts/native-practice-operations-check.ts",
+    "check:practice-model": "tsx scripts/practice-model-check.ts",
+    "check:practice": "node scripts/practice-check.mjs && node scripts/practice-regression-check.mjs"
   },
   "dependencies": {
     "react": "^19.2.6",
