@@ -45,9 +45,11 @@ import type { OperationGuard } from './practiceOperations'
 
 import { createPracticePreviewCache } from './practicePreviewCache'
 
-import { saveTemporaryCapture } from './captureUtils'
+import { captureImageKeys, createCaptureReadiness, saveTemporaryCapture } from './captureUtils'
 import { isDismissedPrintSheet } from './printUtils'
 import ARTraceScreen from './src/features/ar/ARTraceScreen'
+import { isTraceBuddyARSupported } from './modules/tracebuddy-ar/src/TraceBuddyARModule'
+import { adjustUnlocked, childExitHoldMs, documentCapture, holdProgress, parentModeHelp, placeholderColor, selectedFamilyActivity } from './nativeSafetyModel'
 import ARTraceSurfaceSelector from './src/features/ar/ARTraceSurfaceSelector'
 
 import {
@@ -174,6 +176,7 @@ const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
 const learningProgressKey = 'tracebuddy.learningProgress.v1'
 const parentSetupSeenKey = 'tracebuddy.parentSetupSeen.v1'
 const resumeContextKey = 'tracebuddy.resumeContext.v1'
+const familyActivityKey = 'tracebuddy.familyActivity.v1'
 const savedAlignmentKey = 'tracebuddy.savedAlignment.v1'
 const uploadedWorkDirectory = `${FileSystem.documentDirectory ?? ''}tracebuddy-uploads/`
 const practiceAutosaveDelayMs = 450
@@ -181,6 +184,7 @@ const practiceAutosaveDelayMs = 450
 const palette = {
   ink: '#18243A',
   muted: '#667085',
+  placeholder: placeholderColor,
   paper: '#FFF7EA',
   paperStrong: '#FFF1DC',
   surface: '#FFFFFF',
@@ -609,9 +613,9 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
 
 async function deleteAllPreviousWorkSessions() {
   return queuePreviousWorkWrite(async () => {
-    await queueDrawingPreferencesOperation(() => AsyncStorage.multiRemove([resumeContextKey, drawingPreferencesKey, learningProgressKey, parentSetupSeenKey, savedAlignmentKey]))
+    await queueDrawingPreferencesOperation(() => AsyncStorage.multiRemove([resumeContextKey, drawingPreferencesKey, learningProgressKey, parentSetupSeenKey, savedAlignmentKey, familyActivityKey]))
     const keys = await AsyncStorage.getAllKeys()
-    const traceBuddyKeys = keys.filter((key) => key === resumeContextKey || key === drawingPreferencesKey || key === learningProgressKey || key === parentSetupSeenKey || key === savedAlignmentKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
+    const traceBuddyKeys = keys.filter((key) => key === resumeContextKey || key === drawingPreferencesKey || key === learningProgressKey || key === parentSetupSeenKey || key === savedAlignmentKey || key === familyActivityKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
     practicePreviewCache.clear()
     activeStoredImageUris.clear()
@@ -669,6 +673,46 @@ async function persistUploadedImage(sourceUri: string, fallbackName?: string) {
   })
 }
 
+function useReduceMotion() {
+  const [reduced, setReduced] = useState(true)
+  useEffect(() => {
+    let mounted = true
+    void AccessibilityInfo.isReduceMotionEnabled().then((value) => { if (mounted) setReduced(value) }).catch(() => undefined)
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced)
+    return () => { mounted = false; listener.remove() }
+  }, [])
+  return reduced
+}
+
+function HoldToExit({ insetsTop, insetsRight, onExit }: { insetsTop: number; insetsRight: number; onExit: () => void }) {
+  const [progress, setProgress] = useState(0)
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const cancel = useCallback(() => {
+    if (timer.current) clearInterval(timer.current)
+    timer.current = null
+    setProgress(0)
+  }, [])
+  useEffect(() => () => { if (timer.current) clearInterval(timer.current) }, [])
+  const confirm = () => Alert.alert('Exit child mode?', 'Parent controls will become available.', [
+    { text: 'Stay', style: 'cancel' }, { text: 'Exit', onPress: onExit },
+  ])
+  return <View style={[styles.childModeExit, { top: insetsTop + 10, right: insetsRight + 12, gap: 4, paddingVertical: 6 }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Hold to exit child mode" accessibilityHint="Hold for one and a half seconds, or use Parent exit below." onPressIn={() => {
+      cancel()
+      const started = Date.now()
+      timer.current = setInterval(() => {
+        const next = holdProgress(Date.now() - started)
+        setProgress(next)
+        if (Date.now() - started >= childExitHoldMs) { cancel(); onExit() }
+      }, 30)
+    }} onPressOut={cancel} style={{ minHeight: 44, justifyContent: 'center' }}>
+      <Text style={styles.childModeExitText}>Hold to exit</Text>
+      <View style={{ height: 4, backgroundColor: '#667085', width: 120, marginTop: 4 }}><View style={{ height: 4, width: `${progress * 100}%`, backgroundColor: '#FFFFFF' }} /></View>
+    </Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Parent exit options" onPress={confirm} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={styles.childModeExitText}>Parent exit…</Text></Pressable>
+  </View>
+}
+
 function TraceBuddyMobile() {
   const insets = useSafeAreaInsets()
   const { width, height } = useWindowDimensions()
@@ -706,6 +750,11 @@ function TraceBuddyMobile() {
   const [setupChecks, setSetupChecks] = useState({ stable: false, page: false, light: false })
   const [parentSetupHydrated, setParentSetupHydrated] = useState(false)
   const [childTraceMode, setChildTraceMode] = useState(false)
+  const [arSupported] = useState(() => Platform.OS === 'ios' && isTraceBuddyARSupported())
+  const activityInteractionRef = useRef(false)
+  const [activityStorageMessage, setActivityStorageMessage] = useState('')
+  const [selectedActivityId, setSelectedActivityId] = useState(familyActivities[0].id)
+  const [secondaryActionsOpen, setSecondaryActionsOpen] = useState(false)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
   const [customText, setCustomText] = useState('')
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
@@ -759,12 +808,16 @@ function TraceBuddyMobile() {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (parentHelpOpen) { setParentHelpOpen(false); return true }
       if (setupCoachOpen) { setSetupCoachOpen(false); return true }
+      if (childTraceMode) {
+        Alert.alert('Exit child mode?', 'Parent controls will become available.', [{ text: 'Stay', style: 'cancel' }, { text: 'Exit', onPress: () => setChildTraceMode(false) }])
+        return true
+      }
       if (mode === 'picker') return false
       navigateBack()
       return true
     })
     return () => subscription.remove()
-  }, [mode, navigateBack, parentHelpOpen, setupCoachOpen])
+  }, [childTraceMode, mode, navigateBack, parentHelpOpen, setupCoachOpen])
 
 
   const refreshPreviousWork = useCallback(() => {
@@ -845,6 +898,24 @@ function TraceBuddyMobile() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const isCurrent = captureWorkOperation()
+    void AsyncStorage.getItem(familyActivityKey).then((activityId) => {
+      if (cancelled || !isCurrent() || activityInteractionRef.current) return
+      setSelectedActivityId(selectedFamilyActivity(activityId, familyActivities.map((activity) => activity.id)))
+    }).catch(() => { if (!cancelled && isCurrent()) setActivityStorageMessage('The last activity could not be restored. You can choose one below.') })
+    return () => { cancelled = true }
+  }, [captureWorkOperation])
+
+  const chooseFamilyActivity = useCallback((id: string) => {
+    if (drawingPreferencesClearInProgressRef.current) return
+    const next = selectedFamilyActivity(id, familyActivities.map((activity) => activity.id))
+    activityInteractionRef.current = true
+    setSelectedActivityId(next)
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(familyActivityKey, next), captureWorkOperation()).then(() => setActivityStorageMessage('')).catch(() => setActivityStorageMessage('This activity choice will last for this visit only.'))
+  }, [captureWorkOperation])
 
   const saveDrawingPreferences = useCallback((nextPreferences: DrawingPreferences) => {
     if (drawingPreferencesClearInProgressRef.current) return
@@ -966,7 +1037,7 @@ function TraceBuddyMobile() {
   }, [captureWorkOperation])
 
   const restoreSavedAlignment = useCallback(() => {
-    if (!savedAlignment) return
+    if (!savedAlignment || overlayLockedRef.current) return
     const { x, y, scale, rotation, opacity } = savedAlignment
     setOverlayTransform({ x, y, scale, rotation, opacity })
     setOverlayLocked(false)
@@ -1066,15 +1137,15 @@ function TraceBuddyMobile() {
   }, [maybeOpenParentSetup, resetOverlay, traceSurface, uploadedImage])
 
   const adjustOpacity = useCallback((delta: number) => {
-    setOverlayTransform((current) => ({ ...current, opacity: clamp(current.opacity + delta, 0.18, 1) }))
+    setOverlayTransform((current) => adjustUnlocked(overlayLockedRef.current, current, (value) => ({ ...value, opacity: clamp(value.opacity + delta, 0.18, 1) })))
   }, [setOverlayTransform])
 
   const adjustScale = useCallback((delta: number) => {
-    setOverlayTransform((current) => ({ ...current, scale: clamp(current.scale + delta, 0.42, 2.2) }))
+    setOverlayTransform((current) => adjustUnlocked(overlayLockedRef.current, current, (value) => ({ ...value, scale: clamp(value.scale + delta, 0.42, 2.2) })))
   }, [setOverlayTransform])
 
   const adjustRotation = useCallback((delta: number) => {
-    setOverlayTransform((current) => ({ ...current, rotation: current.rotation + delta }))
+    setOverlayTransform((current) => adjustUnlocked(overlayLockedRef.current, current, (value) => ({ ...value, rotation: value.rotation + delta })))
   }, [setOverlayTransform])
 
   const decreaseOpacity = useCallback(() => adjustOpacity(-0.08), [adjustOpacity])
@@ -1085,7 +1156,7 @@ function TraceBuddyMobile() {
   const rotateRight = useCallback(() => adjustRotation(5), [adjustRotation])
 
   const nudgeOverlay = useCallback((x: number, y: number) => {
-    setOverlayTransform((current) => ({ ...current, x: current.x + x, y: current.y + y }))
+    setOverlayTransform((current) => adjustUnlocked(overlayLockedRef.current, current, (value) => ({ ...value, x: value.x + x, y: value.y + y })))
   }, [setOverlayTransform])
 
   const nudgeUp = useCallback(() => nudgeOverlay(0, -8), [nudgeOverlay])
@@ -1327,6 +1398,9 @@ function TraceBuddyMobile() {
               setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
               setLearningProgressMessage('')
               setSelectedLesson(guidedLessons[0])
+              activityInteractionRef.current = true
+              setSelectedActivityId(familyActivities[0].id)
+              setActivityStorageMessage('')
               resumeSessionIdRef.current = null
               navigationRef.current = { current: 'picker', history: [] }
               parentSetupSeenRef.current = false
@@ -1516,9 +1590,9 @@ function TraceBuddyMobile() {
                     <Text style={styles.parentHelpCloseText}>×</Text>
                   </Pressable>
                 </View>
-                <Text style={styles.parentHelpIntro}>There are no scores or wrong answers. Pick a picture below, then choose Paper Lock or Camera Trace for paper, or On-screen practice for a finger or stylus.</Text>
+                <Text style={styles.parentHelpIntro}>There are no scores or wrong answers. Use a stand for paper, or draw with a finger or stylus on this device.</Text>
                 <View style={styles.parentHelpSteps}>
-                  <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>1</Text><Text style={styles.parentHelpStepText}>Choose Paper Lock, Camera + paper, or On-screen practice.</Text></View>
+                  <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>1</Text><Text style={styles.parentHelpStepText}>{parentModeHelp(arSupported)}</Text></View>
                   <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>2</Text><Text style={styles.parentHelpStepText}>Pick any picture, word, or local image.</Text></View>
                   <View style={styles.parentHelpStep}><Text style={styles.parentHelpStepNumber}>3</Text><Text style={styles.parentHelpStepText}>Align and lock the guide, then draw at your own pace.</Text></View>
                 </View>
@@ -1556,9 +1630,11 @@ function TraceBuddyMobile() {
                     <Text style={styles.parentHelpButtonText}>Parent help</Text>
                   </Pressable>
                 </View>
-                <Text style={styles.heroTitle}>Pick a picture, then trace your way.</Text>
-                <Text style={styles.heroCopy}>Use the camera for paper tracing, or practice directly on the screen. Everything stays local on this device.</Text>
+                <Text style={styles.heroTitle}>Pictures</Text>
+
                 <ARTraceSurfaceSelector value={traceSurface} onChange={setTraceSurface} />
+                <Pressable style={styles.familySecondaryAction} onPress={() => setSecondaryActionsOpen((open) => !open)} accessibilityRole="button" accessibilityState={{ expanded: secondaryActionsOpen }}><Text style={styles.familySecondaryActionText}>Write a name · Use a photo {secondaryActionsOpen ? '−' : '+'}</Text></Pressable>
+                {secondaryActionsOpen && <View>
                 <View style={styles.customTextCard}>
                   <View style={styles.customTextCopy}>
                     <Text style={styles.customTextTitle}>Write your own words</Text>
@@ -1568,7 +1644,7 @@ function TraceBuddyMobile() {
                     value={customText}
                     onChangeText={setCustomText}
                     placeholder="Stassie, ABC, I love Guam"
-                    placeholderTextColor="#8A94A6"
+                    placeholderTextColor={palette.placeholder}
                     style={styles.customTextInput}
                     returnKeyType="done"
                     maxLength={48}
@@ -1584,6 +1660,7 @@ function TraceBuddyMobile() {
                     <Text style={styles.uploadSmall}>Local photo or drawing</Text>
                   </View>
                 </Pressable>
+                </View>}
               </View>
 
               {previousWorkSessions.length > 0 ? (
@@ -1601,8 +1678,8 @@ function TraceBuddyMobile() {
               <View style={styles.discoveryPanel}>
                 <View style={styles.discoveryHeading}>
                   <View style={styles.discoveryHeadingCopy}>
-                    <Text style={styles.discoveryEyebrow}>FIND A FAVORITE</Text>
-                    <Text style={styles.discoveryTitle}>What should we trace today?</Text>
+
+
                   </View>
                   <Pressable
                     style={[styles.favoritesFilter, favoritesOnly && styles.favoritesFilterActive]}
@@ -1622,7 +1699,7 @@ function TraceBuddyMobile() {
                   value={drawingQuery}
                   onChangeText={setDrawingQuery}
                   placeholder="Search car, crab, Guam..."
-                  placeholderTextColor="#8A94A6"
+                  placeholderTextColor={palette.placeholder}
                   style={styles.drawingSearchInput}
                   returnKeyType="search"
                   accessibilityLabel="Search pictures"
@@ -1785,6 +1862,9 @@ function TraceBuddyMobile() {
       <FamilyActivitiesScreen
         insetsTop={insets.top}
         insetsBottom={insets.bottom}
+        storageMessage={activityStorageMessage}
+        selectedId={selectedActivityId}
+        onSelect={chooseFamilyActivity}
         onPractice={(activity) => openFamilyActivity(activity, 'screen')}
         onPaper={(activity) => openFamilyActivity(activity, 'camera')}
         onPrint={(activity) => { void printDrawingWorksheet(drawingForFamilyActivity(activity), familyWorksheetOptions(activity)) }}
@@ -1892,9 +1972,7 @@ function TraceBuddyMobile() {
       </Modal>
 
       {childTraceMode ? (
-        <Pressable style={[styles.childModeExit, { top: insets.top + 10 }]} onPress={() => setChildTraceMode(false)} accessibilityRole="button">
-          <Text style={styles.childModeExitText}>Exit child mode</Text>
-        </Pressable>
+        <HoldToExit insetsTop={insets.top} insetsRight={insets.right} onExit={() => setChildTraceMode(false)} />
       ) : null}
       {cameraReady ? (
         <CameraView style={StyleSheet.absoluteFill} facing="back" autofocus="on" />
@@ -1967,7 +2045,7 @@ function TraceBuddyMobile() {
             <View style={styles.controlsHeader}>
               <View>
                 <Text style={styles.controlsTitle}>Adjust drawing</Text>
-                <Text style={styles.controlsStatus}>{overlayLocked ? 'Locked to avoid accidental dragging.' : 'Drag the overlay or use precise nudges.'}</Text>
+                <Text style={styles.controlsStatus}>{overlayLocked ? 'Locked. Unlock to change the guide.' : 'Drag the overlay or use precise nudges.'}</Text>
               </View>
               <View style={styles.controlsHeaderActions}>
                 <Pressable style={styles.hideButton} onPress={() => setSetupCoachOpen(true)} accessibilityRole="button">
@@ -1989,33 +2067,33 @@ function TraceBuddyMobile() {
 
             <View style={styles.controlGrid}>
               <ControlGroup label="Opacity">
-                <ControlButton label="Less" onPress={decreaseOpacity} />
+                <ControlButton disabled={overlayLocked} label="Less" onPress={decreaseOpacity} />
                 <ControlValue value={`${Math.round(transform.opacity * 100)}%`} />
-                <ControlButton label="More" onPress={increaseOpacity} />
+                <ControlButton disabled={overlayLocked} label="More" onPress={increaseOpacity} />
               </ControlGroup>
 
               <ControlGroup label="Size">
-                <ControlButton label="Smaller" onPress={decreaseScale} />
+                <ControlButton disabled={overlayLocked} label="Smaller" onPress={decreaseScale} />
                 <ControlValue value={`${Math.round(transform.scale * 100)}%`} />
-                <ControlButton label="Larger" onPress={increaseScale} />
+                <ControlButton disabled={overlayLocked} label="Larger" onPress={increaseScale} />
               </ControlGroup>
 
               <ControlGroup label="Rotate">
-                <ControlButton label="Left" onPress={rotateLeft} />
+                <ControlButton disabled={overlayLocked} label="Left" onPress={rotateLeft} />
                 <ControlValue value={`${Math.round(transform.rotation)}°`} />
-                <ControlButton label="Right" onPress={rotateRight} />
+                <ControlButton disabled={overlayLocked} label="Right" onPress={rotateRight} />
               </ControlGroup>
             </View>
 
             <View style={styles.nudgePanel}>
               <Text style={styles.nudgeTitle}>Nudge</Text>
               <View style={styles.nudgeRowCenter}>
-                <ControlButton label="Up" onPress={nudgeUp} />
+                <ControlButton disabled={overlayLocked} label="Up" onPress={nudgeUp} />
               </View>
               <View style={styles.nudgeRow}>
-                <ControlButton label="Left" onPress={nudgeLeft} />
-                <ControlButton label="Down" onPress={nudgeDown} />
-                <ControlButton label="Right" onPress={nudgeRight} />
+                <ControlButton disabled={overlayLocked} label="Left" onPress={nudgeLeft} />
+                <ControlButton disabled={overlayLocked} label="Down" onPress={nudgeDown} />
+                <ControlButton disabled={overlayLocked} label="Right" onPress={nudgeRight} />
               </View>
             </View>
 
@@ -2026,7 +2104,7 @@ function TraceBuddyMobile() {
               </View>
               <View style={styles.alignmentMemoryActions}>
                 <Pressable style={styles.alignmentMemoryButton} onPress={saveCurrentAlignment} accessibilityRole="button"><Text style={styles.alignmentMemoryButtonText}>Save</Text></Pressable>
-                <Pressable style={[styles.alignmentMemoryButton, !savedAlignment && styles.lessonButtonDisabled]} disabled={!savedAlignment} onPress={restoreSavedAlignment} accessibilityRole="button"><Text style={styles.alignmentMemoryButtonText}>Resume</Text></Pressable>
+                <Pressable style={[styles.alignmentMemoryButton, !savedAlignment && styles.lessonButtonDisabled]} disabled={!savedAlignment || overlayLocked} onPress={restoreSavedAlignment} accessibilityRole="button"><Text style={styles.alignmentMemoryButtonText}>Resume</Text></Pressable>
               </View>
             </View>
 
@@ -2034,7 +2112,7 @@ function TraceBuddyMobile() {
               <Pressable style={[styles.actionButton, overlayLocked && styles.actionButtonActive]} onPress={() => { milestoneHaptic(); setOverlayLocked((locked) => !locked) }} accessibilityRole="button">
                 <Text style={[styles.actionButtonText, overlayLocked && styles.actionButtonTextActive]}>{overlayLocked ? 'Unlock overlay' : 'Lock overlay'}</Text>
               </Pressable>
-              <Pressable style={styles.actionButton} onPress={resetOverlay} accessibilityRole="button">
+              <Pressable style={[styles.actionButton, overlayLocked && styles.lessonButtonDisabled]} disabled={overlayLocked} onPress={resetOverlay} accessibilityRole="button">
                 <Text style={styles.actionButtonText}>Reset</Text>
               </Pressable>
               <Pressable style={styles.actionButton} onPress={openScreenPractice} accessibilityRole="button">
@@ -2054,6 +2132,9 @@ function TraceBuddyMobile() {
 function FamilyActivitiesScreen({
   insetsTop,
   insetsBottom,
+  storageMessage,
+  selectedId,
+  onSelect,
   onPractice,
   onPaper,
   onPrint,
@@ -2062,13 +2143,16 @@ function FamilyActivitiesScreen({
 }: {
   insetsTop: number
   insetsBottom: number
+  storageMessage: string
+  selectedId: string
+  onSelect: (id: string) => void
   onPractice: (activity: FamilyActivity) => void
   onPaper: (activity: FamilyActivity) => void
   onPrint: (activity: FamilyActivity) => void
   onShare: (activity: FamilyActivity) => void
   onPicker: () => void
 }) {
-  const [selectedId, setSelectedId] = useState(familyActivities[0].id)
+  const reduceMotion = useReduceMotion()
   const [featureOffset, setFeatureOffset] = useState(0)
   const scrollRef = useRef<ScrollView | null>(null)
   const activity = familyActivities.find((candidate) => candidate.id === selectedId) ?? familyActivities[0]
@@ -2086,6 +2170,7 @@ function FamilyActivitiesScreen({
           <Text style={styles.familyScreenCopy}>Twelve short invitations for kids, siblings, grandparents, and anyone who wants to join. No scores or wrong answers.</Text>
         </View>
 
+        {storageMessage ? <Text style={styles.preferenceMessage} accessibilityLiveRegion="polite">{storageMessage}</Text> : null}
         <Text style={styles.familyChooseLabel}>CHOOSE AN ACTIVITY</Text>
         <Text style={styles.familyChooseHint}>Swipe to find one that feels fun today.</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyActivityGrid} accessibilityLabel="Family activities">
@@ -2093,7 +2178,7 @@ function FamilyActivitiesScreen({
             const starter = drawingForFamilyActivity(candidate)
             const selected = candidate.id === activity.id
             return (
-              <Pressable key={candidate.id} style={[styles.familyActivityCard, selected && styles.familyActivityCardSelected]} onPress={() => { setSelectedId(candidate.id); requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: Math.max(0, featureOffset - 8), animated: true })) }} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${candidate.title}, ${candidate.minutes} minutes, ${candidate.people}`}>
+              <Pressable key={candidate.id} style={[styles.familyActivityCard, selected && styles.familyActivityCardSelected]} onPress={() => { onSelect(candidate.id); requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: Math.max(0, featureOffset - 8), animated: !reduceMotion })) }} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${candidate.title}, ${candidate.minutes} minutes, ${candidate.people}`}>
                 <View style={styles.familyActivityPreview}><SvgXml xml={starter.svg} width="100%" height="100%" /></View>
                 <View style={styles.familyActivityCopy}><Text style={styles.familyActivityTitle}>{candidate.title}</Text><Text style={styles.familyActivityMeta}>{candidate.minutes} min · {candidate.people}</Text></View>
               </Pressable>
@@ -2128,11 +2213,11 @@ function formatPreviousWorkDate(value: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-function PracticeStickerView({ sticker, selected, frameStyle }: { sticker: PracticeSticker; selected?: boolean; frameStyle: object }) {
+function PracticeStickerView({ sticker, selected, frameStyle, onImageLoad, onImageError }: { sticker: PracticeSticker; selected?: boolean; frameStyle: object; onImageLoad?: () => void; onImageError?: () => void }) {
   return (
     <View style={[styles.practiceStickerFrame, frameStyle, { opacity: sticker.opacity, transform: [{ rotate: `${sticker.rotation}deg` }] }, selected && styles.practiceStickerFrameSelected]} pointerEvents="none">
       {sticker.kind === 'image' && sticker.uri ? (
-        <Image source={{ uri: sticker.uri }} style={styles.practiceStickerImage} resizeMode="contain" />
+        <Image source={{ uri: sticker.uri }} style={styles.practiceStickerImage} resizeMode="contain" onLoad={onImageLoad} onError={onImageError} />
       ) : sticker.svg ? (
         <SvgXml xml={sticker.svg} width="100%" height="100%" />
       ) : null}
@@ -2275,7 +2360,7 @@ function GuidedLearningScreen({
           <Text style={styles.learningEyebrow}>HANDWRITING STUDIO</Text>
           <Text style={styles.handwritingTitle}>Practice a name, word, or family message.</Text>
           <Text style={styles.handwritingCopy}>TraceBuddy turns the words into a large local guide. Nothing is uploaded.</Text>
-          <TextInput value={practiceWords} onChangeText={setPracticeWords} placeholder="Stassie, Grandma, I love Guam" placeholderTextColor="#8A94A6" style={styles.handwritingInput} maxLength={48} returnKeyType="done" />
+          <TextInput value={practiceWords} onChangeText={setPracticeWords} placeholder="Stassie, Grandma, I love Guam" placeholderTextColor={palette.placeholder} style={styles.handwritingInput} maxLength={48} returnKeyType="done" />
           <Pressable style={styles.lessonPrimaryButton} onPress={() => onPracticeWords(practiceWords)} accessibilityRole="button">
             <Text style={styles.lessonPrimaryButtonText}>Practice these words</Text>
           </Pressable>
@@ -2463,6 +2548,49 @@ const PracticeInkHistory = memo(function PracticeInkHistory({ strokes, idPrefix 
 
 })
 
+function PracticeDocument({ side, uploadedImage, selectedDrawing, guideOpacity, guideOnTop, stickers, selectedStickerId = null, practiceStrokes, activePath = '', activeStrokeRender = null, idPrefix, onImageLoad, onImageError }: {
+  side: number; uploadedImage: UploadedImage | null; selectedDrawing: Drawing; guideOpacity: number; guideOnTop: boolean; stickers: PracticeSticker[]; selectedStickerId?: string | null; practiceStrokes: PracticeStroke[]; activePath?: string; activeStrokeRender?: PracticeStroke | null; idPrefix: string; onImageLoad?: (key: string) => void; onImageError?: (key: string) => void
+}) {
+  const topGuideOpacity = Math.max(guideOpacity, 0.48)
+  return (
+            <View style={{ width: side, height: side, overflow: 'hidden', backgroundColor: '#FFFDF7' }}>
+            <View style={[styles.practiceGuide, { opacity: guideOpacity }]} pointerEvents="none">
+              {uploadedImage ? (
+                <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" onLoad={() => onImageLoad?.('guide-base')} onError={() => onImageError?.('guide-base')} />
+              ) : (
+                <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
+              )}
+            </View>
+            {stickers.map((sticker) => (
+              <PracticeStickerView key={sticker.stickerId} sticker={sticker} selected={selectedStickerId === sticker.stickerId} onImageLoad={() => onImageLoad?.(`sticker-${sticker.stickerId}`)} onImageError={() => onImageError?.(`sticker-${sticker.stickerId}`)} frameStyle={sizedStickerFrame(sticker, { width: side, height: side })} />
+            ))}
+            <Svg
+              pointerEvents="none"
+              width={side}
+              height={side}
+              viewBox="0 0 1000 1000"
+              preserveAspectRatio="xMidYMid meet"
+              style={styles.practiceInkLayer}
+            >
+              {activePath && activeStrokeRender?.mode === 'erase' && <Defs><Mask id={`${idPrefix}-active-eraser`} x={0} y={0} width={1000} height={1000} maskUnits="userSpaceOnUse"><Rect x={0} y={0} width={1000} height={1000} fill="#FFFFFF" /><Path d={activePath} stroke="#000000" strokeWidth={activeStrokeRender.width} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Mask></Defs>}
+              <G mask={activePath && activeStrokeRender?.mode === 'erase' ? `url(#${idPrefix}-active-eraser)` : undefined}><PracticeInkHistory strokes={practiceStrokes} idPrefix={idPrefix} /></G>
+              {activePath && activeStrokeRender?.mode === 'draw' && (
+                <Path d={activePath} stroke={activeStrokeRender.color} strokeWidth={activeStrokeRender.width} strokeOpacity={activeStrokeRender.opacity} strokeDasharray={activeStrokeRender.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              )}
+            </Svg>
+            {guideOnTop && (
+              <View style={[styles.practiceGuide, { opacity: topGuideOpacity }]} pointerEvents="none">
+                {uploadedImage ? (
+                  <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" onLoad={() => onImageLoad?.('guide-top')} onError={() => onImageError?.('guide-top')} />
+                ) : (
+                  <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
+                )}
+              </View>
+            )}
+            </View>
+  )
+}
+
 function PracticeScreen({
   insetsTop,
   insetsBottom,
@@ -2492,6 +2620,7 @@ function PracticeScreen({
   onPicker: () => void
   onCameraTrace: () => void
 }) {
+  const safeInsets = useSafeAreaInsets()
   const { width: windowWidth, height: windowHeight } = useWindowDimensions()
   const compact = windowHeight < 600
   const childTarget = Math.min(windowWidth, windowHeight) >= 600 ? 56 : 48
@@ -2514,10 +2643,17 @@ function PracticeScreen({
   const [activePanel, setActivePanel] = useState<PracticePanelId | null>(null)
   const [practiceRibbonHeight, setPracticeRibbonHeight] = useState(0)
   const [isSavingImage, setIsSavingImage] = useState(false)
+  const imageExportRef = useRef<{ token: number; readiness: ReturnType<typeof createCaptureReadiness> | null }>({ token: 0, readiness: null })
+  useEffect(() => () => {
+    imageExportRef.current.token += 1
+    imageExportRef.current.readiness?.dispose()
+    imageExportRef.current.readiness = null
+  }, [])
+  const [exportReadiness, setExportReadiness] = useState<ReturnType<typeof createCaptureReadiness> | null>(null)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasSizeRef = useRef(canvasSize)
-  const practiceCanvasRef = useRef<View | null>(null)
+  const exportDocumentRef = useRef<View | null>(null)
   const viewportRef = useRef<PracticeViewport>(defaultPracticeViewport)
   const activePathRef = useRef('')
   const activePointsRef = useRef<PracticePoint[]>([])
@@ -2548,8 +2684,6 @@ function PracticeScreen({
   const pageFrame = documentFrame(canvasSize)
   const practiceSource = useMemo(() => makePracticeSource(selectedDrawing, uploadedImage), [selectedDrawing, uploadedImage])
   const sourceResetKey = `${initialSession?.sessionId ?? 'fresh'}|${practiceSource.kind}|${practiceSource.drawingId}|${practiceSource.uploadedImage?.uri ?? ''}`
-  const topGuideOpacity = Math.max(guideOpacity, 0.48)
-  const selectedBrushSize = useMemo(() => brushSizes.find((size) => size.value === markerWidth) ?? brushSizes[1], [markerWidth])
   const selectedSticker = useMemo(() => stickers.find((sticker) => sticker.stickerId === selectedStickerId) ?? null, [selectedStickerId, stickers])
   const selectedStickerIdRef = useRef<string | null>(selectedStickerId)
   const savedStickerUrisRef = useRef(storedUploadedImageUrisFromStickers(initialSession?.stickers ?? []))
@@ -2823,7 +2957,7 @@ function PracticeScreen({
   }, [savePracticeSessionNow])
 
   const leavePractice = useCallback((action: () => void) => {
-    if (leaveInProgressRef.current) return
+    if (leaveInProgressRef.current || imageExportRef.current.readiness) return
     leaveInProgressRef.current = true
     void savePracticeSessionNow().then((saved) => {
       if (saved) {
@@ -3297,43 +3431,63 @@ function PracticeScreen({
   }, [selectedStickerId, stickers])
 
   const savePracticeImage = useCallback(async () => {
-    if (!practiceCanvasRef.current || isSavingImage) return
+    if (imageExportRef.current.readiness || leaveInProgressRef.current) return
+    const token = ++imageExportRef.current.token
+    const isCurrent = () => imageExportRef.current.token === token
+    const readiness = createCaptureReadiness(captureImageKeys(uploadedImage?.uri, guideOnTop, stickers))
+    imageExportRef.current.readiness = readiness
+    setExportReadiness(readiness)
     const restoreStickerId = selectedStickerIdRef.current
 
     try {
       setIsSavingImage(true)
       const permission = await MediaLibrary.requestPermissionsAsync(true)
+      if (!isCurrent()) return
       if (!photoAccessAllowed(permission)) {
         showPhotosPermissionRecovery(permission.canAskAgain, 'Allow TraceBuddy to save drawings to Photos. Your current drawing is kept.')
         return
       }
 
       setSelectedStickerId(null)
+      await readiness.ready
+      if (!isCurrent()) return
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      if (!isCurrent()) return
       await saveTemporaryCapture(
-        () => captureRef(practiceCanvasRef, { format: 'png', quality: 1, result: 'tmpfile' }),
-        (uri) => MediaLibrary.saveToLibraryAsync(uri),
+        () => captureRef(exportDocumentRef, { width: documentCapture.width, height: documentCapture.height, useRenderInContext: true, format: 'png', quality: 1, result: 'tmpfile' }),
+        async (uri) => { if (isCurrent()) await MediaLibrary.saveToLibraryAsync(uri) },
         releaseCapture,
       )
+      if (!isCurrent()) return
       milestoneHaptic()
       Alert.alert('Saved image', 'Your drawing was saved to Photos.')
     } catch {
-      if (restoreStickerId) setSelectedStickerId(restoreStickerId)
+      if (!isCurrent()) return
       Alert.alert('Could not save image', 'Try again in a moment or take a screenshot for now.')
     } finally {
-      if (restoreStickerId) setSelectedStickerId(restoreStickerId)
-      setIsSavingImage(false)
+      readiness.dispose()
+      if (isCurrent()) {
+        imageExportRef.current.readiness = null
+        if (restoreStickerId) setSelectedStickerId(restoreStickerId)
+        setExportReadiness(null)
+        setIsSavingImage(false)
+      }
     }
-  }, [isSavingImage])
+  }, [guideOnTop, stickers, uploadedImage])
 
   const practiceRibbonPanelTop = practiceRibbonHeight + 12
 
   return (
-    <View style={styles.practiceShell}>
+    <View style={[styles.practiceShell, { paddingLeft: safeInsets.left, paddingRight: safeInsets.right }]}>
+      {isSavingImage && <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', left: -2000, top: 0 }}>
+        <View ref={exportDocumentRef} collapsable={false}>
+          <PracticeDocument side={documentCapture.side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} practiceStrokes={practiceStrokes} activePath={activePath} activeStrokeRender={activeStrokeRender} idPrefix="export" onImageLoad={exportReadiness?.loaded} onImageError={exportReadiness?.failed} />
+        </View>
+      </View>}
       <StatusBar style="dark" />
       <View style={[styles.practiceHeader, { paddingTop: insetsTop + (compact ? 2 : 8) }]}>
-        <Pressable style={[styles.practiceHeaderButton, { minHeight: childTarget }]} onPress={() => leavePractice(onPicker)} accessibilityRole="button" accessibilityLabel="Go back">
-          <Text style={styles.practiceHeaderButtonText}>‹ Back</Text>
+        <Pressable style={[styles.practiceHeaderButton, { minHeight: childTarget }]} onPress={() => leavePractice(onPicker)} disabled={isSavingImage} accessibilityState={{ disabled: isSavingImage, busy: isSavingImage }} accessibilityRole="button" accessibilityLabel={isSavingImage ? 'Saving picture. Please wait' : 'Go back'}>
+          <Text style={styles.practiceHeaderButtonText}>{isSavingImage ? 'Saving…' : '‹ Back'}</Text>
         </Pressable>
         <View style={styles.practiceTitleCard}>
           <Text style={styles.practiceTitle} numberOfLines={1}>{pictureName}</Text>
@@ -3345,7 +3499,7 @@ function PracticeScreen({
       </View>
 
       <View style={styles.practiceStageCard}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={[styles.practiceRibbon, { flexDirection: 'row', gap: 6 }]} onLayout={handlePracticeRibbonLayout}>
+        <View style={[styles.practiceRibbon, { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }]} onLayout={handlePracticeRibbonLayout}>
           <Pressable
             style={[styles.practiceModeButton, { minHeight: childTarget, paddingVertical: 4, paddingHorizontal: 10 }, viewportLocked && styles.practiceModeButtonActive]}
             onPress={toggleViewportMode}
@@ -3358,7 +3512,7 @@ function PracticeScreen({
             </View>
           </Pressable>
 
-          <View style={styles.practiceToolGrid}>
+          <View style={[styles.practiceToolGrid, { flexWrap: 'wrap', flex: 1 }]}>
             <Pressable
               style={[styles.practiceRibbonButton, { minHeight: childTarget, minWidth: childTarget, flexDirection: 'row', paddingHorizontal: 10 }, activePanel === 'tool' && styles.practiceRibbonButtonActive]}
               onPress={() => togglePracticePanel('tool')}
@@ -3367,18 +3521,7 @@ function PracticeScreen({
               accessibilityLabel={`Open color and brush tools. Current brush ${brushTool.label}.`}
             >
               <PracticeRibbonIcon kind="tool" color={activePanel === 'tool' ? '#FFFFFF' : palette.ink} markerColor={markerColor} />
-              <Text style={[styles.practiceRibbonLabel, activePanel === 'tool' && styles.practiceRibbonLabelActive]}>Color / brush</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.practiceRibbonButton, { minHeight: childTarget, minWidth: childTarget, flexDirection: 'row', paddingHorizontal: 10 }, activePanel === 'size' && styles.practiceRibbonButtonActive]}
-              onPress={() => togglePracticePanel('size')}
-              accessibilityRole="button"
-              accessibilityState={{ expanded: activePanel === 'size' }}
-              accessibilityLabel={`Open brush size tools. Current size ${selectedBrushSize.label}.`}
-            >
-              <PracticeRibbonIcon kind="size" color={activePanel === 'size' ? '#FFFFFF' : palette.ink} />
-              <Text style={[styles.practiceRibbonLabel, activePanel === 'size' && styles.practiceRibbonLabelActive]}>Size</Text>
+              <Text style={[styles.practiceRibbonLabel, activePanel === 'tool' && styles.practiceRibbonLabelActive]}>Tools</Text>
             </Pressable>
 
             {parentActionsOpen && <Pressable
@@ -3402,10 +3545,10 @@ function PracticeScreen({
               <PracticeRibbonIcon kind="view" color={activePanel === 'view' ? '#FFFFFF' : palette.ink} />
               <Text style={[styles.practiceRibbonLabel, activePanel === 'view' && styles.practiceRibbonLabelActive]}>View</Text>
             </Pressable>}
-            <Pressable style={[styles.practicePanelChoice, { minHeight: childTarget }, brushToolId === 'eraser' && styles.practicePanelChoiceActive]} onPress={() => setBrushToolId((tool) => tool === 'eraser' ? 'marker' : 'eraser')} accessibilityRole="button" accessibilityState={{ selected: brushToolId === 'eraser' }}><Text style={[styles.practicePanelChoiceText, brushToolId === 'eraser' && styles.practicePanelChoiceTextActive]}>Eraser</Text></Pressable>
+            {parentActionsOpen && <Pressable style={[styles.practicePanelChoice, { minHeight: childTarget }, brushToolId === 'eraser' && styles.practicePanelChoiceActive]} onPress={() => setBrushToolId((tool) => tool === 'eraser' ? 'marker' : 'eraser')} accessibilityRole="button" accessibilityState={{ selected: brushToolId === 'eraser' }}><Text style={[styles.practicePanelChoiceText, brushToolId === 'eraser' && styles.practicePanelChoiceTextActive]}>Eraser</Text></Pressable>}
             <Pressable style={[styles.practicePanelChoice, { minHeight: childTarget }]} onPress={undoPracticeStroke} disabled={practiceStrokes.length === 0} accessibilityRole="button"><Text style={styles.practicePanelChoiceText}>Undo</Text></Pressable>
           </View>
-        </ScrollView>
+        </View>
 
         {activePanel && (
           <>
@@ -3434,6 +3577,9 @@ function PracticeScreen({
                       accessibilityLabel={`Use ${markerColorNames[colorIndex]}`}
                     />
                   ))}
+                </View>
+                <View style={styles.practicePanelButtonGrid}>
+                  {brushSizes.map((size) => <Pressable key={size.label} style={[styles.practicePanelChoice, { minHeight: childTarget }, markerWidth === size.value && styles.practicePanelChoiceActive]} onPress={() => setMarkerWidth(size.value)} accessibilityRole="button" accessibilityState={{ selected: markerWidth === size.value }}><Text style={styles.practicePanelChoiceText}>{size.label}</Text></Pressable>)}
                 </View>
                 <View style={styles.practicePanelButtonGrid}>
                   {brushTools.map((tool) => (
@@ -3557,7 +3703,6 @@ function PracticeScreen({
         </View>
 
         <View
-          ref={practiceCanvasRef}
           collapsable={false}
           style={styles.practiceCanvas}
           onLayout={handleCanvasLayout}
@@ -3585,40 +3730,8 @@ function PracticeScreen({
             ]}
             pointerEvents="none"
           >
-            <View style={{ position: 'absolute', left: pageFrame.x, top: pageFrame.y, width: pageFrame.side, height: pageFrame.side, overflow: 'hidden', backgroundColor: '#FFFDF7' }}>
-            <View style={[styles.practiceGuide, { opacity: guideOpacity }]} pointerEvents="none">
-              {uploadedImage ? (
-                <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
-              ) : (
-                <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
-              )}
-            </View>
-            {stickers.map((sticker) => (
-              <PracticeStickerView key={sticker.stickerId} sticker={sticker} selected={!isSavingImage && selectedStickerId === sticker.stickerId} frameStyle={sizedStickerFrame(sticker, { width: pageFrame.side, height: pageFrame.side })} />
-            ))}
-            <Svg
-              pointerEvents="none"
-              width={pageFrame.side}
-              height={pageFrame.side}
-              viewBox="0 0 1000 1000"
-              preserveAspectRatio="xMidYMid meet"
-              style={styles.practiceInkLayer}
-            >
-              {activePath && activeStrokeRender?.mode === 'erase' && <Defs><Mask id="practice-active-eraser" x={0} y={0} width={1000} height={1000} maskUnits="userSpaceOnUse"><Rect x={0} y={0} width={1000} height={1000} fill="#FFFFFF" /><Path d={activePath} stroke="#000000" strokeWidth={activeStrokeRender.width} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Mask></Defs>}
-              <G mask={activePath && activeStrokeRender?.mode === 'erase' ? 'url(#practice-active-eraser)' : undefined}><PracticeInkHistory strokes={practiceStrokes} idPrefix="practice-ink-mask" /></G>
-              {activePath && activeStrokeRender?.mode === 'draw' && (
-                <Path d={activePath} stroke={activeStrokeRender.color} strokeWidth={activeStrokeRender.width} strokeOpacity={activeStrokeRender.opacity} strokeDasharray={activeStrokeRender.dasharray} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              )}
-            </Svg>
-            {guideOnTop && (
-              <View style={[styles.practiceGuide, { opacity: topGuideOpacity }]} pointerEvents="none">
-                {uploadedImage ? (
-                  <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
-                ) : (
-                  <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
-                )}
-              </View>
-            )}
+            <View style={{ position: 'absolute', left: pageFrame.x, top: pageFrame.y }}>
+              <PracticeDocument side={pageFrame.side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} selectedStickerId={selectedStickerId} practiceStrokes={practiceStrokes} activePath={activePath} activeStrokeRender={activeStrokeRender} idPrefix="canvas" />
             </View>
           </View>
         </View>
@@ -3635,7 +3748,7 @@ function PracticeScreen({
         <Pressable style={[styles.practiceToolButton, isSavingImage && styles.practiceToolButtonDisabled]} onPress={savePracticeImage} disabled={isSavingImage} accessibilityRole="button" accessibilityLabel="Save drawing image to Photos">
           <Text style={styles.practiceToolButtonText}>{isSavingImage ? 'Saving' : 'Save image'}</Text>
         </Pressable>
-        <Pressable style={[styles.practiceToolButton, styles.practiceToolButtonPrimary]} onPress={() => leavePractice(onCameraTrace)} accessibilityRole="button">
+        <Pressable style={[styles.practiceToolButton, styles.practiceToolButtonPrimary]} onPress={() => leavePractice(onCameraTrace)} disabled={isSavingImage} accessibilityState={{ disabled: isSavingImage }} accessibilityRole="button">
           <Text style={[styles.practiceToolButtonText, styles.practiceToolButtonPrimaryText]}>Camera</Text>
         </Pressable>
       </View>}
@@ -3653,9 +3766,9 @@ function ControlGroup({ label, children }: { label: string; children: ReactNode 
   )
 }
 
-function ControlButton({ label, onPress }: { label: string; onPress: () => void }) {
+function ControlButton({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
-    <Pressable style={styles.controlButton} onPress={onPress} accessibilityRole="button">
+    <Pressable style={[styles.controlButton, disabled && styles.lessonButtonDisabled]} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress} accessibilityRole="button">
       <Text style={styles.controlButtonText}>{label}</Text>
     </Pressable>
   )
