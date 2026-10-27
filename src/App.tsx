@@ -34,6 +34,7 @@ import { defaultDocument, normalizeDocument, normalizePracticeStrokeWidth, recov
 import type { PracticeDocumentSize } from './practice/document'
 import { continueTarget, newestDrawings, modePreferenceKey, makeModePreference, normalizeModePreference, normalizeStamp, toggleStamp } from '../shared/finishFind'
 import type { KeepsakeStamp } from '../shared/finishFind'
+import { settleCurrentSave, type SaveOutcome } from './practice/saveCompletion'
 import { SurfaceChoice } from './finishFind/SurfaceChoice'
 import { StampIcon } from './finishFind/StampIcon'
 import { KeepsakeDialog } from './finishFind/KeepsakeDialog'
@@ -1563,6 +1564,19 @@ function App() {
     return () => { cancelled = true; window.clearTimeout(timer); window.removeEventListener('storage', refresh) }
   }, [])
 
+  useEffect(() => {
+    const syncSurface = (event: StorageEvent) => {
+      if (event.key !== modePreferenceKey && event.key !== clearGenerationKey && event.key !== null) return
+      if (drawingPreferencesClearInProgressRef.current) return
+      try {
+        const raw = event.key === modePreferenceKey ? event.newValue : readLocalValue(modePreferenceKey)
+        setTraceSurface(normalizeModePreference(JSON.parse(raw ?? 'null')).mode)
+      } catch { setTraceSurface('camera') }
+    }
+    window.addEventListener('storage', syncSurface)
+    return () => window.removeEventListener('storage', syncSurface)
+  }, [])
+
   const stopStream = useCallback((stream: MediaStream) => {
     stream.getTracks().forEach((track) => track.stop())
   }, [])
@@ -2256,9 +2270,14 @@ function App() {
     setUploadedImageSaveErrorId((current) => current === image.imageId ? null : current)
   }, [])
 
+  const surfaceChoiceGeneration = previousWorkOperationGenerationRef.current
   function chooseTraceSurface(surface: TraceSurface) {
+    if (drawingPreferencesClearInProgressRef.current || surfaceChoiceGeneration !== previousWorkOperationGenerationRef.current) return
     setTraceSurface(surface)
-    try { window.localStorage.setItem(modePreferenceKey, JSON.stringify(makeModePreference(surface))) }
+    try {
+      window.localStorage.setItem(modePreferenceKey, JSON.stringify(makeModePreference(surface)))
+      setDrawingPreferencesMessage((current) => current === 'This choice will last for this visit only.' ? '' : current)
+    }
     catch { setDrawingPreferencesMessage('This choice will last for this visit only.') }
   }
 
@@ -2541,7 +2560,7 @@ function App() {
         />
       </DialogPresence>
 
-      {mode === 'welcome' && <WelcomeScreen latestWork={continueTarget(previousWorkSessions)} onResume={openPreviousWork} onMyDrawings={() => setMode('drawings')} traceSurface={traceSurface} onTraceSurfaceChange={chooseTraceSurface} onStart={() => setMode('picker')} onTogether={openTogether} onLearn={() => setMode('learn')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
+      {mode === 'welcome' && <WelcomeScreen latestWork={continueTarget(previousWorkSessions)} onResume={openPreviousWork} onMyDrawings={() => setMode('drawings')} traceSurface={traceSurface} surfaceChoiceDisabled={drawingPreferencesClearInProgress} surfaceChoiceMessage={drawingPreferencesMessage} onTraceSurfaceChange={chooseTraceSurface} onStart={() => setMode('picker')} onTogether={openTogether} onLearn={() => setMode('learn')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
       {mode === 'picker' && (
         <PickerScreen
           pickerState={pickerState}
@@ -2810,13 +2829,13 @@ function ParentHelpDialog({
   )
 }
 
-function WelcomeScreen({ latestWork, onResume, onMyDrawings, traceSurface, onTraceSurfaceChange, onStart, onTogether, onLearn, onDemo, onPractice }: { latestWork?: SavedPracticeSession; onResume: (session: SavedPracticeSession) => void; onMyDrawings: () => void; traceSurface: TraceSurface; onTraceSurfaceChange: (surface: TraceSurface) => void; onStart: () => void; onTogether: () => void; onLearn: () => void; onDemo: () => void; onPractice: () => void }) {
+function WelcomeScreen({ latestWork, onResume, onMyDrawings, traceSurface, surfaceChoiceDisabled, surfaceChoiceMessage, onTraceSurfaceChange, onStart, onTogether, onLearn, onDemo, onPractice }: { latestWork?: SavedPracticeSession; onResume: (session: SavedPracticeSession) => void; onMyDrawings: () => void; traceSurface: TraceSurface; surfaceChoiceDisabled: boolean; surfaceChoiceMessage: string; onTraceSurfaceChange: (surface: TraceSurface) => void; onStart: () => void; onTogether: () => void; onLearn: () => void; onDemo: () => void; onPractice: () => void }) {
   const demoDrawing = drawings.find((drawing) => drawing.id === 'dream-unicorn') ?? drawings[0]
 
   return (
     <section className="hero-screen">
       {latestWork && <section className="continue-card" aria-label="Continue your drawing">
-        <div className="continue-preview"><PreviousWorkDocument session={latestWork} /></div>
+        <div className="continue-preview"><PreviousWorkDocument key={latestWork.sessionId} session={latestWork} /></div>
         <div><h2>Continue</h2><p>{latestWork.title}</p><div className="continue-actions"><button className="primary-button" type="button" onClick={() => onResume(latestWork)}>Continue</button><button className="secondary-button" type="button" onClick={onMyDrawings}>My drawings</button></div></div>
       </section>}
       <div className="hero-copy">
@@ -2825,7 +2844,8 @@ function WelcomeScreen({ latestWork, onResume, onMyDrawings, traceSurface, onTra
         <p className="lede">
           Pick a cute picture, trace it on real paper with the camera, or practice directly on the screen with a finger or stylus.
         </p>
-        <SurfaceChoice mode={traceSurface} onChange={onTraceSurfaceChange} />
+        <SurfaceChoice mode={traceSurface} disabled={surfaceChoiceDisabled} onChange={onTraceSurfaceChange} />
+        {surfaceChoiceMessage && <p className="preference-message" role="status">{surfaceChoiceMessage}</p>}
         <div className="hero-actions">
           <button className="primary-button" type="button" onClick={onStart}>Pick a picture</button>
           <button className="secondary-button" type="button" onClick={onTogether}>Play together</button>
@@ -3200,7 +3220,7 @@ function PickerScreen({
           </div>
         </details>
       </div>
-      <SurfaceChoice mode={traceSurface} onChange={onTraceSurfaceChange} />
+      <SurfaceChoice mode={traceSurface} disabled={drawingPreferencesClearInProgress} onChange={onTraceSurfaceChange} />
       {previousWorkSessions.length > 0 ? <section className="my-drawings-strip" aria-label="My drawings">
         <div className="strip-heading"><h2>My drawings</h2><button className="secondary-button" type="button" onClick={onMyDrawings}>See all</button></div>
         {previousWorkSessions.length > 0 ? <div className="saved-drawings-track">{newestDrawings(previousWorkSessions).slice(0, 10).map((session) => <button type="button" key={session.sessionId} onClick={() => onResumeWork(session)} aria-label={`Continue ${session.title}`}><div><PreviousWorkDocument session={session} />{session.stamp && <span className="stamp-badge"><StampIcon stamp={session.stamp} /></span>}</div><strong>{session.title}</strong></button>)}</div> : <p>Your drawings will appear here</p>}
@@ -3828,17 +3848,20 @@ function TraceScreen({
 }
 
 function PreviousWorkDocument({ session }: { session: SavedPracticeSession }) {
-  const [guide, setGuide] = useState(session.source.uploadedImage?.processedSrc ?? drawingImageSrc(drawingFromPracticeSource(session.source)))
+  const fallbackGuide = session.source.uploadedImage?.processedSrc ?? drawingImageSrc(drawingFromPracticeSource(session.source))
+  const [loadedGuide, setLoadedGuide] = useState({ source: session.source, src: fallbackGuide })
+  const guide = loadedGuide.source === session.source ? loadedGuide.src : fallbackGuide
+  if (loadedGuide.source !== session.source) setLoadedGuide({ source: session.source, src: fallbackGuide })
   useEffect(() => {
     let cancelled = false
     const imageId = session.source.uploadedImage?.imageId
     if (session.source.kind === 'upload' && imageId) {
       void loadUploadedImageRecord(imageId).then((image) => {
-        if (!cancelled && image) setGuide(image.processedSrc)
+        if (!cancelled && image) setLoadedGuide({ source: session.source, src: image.processedSrc })
       }).catch(() => undefined)
     }
     return () => { cancelled = true }
-  }, [session.source])
+  }, [fallbackGuide, session.source])
   const recovered = session.document ? session : { ...session, ...recoverLegacyDocument(session.strokes, 1000, 1000) }
   return <PracticeDocument size={recovered.document!} strokes={recovered.strokes} guide={guide} guideOpacity={session.guideOpacity} guideOnTop={session.guideOnTop} stamp={session.stamp} />
 }
@@ -3917,6 +3940,8 @@ function PracticeScreen({
   const lastSavedSignatureRef = useRef('')
   const saveGenerationRef = useRef(0)
   const saveRequestRef = useRef(0)
+  const latestSaveRef = useRef<Promise<SaveOutcome> | null>(null)
+  const preserveEmptyDraftRef = useRef(false)
   const commitQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const strokesRef = useRef(strokes)
   const journalKeyRef = useRef(`${pendingPracticePrefix}${createPracticeSessionId()}`)
@@ -4000,6 +4025,7 @@ function PracticeScreen({
       sessionCreatedAtRef.current = nextCreatedAt
       sessionUpdatedAtRef.current = initialSession?.updatedAt ?? nextCreatedAt
       persistedSessionRef.current = Boolean(initialSession)
+      preserveEmptyDraftRef.current = false
       revisionRef.current = initialSession ? initialSession.revision ?? 0 : null
       clearGenerationRef.current = workGeneration()
       conflictRef.current = false
@@ -4051,94 +4077,103 @@ function PracticeScreen({
     return path ? { path, color, width, opacity, mode, dasharray } : null
   }, [])
 
-  const savePracticeSessionNow = useCallback(async (skipUploadedImageFlush = false, finishEmpty = false) => {
-    if (conflictRef.current) return false
-    if (!autosaveReadyRef.current) return true
-    const requestId = saveRequestRef.current + 1
-    saveRequestRef.current = requestId
+  const savePracticeSessionNow = useCallback((skipUploadedImageFlush = false, finishEmpty = false) => {
     const generation = saveGenerationRef.current
-    if (uploadedImage && !skipUploadedImageFlush) {
-      setSaveStatus('saving')
-      try {
-        await onEnsureUploadedImageSaved(uploadedImage)
-      } catch {
-        if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
-        return false
+    // A replacement autosave must retain an explicitly finished empty page too.
+    if (finishEmpty) preserveEmptyDraftRef.current = true
+    const save = async (): Promise<SaveOutcome> => {
+      if (conflictRef.current) return 'failed'
+      if (!autosaveReadyRef.current) return 'failed'
+      const requestId = saveRequestRef.current + 1
+      saveRequestRef.current = requestId
+      if (uploadedImage && !skipUploadedImageFlush) {
+        setSaveStatus('saving')
+        try {
+          await onEnsureUploadedImageSaved(uploadedImage)
+        } catch {
+          if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
+          return 'failed'
+        }
+        if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return 'superseded'
       }
-      if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
-    }
-    const activeStroke = materializeActiveStroke()
-    const snapshotStrokes = activeStroke ? [...strokesRef.current, activeStroke] : strokesRef.current
+      const activeStroke = materializeActiveStroke()
+      const snapshotStrokes = activeStroke ? [...strokesRef.current, activeStroke] : strokesRef.current
 
-    const now = new Date().toISOString()
-    const nextSessionId = sessionIdRef.current
-    const savedSession: SavedPracticeSession = {
-      version: 2,
-      document: documentSizeRef.current,
-      sessionId: nextSessionId,
-      title: sessionTitle,
-      activityId,
-      stamp: stampRef.current,
-      source: practiceSource,
-      createdAt: sessionCreatedAtRef.current,
-      updatedAt: now,
-      strokes: snapshotStrokes,
-      guideOpacity,
-      guideOnTop,
-      markerColor,
-      markerWidth,
-      brushToolId,
-    }
+      const now = new Date().toISOString()
+      const nextSessionId = sessionIdRef.current
+      const savedSession: SavedPracticeSession = {
+        version: 2,
+        document: documentSizeRef.current,
+        sessionId: nextSessionId,
+        title: sessionTitle,
+        activityId,
+        stamp: stampRef.current,
+        source: practiceSource,
+        createdAt: sessionCreatedAtRef.current,
+        updatedAt: now,
+        strokes: snapshotStrokes,
+        guideOpacity,
+        guideOnTop,
+        markerColor,
+        markerWidth,
+        brushToolId,
+      }
 
-    // New empty drafts do not belong in Previous Work. Persisted sessions still
-    // save an empty snapshot after Undo/Clear so old ink cannot reappear.
-    if (!finishEmpty && snapshotStrokes.length === 0 && !stampRef.current && !persistedSessionRef.current) {
-      setSaveStatus('saved')
-      return true
-    }
-    const nextSignature = makePracticeSaveSignature(savedSession)
-    if (nextSignature === lastSavedSignatureRef.current) {
-      setSaveStatus('saved')
-      return true
-    }
+      // New empty drafts do not belong in Previous Work. Persisted sessions still
+      // save an empty snapshot after Undo/Clear so old ink cannot reappear.
+      if (!preserveEmptyDraftRef.current && snapshotStrokes.length === 0 && !stampRef.current && !persistedSessionRef.current) {
+        setSaveStatus('saved')
+        return 'empty'
+      }
+      const nextSignature = makePracticeSaveSignature(savedSession)
+      if (nextSignature === lastSavedSignatureRef.current) {
+        setSaveStatus('saved')
+        return 'committed'
+      }
 
-    // pagehide cannot await a queued Web Lock. A tab-private journal is written
-    // synchronously before this async function yields. Recovery checks both
-    // generation and base revision under the lock; it never merges stale ink.
-    if (skipUploadedImageFlush) {
+      // pagehide cannot await a queued Web Lock. A tab-private journal is written
+      // synchronously before this async function yields. Recovery checks both
+      // generation and base revision under the lock; it never merges stale ink.
+      if (skipUploadedImageFlush) {
+        try {
+          if (workGeneration() !== clearGenerationRef.current || storedRevision(nextSessionId) !== revisionRef.current) throw new StaleDrawingError()
+          window.localStorage.setItem(journalKeyRef.current, JSON.stringify({ session: savedSession, revision: revisionRef.current, generation: clearGenerationRef.current }))
+        } catch (error) {
+          if (error instanceof StaleDrawingError) { conflictRef.current = true; setSaveStatus('conflict') }
+          else setSaveStatus('error')
+          return 'failed'
+        }
+      }
+
       try {
-        if (workGeneration() !== clearGenerationRef.current || storedRevision(nextSessionId) !== revisionRef.current) throw new StaleDrawingError()
-        window.localStorage.setItem(journalKeyRef.current, JSON.stringify({ session: savedSession, revision: revisionRef.current, generation: clearGenerationRef.current }))
+        if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return 'superseded'
+        setSaveStatus('saving')
+        const commit = commitQueueRef.current.catch(() => undefined).then(async () => {
+          const committed = await savePreviousWorkSession(savedSession, revisionRef.current, clearGenerationRef.current, () => !conflictRef.current && generation === saveGenerationRef.current && requestId === saveRequestRef.current)
+          if (committed) revisionRef.current = committed.revision
+          return committed
+        })
+        commitQueueRef.current = commit
+        const committed = await commit
+        if (!committed) return generation === saveGenerationRef.current && requestId !== saveRequestRef.current ? 'superseded' : 'failed'
+        window.localStorage.removeItem(journalKeyRef.current)
+        window.localStorage.setItem(activePracticeKey, savedSession.sessionId)
+        persistedSessionRef.current = true
+        lastSavedSignatureRef.current = nextSignature
+        setSaveStatus('saved')
+        sessionUpdatedAtRef.current = committed.updatedAt
+        onSessionSaved(committed)
+        return 'committed'
       } catch (error) {
-        if (error instanceof StaleDrawingError) { conflictRef.current = true; setSaveStatus('conflict') }
-        else setSaveStatus('error')
-        return false
+        if (error instanceof StaleDrawingError) { conflictRef.current = true; setSaveStatus('conflict'); return 'failed' }
+        if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
+        return 'failed'
       }
     }
-
-    try {
-      if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
-      const commit = commitQueueRef.current.catch(() => undefined).then(async () => {
-        const committed = await savePreviousWorkSession(savedSession, revisionRef.current, clearGenerationRef.current, () => !conflictRef.current && generation === saveGenerationRef.current && requestId === saveRequestRef.current)
-        if (committed) revisionRef.current = committed.revision
-        return committed
-      })
-      commitQueueRef.current = commit
-      const committed = await commit
-      if (!committed) return false
-      window.localStorage.removeItem(journalKeyRef.current)
-      window.localStorage.setItem(activePracticeKey, savedSession.sessionId)
-      persistedSessionRef.current = true
-      lastSavedSignatureRef.current = nextSignature
-      setSaveStatus('saved')
-      sessionUpdatedAtRef.current = committed.updatedAt
-      onSessionSaved(committed)
-      return true
-    } catch (error) {
-      if (error instanceof StaleDrawingError) { conflictRef.current = true; setSaveStatus('conflict'); return false }
-      if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
-      return false
-    }
+    const pending = save()
+    latestSaveRef.current = pending
+    return settleCurrentSave(pending, () => latestSaveRef.current, () => generation === saveGenerationRef.current && !conflictRef.current)
+      .then((result) => result === 'committed' || (result === 'empty' && !finishEmpty))
   }, [activityId, brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, materializeActiveStroke, onEnsureUploadedImageSaved, onSessionSaved, practiceSource, sessionTitle, uploadedImage])
 
   useEffect(() => {
@@ -4171,7 +4206,9 @@ function PracticeScreen({
   }, [onSaveHandlerChange, savePracticeSessionNow])
 
   function leavePractice(action: () => void) {
+    if (modeFromLocation() !== 'practice') return
     void savePracticeSessionNow().then((saved) => {
+      if (modeFromLocation() !== 'practice') return
       if (saved || window.confirm('TraceBuddy could not save the latest changes in this browser. Leave this drawing without saving them?')) action()
     })
   }
@@ -4489,6 +4526,7 @@ function PracticeScreen({
     strokesRef.current = []
     setStrokes([])
     persistedSessionRef.current = false
+    preserveEmptyDraftRef.current = false
     stampRef.current = undefined
     setStamp(undefined)
     sessionIdRef.current = createPracticeSessionId()

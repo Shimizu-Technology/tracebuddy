@@ -16,7 +16,7 @@ if(output) mkdirSync(output,{recursive:true})
 const pause = (ms=150)=>new Promise(r=>setTimeout(r,ms))
 async function press(p,name,scope=p) { await scope.getByRole('button',{name,exact:true}).filter({visible:true}).first().click(); await pause() }
 async function nav(p,name) { if(await p.locator('.nav-toggle').isVisible()) await press(p,'Menu'); await press(p,name,p.locator('#main-nav')); }
-async function draw(p) { await p.locator('.practice-document').waitFor();const r=await p.locator('.practice-document').boundingBox();await p.mouse.move(r.x+r.width*.3,r.y+r.height*.4);await p.mouse.down();await p.mouse.move(r.x+r.width*.7,r.y+r.height*.5,{steps:6});await p.mouse.up();await pause(700) }
+async function draw(p,settle=700) { await p.locator('.practice-document').waitFor();const r=await p.locator('.practice-document').boundingBox();await p.mouse.move(r.x+r.width*.3,r.y+r.height*.4);await p.mouse.down();await p.mouse.move(r.x+r.width*.7,r.y+r.height*.5,{steps:6});await p.mouse.up();await pause(settle) }
 async function saved(p) { return p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('tracebuddy.previousWork.v1.session.')).map(k=>JSON.parse(localStorage.getItem(k)))) }
 async function shot(p,name) { if(output)await p.screenshot({path:`${output}/${engine}-${name}.png`}) }
 async function bounds(p,selector,min=44) {
@@ -24,7 +24,7 @@ async function bounds(p,selector,min=44) {
  assert.deepEqual(bad,[])
  for(const target of await p.locator(selector).all()){if(!await target.isVisible())continue;await target.scrollIntoViewIfNeeded();assert(await target.evaluate(e=>{const r=e.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return hit===e||e.contains(hit)}),'Target center must be reachable')}
 }
-async function run(id,fn,opts={}) {const c=await b.newContext({viewport:{width:390,height:844},hasTouch:true,serviceWorkers:'block',acceptDownloads:true,...opts});const p=await c.newPage();p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(8000);try{await p.goto(url+'/#home');const detail=await fn(p);rows.push({id,status:'passed',detail});console.log(engine,id,'passed')}catch(e){await shot(p,id+'-failure').catch(()=>undefined);rows.push({id,status:'failed',error:e.stack});throw e}finally{const video=p.video();await c.close();if(video&&output)await video.saveAs(`${output}/${engine}-${id}.webm`)}}
+async function run(id,fn,opts={}) {if(process.env.CHECK_CASE&&!id.startsWith(process.env.CHECK_CASE))return;const c=await b.newContext({viewport:{width:390,height:844},hasTouch:true,serviceWorkers:'block',acceptDownloads:true,...opts});const p=await c.newPage();p.on('pageerror',e=>errors.push(e.message));p.setDefaultTimeout(8000);try{await p.goto(url+'/#home');const detail=await fn(p);rows.push({id,status:'passed',detail});console.log(engine,id,'passed')}catch(e){await shot(p,id+'-failure').catch(()=>undefined);rows.push({id,status:'failed',error:e.stack});throw e}finally{const video=p.video();await c.close();if(video&&output)await video.saveAs(`${output}/${engine}-${id}.webm`)}}
 try {
  await run('F01-empty-home-and-gallery',async p=>{assert.equal(await p.locator('.continue-card').count(),0);await nav(p,'My drawings');await p.getByText('Your drawings will appear here',{exact:true}).waitFor();await press(p,'Pictures',p.locator('.drawing-empty-state'));await p.locator('.picker-screen').waitFor();return 'No empty Continue card; first-class gallery has a friendly Pictures escape.'})
  for(const[name,width,height]of[['phone',390,844],['small-phone',360,740],['ipad-portrait',820,1180],['ipad-landscape',1180,820],['desktop',1440,900]])for(const enlarged of[false,true]){
@@ -101,6 +101,138 @@ try {
   await press(p,'Pick a picture');await p.locator('.saved-drawings-track > button').nth(9).waitFor();assert.equal(await p.locator('.saved-drawings-track > button').count(),10);assert.equal(await p.locator('.saved-drawings-track strong').first().innerText(),'Family drawing 0')
   await press(p,'See all',p.locator('.my-drawings-strip'));await p.locator('.previous-work-card').nth(11).waitFor();assert.equal(await p.locator('.previous-work-card > strong').first().innerText(),'Family drawing 0')
   return 'Newest-first independent of index order; ten thumbnail shortcuts; See all retains twelve full action cards.'
+ })
+ await run('F06-mode-selection-during-clear',async p=>{
+  await press(p,'Draw on screen',p.locator('.surface-choice'));await press(p,'Practice on screen');await draw(p);await nav(p,'My drawings')
+  await p.evaluate(()=>{
+   const clear=IDBObjectStore.prototype.clear
+   IDBObjectStore.prototype.clear=function(){
+    const tx=this.transaction
+    Object.defineProperty(tx,'oncomplete',{set(handler){tx.addEventListener('complete',event=>{window.__releaseClear=()=>handler.call(tx,event)})}})
+    return clear.call(this)
+   }
+  })
+  p.once('dialog',d=>d.accept());await press(p,'Clear local work')
+  await p.waitForFunction(()=>typeof window.__releaseClear==='function')
+  assert.equal(await p.evaluate(()=>localStorage.getItem('tracebuddy.modePreference.v1')),null)
+  await nav(p,'Home')
+  assert.equal(await p.locator('.surface-switch button:disabled').count(),2)
+  // Dispatch even though disabled to exercise the handler's independent ref guard.
+  await p.getByRole('button',{name:'Draw on screen',exact:true}).dispatchEvent('click')
+  assert.equal(await p.evaluate(()=>localStorage.getItem('tracebuddy.modePreference.v1')),null)
+  await shot(p,'clear-mode-disabled')
+  await p.evaluate(()=>window.__releaseClear())
+  await p.waitForFunction(()=>document.querySelectorAll('.surface-switch button:disabled').length===0)
+  assert.equal(await p.evaluate(()=>localStorage.getItem('tracebuddy.modePreference.v1')),null)
+  await p.reload();await p.locator('.surface-switch').waitFor()
+  assert.equal(await p.evaluate(()=>localStorage.getItem('tracebuddy.modePreference.v1')),null)
+  assert.equal(await p.getByRole('button',{name:'Trace on paper',exact:true}).getAttribute('aria-pressed'),'true')
+  return 'Mode cards disabled while image cleanup waits; interleaved selection cannot recreate preference, including after reload.'
+ })
+ await run('F07-mounted-home-newest-session-and-source',async p=>{
+  await press(p,'Practice on screen');await draw(p);const first=(await saved(p))[0]
+  await nav(p,'Home');await p.locator('.continue-card').waitFor()
+  const original=await p.locator('.continue-preview .practice-guide-image').first().getAttribute('href')
+  const other=await p.context().newPage();await other.goto(url+'/#home')
+  await press(other,'Draw on screen',other.locator('.surface-choice'));await press(other,'Pick a picture')
+  await other.locator('.drawing-card-action').nth(1).click();await draw(other)
+  const next=(await saved(other)).find(s=>s.sessionId!==first.sessionId)
+  assert(next);const expected=await other.locator('.practice-guide-image').first().getAttribute('href');assert.notEqual(expected,original)
+  await p.waitForFunction(title=>document.querySelector('.continue-card p')?.textContent===title,next.title)
+  assert.equal(await p.locator('.continue-preview .practice-guide-image').first().getAttribute('href'),expected)
+  await shot(p,'mounted-home-newest-guide')
+  // Also replace a template source on the same session: the keyed instance stays
+  // mounted and must reset its guide, even without a changed session ID.
+  await other.evaluate(({next,first})=>{localStorage.setItem('tracebuddy.previousWork.v1.session.'+next.sessionId,JSON.stringify({...next,title:'Changed source',source:first.source,updatedAt:new Date().toISOString()}))},{next,first})
+  await p.getByText('Changed source',{exact:true}).waitFor()
+  assert.equal(await p.locator('.continue-preview .practice-guide-image').first().getAttribute('href'),original)
+  await press(p,'Continue',p.locator('.continue-card'));await p.locator('.practice-document').waitFor()
+  assert.equal(await p.locator('.practice-guide-image').first().getAttribute('href'),original)
+  await other.close()
+  return 'Home remains mounted across a cross-tab newest-session change and a same-session template-source change; title, guide, ink and Resume agree.'
+ })
+ await run('F08-delayed-upload-done-autosave-replacement-failure',async p=>{
+  await press(p,'Pick a picture');await p.locator('.picker-alternates > summary').click()
+  await p.locator('input[type=file]').setInputFiles(new URL('./fixtures/cleanup-photo.svg',import.meta.url).pathname)
+  await p.locator('.trace-screen').waitFor()
+  if(await p.locator('.setup-coach-backdrop').isVisible())await press(p,'Close for now')
+  await p.locator('.sheet-toggle').click()
+  await p.evaluate(()=>{
+   window.__uploadReleases=[];window.__uploadWrites=0;window.__originalPut=IDBObjectStore.prototype.put
+   IDBObjectStore.prototype.put=function(...args){
+    window.__uploadWrites++
+    if(window.__uploadWrites===3)throw new DOMException('Replacement upload write failed','QuotaExceededError')
+    const tx=this.transaction
+    Object.defineProperty(tx,'oncomplete',{set(handler){tx.addEventListener('complete',event=>window.__uploadReleases.push(()=>handler.call(tx,event)))}})
+    return window.__originalPut.apply(this,args)
+   }
+  })
+  await p.locator('.cleanup-mode-grid button').filter({hasText:'Line art'}).click()
+  await p.waitForFunction(()=>document.querySelector('.cleanup-status')?.textContent.includes('Line-art cleanup applied'))
+  await p.waitForFunction(()=>window.__uploadReleases.length===1)
+  await press(p,'Practice on screen');await draw(p,0)
+  await p.getByRole('button',{name:'Done',exact:true}).filter({visible:true}).first().click()
+  await pause(600) // Let the ordinary 450 ms autosave supersede Done's pending image flush.
+  assert.equal(await p.locator('.keepsake-dialog').count(),0)
+  await p.evaluate(()=>window.__uploadReleases.shift()()) // background processed-guide write
+  await p.waitForFunction(()=>window.__uploadReleases.length===1&&window.__uploadWrites===2)
+  await p.evaluate(()=>window.__uploadReleases.shift()()) // Done's superseded write
+  await p.waitForFunction(()=>window.__uploadWrites===3)
+  await p.getByText('Not saved',{exact:false}).waitFor()
+  assert.equal(await p.locator('.keepsake-dialog').count(),0,'A superseded Done must not present success when the replacement upload fails')
+  assert.deepEqual(await saved(p),[])
+  await shot(p,'delayed-done-replacement-failed')
+  await p.evaluate(()=>{IDBObjectStore.prototype.put=window.__originalPut})
+  await p.getByRole('button',{name:'Done',exact:true}).filter({visible:true}).first().click()
+  await p.locator('.keepsake-dialog[open]').waitFor()
+  assert.equal((await saved(p))[0].strokes.length,1)
+  return 'Real Done and autosave overlap delayed processed-image writes; replacement failure keeps the canvas unsaved; a later Done commits and recovers.'
+ })
+ await run('F09-surface-storage-feedback-and-cross-tab-sync',async p=>{
+  await p.evaluate(()=>{window.__setItem=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='tracebuddy.modePreference.v1')throw new DOMException('Fixture full','QuotaExceededError');window.__setItem.call(this,k,v)}})
+  await press(p,'Draw on screen',p.locator('.surface-choice'))
+  await p.getByRole('status').filter({hasText:'This choice will last for this visit only.'}).waitFor()
+  assert.equal(await p.evaluate(()=>localStorage.getItem('tracebuddy.modePreference.v1')),null)
+  await shot(p,'surface-visit-only-warning')
+  await p.evaluate(()=>{Storage.prototype.setItem=window.__setItem})
+  await press(p,'Trace on paper',p.locator('.surface-choice'))
+  assert.equal(await p.getByText('This choice will last for this visit only.',{exact:true}).count(),0)
+  const other=await p.context().newPage();await other.goto(url+'/#home')
+  await press(other,'Draw on screen',other.locator('.surface-choice'))
+  await p.waitForFunction(()=>document.querySelector('button[aria-label="Draw on screen"]')?.getAttribute('aria-pressed')==='true')
+  await other.evaluate(()=>localStorage.removeItem('tracebuddy.modePreference.v1'))
+  await p.waitForFunction(()=>document.querySelector('button[aria-label="Trace on paper"]')?.getAttribute('aria-pressed')==='true')
+  await other.close()
+  return 'Home reports failed preference writes and clears that warning on recovery; cross-tab choice and deletion update the mounted selector.'
+ })
+ await run('F10-pending-stamp-status-and-back-wins-gallery',async p=>{
+  await press(p,'Practice on screen');await draw(p)
+  await p.getByRole('button',{name:'Done',exact:true}).filter({visible:true}).first().click();await p.locator('.keepsake-dialog[open]').waitFor()
+  const blocker=await p.context().newPage();await blocker.goto(url+'/#home')
+  await blocker.evaluate(()=>new Promise(started=>{navigator.locks.request('tracebuddy.local-work',()=>new Promise(release=>{window.__releaseLock=release;started()}))}))
+  await press(p,'Star',p.locator('.keepsake-dialog'))
+  assert.equal(await p.locator('.keepsake-save-status').innerText(),'Saving…')
+  assert.equal((await saved(p))[0].stamp,undefined)
+  assert.equal(await p.locator('.keepsake-actions .primary-button').isDisabled(),true)
+  await shot(p,'stamp-waits-for-commit')
+  await press(p,'My drawings',p.locator('.keepsake-dialog'));await p.locator('.keepsake-dialog').waitFor({state:'detached'})
+  await p.goBack();assert.equal(new URL(p.url()).hash,'#home')
+  await blocker.evaluate(()=>window.__releaseLock())
+  await p.locator('.hero-screen').waitFor();await pause(250)
+  assert.equal(new URL(p.url()).hash,'#home','Delayed gallery action must not replace the newer Back destination')
+  assert.equal((await saved(p))[0].stamp,'star')
+  await blocker.close()
+  return 'Stamp status and export stay pending under the storage lock; Back to Home wins over a delayed gallery callback and the stamp persists.'
+ })
+ await run('F11-short-document-stamp-bounds',async p=>{
+  await press(p,'Practice on screen');await draw(p);const session=(await saved(p))[0]
+  await p.evaluate(s=>localStorage.setItem('tracebuddy.previousWork.v1.session.'+s.sessionId,JSON.stringify({...s,document:{version:1,width:100,height:100}})),session)
+  await p.reload();await p.locator('.practice-document').waitFor()
+  await p.getByRole('button',{name:'Done',exact:true}).filter({visible:true}).first().click();await p.locator('.keepsake-dialog[open]').waitFor()
+  await press(p,'Star',p.locator('.keepsake-dialog'));await pause(500)
+  const bounds=await p.locator('.keepsake-picture .keepsake-stamp').evaluate(g=>{const box=g.getBBox(),m=g.transform.baseVal.consolidate().matrix;return{x:box.x*m.a+m.e,y:box.y*m.d+m.f,right:(box.x+box.width)*m.a+m.e,bottom:(box.y+box.height)*m.d+m.f}})
+  assert(bounds.x>=0&&bounds.y>=0&&bounds.right<=100&&bounds.bottom<=100,JSON.stringify(bounds))
+  return 'The stamp fits inside the smallest normalized 100×100 document; normal document placement is unchanged.'
  })
  assert.deepEqual(errors,[])
 } finally {if(output)writeFileSync(`${output}/${engine}-finish-find.json`,JSON.stringify({rows,errors},null,2));await b.close();await server.close();life('release')}

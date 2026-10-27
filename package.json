@@ -42,7 +42,7 @@
     "check:contrast": "node scripts/contrast-check.mjs",
     "check:web-round2": "node scripts/web-round2-check.mjs",
     "check:native-safety-model": "tsx scripts/native-safety-model-check.ts",
-    "check:finish-find-model": "tsx scripts/finish-find-model-check.ts",
+    "check:finish-find-model": "tsx scripts/finish-find-model-check.ts && tsx scripts/finish-find-save-model-check.ts",
     "check:finish-find": "node scripts/finish-find-check.mjs"
   },
   "dependencies": {

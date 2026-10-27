@@ -44,7 +44,7 @@ export function PracticeDocument({ size, strokes, guide, guideOpacity, guideOnTo
         ))}
       </g>
       {guideOnTop && <image className="practice-guide-image on-top" href={guide} {...bounds} preserveAspectRatio="xMidYMid meet" opacity={Math.max(guideOpacity, 0.48)} style={{ mixBlendMode: 'multiply' }} />}
-      {stamp && <g className="keepsake-stamp" transform={`translate(${size.width - 120} ${size.height - 120}) scale(2.5)`}><circle cx="16" cy="16" r="18" fill="#fff8ef" /><path d={keepsakeStamps.find((item) => item.id === stamp)?.path} fill="none" stroke="#a43f2b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></g>}
+      {stamp && <g className="keepsake-stamp" transform={`translate(${Math.max(5, size.width - 120)} ${Math.max(5, size.height - 120)}) scale(2.5)`}><circle cx="16" cy="16" r="18" fill="#fff8ef" /><path d={keepsakeStamps.find((item) => item.id === stamp)?.path} fill="none" stroke="#a43f2b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></g>}
     </svg>
   )
 }
