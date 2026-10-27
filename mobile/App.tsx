@@ -2643,6 +2643,12 @@ function PracticeScreen({
   const [activePanel, setActivePanel] = useState<PracticePanelId | null>(null)
   const [practiceRibbonHeight, setPracticeRibbonHeight] = useState(0)
   const [isSavingImage, setIsSavingImage] = useState(false)
+  const imageExportRef = useRef<{ token: number; readiness: ReturnType<typeof createCaptureReadiness> | null }>({ token: 0, readiness: null })
+  useEffect(() => () => {
+    imageExportRef.current.token += 1
+    imageExportRef.current.readiness?.dispose()
+    imageExportRef.current.readiness = null
+  }, [])
   const [exportReadiness, setExportReadiness] = useState<ReturnType<typeof createCaptureReadiness> | null>(null)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
@@ -2951,7 +2957,7 @@ function PracticeScreen({
   }, [savePracticeSessionNow])
 
   const leavePractice = useCallback((action: () => void) => {
-    if (leaveInProgressRef.current) return
+    if (leaveInProgressRef.current || imageExportRef.current.readiness) return
     leaveInProgressRef.current = true
     void savePracticeSessionNow().then((saved) => {
       if (saved) {
@@ -3425,14 +3431,18 @@ function PracticeScreen({
   }, [selectedStickerId, stickers])
 
   const savePracticeImage = useCallback(async () => {
-    if (isSavingImage) return
+    if (imageExportRef.current.readiness || leaveInProgressRef.current) return
+    const token = ++imageExportRef.current.token
+    const isCurrent = () => imageExportRef.current.token === token
     const readiness = createCaptureReadiness(captureImageKeys(uploadedImage?.uri, guideOnTop, stickers))
+    imageExportRef.current.readiness = readiness
     setExportReadiness(readiness)
     const restoreStickerId = selectedStickerIdRef.current
 
     try {
       setIsSavingImage(true)
       const permission = await MediaLibrary.requestPermissionsAsync(true)
+      if (!isCurrent()) return
       if (!photoAccessAllowed(permission)) {
         showPhotosPermissionRecovery(permission.canAskAgain, 'Allow TraceBuddy to save drawings to Photos. Your current drawing is kept.')
         return
@@ -3440,24 +3450,30 @@ function PracticeScreen({
 
       setSelectedStickerId(null)
       await readiness.ready
+      if (!isCurrent()) return
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      if (!isCurrent()) return
       await saveTemporaryCapture(
         () => captureRef(exportDocumentRef, { width: documentCapture.width, height: documentCapture.height, useRenderInContext: true, format: 'png', quality: 1, result: 'tmpfile' }),
-        (uri) => MediaLibrary.saveToLibraryAsync(uri),
+        async (uri) => { if (isCurrent()) await MediaLibrary.saveToLibraryAsync(uri) },
         releaseCapture,
       )
+      if (!isCurrent()) return
       milestoneHaptic()
       Alert.alert('Saved image', 'Your drawing was saved to Photos.')
     } catch {
-      if (restoreStickerId) setSelectedStickerId(restoreStickerId)
+      if (!isCurrent()) return
       Alert.alert('Could not save image', 'Try again in a moment or take a screenshot for now.')
     } finally {
-      if (restoreStickerId) setSelectedStickerId(restoreStickerId)
       readiness.dispose()
-      setExportReadiness(null)
-      setIsSavingImage(false)
+      if (isCurrent()) {
+        imageExportRef.current.readiness = null
+        if (restoreStickerId) setSelectedStickerId(restoreStickerId)
+        setExportReadiness(null)
+        setIsSavingImage(false)
+      }
     }
-  }, [guideOnTop, isSavingImage, stickers, uploadedImage])
+  }, [guideOnTop, stickers, uploadedImage])
 
   const practiceRibbonPanelTop = practiceRibbonHeight + 12
 
@@ -3470,8 +3486,8 @@ function PracticeScreen({
       </View>}
       <StatusBar style="dark" />
       <View style={[styles.practiceHeader, { paddingTop: insetsTop + (compact ? 2 : 8) }]}>
-        <Pressable style={[styles.practiceHeaderButton, { minHeight: childTarget }]} onPress={() => leavePractice(onPicker)} accessibilityRole="button" accessibilityLabel="Go back">
-          <Text style={styles.practiceHeaderButtonText}>‹ Back</Text>
+        <Pressable style={[styles.practiceHeaderButton, { minHeight: childTarget }]} onPress={() => leavePractice(onPicker)} disabled={isSavingImage} accessibilityState={{ disabled: isSavingImage, busy: isSavingImage }} accessibilityRole="button" accessibilityLabel={isSavingImage ? 'Saving picture. Please wait' : 'Go back'}>
+          <Text style={styles.practiceHeaderButtonText}>{isSavingImage ? 'Saving…' : '‹ Back'}</Text>
         </Pressable>
         <View style={styles.practiceTitleCard}>
           <Text style={styles.practiceTitle} numberOfLines={1}>{pictureName}</Text>
@@ -3732,7 +3748,7 @@ function PracticeScreen({
         <Pressable style={[styles.practiceToolButton, isSavingImage && styles.practiceToolButtonDisabled]} onPress={savePracticeImage} disabled={isSavingImage} accessibilityRole="button" accessibilityLabel="Save drawing image to Photos">
           <Text style={styles.practiceToolButtonText}>{isSavingImage ? 'Saving' : 'Save image'}</Text>
         </Pressable>
-        <Pressable style={[styles.practiceToolButton, styles.practiceToolButtonPrimary]} onPress={() => leavePractice(onCameraTrace)} accessibilityRole="button">
+        <Pressable style={[styles.practiceToolButton, styles.practiceToolButtonPrimary]} onPress={() => leavePractice(onCameraTrace)} disabled={isSavingImage} accessibilityState={{ disabled: isSavingImage }} accessibilityRole="button">
           <Text style={[styles.practiceToolButtonText, styles.practiceToolButtonPrimaryText]}>Camera</Text>
         </Pressable>
       </View>}

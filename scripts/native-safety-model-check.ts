@@ -85,7 +85,7 @@ for (const fail of [false, true]) {
   let gate: ReturnType<typeof createCaptureReadiness> | null = null
   const handler = appCallback('savePracticeImage', {
     finishPracticeStroke: () => undefined, savePracticeSessionNow: async () => true,
-    isSavingImage: false, selectedStickerIdRef: { current: null }, uploadedImage: { uri: 'file://guide.jpg' }, guideOnTop: true, stickers: [],
+    imageExportRef: { current: { token: 0, readiness: null } }, leaveInProgressRef: { current: false }, selectedStickerIdRef: { current: null }, uploadedImage: { uri: 'file://guide.jpg' }, guideOnTop: true, stickers: [],
     captureImageKeys, createCaptureReadiness,
     setExportReadiness: (next: typeof gate) => { if (next) gate = next }, setIsSavingImage: () => undefined, setSelectedStickerId: () => undefined,
     MediaLibrary: { requestPermissionsAsync: async () => ({ granted: true }), saveToLibraryAsync: async () => { events.push('photos') } },
@@ -107,6 +107,75 @@ for (const fail of [false, true]) {
   assert.deepEqual(events, fail ? ['Could not save image'] : ['capture', 'photos', 'release', 'haptic', 'Saved image'])
 }
 console.log('Export caller waits for image decode; image error/timeout cannot report a saved photo')
+
+// Exercise navigation and teardown against the actual callbacks, at each await.
+for (const phase of ['decode', 'frame', 'permission', 'capture', 'photos'] as const) {
+  for (const unmount of [false, true]) {
+    const events: string[] = []
+    const imageExportRef: { current: { token: number; readiness: ReturnType<typeof createCaptureReadiness> | null } } = { current: { token: 0, readiness: null } }
+    const leaveInProgressRef = { current: false }
+    let resume!: () => void
+    const deferred = new Promise<void>((resolve) => { resume = resolve })
+    let stateUpdates = 0
+    const update = () => { stateUpdates++ }
+    const flush = () => new Promise<void>((resolve) => setImmediate(resolve))
+    const save = appCallback('savePracticeImage', {
+      imageExportRef, leaveInProgressRef, selectedStickerIdRef: { current: 'piece' },
+      uploadedImage: { uri: 'guide.jpg' }, guideOnTop: false, stickers: [], captureImageKeys, createCaptureReadiness,
+      setExportReadiness: update, setIsSavingImage: update, setSelectedStickerId: update,
+      MediaLibrary: {
+        requestPermissionsAsync: async () => { if (phase === 'permission') await deferred; return { granted: true } },
+        saveToLibraryAsync: async () => { events.push('photos'); if (phase === 'photos') await deferred },
+      },
+      photoAccessAllowed: () => true, showPhotosPermissionRecovery: () => assert.fail('No recovery'),
+      requestAnimationFrame: (callback: () => void) => { if (phase === 'frame') void deferred.then(callback); else queueMicrotask(callback) },
+      documentCapture, exportDocumentRef: { current: {} }, saveTemporaryCapture,
+      captureRef: async () => { events.push('capture'); if (phase === 'capture') await deferred; return 'tmp.png' },
+      releaseCapture: () => { events.push('release') }, milestoneHaptic: () => { events.push('haptic') },
+      Alert: { alert: (title: string) => { events.push(title) } },
+    })
+    const leave = appCallback('leavePractice', {
+      imageExportRef, leaveInProgressRef,
+      savePracticeSessionNow: async () => { events.push('flush'); return true },
+      Alert: { alert: () => assert.fail('Blocked navigation cannot alert') },
+    })
+    const saving = save() as Promise<void>
+    await flush()
+    const readiness = imageExportRef.current.readiness!
+    if (phase !== 'decode') readiness.loaded('guide-base')
+    await flush()
+    leave(() => { events.push('navigate') })
+    await flush()
+    assert.ok(!events.includes('navigate'), `${phase}: Back retains the export tree`)
+    assert.ok(!events.includes('flush'), `${phase}: Back cannot start a conflicting flush`)
+    if (unmount) {
+      let effect = ''
+      function find(node: import('typescript').Node) {
+        if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('imageExportRef.current.token += 1')) effect = node.arguments[0].getText(ast)
+        ts.forEachChild(node, find)
+      }
+      find(ast)
+      assert.ok(effect, 'Export teardown is registered')
+      const js = ts.transpileModule(`const effect = ${effect}; effect`, { compilerOptions: { target: ts.ScriptTarget.ES2023 } }).outputText
+      runInNewContext(js, { imageExportRef })()()
+    }
+    const updatesBeforeResume = stateUpdates
+    readiness.loaded('guide-base'); resume()
+    await saving
+    if (unmount) {
+      assert.equal(stateUpdates, updatesBeforeResume, `${phase}: no state updates after unmount`)
+      assert.ok(!events.includes('haptic') && !events.some((event) => event.includes('image')), `${phase}: no late feedback`)
+      if (!['capture', 'photos'].includes(phase)) assert.ok(!events.includes('capture'), `${phase}: no dead capture`)
+      if (phase === 'capture') assert.deepEqual(events, ['capture', 'release'], 'Unmounted capture releases its file without starting Photos')
+    } else {
+      assert.deepEqual(events, ['capture', 'photos', 'release', 'haptic', 'Saved image'])
+      leave(() => { events.push('navigate') })
+      await flush()
+      assert.equal(events.at(-1), 'navigate', 'Navigation resumes once export finishes')
+    }
+  }
+}
+console.log('Actual export/leave callbacks: Back blocked during decode/pre-capture; teardown cancels all five await phases without late feedback')
 
 let familyEffectText = ''
 function findFamilyEffect(node: import('typescript').Node) {
