@@ -29,14 +29,19 @@ jobs:
         id: chrome
       - run: npm ci
       - run: npm --prefix mobile ci
-      # The WebKit download/apt step occasionally hangs on hosted runners.
-      # Bound each attempt and retry instead of waiting for the job timeout.
+      # The WebKit system-dependency step (apt-get update) occasionally hangs on
+      # hosted runner mirrors. Give apt its own network timeouts, bound each
+      # attempt, and clear a stuck apt-get before retrying so the lock is free.
       - name: Install WebKit for browser checks
         run: |
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-tracebuddy-timeouts > /dev/null
           for attempt in 1 2 3; do
-            timeout 300 npx playwright install --with-deps webkit && exit 0
-            echo "WebKit install attempt $attempt failed or timed out; retrying"
-            sleep 10
+            timeout -k 15 360 npx playwright install --with-deps webkit && exit 0
+            echo "WebKit install attempt $attempt failed or timed out; clearing apt and retrying"
+            sudo pkill -f '^apt-get' || true
+            while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1; do sleep 2; done
+            sudo dpkg --configure -a || true
+            sleep 5
           done
           exit 1
       - run: npm run check
