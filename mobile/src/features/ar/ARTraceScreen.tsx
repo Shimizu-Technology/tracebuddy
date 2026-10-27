@@ -30,6 +30,7 @@ import {
   initialARNativeState,
   isCurrentAREvent,
   currentARGuide,
+  arGuideGenerationKey,
   normalizeARNativeState,
 } from './arTraceState'
 import { prepareARGuide } from './arGuideCapture'
@@ -160,7 +161,7 @@ function ARTraceSession(props: Props) {
   const captureTarget = useRef<View>(null)
   const page = arPagePresets[pagePreset]
   const setupReady = Object.values(setupChecks).every(Boolean)
-  const guideKey = JSON.stringify([selectedDrawing.id, selectedDrawing.svg, uploadedImage?.uri, pagePreset])
+  const guideKey = arGuideGenerationKey(selectedDrawing, uploadedImage?.uri, pagePreset, captureAttempt)
   const guideUri = currentARGuide(guideCapture, guideKey)
   const expectedGuide = useRef({ key: guideKey, uri: guideUri })
   useLayoutEffect(() => { expectedGuide.current = { key: guideKey, uri: guideUri } }, [guideKey, guideUri])
@@ -291,7 +292,7 @@ function ARTraceSession(props: Props) {
   return (
     <View style={styles.shell}>
       <StatusBar style="light" hidden={childModeActive} />
-      <GuideTexture key={`${guideKey}:${captureAttempt}`} captureTarget={captureTarget} pagePreset={pagePreset} selectedDrawing={selectedDrawing} uploadedImage={uploadedImage} onReady={handleCaptureReady} onError={() => { if (expectedGuide.current.key === guideKey) setCaptureErrorKey(guideKey) }} />
+      <GuideTexture key={guideKey} captureTarget={captureTarget} pagePreset={pagePreset} selectedDrawing={selectedDrawing} uploadedImage={uploadedImage} onReady={handleCaptureReady} onError={() => { if (expectedGuide.current.key === guideKey) setCaptureErrorKey(guideKey) }} />
       {guideUri ? (
         <TraceBuddyARView
           key={guideUri}
@@ -351,7 +352,7 @@ function ARTraceSession(props: Props) {
               </View>
               {placementMode === 'marker' ? <Pressable style={styles.markerButton} onPress={() => { void printMarker() }} accessibilityRole="button"><Text style={styles.markerButtonText}>Print the 50 mm Paper Lock marker</Text></Pressable> : <Text style={styles.modeNote}>Surface Lock stays on the table and cannot detect a covered or moved page. Stay with your child; stop if the page is hidden, and reset if it moves.</Text>}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow} accessibilityLabel="Paper size">
-                {(Object.keys(arPagePresets) as ARPagePreset[]).map((preset) => <ARControlButton key={preset} label={arPagePresets[preset].label} selected={pagePreset === preset} onPress={() => { if (preset === pagePreset) return; const nextPage = arPagePresets[preset]; resetPlacement(); setGuideCapture(null); expectedGuide.current.uri = null; setPagePreset(preset); if (placementMode === 'marker') { setOffsetX(nextPage.widthMeters / 2 + 0.04); setOffsetY(nextPage.heightMeters / 2 - 0.025) } }} />)}
+                {(Object.keys(arPagePresets) as ARPagePreset[]).map((preset) => <ARControlButton key={preset} label={arPagePresets[preset].label} selected={pagePreset === preset} onPress={() => { if (preset === pagePreset) return; const nextPage = arPagePresets[preset]; resetPlacement(); setGuideCapture(null); setCaptureReadyKey(null); setCaptureErrorKey(null); setCaptureAttempt((value) => value + 1); expectedGuide.current.uri = null; setPagePreset(preset); if (placementMode === 'marker') { setOffsetX(nextPage.widthMeters / 2 + 0.04); setOffsetY(nextPage.heightMeters / 2 - 0.025) } }} />)}
               </ScrollView>
               <View style={styles.adjustGrid}>
                 <View style={styles.adjustGroup}><Text style={styles.adjustLabel}>Opacity · {Math.round(opacity * 100)}%</Text><View style={styles.segmentRow}><ARControlButton label="Less opacity" onPress={() => setOpacity((value) => clampARValue(value - 0.08, 0.12, 1))} /><ARControlButton label="More opacity" onPress={() => setOpacity((value) => clampARValue(value + 0.08, 0.12, 1))} /></View></View>

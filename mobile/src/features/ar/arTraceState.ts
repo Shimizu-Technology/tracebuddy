@@ -152,3 +152,7 @@ export type ARGuideCapture = { key: string; uri: string }
 export function currentARGuide(capture: ARGuideCapture | null, key: string) {
   return capture?.key === key ? capture.uri : null
 }
+
+export function arGuideGenerationKey(drawing: { id: string; svg: string }, uploadUri: string | undefined, preset: ARPagePreset, generation: number) {
+  return JSON.stringify([drawing.id, drawing.svg, uploadUri, preset, generation])
+}

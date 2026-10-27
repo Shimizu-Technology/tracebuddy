@@ -13,6 +13,7 @@ import {
   initialARNativeState,
   isCurrentAREvent,
   currentARGuide,
+  arGuideGenerationKey,
   normalizeARNativeState,
 } from '../mobile/src/features/ar/arTraceState'
 import { prepareARGuide } from '../mobile/src/features/ar/arGuideCapture'
@@ -124,6 +125,10 @@ for (const mode of ['surface', 'marker'] as const) {
     assert.equal(isCurrentAREvent(normalizeARNativeState({ ...old, resetRevision: undefined }), 0, 'portrait.png'), false)
   }
 }
+const firstPortrait = arGuideGenerationKey({ id: 'drawing', svg: '<svg/>' }, undefined, 'letterPortrait', 1)
+const returnedPortrait = arGuideGenerationKey({ id: 'drawing', svg: '<svg/>' }, undefined, 'letterPortrait', 3)
+assert.notEqual(firstPortrait, returnedPortrait) // portrait → landscape → portrait
+assert.equal(currentARGuide({ key: firstPortrait, uri: 'portrait.png' }, returnedPortrait), null)
 const portrait = { key: 'drawing:portrait', uri: 'portrait.png' }
 assert.equal(currentARGuide(portrait, 'drawing:landscape'), null)
 assert.equal(currentARGuide(portrait, 'differentDrawing:portrait'), null)

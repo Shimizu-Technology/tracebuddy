@@ -273,6 +273,7 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
   }
 
   private func resetSession(resetTracking: Bool) {
+    cancelFreshnessDeadline()
     cancelTrackingLoss()
     guideRoot.transform = .identity
     guideRoot.isEnabled = false
