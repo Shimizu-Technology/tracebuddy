@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { browserLifecycle } from './browser-lifecycle.mjs'
 import { join } from 'node:path'
 import { launchBrowser, closeBrowser, findChromeExecutable } from './browser-utils.mjs'
 
@@ -20,9 +20,7 @@ const browser = webkit ? await (async () => {
   return webkit.connect(server.wsEndpoint())
 })() : await launchBrowser({ executablePath: findChromeExecutable(), headless: true, protocolTimeout: 30_000, args: ['--no-sandbox'] })
 const pid = webkit ? server.process().pid : browser.process().pid
-const lifecycle = (action) => {
-  if (webkit && process.env.DEV_LIFECYCLE_SESSION) execFileSync('dev-lifecycle', [action, '--session', process.env.DEV_LIFECYCLE_SESSION, ...(action === 'claim' ? ['--owner', process.env.DEV_LIFECYCLE_OWNER || 'tracebuddy-w5', 'process', String(pid)] : ['process', String(pid)])])
-}
+const lifecycle = (action) => { if (webkit) browserLifecycle(action, pid) }
 lifecycle('claim')
 const pause = (ms = 80) => new Promise((resolve) => setTimeout(resolve, ms))
 const click = async (page, selector) => { await page.$eval(selector, (el) => el.click()); await pause() }

@@ -227,6 +227,7 @@ const uploadedImageDbName = 'tracebuddy-uploaded-images'
 const uploadedImageStoreName = 'uploaded-images'
 const activeUploadedImageIds = new Set<string>()
 const activePracticeKey = 'tracebuddy.practice.active.v1'
+const pendingPracticePrefix = 'tracebuddy.work.pending.v1.'
 const clearGenerationKey = 'tracebuddy.work.clearGeneration.v1'
 class StaleDrawingError extends Error {}
 // Web Locks serializes the revision check AND write across tabs, including Clear.
@@ -728,8 +729,23 @@ async function hydrateUploadedImageSession(session: SavedPracticeSession) {
   }
 }
 
+function recoverPendingPracticeSaves() {
+  const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i)).filter((key): key is string => Boolean(key?.startsWith(pendingPracticePrefix)))
+  keys.forEach((key) => {
+    try {
+      const journal = JSON.parse(window.localStorage.getItem(key) ?? 'null') as { session?: unknown; revision?: unknown; generation?: unknown } | null
+      const session = normalizeSavedPracticeSession(journal?.session)
+      if (session && journal?.generation === workGeneration() && (journal.revision === null || Number.isSafeInteger(journal.revision)) && storedRevision(session.sessionId) === journal.revision) {
+        writePreviousWorkSession({ ...session, revision: (journal.revision as number | null ?? 0) + 1, clearGeneration: journal.generation })
+        window.localStorage.setItem(activePracticeKey, session.sessionId)
+      }
+      window.localStorage.removeItem(key)
+    } catch { /* Retain a valid journal if quota/storage prevents recovery. */ }
+  })
+}
+
 async function loadPreviousWorkSessions(isCurrentRequest: () => boolean) {
-  await withWorkLock(migrateLegacyPracticeAutosaves)
+  await withWorkLock(() => { migrateLegacyPracticeAutosaves(); recoverPendingPracticeSaves() })
   const ids = await withWorkLock(() => {
     try {
       return readPreviousWorkIds()
@@ -779,8 +795,10 @@ function writePreviousWorkSession(session: SavedPracticeSession) {
   const currentIds = readPreviousWorkIds()
   const ids = [session.sessionId, ...currentIds.filter((id) => id !== session.sessionId)]
   const serializedSession = { ...session, source: serializePracticeSource(session.source) }
-  window.localStorage.setItem(previousWorkSessionKey(session.sessionId), JSON.stringify(serializedSession))
+  // A failed payload write may leave a harmless missing index entry. Never
+  // replace the drawing first and then report failure with an old revision.
   window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
+  window.localStorage.setItem(previousWorkSessionKey(session.sessionId), JSON.stringify(serializedSession))
 }
 
 async function savePreviousWorkSession(session: SavedPracticeSession, expectedRevision: number | null, generation: string, isCurrent: () => boolean = () => true) {
@@ -821,6 +839,7 @@ async function deleteAllPreviousWorkSessions() {
     .filter((key): key is string => Boolean(key?.startsWith(previousWorkSessionPrefix)))
   ownedSessionKeys.forEach((key) => window.localStorage.removeItem(key))
   window.localStorage.removeItem(previousWorkIndexKey)
+  Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i)).filter((key): key is string => Boolean(key?.startsWith(pendingPracticePrefix))).forEach((key) => window.localStorage.removeItem(key))
 
   const legacyKeys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
     .filter((key): key is string => Boolean(key?.startsWith(legacyPracticeAutosavePrefix)))
@@ -1499,8 +1518,9 @@ function App() {
           // Hydration may finish after a newer drawing has already autosaved.
           // Keep those newer in-memory records in the gallery as well.
           setPreviousWorkSessions((current) => [...current, ...sessions.filter((session) => !current.some((saved) => saved.sessionId === session.sessionId))])
-          if (initialPracticeRequest && isCurrentRequest()) {
-            const active = sessions.find((session) => session.sessionId === initialPracticeRequest)
+          const restoreId = initialPracticeRequest ?? (modeRef.current === 'practice' ? readLocalValue(activePracticeKey) : null)
+          if (restoreId && isCurrentRequest()) {
+            const active = sessions.find((session) => session.sessionId === restoreId)
             if (active) await restorePracticeOnLoad(active, isCurrentRequest)
           }
           void cleanupOrphanedUploadedImageRecords()
@@ -2123,6 +2143,7 @@ function App() {
       if (!ready || !isCurrentRequest() || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       setActivePracticeSession(null)
       setPracticeActivityId(session.activityId)
+      if (session.activityId) setSelectedActivityId(session.activityId)
       setMode('practice')
       window.scrollTo({ top: 0, behavior: 'instant' })
     })
@@ -2410,6 +2431,7 @@ function App() {
           void deleteUploadedImageRecordIfUnused(abandonedImageId)
         }
         setActivePracticeSession(null)
+        setPracticeActivityId(undefined)
         resetPaperDetection()
         setTransform(defaultTransform)
         setTraceSurface(targetMode === 'practice' ? 'screen' : 'camera')
@@ -3891,6 +3913,7 @@ function PracticeScreen({
   const saveRequestRef = useRef(0)
   const commitQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const strokesRef = useRef(strokes)
+  const journalKeyRef = useRef(`${pendingPracticePrefix}${createPracticeSessionId()}`)
   const clearGenerationRef = useRef(workGeneration())
   const revisionRef = useRef<number | null>(initialSession ? initialSession.revision ?? 0 : null)
   const conflictRef = useRef(false)
@@ -4068,6 +4091,20 @@ function PracticeScreen({
       return true
     }
 
+    // pagehide cannot await a queued Web Lock. A tab-private journal is written
+    // synchronously before this async function yields. Recovery checks both
+    // generation and base revision under the lock; it never merges stale ink.
+    if (skipUploadedImageFlush) {
+      try {
+        if (workGeneration() !== clearGenerationRef.current || storedRevision(nextSessionId) !== revisionRef.current) throw new StaleDrawingError()
+        window.localStorage.setItem(journalKeyRef.current, JSON.stringify({ session: savedSession, revision: revisionRef.current, generation: clearGenerationRef.current }))
+      } catch (error) {
+        if (error instanceof StaleDrawingError) { conflictRef.current = true; setSaveStatus('conflict') }
+        else setSaveStatus('error')
+        return false
+      }
+    }
+
     try {
       if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
       const commit = commitQueueRef.current.catch(() => undefined).then(async () => {
@@ -4078,6 +4115,7 @@ function PracticeScreen({
       commitQueueRef.current = commit
       const committed = await commit
       if (!committed) return false
+      window.localStorage.removeItem(journalKeyRef.current)
       window.localStorage.setItem(activePracticeKey, savedSession.sessionId)
       persistedSessionRef.current = true
       lastSavedSignatureRef.current = nextSignature
@@ -4108,8 +4146,11 @@ function PracticeScreen({
 
   useEffect(() => {
     const flushPendingSave = () => { void savePracticeSessionNow(true) }
+    const onVisibilityChange = () => { if (document.visibilityState === 'hidden') void savePracticeSessionNow() }
     window.addEventListener('pagehide', flushPendingSave)
-    return () => window.removeEventListener('pagehide', flushPendingSave)
+    window.addEventListener('beforeunload', flushPendingSave)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => { window.removeEventListener('pagehide', flushPendingSave); window.removeEventListener('beforeunload', flushPendingSave); document.removeEventListener('visibilitychange', onVisibilityChange) }
   }, [savePracticeSessionNow])
 
   useEffect(() => {
@@ -4403,6 +4444,7 @@ function PracticeScreen({
   }
 
   const clearPractice = async () => {
+    if (conflictRef.current) return
     const deletedSessionId = persistedSessionRef.current ? sessionIdRef.current : null
     autosaveReadyRef.current = false
     saveGenerationRef.current += 1
@@ -4438,6 +4480,7 @@ function PracticeScreen({
     sessionIdRef.current = createPracticeSessionId()
     revisionRef.current = null
     clearGenerationRef.current = workGeneration()
+    conflictRef.current = false
     sessionCreatedAtRef.current = new Date().toISOString()
     lastSavedSignatureRef.current = ''
     autosaveReadyRef.current = true
@@ -4448,6 +4491,7 @@ function PracticeScreen({
   }
 
   const confirmClearPractice = () => {
+    if (conflictRef.current) return
     if (strokes.length === 0 && !activePath) return
     if (window.confirm('Clear all coloring saved in this work?')) void clearPractice()
   }
@@ -4634,7 +4678,7 @@ function PracticeScreen({
             <span>{viewportLocked ? 'Draw' : 'Move page'}</span>
             <small>{viewportLocked ? 'Tap to move page' : 'Tap to draw'}</small>
           </button>
-          <button className="secondary-button compact" type="button" onClick={confirmClearPractice} disabled={strokes.length === 0 && !activePath}>Clear all</button>
+          <button className="secondary-button compact" type="button" onClick={confirmClearPractice} disabled={saveStatus === 'conflict' || (strokes.length === 0 && !activePath)}>Clear all</button>
           <div className="practice-toolbar-more-content">
             <div className="studio-tool-group guide-tool" aria-label="Guide visibility" role="group">
               <span>Guide {Math.round(guideOpacity * 100)}%</span>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { browserLifecycle } from './browser-lifecycle.mjs'
 import { chromium, webkit } from 'playwright'
 
 // Reuses audit2/tools/{common,retests,cleanup-resume,extra,matrix}.mjs methods:
@@ -10,9 +10,7 @@ const output = process.env.CHECK_EVIDENCE
 const url = process.env.CHECK_URL || 'http://127.0.0.1:4173'
 const server = await ({ chromium, webkit }[engine]).launchServer({ headless: true, ...(engine === 'chromium' && process.env.CHECK_CHROME ? { executablePath: process.env.CHECK_CHROME } : {}) })
 const pid = server.process().pid
-const life = (action) => {
-  if (process.env.DEV_LIFECYCLE_SESSION) execFileSync('dev-lifecycle', [action, '--session', process.env.DEV_LIFECYCLE_SESSION, ...(action === 'claim' ? ['--owner', 'tracebuddy-w5'] : []), 'process', String(pid)])
-}
+const life = (action) => { browserLifecycle(action, pid) }
 life('claim')
 const browser = await ({ chromium, webkit }[engine]).connect(server.wsEndpoint())
 const results = [], errors = []
@@ -25,14 +23,14 @@ async function page(context, hash = 'practice') {
   await p.goto(`${url}/#${hash}`)
   return p
 }
-async function draw(p, offset = 0) {
+async function draw(p, offset = 0, settle = 750) {
   await p.locator('.practice-document').waitFor()
   const r = await p.locator('.practice-document').boundingBox()
   await p.mouse.move(r.x + r.width * .3, r.y + r.height * (.4 + offset))
   await p.mouse.down()
   await p.mouse.move(r.x + r.width * .65, r.y + r.height * (.45 + offset), { steps: 6 })
   await p.mouse.up()
-  await pause(750)
+  await pause(settle)
 }
 async function button(p, name, scope = p) { await scope.getByRole('button', { name, exact: true }).filter({ visible: true }).first().click(); await pause() }
 async function pictures(p) {
@@ -72,6 +70,9 @@ try {
     await b.getByText('This drawing changed in another tab.', { exact: false }).waitFor()
     await draw(b, .22)
     assert.equal((await work(a))[0].strokes.length, 2)
+    await b.locator('.practice-toolbar-more > summary').click()
+    assert.equal(await b.getByRole('button', { name: 'Clear all', exact: true }).isDisabled(), true)
+    await b.locator('.practice-toolbar-more > summary').click()
     await shot(b, 'B01-stale')
     await button(b, 'Reload'); await b.locator('.practice-document').waitFor(); await pause(250)
     assert.equal(await b.locator('.practice-ink > g > path').count(), 2)
@@ -91,6 +92,32 @@ try {
     assert.equal(sessions.length, 1); assert.equal(sessions[0].strokes.length, 2)
     assert.equal(await a.locator('text=This drawing changed in another tab.').count() + await b.locator('text=This drawing changed in another tab.').count(), 1)
     return 'Atomic revision check permits one winner; the other editor stops without merging eraser histories.'
+  })
+  await test('B01 close with a held lock recovers journal; clear rejects old journal', async (c) => {
+    const a = await page(c); await draw(a)
+    const blocker = await page(c, 'home')
+    await blocker.evaluate(() => new Promise((started) => { navigator.locks.request('tracebuddy.local-work', () => new Promise((release) => { window.__releaseWorkLock = release; started() })) }))
+    await draw(a, .2, 0)
+    await a.close({ runBeforeUnload: true })
+    await blocker.waitForFunction(() => Object.keys(localStorage).filter((key) => key.startsWith('tracebuddy.work.pending.v1.')).length === 1)
+    const journal = await blocker.evaluate(() => { const key = Object.keys(localStorage).find((key) => key.startsWith('tracebuddy.work.pending.v1.')); return { key, value: localStorage.getItem(key) } })
+    await blocker.evaluate(() => window.__releaseWorkLock())
+    const restored = await page(c); await restored.locator('.practice-document').waitFor(); await pause(250)
+    assert.equal(await restored.locator('.practice-ink > g > path').count(), 2)
+    assert.equal((await work(restored))[0].strokes.length, 2)
+    await pictures(restored); restored.once('dialog', (d) => d.accept()); await button(restored, 'Clear local work'); await pause(200)
+    await restored.evaluate(({ key, value }) => localStorage.setItem(key, value), journal)
+    await restored.reload(); await pause(300); assert.equal((await work(restored)).length, 0)
+    assert.equal(await restored.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('tracebuddy.work.pending.v1.')).length), 0)
+    const first = await page(c)
+    await blocker.evaluate(() => new Promise((started) => { navigator.locks.request('tracebuddy.local-work', () => new Promise((release) => { window.__releaseWorkLock = release; started() })) }))
+    await draw(first, .1, 0); await first.close({ runBeforeUnload: true })
+    await blocker.waitForFunction(() => Object.keys(localStorage).some((key) => key.startsWith('tracebuddy.work.pending.v1.')))
+    await blocker.evaluate(() => window.__releaseWorkLock())
+    const firstRestored = await page(c); await firstRestored.locator('.practice-document').waitFor(); await pause(300)
+    assert.equal(await firstRestored.locator('.practice-ink > g > path').count(), 1)
+    assert.equal((await work(firstRestored)).length, 1)
+    return 'Synchronous pagehide journals recover both an existing history and the first stroke of a new work; old-generation recovery cannot undo Clear.'
   })
   await test('B02 immutable cleanup on Resume, reload, Copy and Fresh', async (c) => {
     const p = await page(c, 'pictures')
@@ -144,7 +171,16 @@ try {
     await p.locator('.practice-document').waitFor()
     await p.locator('.practice-toolbar-more > summary').click(); await button(p, 'Return to activity')
     await p.locator('.family-feature h2').filter({ hasText: 'Mirror My Marks' }).waitFor()
-    return 'Selection and activityId retained, including Return to activity after Resume.'
+    await p.locator('[data-family-activity-id]').first().click()
+    await pictures(p); await button(p, 'Fresh', p.locator('.previous-work-card').first())
+    await p.locator('.practice-document').waitFor(); await p.locator('.practice-toolbar-more > summary').click(); await button(p, 'Return to activity')
+    await p.locator('.family-feature h2').filter({ hasText: 'Mirror My Marks' }).waitFor()
+    await button(p, 'Practice together'); await p.locator('.practice-document').waitFor(); await p.locator('.practice-toolbar-more > summary').click()
+    await p.locator('.practice-toolbar-more input[type=file]').setInputFiles(new URL('./fixtures/cleanup-photo.svg', import.meta.url).pathname)
+    await p.locator('.practice-header h1').filter({ hasText: 'cleanup-photo.svg' }).waitFor(); await draw(p)
+    assert.equal((await work(p)).find((s) => s.source.kind === 'upload').activityId, undefined)
+    assert.equal(await p.getByRole('button', { name: 'Return to activity', exact: true }).count(), 0)
+    return 'Resume and Fresh restore activity selection; a replacement upload clears inherited activity context.'
   })
   for (const [name, width, height] of [['phone',390,844],['small-phone',360,740],['ipad-portrait',820,1180],['ipad-landscape',1180,820],['desktop',1440,900]]) {
     await test(`B03 B04 B07 ${name} text200 reduced`, async (c) => {
