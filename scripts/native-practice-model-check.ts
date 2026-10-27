@@ -107,4 +107,4 @@ for (const width of [0.01, 80, 176, 35_200, 80_000]) {
 for (const width of [NaN, Infinity, -1, 0]) assert.equal(normalizeSavedPracticeStroke({ path: 'M 0 0', width }), null)
 assert.equal(practiceStrokeWidth(maxPracticeStrokeWidth * 2), maxPracticeStrokeWidth)
 assert.equal(normalizeSavedPracticeStroke({ path: 'M 0 0', width: maxPracticeStrokeWidth * 2 })?.width, maxPracticeStrokeWidth)
-console.log(`Native Previous Work widths passed: ${widthRoundTrips} brush/size/canvas/zoom round trips and preserved erased region`)
+console.log(`Native Previous Work widths passed: ${widthRoundTrips} brush/size/canvas/zoom round trips and persisted eraser widths only (no render or native mask coverage)`)

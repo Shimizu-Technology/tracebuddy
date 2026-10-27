@@ -78,7 +78,8 @@ export function evaluateAudit(report, allowlist, { project, today = new Date().t
     for (const via of vulnerability.via) {
       if (typeof via === 'string' || !failing.has(via.severity)) continue
       const id = via.url.split('/').pop()
-      const entry = allowlist.find((item) => item.advisory === id && item.package === name)
+      const matches = allowlist.filter((item) => item.advisory === id && item.package === name)
+      const entry = matches.find((item) => item.project === project) ?? matches[0]
       if (!entry) {
         problems.push(`${name}: ${via.title} (${via.url})`)
       } else if (entry.project !== project || vulnerability.isDirect !== entry.isDirect

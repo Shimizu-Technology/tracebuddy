@@ -1,6 +1,10 @@
 export type NativeScreen = 'picker' | 'together' | 'learn' | 'trace' | 'ar' | 'practice'
 export type Point = { x: number; y: number }
 export type Viewport = Point & { scale: number }
+export function strokePointAction(active: boolean, point: Point | null) {
+  if (!point) return active ? 'finish' : 'ignore'
+  return active ? 'append' : 'start'
+}
 export type NavigationState = { current: NativeScreen; history: NativeScreen[] }
 
 /** Returning to an existing screen unwinds it rather than creating a back loop. */

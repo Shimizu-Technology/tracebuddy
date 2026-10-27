@@ -34,11 +34,16 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg'
 import { captureRef, releaseCapture } from 'react-native-view-shot'
 
-import { documentFrame, documentPoint, goBack, navigate, normalizeResumeContext, ownedTouch, photoAccessAllowed } from './practiceModel'
+import { documentFrame, documentPoint, goBack, navigate, normalizeResumeContext, ownedTouch, photoAccessAllowed, strokePointAction } from './practiceModel'
 import type { NavigationState } from './practiceModel'
 
 import { brushSizes, brushTools, documentStrokeWidth, makePracticeSessionTitle, normalizePracticeSource, normalizeSavedPracticeSession, normalizeSavedPracticeStroke, practiceStrokeWidth } from './practiceStorageModel'
 import type { BrushToolId, PracticeSource, PracticeSticker, PracticeStroke, SavedPracticeSession, UploadedImage } from './practiceStorageModel'
+
+import { createOperationQueue, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from './practiceOperations'
+import type { OperationGuard } from './practiceOperations'
+
+import { createPracticePreviewCache } from './practicePreviewCache'
 
 import { saveTemporaryCapture } from './captureUtils'
 import { isDismissedPrintSheet } from './printUtils'
@@ -390,7 +395,7 @@ async function migrateLegacyPracticeAutosaves(legacyCanvasSize: { width: number;
       const migratedSession = rawSession ? normalizeLegacyPracticeAutosave(JSON.parse(rawSession), key, legacyCanvasSize) : null
       if (!migratedSession || !isCurrent()) continue
 
-      await savePreviousWorkSession(migratedSession)
+      await savePreviousWorkSession(migratedSession, isCurrent)
       if (isCurrent()) await AsyncStorage.removeItem(key)
     } catch {
       // Leave the legacy autosave in place if migration cannot complete.
@@ -429,7 +434,7 @@ async function recoverPreviousWorkIdsFromSessions() {
 async function loadPreviousWorkSessions(isCurrent: () => boolean = () => true) {
   const ids = await readPreviousWorkIds().catch(async () => {
     const recoveredIds = await recoverPreviousWorkIdsFromSessions()
-    if (isCurrent()) await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds })).catch(() => undefined)
+    await queuePreviousWorkWrite(() => writeIfCurrent(isCurrent, () => AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds })))).catch(() => undefined)
     return recoveredIds
   })
   if (ids.length === 0) return []
@@ -449,7 +454,7 @@ async function loadPreviousWorkSessions(isCurrent: () => boolean = () => true) {
 
   const validIds = sessions.map((session) => session.sessionId)
   if (isCurrent() && (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index]))) {
-    await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: validIds })).catch(() => undefined)
+    await queuePreviousWorkWrite(() => writeIfCurrent(isCurrent, () => AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: validIds })))).catch(() => undefined)
   }
 
   return sessions
@@ -460,30 +465,20 @@ async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { w
   return loadPreviousWorkSessions(isCurrent)
 }
 
-let previousWorkWriteQueue = Promise.resolve()
-let drawingPreferencesWriteQueue = Promise.resolve()
+const practicePreviewCache = createPracticePreviewCache()
 
-function queuePreviousWorkWrite<T>(operation: () => Promise<T>) {
-  const result = previousWorkWriteQueue.then(operation, operation)
-  previousWorkWriteQueue = result.then(() => undefined, () => undefined)
-  return result
+const queuePreviousWorkWrite = createOperationQueue()
+const queueDrawingPreferencesOperation = createOperationQueue()
+
+function queueDrawingPreferencesWrite(operation: () => Promise<unknown>, isCurrent: OperationGuard) {
+  return queueDrawingPreferencesOperation(() => writeIfCurrent(isCurrent, operation))
 }
 
-function queueDrawingPreferencesWrite<T>(operation: () => Promise<T>) {
-  const result = drawingPreferencesWriteQueue.then(operation, operation)
-  drawingPreferencesWriteQueue = result.then(() => undefined, () => undefined)
-  return result
-}
-
-async function savePreviousWorkSession(session: SavedPracticeSession) {
-  return queuePreviousWorkWrite(async () => {
-    const currentIds = await readPreviousWorkIds()
-    const ids = [session.sessionId, ...currentIds.filter((id) => id !== session.sessionId)]
-    await AsyncStorage.multiSet([
-      [previousWorkSessionKey(session.sessionId), JSON.stringify(session)],
-      [previousWorkIndexKey, JSON.stringify({ version: 1, ids })],
-    ])
-  })
+async function savePreviousWorkSession(session: SavedPracticeSession, isCurrent: OperationGuard) {
+  return queueSessionWrite(queuePreviousWorkWrite, isCurrent, session.sessionId, readPreviousWorkIds, (ids) => AsyncStorage.multiSet([
+    [previousWorkSessionKey(session.sessionId), JSON.stringify(session)],
+    [previousWorkIndexKey, JSON.stringify({ version: 1, ids })],
+  ]))
 }
 
 function isStoredUploadedImageUri(uri?: string) {
@@ -577,8 +572,9 @@ async function cleanupOrphanedStoredImages(preserveUris: string[] = []) {
   })
 }
 
-async function deletePreviousWorkSession(sessionId: string, preserveUris: string[] = []) {
+async function deletePreviousWorkSession(sessionId: string, preserveUris: string[], isCurrent: OperationGuard) {
   return queuePreviousWorkWrite(async () => {
+    if (!isCurrent()) return { imageCleanupPending: false, pendingImageUris: [] }
     const currentIds = await readPreviousWorkIds()
     let sessionInspectionFailed = false
     const rawDeletedSession = await AsyncStorage.getItem(previousWorkSessionKey(sessionId)).catch(() => {
@@ -593,9 +589,10 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
         return null
       }
     })()
+    if (!isCurrent()) return { imageCleanupPending: false, pendingImageUris: [] }
     const ids = currentIds.filter((id) => id !== sessionId)
     await AsyncStorage.multiRemove([previousWorkSessionKey(sessionId)])
-    await AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
+    await writeIfCurrent(isCurrent, () => AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids })))
     const preservedUris = new Set(preserveUris.filter(isStoredUploadedImageUri))
     const pendingImageUris = storedUploadedImageUrisFromSession(deletedSession).filter((uri) => !preservedUris.has(uri))
     preservedUris.forEach((uri) => activeStoredImageUris.add(uri))
@@ -611,10 +608,11 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
 
 async function deleteAllPreviousWorkSessions() {
   return queuePreviousWorkWrite(async () => {
-    await queueDrawingPreferencesWrite(() => AsyncStorage.multiRemove([resumeContextKey, drawingPreferencesKey, learningProgressKey, parentSetupSeenKey, savedAlignmentKey]))
+    await queueDrawingPreferencesOperation(() => AsyncStorage.multiRemove([resumeContextKey, drawingPreferencesKey, learningProgressKey, parentSetupSeenKey, savedAlignmentKey]))
     const keys = await AsyncStorage.getAllKeys()
     const traceBuddyKeys = keys.filter((key) => key === resumeContextKey || key === drawingPreferencesKey || key === learningProgressKey || key === parentSetupSeenKey || key === savedAlignmentKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
+    practicePreviewCache.clear()
     activeStoredImageUris.clear()
     try {
       if (uploadedWorkDirectory) await FileSystem.deleteAsync(uploadedWorkDirectory, { idempotent: true })
@@ -729,6 +727,13 @@ function TraceBuddyMobile() {
   const parentSetupSeenRef = useRef(false)
   const drawingPreferencesClearInProgressRef = useRef(false)
   const previousWorkOperationGenerationRef = useRef(0)
+  const [workOperationGeneration, setWorkOperationGeneration] = useState(0)
+  const resumePersistenceEnabledRef = useRef(true)
+  const isWorkOperationCurrent = useCallback((generation: number) => generation === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current, [])
+  const captureWorkOperation = useCallback(() => {
+    const allowed = !drawingPreferencesClearInProgressRef.current
+    return operationGuard(previousWorkOperationGenerationRef.current, () => previousWorkOperationGenerationRef.current, () => allowed && !drawingPreferencesClearInProgressRef.current)
+  }, [])
   const worksheetActionInProgressRef = useRef(false)
   const legacyMigrationCanvasSizeRef = useRef({
     width: Math.max(1, width - 20),
@@ -806,11 +811,12 @@ function TraceBuddyMobile() {
 
   useEffect(() => {
     let cancelled = false
+    const isCurrent = captureWorkOperation()
     void Promise.all([
       AsyncStorage.getItem(parentSetupSeenKey),
       AsyncStorage.getItem(savedAlignmentKey),
     ]).then(([setupSeen, rawAlignment]) => {
-      if (cancelled) return
+      if (cancelled || !isCurrent()) return
       parentSetupSeenRef.current = setupSeen === '1'
       setSavedAlignment(normalizeTraceAlignment(rawAlignment ? JSON.parse(rawAlignment) : null))
     }).catch(() => undefined).finally(() => {
@@ -819,7 +825,7 @@ function TraceBuddyMobile() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [captureWorkOperation])
 
   useEffect(() => {
     let cancelled = false
@@ -845,10 +851,10 @@ function TraceBuddyMobile() {
     drawingPreferencesInteractionRef.current = true
     drawingPreferencesRef.current = normalizedPreferences
     setDrawingPreferences(normalizedPreferences)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(drawingPreferencesKey, JSON.stringify(normalizedPreferences)))
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(drawingPreferencesKey, JSON.stringify(normalizedPreferences)), captureWorkOperation())
       .then(() => setDrawingPreferencesMessage(''))
       .catch(() => setDrawingPreferencesMessage('Favorites and recent picks will last for this visit only.'))
-  }, [])
+  }, [captureWorkOperation])
 
   const saveLearningProgress = useCallback((nextProgress: LearningProgress) => {
     if (drawingPreferencesClearInProgressRef.current) return
@@ -856,10 +862,10 @@ function TraceBuddyMobile() {
     learningProgressInteractionRef.current = true
     learningProgressRef.current = normalizedProgress
     setLearningProgress(normalizedProgress)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(learningProgressKey, JSON.stringify(normalizedProgress)))
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(learningProgressKey, JSON.stringify(normalizedProgress)), captureWorkOperation())
       .then(() => setLearningProgressMessage(''))
       .catch(() => setLearningProgressMessage('Lesson progress will last for this visit only.'))
-  }, [])
+  }, [captureWorkOperation])
 
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
@@ -942,8 +948,8 @@ function TraceBuddyMobile() {
     parentSetupSeenRef.current = true
     setSetupCoachOpen(false)
     setCameraPromptAllowed(true)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(parentSetupSeenKey, '1')).catch(() => undefined)
-  }, [])
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(parentSetupSeenKey, '1'), captureWorkOperation()).catch(() => undefined)
+  }, [captureWorkOperation])
 
   const dismissParentSetup = useCallback(() => {
     setSetupCoachOpen(false)
@@ -954,9 +960,9 @@ function TraceBuddyMobile() {
     const alignment = normalizeTraceAlignment({ version: 1, ...transformRef.current })
     if (!alignment) return
     setSavedAlignment(alignment)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(savedAlignmentKey, JSON.stringify(alignment)))
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(savedAlignmentKey, JSON.stringify(alignment)), captureWorkOperation())
       .catch(() => Alert.alert('Alignment not saved', 'You can keep tracing with the current setup, but TraceBuddy could not remember it for next time.'))
-  }, [])
+  }, [captureWorkOperation])
 
   const restoreSavedAlignment = useCallback(() => {
     if (!savedAlignment) return
@@ -1172,46 +1178,48 @@ function TraceBuddyMobile() {
 
   useEffect(() => {
     let cancelled = false
+    const isCurrent = captureWorkOperation()
     void AsyncStorage.getItem(resumeContextKey).then(async (raw) => {
       const context = normalizeResumeContext(raw ? JSON.parse(raw) : null, guidedLessons.map((lesson) => lesson.id))
-      if (!context || cancelled) return
+      if (!context || cancelled || !isCurrent()) return
       setSelectedLesson(guidedLessons.find((lesson) => lesson.id === context.lessonId) ?? guidedLessons[0])
       if (context.mode === 'practice') {
-        const sessions = await loadPreviousWorkSessions(() => !cancelled)
+        const sessions = await loadPreviousWorkSessions(() => !cancelled && isCurrent())
         const saved = sessions.find((session) => session.sessionId === context.sessionId)
         const source = normalizePracticeSource(context.source)
         if (saved) {
           const ready = await preparePracticeSessionForOpen(saved)
-          if (!ready || cancelled) return
+          if (!ready || cancelled || !isCurrent()) return
           applyPracticeSource(ready.source)
           setActivePracticeSession(ready)
           resumeSessionIdRef.current = ready.sessionId
           latestPracticeSessionRef.current = ready
         } else if (source) {
           const ready = await preparePracticeSourceForOpen(source)
-          if (!ready || cancelled) return
+          if (!ready || cancelled || !isCurrent()) return
           applyPracticeSource(ready)
         } else return
-        if (!cancelled) {
+        if (!cancelled && isCurrent()) {
           navigationRef.current = { current: 'practice', history: context.history?.length ? context.history : ['picker'] }
           setMode('practice')
         }
-      } else if (!cancelled && ['learn', 'together'].includes(context.mode)) {
+      } else if (!cancelled && isCurrent() && ['learn', 'together'].includes(context.mode)) {
         navigationRef.current = { current: context.mode, history: context.history?.length ? context.history : ['picker'] }
         setMode(context.mode)
       }
     }).catch(() => undefined).finally(() => { if (!cancelled) setResumeHydrated(true) })
     return () => { cancelled = true }
-  }, [applyPracticeSource, preparePracticeSessionForOpen, preparePracticeSourceForOpen])
+  }, [applyPracticeSource, captureWorkOperation, preparePracticeSessionForOpen, preparePracticeSourceForOpen])
 
   useEffect(() => {
     resumeContextRef.current = { mode, lessonId: selectedLesson.id }
     activeSourceRef.current = makePracticeSource(selectedDrawing, uploadedImage)
-    if (!resumeHydrated) return
+    if (!resumeHydrated || !shouldPersistResume(resumePersistenceEnabledRef.current, mode, drawingPreferencesClearInProgressRef.current)) return
+    resumePersistenceEnabledRef.current = true
     resumeSessionIdRef.current = activePracticeSession?.sessionId ?? null
     const serialized = JSON.stringify({ mode, lessonId: selectedLesson.id, sessionId: mode === 'practice' ? resumeSessionIdRef.current : null, source: mode === 'practice' ? activeSourceRef.current : undefined, history: navigationRef.current.history })
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(resumeContextKey, serialized)).catch(() => undefined)
-  }, [activePracticeSession?.sessionId, mode, resumeHydrated, selectedDrawing, selectedLesson.id, uploadedImage])
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(resumeContextKey, serialized), captureWorkOperation()).catch(() => undefined)
+  }, [activePracticeSession?.sessionId, captureWorkOperation, mode, resumeHydrated, selectedDrawing, selectedLesson.id, uploadedImage])
 
   const openPreviousWorkSession = useCallback((session: SavedPracticeSession) => {
     if (drawingPreferencesClearInProgressRef.current) return
@@ -1251,7 +1259,7 @@ function TraceBuddyMobile() {
       stickers: session.stickers.map((sticker) => ({ ...sticker })),
     }
 
-    void savePreviousWorkSession(copiedSession)
+    void savePreviousWorkSession(copiedSession, () => isWorkOperationCurrent(operationGeneration))
       .then(() => {
         if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) {
           setPreviousWorkSessions((current) => [copiedSession, ...current.filter((item) => item.sessionId !== copiedSession.sessionId)])
@@ -1260,7 +1268,7 @@ function TraceBuddyMobile() {
       .catch(() => {
         if (operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) Alert.alert('Could not duplicate work', 'Try again in a moment.')
       })
-  }, [])
+  }, [isWorkOperationCurrent])
 
   const deletePreviousWork = useCallback((session: SavedPracticeSession) => {
     if (drawingPreferencesClearInProgressRef.current) return
@@ -1273,7 +1281,7 @@ function TraceBuddyMobile() {
         onPress: () => {
           if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
           const preservedGuideUris = [uploadedImage?.uri].filter((uri): uri is string => Boolean(uri))
-          void deletePreviousWorkSession(session.sessionId, preservedGuideUris)
+          void deletePreviousWorkSession(session.sessionId, preservedGuideUris, () => isWorkOperationCurrent(operationGeneration))
             .then(({ imageCleanupPending }) => {
               if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
               setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
@@ -1287,7 +1295,7 @@ function TraceBuddyMobile() {
         },
       },
     ])
-  }, [activePracticeSession?.sessionId, uploadedImage?.uri])
+  }, [activePracticeSession?.sessionId, isWorkOperationCurrent, uploadedImage?.uri])
 
   const deleteAllPreviousWork = useCallback(() => {
     Alert.alert('Clear all local work?', 'This removes every Previous Work session, favorite, recent pick, guided-lesson progress, and TraceBuddy image stored inside the app. Images already saved to Photos stay there.', [
@@ -1300,6 +1308,8 @@ function TraceBuddyMobile() {
           drawingPreferencesClearInProgressRef.current = true
           setDrawingPreferencesClearInProgress(true)
           previousWorkOperationGenerationRef.current += 1
+          setWorkOperationGeneration(previousWorkOperationGenerationRef.current)
+          resumePersistenceEnabledRef.current = false
           let clearFailed = false
           void deleteAllPreviousWorkSessions()
             .then(({ imageCleanupPending }) => {
@@ -1315,6 +1325,9 @@ function TraceBuddyMobile() {
               learningProgressRef.current = { ...emptyLearningProgress, stepByLessonId: {} }
               setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
               setLearningProgressMessage('')
+              setSelectedLesson(guidedLessons[0])
+              resumeSessionIdRef.current = null
+              navigationRef.current = { current: 'picker', history: [] }
               parentSetupSeenRef.current = false
               setCameraPromptAllowed(false)
               setSavedAlignment(null)
@@ -1336,13 +1349,15 @@ function TraceBuddyMobile() {
     ])
   }, [refreshPreviousWork])
 
-  const handlePracticeSessionSaved = useCallback((session: SavedPracticeSession) => {
+  const handlePracticeSessionSaved = useCallback((session: SavedPracticeSession, operationGeneration: number) => {
+    const isCurrent = () => isWorkOperationCurrent(operationGeneration)
+    if (!isCurrent()) return
     setPreviousWorkSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
     resumeSessionIdRef.current = session.sessionId
     latestPracticeSessionRef.current = session
     const serialized = JSON.stringify({ ...resumeContextRef.current, sessionId: session.sessionId, source: session.source, history: navigationRef.current.history })
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(resumeContextKey, serialized)).catch(() => undefined)
-  }, [])
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(resumeContextKey, serialized), isCurrent).catch(() => undefined)
+  }, [isWorkOperationCurrent])
 
   const handlePracticeSessionDeleted = useCallback((sessionId: string) => {
     latestPracticeSessionRef.current = null
@@ -1837,6 +1852,8 @@ function TraceBuddyMobile() {
         selectedDrawing={selectedDrawing}
         uploadedImage={uploadedImage}
         initialSession={activePracticeSession}
+        workOperationGeneration={workOperationGeneration}
+        isWorkOperationCurrent={isWorkOperationCurrent}
         onSessionSaved={handlePracticeSessionSaved}
         onSessionDeleted={handlePracticeSessionDeleted}
         onPicker={navigateBack}
@@ -2333,8 +2350,17 @@ function PreviousWorkSection({
       {sessions.length === 0 && (
         <Text style={styles.previousWorkEmpty}>No saved drawings yet. Clear local work can also remove favorites, recent picks, and stored TraceBuddy images.</Text>
       )}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previousWorkRail}>
-        {sessions.map((session) => (
+      <FlatList
+        horizontal
+        data={sessions}
+        keyExtractor={(session) => session.sessionId}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.previousWorkRail}
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        getItemLayout={(_, index) => ({ length: 220, offset: 220 * index, index })}
+        renderItem={({ item: session }) => (
           <View key={session.sessionId} style={styles.previousWorkCard}>
             <Pressable style={[styles.previousWorkPreview, disabled && styles.previousWorkActionDisabled]} disabled={disabled} onPress={() => onResume(session)} accessibilityRole="button" accessibilityState={{ disabled }} accessibilityLabel={`Resume ${session.title}`}>
               <View style={styles.previousWorkPreviewContent} pointerEvents="none">
@@ -2348,9 +2374,7 @@ function PreviousWorkSection({
                 {session.stickers.map((sticker) => (
                   <PracticeStickerView key={`${session.sessionId}-${sticker.stickerId}`} sticker={sticker} frameStyle={percentageStickerFrame(sticker)} />
                 ))}
-                <Svg pointerEvents="none" width="100%" height="100%" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" style={styles.previousWorkInk}>
-                  <PracticeInkHistory strokes={session.strokes} idPrefix={`preview-${session.sessionId}`} />
-                </Svg>
+                <PracticeInkThumbnail key={practicePreviewCache.key(session.sessionId, session.strokes)} session={session} />
               </View>
             </Pressable>
             <Text style={styles.previousWorkName} numberOfLines={1}>{session.title}</Text>
@@ -2372,11 +2396,40 @@ function PreviousWorkSection({
               </Pressable>
             </View>
           </View>
-        ))}
-      </ScrollView>
+        )}
+      />
     </View>
   )
 }
+
+// Virtualized cards flatten their full ink history once, then mount one small image.
+// Never truncate strokes: later erasers must still mask earlier marks.
+const PracticeInkThumbnail = memo(function PracticeInkThumbnail({ session }: { session: SavedPracticeSession }) {
+  const [uri, setUri] = useState(() => practicePreviewCache.get(session.sessionId, session.strokes))
+  const svgRef = useRef<Svg | null>(null)
+  const requestedRef = useRef(false)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+  const flatten = useCallback(() => {
+    if (requestedRef.current || !svgRef.current) return
+    requestedRef.current = true
+    svgRef.current.toDataURL((base64) => {
+      if (!mountedRef.current || !base64) return
+      const nextUri = `data:image/png;base64,${base64}`
+      practicePreviewCache.set(session.sessionId, session.strokes, nextUri)
+      setUri(nextUri)
+    }, { width: 256, height: 256 })
+  }, [session.sessionId, session.strokes])
+  if (uri) return <Image source={{ uri }} style={styles.previousWorkInk} resizeMode="contain" />
+  return (
+    <Svg ref={svgRef} onLayout={flatten} pointerEvents="none" width="100%" height="100%" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" style={styles.previousWorkInk}>
+      <PracticeInkHistory strokes={session.strokes} idPrefix={`preview-${session.sessionId}`} />
+    </Svg>
+  )
+})
 
 // The immutable history tree and its committed erase masks never depend on activePath.
 const PracticeInkHistory = memo(function PracticeInkHistory({ strokes, idPrefix }: { strokes: PracticeStroke[]; idPrefix: string }) {
@@ -2447,6 +2500,8 @@ function PracticeScreen({
   selectedDrawing,
   uploadedImage,
   initialSession,
+  workOperationGeneration,
+  isWorkOperationCurrent,
   onSessionSaved,
   onSessionDeleted,
   onPicker,
@@ -2459,7 +2514,9 @@ function PracticeScreen({
   selectedDrawing: Drawing
   uploadedImage: UploadedImage | null
   initialSession: SavedPracticeSession | null
-  onSessionSaved: (session: SavedPracticeSession) => void
+  workOperationGeneration: number
+  isWorkOperationCurrent: (generation: number) => boolean
+  onSessionSaved: (session: SavedPracticeSession, generation: number) => void
   onSessionDeleted: (sessionId: string) => void
   onPicker: () => void
   onCameraTrace: () => void
@@ -2503,6 +2560,11 @@ function PracticeScreen({
   const persistedSessionRef = useRef(Boolean(initialSession))
   const saveGenerationRef = useRef(0)
   const saveRequestRef = useRef(0)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
   const appStateRef = useRef(AppState.currentState)
   const pendingClearRef = useRef<{ sessionId: string; imageUris: string[] } | null>(null)
   const pendingImageCleanupUrisRef = useRef<string[]>([])
@@ -2656,14 +2718,17 @@ function PracticeScreen({
     const requestId = saveRequestRef.current + 1
     saveRequestRef.current = requestId
     const generation = saveGenerationRef.current
+    const isCurrent = () => mountedRef.current && isWorkOperationCurrent(workOperationGeneration) && generation === saveGenerationRef.current
+    if (!isCurrent()) return true
     setSaveStatus('saving')
     await retryPendingImageCleanup()
+    if (!isCurrent()) return true
     const pendingClear = pendingClearRef.current
     if (pendingClear) {
       pendingClearRef.current = null
       try {
         const preservedGuideUris = [practiceSource.uploadedImage?.uri].filter((uri): uri is string => Boolean(uri))
-        const { imageCleanupPending, pendingImageUris } = await deletePreviousWorkSession(pendingClear.sessionId, preservedGuideUris)
+        const { imageCleanupPending, pendingImageUris } = await deletePreviousWorkSession(pendingClear.sessionId, preservedGuideUris, isCurrent)
         savedStickerUrisRef.current = []
         let unsavedImageCleanupPending = false
         if (pendingClear.imageUris.length > 0) {
@@ -2675,12 +2740,13 @@ function PracticeScreen({
         }
         if (imageCleanupPending) rememberPendingImageCleanup(pendingImageUris)
         if (unsavedImageCleanupPending) rememberPendingImageCleanup(pendingClear.imageUris)
+        if (!isCurrent()) return true
         onSessionDeleted(pendingClear.sessionId)
         if (imageCleanupPending || unsavedImageCleanupPending) Alert.alert('Drawing cleared', 'The saved drawing was removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work in the picker to retry cleanup.')
-        if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
+        if (!isCurrent() || requestId !== saveRequestRef.current) return true
       } catch {
         if (!pendingClearRef.current) pendingClearRef.current = pendingClear
-        if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
+        if (isCurrent() && requestId === saveRequestRef.current) setSaveStatus('error')
         return false
       }
     }
@@ -2697,12 +2763,12 @@ function PracticeScreen({
       try {
         const deletedSessionId = sessionIdRef.current
         const preservedGuideUris = [practiceSource.uploadedImage?.uri].filter((uri): uri is string => Boolean(uri))
-        const { imageCleanupPending, pendingImageUris } = await deletePreviousWorkSession(deletedSessionId, preservedGuideUris)
+        const { imageCleanupPending, pendingImageUris } = await deletePreviousWorkSession(deletedSessionId, preservedGuideUris, isCurrent)
         if (imageCleanupPending) {
           rememberPendingImageCleanup(pendingImageUris)
           Alert.alert('Drawing cleared', 'The saved drawing was removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work in the picker to retry cleanup.')
         }
-        if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
+        if (!isCurrent() || requestId !== saveRequestRef.current) return true
         lastSavedSignatureRef.current = ''
         persistedSessionRef.current = false
         sessionIdRef.current = createPracticeSessionId()
@@ -2712,7 +2778,7 @@ function PracticeScreen({
         onSessionDeleted(deletedSessionId)
         return true
       } catch {
-        if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
+        if (isCurrent() && requestId === saveRequestRef.current) setSaveStatus('error')
         return false
       }
     }
@@ -2744,8 +2810,8 @@ function PracticeScreen({
     }
 
     try {
-      await savePreviousWorkSession(savedSession)
-      if (generation !== saveGenerationRef.current || requestId !== saveRequestRef.current) return true
+      await savePreviousWorkSession(savedSession, isCurrent)
+      if (!isCurrent() || requestId !== saveRequestRef.current) return true
       persistedSessionRef.current = true
       const nextStickerUris = storedUploadedImageUrisFromStickers(snapshotStickers)
       const removedStickerUris = savedStickerUrisRef.current.filter((uri) => !nextStickerUris.includes(uri))
@@ -2758,15 +2824,16 @@ function PracticeScreen({
           Alert.alert('Work saved', 'Your drawing was saved, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work in the picker to retry cleanup.')
         }
       }
+      if (!isCurrent()) return true
       lastSavedSignatureRef.current = nextSignature
       setSaveStatus('saved')
-      onSessionSaved(savedSession)
+      onSessionSaved(savedSession, workOperationGeneration)
       return true
     } catch {
-      if (generation === saveGenerationRef.current && requestId === saveRequestRef.current) setSaveStatus('error')
+      if (isCurrent() && requestId === saveRequestRef.current) setSaveStatus('error')
       return false
     }
-  }, [brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, materializeActivePracticeStroke, onSessionDeleted, onSessionSaved, practiceSource, rememberPendingImageCleanup, retryPendingImageCleanup, sessionTitle])
+  }, [isWorkOperationCurrent, workOperationGeneration, brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, materializeActivePracticeStroke, onSessionDeleted, onSessionSaved, practiceSource, rememberPendingImageCleanup, retryPendingImageCleanup, sessionTitle])
 
   const stickerRevision = useMemo(() => JSON.stringify(stickers), [stickers])
 
@@ -2925,7 +2992,10 @@ function PracticeScreen({
   }, [statsFromPoints])
 
   const finishPracticeStroke = useCallback(() => {
-    if (!drawingActiveRef.current) return
+    if (!drawingActiveRef.current) {
+      touchOwnerRef.current = null
+      return
+    }
 
     const completedStroke = materializeActivePracticeStroke()
     if (completedStroke) {
@@ -3036,12 +3106,28 @@ function PracticeScreen({
       return
     }
 
-    if (!drawingActiveRef.current) return
-
     const touch = ownedTouch(event.nativeEvent.touches, touchOwnerRef.current)
     if (!touch) return
     const point = pointFromLocation({ x: touch.locationX, y: touch.locationY })
+    const action = strokePointAction(drawingActiveRef.current, point)
+    if (action === 'finish') {
+      const owner = touchOwnerRef.current
+      finishPracticeStroke()
+      // Keep the same finger across the gap; other touches still cannot draw.
+      touchOwnerRef.current = owner
+      return
+    }
     if (!point) return
+    if (action === 'start') {
+      activePointsRef.current = [point]
+      activePathRef.current = `M ${point.x} ${point.y}`
+      activePointCountRef.current = 1
+      lastPointRef.current = point
+      drawingActiveRef.current = true
+      setActiveStrokeRender(activeStrokeStyleRef.current)
+      setActivePath(activePathRef.current)
+      return
+    }
     const lastPoint = lastPointRef.current
     const minPointDistance = clamp(activeStrokeStyleRef.current.width * 0.2, 1.25, 6)
     if (lastPoint && Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < minPointDistance) return
@@ -3051,7 +3137,7 @@ function PracticeScreen({
     activePointCountRef.current += 1
     lastPointRef.current = point
     scheduleActivePathUpdate()
-  }, [pointFromLocation, scheduleActivePathUpdate, setPracticeViewport, startViewportGesture, statsFromPoints, touchPointsFromEvent, viewportLocked])
+  }, [finishPracticeStroke, pointFromLocation, scheduleActivePathUpdate, setPracticeViewport, startViewportGesture, statsFromPoints, touchPointsFromEvent, viewportLocked])
 
   const finishPracticeGesture = useCallback((event: GestureResponderEvent) => {
     if (viewportLocked) {

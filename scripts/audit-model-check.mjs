@@ -28,6 +28,11 @@ assert.equal(evaluateAudit(vulnerable, allowlist, options).allowed.length, 1)
 assert.match(evaluateAudit(vulnerable, allowlist, { ...options, today: '2027-02-01' }).problems[0], /expired/)
 assert.equal(evaluateAudit(vulnerable, allowlist, { ...options, today: allowlist[0].reviewBy }).problems.length, 0)
 assert.match(evaluateAudit(vulnerable, allowlist, { ...options, project: '.' }).problems[0], /scope/)
+// The same advisory can be reviewed separately in each project, in either order.
+const rootEntry = { ...allowlist[0], project: '.' }
+for (const entries of [[rootEntry, ...allowlist], [...allowlist, rootEntry]]) {
+  for (const project of ['.', 'mobile']) assert.equal(evaluateAudit(vulnerable, entries, { ...options, project }).problems.length, 0)
+}
 for (const mutation of [
   (report) => { report.vulnerabilities.zod.isDirect = true },
   (report) => { report.vulnerabilities.zod.nodes.push('node_modules/runtime/node_modules/zod') },
@@ -92,6 +97,12 @@ try {
     assert.equal(result.status, expected, `${label}: ${result.stdout}\n${result.stderr}`)
     if (expected) assert.doesNotMatch(result.stdout, /No unreviewed/)
   }
+  const mobile = fileURLToPath(new URL('../mobile', import.meta.url))
+  const mobileResult = spawnSync(process.execPath, [script, mobile], {
+    encoding: 'utf8', env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, AUDIT_TEST_OUTPUT: JSON.stringify(vulnerable), AUDIT_TEST_STATUS: '1' },
+  })
+  assert.equal(mobileResult.status, 0, `allowlisted mobile: ${mobileResult.stdout}\n${mobileResult.stderr}`)
+  assert.match(mobileResult.stdout, /allowed GHSA-mrhx-c7xc-m3w5 in zod/)
 } finally {
   rmSync(bin, { recursive: true, force: true })
 }
