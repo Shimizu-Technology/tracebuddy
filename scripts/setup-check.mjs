@@ -1,5 +1,4 @@
-import puppeteer from 'puppeteer-core'
-import { clickByText, closeBrowser, findChromeExecutable, waitForSelector } from './browser-utils.mjs'
+import { launchBrowser, clickByText, closeBrowser, findChromeExecutable, waitForSelector } from './browser-utils.mjs'
 
 const url = process.env.CHECK_URL || 'http://127.0.0.1:5173'
 
@@ -7,7 +6,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
 
-const browser = await puppeteer.launch({
+const browser = await launchBrowser({
   executablePath: findChromeExecutable(),
   headless: true,
   args: ['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],

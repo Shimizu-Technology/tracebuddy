@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import puppeteer from 'puppeteer-core'
-import { clickByText, closeBrowser, findChromeExecutable, waitForSelector } from './browser-utils.mjs'
+import { launchBrowser, clickByText, closeBrowser, findChromeExecutable, waitForSelector } from './browser-utils.mjs'
 
 const url = process.env.CHECK_URL || 'http://127.0.0.1:5173'
 
@@ -21,7 +20,7 @@ async function waitForDownload(directory, suffix) {
 }
 
 const downloadDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'tracebuddy-family-check-'))
-const browser = await puppeteer.launch({ executablePath: findChromeExecutable(), headless: true, args: ['--no-sandbox'] })
+const browser = await launchBrowser({ executablePath: findChromeExecutable(), headless: true, args: ['--no-sandbox'] })
 const page = await browser.newPage()
 const pageErrors = []
 page.on('pageerror', (error) => pageErrors.push(error.message))

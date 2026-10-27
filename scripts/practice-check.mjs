@@ -2,14 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync, mkdirSync, mkdtempSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import puppeteer from 'puppeteer-core'
-import { closeBrowser, findChromeExecutable } from './browser-utils.mjs'
+import { launchBrowser, closeBrowser, findChromeExecutable } from './browser-utils.mjs'
 
 const url = process.env.CHECK_URL || 'http://127.0.0.1:4173'
 const output = process.env.PRACTICE_EVIDENCE || mkdtempSync(join(tmpdir(), 'tracebuddy-practice-'))
 mkdirSync(output, { recursive: true })
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/practice-legacy.json', import.meta.url), 'utf8'))
-const browser = await puppeteer.launch({ executablePath: findChromeExecutable(), headless: true, args: ['--no-sandbox'] })
+const browser = await launchBrowser({ executablePath: findChromeExecutable(), headless: true, args: ['--no-sandbox'] })
 const results = []
 const errors = []
 const pause = (ms = 100) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -84,7 +83,7 @@ try {
       const layout = await page.evaluate(() => {
         const canvas = document.querySelector('.practice-canvas').getBoundingClientRect()
         const tools = document.querySelector('.practice-toolbar-ribbon').getBoundingClientRect()
-        const targets = [...document.querySelectorAll('.practice-toolbar-ribbon button')].map((el) => ({ name: el.getAttribute('aria-label') || el.textContent.trim(), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height }))
+        const targets = [...document.querySelectorAll('.practice-toolbar-ribbon button')].filter((el) => el.getBoundingClientRect().width > 0).map((el) => ({ name: el.getAttribute('aria-label') || el.textContent.trim(), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height }))
         return { canvasTop: canvas.top, canvasBottom: canvas.bottom, toolsBottom: tools.bottom, coarse: matchMedia('(pointer: coarse)').matches, targets, overflow: document.documentElement.scrollWidth > innerWidth }
       })
       assert(layout.canvasTop < height / 2 && layout.canvasBottom <= height, `Canvas must be visible first: ${JSON.stringify(layout)}`)

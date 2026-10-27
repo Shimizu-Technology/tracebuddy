@@ -1,8 +1,7 @@
-import puppeteer from 'puppeteer-core'
-import { closeBrowser, findChromeExecutable, waitForSelector } from './browser-utils.mjs'
+import { launchBrowser, closeBrowser, findChromeExecutable, waitForSelector } from './browser-utils.mjs'
 
 const url = process.env.CHECK_URL || 'http://127.0.0.1:5173'
-const browser = await puppeteer.launch({
+const browser = await launchBrowser({
   executablePath: findChromeExecutable(),
   headless: true,
   args: ['--no-sandbox'],

@@ -1,8 +1,7 @@
-import puppeteer from 'puppeteer-core'
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { clickByText, closeBrowser, findChromeExecutable } from './browser-utils.mjs'
+import { launchBrowser, clickByText, closeBrowser, findChromeExecutable } from './browser-utils.mjs'
 
 const url = (process.env.CHECK_URL || 'http://127.0.0.1:5202').replace(/#.*$/, '')
 const evidence = process.env.CHECK_EVIDENCE
@@ -23,7 +22,7 @@ writeFileSync(join(fixtures, 'paper.y4m'), Buffer.concat(frames))
 writeFileSync(join(fixtures, 'corrupt.png'), 'not PNG bytes')
 writeFileSync(join(fixtures, 'text.txt'), 'not an image')
 writeFileSync(join(fixtures, 'valid.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="50" cy="50" r="30" fill="none" stroke="black"/></svg>')
-const browser = await puppeteer.launch({ executablePath: findChromeExecutable(), headless: true,
+const browser = await launchBrowser({ executablePath: findChromeExecutable(), headless: true,
   args: ['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${join(fixtures, 'paper.y4m')}`] })
 const results = []
 const shot = async (page, name) => { if (evidence) { mkdirSync(evidence, { recursive: true }); await page.screenshot({ path: join(evidence, name + '.png') }) } }
