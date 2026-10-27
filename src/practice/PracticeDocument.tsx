@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import type { Ref } from 'react'
-import { guideBounds, inkGroups } from './document'
+import { guideBounds, inkGroups, normalizePracticeStrokeWidth } from './document'
 import type { InkStroke, PracticeDocumentSize } from './document'
 
 type Props = {
@@ -19,7 +19,7 @@ export function PracticeDocument({ size, strokes, guide, guideOpacity, guideOnTo
   const groups = inkGroups(strokes)
   const strokePath = (stroke: InkStroke, index: number, erase = false) => (
     <path key={index} d={stroke.path} transform={stroke.transform} fill="none" stroke={erase ? '#000000' : stroke.color}
-      strokeWidth={stroke.width} opacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" />
+      strokeWidth={normalizePracticeStrokeWidth(stroke.width)} opacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" />
   )
   return (
     <svg ref={svgRef} className={className} xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true">

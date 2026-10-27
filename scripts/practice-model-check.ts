@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { defaultDocument, guideBounds, inkGroups, normalizeDocument, recoverLegacyDocument } from '../src/practice/document.ts'
+import { defaultDocument, guideBounds, inkGroups, normalizePracticeStrokeWidth, maxPracticeStrokeWidth, normalizeDocument, recoverLegacyDocument } from '../src/practice/document.ts'
 import type { InkStroke } from '../src/practice/document.ts'
 import { createTextDrawing, sanitizeTraceText, splitTraceText } from '../shared/drawings.ts'
 
@@ -33,3 +33,11 @@ for (const value of ['Aleksandra Wiśniewska-Kowalczyk', 'Wiśniewska', 'å ñ �
   assert(!drawing.svg.includes('textLength='), 'Keep text sizing compatible with native SVG')
 }
 console.log('Practice document, legacy recovery, compositing and shared text model checks passed')
+
+for (const width of [0.5, 12, 120, 214.76190476190476, 230.47619047619048, 1000, maxPracticeStrokeWidth]) {
+  assert.equal(normalizePracticeStrokeWidth(JSON.parse(JSON.stringify(width))), width, 'Preserve emitted document widths')
+}
+for (const width of [-10, 0, Infinity, NaN, maxPracticeStrokeWidth * 2]) {
+  const bounded = normalizePracticeStrokeWidth(width)
+  assert(Number.isFinite(bounded) && bounded >= 0.5 && bounded <= maxPracticeStrokeWidth)
+}

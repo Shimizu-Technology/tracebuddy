@@ -9,6 +9,14 @@ export type InkStroke = {
   transform?: string
 }
 
+// Document-space widths: one finite contract for capture, saved records and SVG.
+// 10,000 covers a full maximum-size document, including widths emitted by older
+// builds above 120. Never narrow a valid saved paint/eraser during reopening.
+export const maxPracticeStrokeWidth = 10_000
+export function normalizePracticeStrokeWidth(width: number) {
+  return Number.isFinite(width) ? Math.min(maxPracticeStrokeWidth, Math.max(0.5, width)) : 0.5
+}
+
 export const defaultDocument: PracticeDocumentSize = { width: 1000, height: 1000 }
 
 export function normalizeDocument(value: unknown): PracticeDocumentSize | undefined {

@@ -100,7 +100,7 @@ try {
         const p = await page.$eval('.practice-canvas', (el) => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })
         await stroke(page, p)
         const error = delta(p, await firstInk(page, true))
-        const transform = await page.$eval('.practice-transform-layer', (el) => el.style.transform)
+        const transform = await page.$eval('.practice-transform-layer', (el) => el.firstElementChild.getAttribute('transform'))
         zoomErrors.push({ transform, error })
         assert(error <= 1, `Zoom/pan input error: ${error}`)
         await parentTools(page)
@@ -169,7 +169,7 @@ try {
     await touch(client, 'touchStart', [[4, p.x - 20, p.y], [5, p.x + 20, p.y]])
     await touch(client, 'touchMove', [[4, p.x - 40, p.y], [5, p.x + 40, p.y]])
     await touch(client, 'touchEnd', [])
-    assert.match(await page.$eval('.practice-transform-layer', (el) => el.style.transform), /scale\(2\)/)
+    assert.match(await page.$eval('.practice-transform-layer', (el) => el.firstElementChild.getAttribute('transform')), /scale\(2\)/)
     results.push({ scenario: 'single-pointer-cancel-pen-pinch', result: 'passed', bounds })
 
     // Custom words through the handwriting UI, including all accepted characters.

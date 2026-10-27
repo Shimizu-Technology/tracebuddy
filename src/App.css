@@ -1869,10 +1869,13 @@ button.active:disabled {
 .practice-transform-layer {
   position: absolute;
   inset: 0;
-  transform-origin: 0 0;
-  will-change: transform;
+  width: 100%;
+  height: 100%;
 }
 
+/* PracticeDocument owns guide geometry and every saved stroke color/width.
+   Do not restore legacy .practice-ink path overrides or HTML guide-image sizing
+   when merging #39: those rules corrupt canvas, Previous Work and export parity. */
 .practice-document {
   display: block;
   width: 100%;

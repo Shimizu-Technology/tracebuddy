@@ -37,7 +37,7 @@
     "check:audit-model": "node scripts/audit-model-check.mjs",
     "check:native-practice-operations": "tsx scripts/native-practice-operations-check.ts",
     "check:practice-model": "tsx scripts/practice-model-check.ts",
-    "check:practice": "node scripts/practice-check.mjs"
+    "check:practice": "node scripts/practice-check.mjs && node scripts/practice-regression-check.mjs"
   },
   "dependencies": {
     "react": "^19.2.6",

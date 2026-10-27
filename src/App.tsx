@@ -30,7 +30,7 @@ import {
 } from './drawings'
 import type { Drawing, DrawingDifficultyFilter, DrawingFilterId, DrawingPreferences, FamilyActivity, GuidedLesson, LearningProgress, TraceAlignment, WorksheetOptions } from './drawings'
 import { PracticeDocument } from './practice/PracticeDocument'
-import { defaultDocument, normalizeDocument, recoverLegacyDocument } from './practice/document'
+import { defaultDocument, normalizeDocument, normalizePracticeStrokeWidth, recoverLegacyDocument } from './practice/document'
 import type { PracticeDocumentSize } from './practice/document'
 import './App.css'
 
@@ -296,7 +296,7 @@ function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | null {
     path: stroke.path,
     transform: typeof stroke.transform === 'string' && /^scale\(1 [0-9.]+\)$/.test(stroke.transform) ? stroke.transform : undefined,
     color: typeof stroke.color === 'string' ? stroke.color : markerColors[0],
-    width: clamp(stroke.width, 0.5, 120),
+    width: normalizePracticeStrokeWidth(stroke.width),
     opacity: typeof stroke.opacity === 'number' ? clamp(stroke.opacity, 0.05, 1) : 0.9,
     mode: stroke.mode === 'erase' ? 'erase' : 'draw',
     dasharray: typeof stroke.dasharray === 'string' ? stroke.dasharray : undefined,
@@ -696,7 +696,7 @@ async function hydrateUploadedImageSession(session: SavedPracticeSession) {
   }
 }
 
-async function loadPreviousWorkSessions() {
+async function loadPreviousWorkSessions(isCurrentRequest: () => boolean) {
   migrateLegacyPracticeAutosaves()
   const ids = (() => {
     try {
@@ -726,6 +726,9 @@ async function loadPreviousWorkSessions() {
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
 
   const hydratedSessions = await Promise.all(sessions.map(hydrateUploadedImageSession))
+  // A newer save/navigation/clear can change the index while image reads wait.
+  // Return the hydrated gallery entries without rewriting newer local records.
+  if (!isCurrentRequest()) return hydratedSessions
   hydratedSessions.forEach((session) => {
     try {
       const raw = window.localStorage.getItem(previousWorkSessionKey(session.sessionId))
@@ -1323,7 +1326,7 @@ function assessPaperFrame(canvas: HTMLCanvasElement): { status: 'too-dark' | 'to
 }
 
 function App() {
-  const [mode, setMode] = useState<AppMode>(modeFromLocation)
+  const [mode, setModeState] = useState<AppMode>(modeFromLocation)
   const [helpOpen, setHelpOpen] = useState(false)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
@@ -1331,7 +1334,8 @@ function App() {
   const [uploadedImageGeneration, setUploadedImageGeneration] = useState(0)
   const [uploadedImageSaveErrorId, setUploadedImageSaveErrorId] = useState<string | null>(null)
   const [previousWorkSessions, setPreviousWorkSessions] = useState<SavedPracticeSession[]>([])
-  const [practiceRestorePending, setPracticeRestorePending] = useState(() => modeFromLocation() === 'practice' && Boolean(readLocalValue(activePracticeKey)))
+  const [initialPracticeRequest] = useState(() => modeFromLocation() === 'practice' ? readLocalValue(activePracticeKey) : null)
+  const [practiceRestorePending, setPracticeRestorePending] = useState(Boolean(initialPracticeRequest))
   const [activePracticeSession, setActivePracticeSession] = useState<SavedPracticeSession | null>(null)
   const [initialDrawingPreferences] = useState(loadDrawingPreferences)
   const [drawingPreferences, setDrawingPreferences] = useState<DrawingPreferences>(initialDrawingPreferences.preferences)
@@ -1375,6 +1379,19 @@ function App() {
   const learningProgressRef = useRef(learningProgress)
   const drawingPreferencesClearInProgressRef = useRef(false)
   const previousWorkOperationGenerationRef = useRef(0)
+  // Shared navigation/source generation. Preserve this in the navigation wrapper
+  // when integrating picker scroll/menu state from the surfaces PR (#39).
+  const practiceRequestGenerationRef = useRef(0)
+  const cancelPracticeRequest = useCallback(() => {
+    practiceRequestGenerationRef.current += 1
+    setPracticeRestorePending(false)
+    return practiceRequestGenerationRef.current
+  }, [])
+  const setMode = useCallback((nextMode: AppMode) => {
+    cancelPracticeRequest()
+    modeRef.current = nextMode
+    setModeState(nextMode)
+  }, [cancelPracticeRequest])
   const historyReadyRef = useRef(false)
   const historyNavigationRef = useRef(false)
   const historyEventHashRef = useRef('')
@@ -1414,19 +1431,23 @@ function App() {
     }
   }, [])
 
-  const restorePracticeOnLoad = useEffectEvent((session: SavedPracticeSession) => openPreviousWork(session))
+  const restorePracticeOnLoad = useEffectEvent((session: SavedPracticeSession, current: () => boolean) => openPreviousWork(session, current))
 
   useEffect(() => {
     let cancelled = false
-    const activeSessionId = readLocalValue(activePracticeKey)
+    const requestGeneration = practiceRequestGenerationRef.current
     const operationGeneration = previousWorkOperationGenerationRef.current
+    const isCurrentRequest = () => !cancelled && requestGeneration === practiceRequestGenerationRef.current
+      && operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current
     const task = window.setTimeout(() => {
-      void loadPreviousWorkSessions().then(async (sessions) => {
+      void loadPreviousWorkSessions(isCurrentRequest).then(async (sessions) => {
         if (!cancelled && operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current) {
-          setPreviousWorkSessions(sessions)
-          if (modeFromLocation() === 'practice') {
-            const active = sessions.find((session) => session.sessionId === activeSessionId)
-            if (active) await restorePracticeOnLoad(active)
+          // Hydration may finish after a newer drawing has already autosaved.
+          // Keep those newer in-memory records in the gallery as well.
+          setPreviousWorkSessions((current) => [...current, ...sessions.filter((session) => !current.some((saved) => saved.sessionId === session.sessionId))])
+          if (initialPracticeRequest && isCurrentRequest()) {
+            const active = sessions.find((session) => session.sessionId === initialPracticeRequest)
+            if (active) await restorePracticeOnLoad(active, isCurrentRequest)
           }
           void cleanupOrphanedUploadedImageRecords()
         }
@@ -1437,7 +1458,7 @@ function App() {
       cancelled = true
       window.clearTimeout(task)
     }
-  }, [])
+  }, [initialPracticeRequest])
 
   const stopStream = useCallback((stream: MediaStream) => {
     stream.getTracks().forEach((track) => track.stop())
@@ -1710,6 +1731,7 @@ function App() {
     const onRouteChange = () => {
       const requestedHash = window.location.hash.toLowerCase()
       if (historyEventHashRef.current === requestedHash) return
+      cancelPracticeRequest()
       historyEventHashRef.current = requestedHash
       setHelpOpen(false)
       const targetMode = modeFromLocation()
@@ -1750,7 +1772,7 @@ function App() {
       window.removeEventListener('popstate', onRouteChange)
       window.removeEventListener('hashchange', onRouteChange)
     }
-  }, [])
+  }, [cancelPracticeRequest, setMode])
 
   const startCameraAfterSetup = useCallback(() => {
     if (modeRef.current !== 'trace' || cameraMayStartRef.current) return
@@ -1922,19 +1944,20 @@ function App() {
     return loadUploadedImageRecord(imageRef.imageId)
   }
 
-  async function applyPracticeSource(source: PracticeSource) {
+  async function applyPracticeSource(source: PracticeSource, isCurrentRequest: () => boolean) {
+    if (!isCurrentRequest()) return false
     const operationGeneration = uploadOperationGenerationRef.current + 1
     uploadOperationGenerationRef.current = operationGeneration
     let resolvedUploadedImage: UploadedImageState | null
     try {
       resolvedUploadedImage = await uploadedImageFromSource(source)
     } catch {
-      if (uploadOperationGenerationRef.current !== operationGeneration) return false
+      if (!isCurrentRequest() || uploadOperationGenerationRef.current !== operationGeneration) return false
       setUploadedImageGeneration(operationGeneration)
       window.alert('TraceBuddy could not read this saved image from local storage. Try again in a moment or clear local work to repair storage.')
       return false
     }
-    if (uploadOperationGenerationRef.current !== operationGeneration) return false
+    if (!isCurrentRequest() || uploadOperationGenerationRef.current !== operationGeneration) return false
     if (source.kind === 'upload' && !resolvedUploadedImage) {
       setUploadedImageGeneration(operationGeneration)
       window.alert('This uploaded image is no longer available in this browser. The saved strokes are still local, but the image preview cannot be restored.')
@@ -1943,16 +1966,17 @@ function App() {
 
     if (resolvedUploadedImage) {
       try {
-        const saved = await saveUploadedImageRecord(resolvedUploadedImage, () => uploadOperationGenerationRef.current === operationGeneration)
-        if (!saved) return false
+        const saved = await saveUploadedImageRecord(resolvedUploadedImage, () => isCurrentRequest() && uploadOperationGenerationRef.current === operationGeneration)
+        if (!saved || !isCurrentRequest() || uploadOperationGenerationRef.current !== operationGeneration) return false
       } catch {
-        if (uploadOperationGenerationRef.current !== operationGeneration) return false
+        if (!isCurrentRequest() || uploadOperationGenerationRef.current !== operationGeneration) return false
         setUploadedImageGeneration(operationGeneration)
         window.alert('TraceBuddy could not restore this saved image to local storage. Clear older Previous Work or try again in a moment.')
         return false
       }
     }
 
+    if (!isCurrentRequest() || uploadOperationGenerationRef.current !== operationGeneration) return false
     uploadedImageSaveSignatureRef.current = resolvedUploadedImage ? uploadedImageRecordSignature(resolvedUploadedImage) : ''
     setSelectedDrawing(drawingFromPracticeSource(source))
     setUploadedImageGeneration(operationGeneration)
@@ -1964,11 +1988,14 @@ function App() {
     return true
   }
 
-  function openPreviousWork(session: SavedPracticeSession) {
+  function openPreviousWork(session: SavedPracticeSession, startupRequest?: () => boolean) {
     if (drawingPreferencesClearInProgressRef.current) return
+    const requestGeneration = startupRequest ? practiceRequestGenerationRef.current : cancelPracticeRequest()
     const operationGeneration = previousWorkOperationGenerationRef.current
-    return applyPracticeSource(session.source).then((ready) => {
-      if (!ready || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
+    const isCurrentRequest = () => (!startupRequest || startupRequest()) && requestGeneration === practiceRequestGenerationRef.current
+      && operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current
+    return applyPracticeSource(session.source, isCurrentRequest).then((ready) => {
+      if (!ready || !isCurrentRequest() || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       rememberLocalValue(activePracticeKey, session.sessionId)
       setActivePracticeSession(session)
       setMode('practice')
@@ -1978,9 +2005,12 @@ function App() {
 
   function startFreshFromPreviousWork(session: SavedPracticeSession) {
     if (drawingPreferencesClearInProgressRef.current) return
+    const requestGeneration = cancelPracticeRequest()
     const operationGeneration = previousWorkOperationGenerationRef.current
-    void applyPracticeSource(session.source).then((ready) => {
-      if (!ready || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
+    const isCurrentRequest = () => requestGeneration === practiceRequestGenerationRef.current
+      && operationGeneration === previousWorkOperationGenerationRef.current && !drawingPreferencesClearInProgressRef.current
+    void applyPracticeSource(session.source, isCurrentRequest).then((ready) => {
+      if (!ready || !isCurrentRequest() || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       setActivePracticeSession(null)
       setMode('practice')
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -2195,6 +2225,7 @@ function App() {
   function onUpload(input: HTMLInputElement, targetMode: 'trace' | 'practice' = 'trace') {
     const file = input.files?.[0]
     if (!file) return
+    cancelPracticeRequest()
 
     if (!file.type.startsWith('image/')) {
       input.value = ''
@@ -2295,6 +2326,7 @@ function App() {
   }
 
   function navigateWithPracticeFlush(action: () => void) {
+    cancelPracticeRequest()
     const saveHandler = mode === 'practice' ? practiceSaveHandlerRef.current : null
     if (!saveHandler) {
       action()
@@ -4031,7 +4063,7 @@ function PracticeScreen({
     const strokeStyle: PracticeStroke = {
       path,
       color: brushTool.mode === 'erase' ? '#000000' : markerColor,
-      width: matrix ? markerWidth * brushTool.widthMultiplier / Math.hypot(matrix.a, matrix.b) : activeStrokeWidth,
+      width: normalizePracticeStrokeWidth(matrix ? markerWidth * brushTool.widthMultiplier / Math.hypot(matrix.a, matrix.b) : activeStrokeWidth),
       opacity: brushTool.opacity,
       mode: brushTool.mode,
       dasharray: brushTool.dasharray,
@@ -4284,10 +4316,13 @@ function PracticeScreen({
             onPointerLeave={(event) => { if (event.pointerType === 'pen') penPresentRef.current = false }}
             onWheel={onPracticeWheel}
           >
-            <div className="practice-transform-layer" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}>
+            {/* Keep zoom inside SVG: legacy WebKit omits CSS ancestor scale from getScreenCTM(). */}
+            <svg className="practice-transform-layer" aria-hidden="true">
+              <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
               <PracticeDocument svgRef={documentRef} className="practice-document" size={documentSize} guide={overlaySrc} guideOpacity={guideOpacity} guideOnTop={guideOnTop}
                 strokes={activePath && activeStrokeRender ? [...strokes, { ...activeStrokeRender, path: activePath }] : strokes} />
-            </div>
+              </g>
+            </svg>
           </div>
         </div>
         <div className="practice-toolbar-ribbon" aria-label="Coloring tools">
