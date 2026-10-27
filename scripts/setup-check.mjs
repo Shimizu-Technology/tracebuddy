@@ -87,7 +87,10 @@ try {
   await waitForSelector(page, '.trace-screen.child-trace-mode')
   assert(await page.$eval('.overlay-layer', (overlay) => overlay.classList.contains('locked')), 'Child trace mode did not lock the overlay')
   assert(await page.$eval('.topbar', (topbar) => getComputedStyle(topbar).display === 'none'), 'Child trace mode did not hide the global navigation')
-  await clickByText(page, 'Exit child mode')
+  await page.focus('.child-mode-exit')
+  await page.keyboard.down('Space')
+  await new Promise((resolve) => setTimeout(resolve, 1600))
+  await page.keyboard.up('Space')
   await page.waitForFunction(() => !document.querySelector('.trace-screen')?.classList.contains('child-trace-mode'))
 
   await page.$eval('.trace-header .secondary-button', (button) => {

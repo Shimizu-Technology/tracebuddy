@@ -159,7 +159,7 @@ type UploadCleanupOptions = {
   outlineDetail: number
 }
 
-type PaperDetectionStatus = 'idle' | 'scanning' | 'found' | 'not-found' | 'too-dark' | 'too-close' | 'unavailable'
+type PaperDetectionStatus = 'lost' | 'idle' | 'scanning' | 'found' | 'not-found' | 'too-dark' | 'too-close' | 'unavailable'
 
 type PaperDetection = {
   centerX: number
@@ -1152,18 +1152,19 @@ function mapVideoRectToStage(
 
   const scaleToVideoX = videoWidth / sampleWidth
   const scaleToVideoY = videoHeight / sampleHeight
-  const coverScale = Math.max(stageRect.width / videoWidth, stageRect.height / videoHeight)
-  const renderedWidth = videoWidth * coverScale
-  const renderedHeight = videoHeight * coverScale
-  const offsetX = (stageRect.width - renderedWidth) / 2
-  const offsetY = (stageRect.height - renderedHeight) / 2
+  // Use the actual width-fitted video frame. Panel/fullscreen height changes
+  // reveal more of the frame without rescaling the paper relative to the guide.
+  const videoRect = video.getBoundingClientRect()
+  const renderScale = videoRect.width / videoWidth
+  const offsetX = videoRect.left - stageRect.left
+  const offsetY = videoRect.top - stageRect.top
 
   const videoCenterX = rect.centerX * scaleToVideoX
   const videoCenterY = rect.centerY * scaleToVideoY
-  const stageCenterX = offsetX + videoCenterX * coverScale
-  const stageCenterY = offsetY + videoCenterY * coverScale
-  const stageWidth = rect.width * scaleToVideoX * coverScale
-  const stageHeight = rect.height * scaleToVideoY * coverScale
+  const stageCenterX = offsetX + videoCenterX * renderScale
+  const stageCenterY = offsetY + videoCenterY * renderScale
+  const stageWidth = rect.width * scaleToVideoX * renderScale
+  const stageHeight = rect.height * scaleToVideoY * renderScale
 
   return {
     centerX: stageCenterX,
@@ -1329,6 +1330,11 @@ function assessPaperFrame(canvas: HTMLCanvasElement): { status: 'too-dark' | 'to
 function App() {
   const [mode, setModeState] = useState<AppMode>(modeFromLocation)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState('')
+  const [pickerState, setPickerState] = useState<PickerState>({ category: 'all', difficulty: 'all', query: '', favoritesOnly: false })
+  const pickerScrollRef = useRef(0)
+  const paperMissSinceRef = useRef<number | null>(null)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
   const [selectedDrawing, setSelectedDrawing] = useState<Drawing>(drawings[0])
   const [uploadedImage, setUploadedImage] = useState<UploadedImageState | null>(null)
@@ -1390,7 +1396,9 @@ function App() {
   }, [])
   const setMode = useCallback((nextMode: AppMode) => {
     cancelPracticeRequest()
+    if (modeRef.current === 'picker' && nextMode !== 'picker') pickerScrollRef.current = window.scrollY
     modeRef.current = nextMode
+    setNavOpen(false)
     setModeState(nextMode)
   }, [cancelPracticeRequest])
   const historyReadyRef = useRef(false)
@@ -1658,6 +1666,11 @@ function App() {
 
     if (!detection || frameReadiness) {
       if (smooth && paperLockEnabledRef.current) {
+        paperMissSinceRef.current ??= performance.now()
+        if (performance.now() - paperMissSinceRef.current < 1200) return false
+        setPaperDetection(null)
+        setPaperDetectionStatus('lost')
+        setPaperDetectionMessage('Paper lost — hold still or realign. Find paper again, or stop tracking to align manually.')
         return false
       }
 
@@ -1667,6 +1680,7 @@ function App() {
       return false
     }
 
+    paperMissSinceRef.current = null
     const nextMessage = paperLockEnabledRef.current ? PAPER_TRACKING_MESSAGE : PAPER_FOUND_MESSAGE
     setPaperDetection(detection)
     setPaperDetectionStatus('found')
@@ -1729,12 +1743,31 @@ function App() {
   }, [mode])
 
   useEffect(() => {
+    const previous = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    return () => { window.history.scrollRestoration = previous }
+  }, [])
+
+  useEffect(() => {
+    if (mode !== 'picker') return
+    const top = pickerScrollRef.current
+    const restore = window.requestAnimationFrame(() => window.scrollTo({ top, behavior: 'instant' }))
+    const remember = () => { if (modeRef.current === 'picker') pickerScrollRef.current = window.scrollY }
+    window.addEventListener('scroll', remember)
+    return () => {
+      window.cancelAnimationFrame(restore)
+      window.removeEventListener('scroll', remember)
+    }
+  }, [mode])
+
+  useEffect(() => {
     const onRouteChange = () => {
       const requestedHash = window.location.hash.toLowerCase()
       if (historyEventHashRef.current === requestedHash) return
       cancelPracticeRequest()
       historyEventHashRef.current = requestedHash
       setHelpOpen(false)
+      setNavOpen(false)
       const targetMode = modeFromLocation()
       if (targetMode === modeRef.current) {
         const canonicalRoute = routeByMode[targetMode]
@@ -1750,7 +1783,7 @@ function App() {
         if (routeRequest !== historyRouteRequestRef.current || modeFromLocation() !== targetMode) return
         historyNavigationRef.current = true
         setMode(targetMode)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+        window.scrollTo({ top: 0, behavior: 'instant' })
       }
       const saveHandler = currentMode === 'practice' ? practiceSaveHandlerRef.current : null
       if (!saveHandler) {
@@ -1887,6 +1920,7 @@ function App() {
   }, [uploadedImage, uploadedImageGeneration])
 
   function resetPaperDetection() {
+    paperMissSinceRef.current = null
     paperLockEnabledRef.current = false
     setPaperDetection(null)
     setPaperDetectionStatus('idle')
@@ -1910,6 +1944,7 @@ function App() {
       uploadOperationGenerationRef.current += 1
       setSelectedDrawing(drawing)
       setUploadedImage(null)
+      setUploadMessage('')
       if (abandonedImageId) void deleteUploadedImageRecordIfUnused(abandonedImageId)
       resetUploadCleanup()
     }
@@ -1917,7 +1952,7 @@ function App() {
     resetPaperDetection()
     setTransform(defaultTransform)
     setMode('trace')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   function openPractice(drawing?: Drawing) {
@@ -1927,6 +1962,7 @@ function App() {
       uploadOperationGenerationRef.current += 1
       setSelectedDrawing(drawing)
       setUploadedImage(null)
+      setUploadMessage('')
       if (abandonedImageId) void deleteUploadedImageRecordIfUnused(abandonedImageId)
       resetUploadCleanup()
     }
@@ -1934,7 +1970,7 @@ function App() {
     resetPaperDetection()
     setTransform(defaultTransform)
     setMode('practice')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   async function uploadedImageFromSource(source: PracticeSource) {
@@ -2000,7 +2036,7 @@ function App() {
       rememberLocalValue(activePracticeKey, session.sessionId)
       setActivePracticeSession(session)
       setMode('practice')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      window.scrollTo({ top: 0, behavior: 'instant' })
     })
   }
 
@@ -2014,7 +2050,7 @@ function App() {
       if (!ready || !isCurrentRequest() || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       setActivePracticeSession(null)
       setMode('practice')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      window.scrollTo({ top: 0, behavior: 'instant' })
     })
   }
 
@@ -2057,6 +2093,7 @@ function App() {
     if (drawingPreferencesClearInProgressRef.current) return
     if (!window.confirm('Delete all Previous Work, favorites, recent picks, lesson progress, and locally stored uploaded images from this browser?')) return
 
+    cancelPracticeRequest()
     drawingPreferencesClearInProgressRef.current = true
     setDrawingPreferencesClearInProgress(true)
     previousWorkOperationGenerationRef.current += 1
@@ -2075,6 +2112,10 @@ function App() {
         learningProgressRef.current = { ...emptyLearningProgress, stepByLessonId: {} }
         setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
         setLearningProgressMessage('')
+        setSelectedLesson(guidedLessons[0])
+        setPickerState({ category: 'all', difficulty: 'all', query: '', favoritesOnly: false })
+        pickerScrollRef.current = 0
+        window.scrollTo({ top: 0, behavior: 'instant' })
         setSavedAlignment(null)
         if (imageCleanupPending) window.alert('Saved drawings were cleared, but this browser could not finish removing stored image files. Use Clear local work again to retry.')
       })
@@ -2136,7 +2177,7 @@ function App() {
 
   function openTogether() {
     setMode('together')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   function openGuidedLesson(lesson: GuidedLesson) {
@@ -2148,7 +2189,7 @@ function App() {
       setLearningProgressMessage('Lesson selection will last for this visit only.')
     }
     setMode('learn')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   function changeGuidedLessonStep(stepIndex: number) {
@@ -2173,10 +2214,11 @@ function App() {
   }
 
   function updateTransform(update: TransformUpdate) {
-    setTransform((current) => ({
-      ...current,
-      ...(typeof update === 'function' ? update(current) : update),
-    }))
+    setTransform((current) => {
+      const patch = typeof update === 'function' ? update(current) : update
+      if (current.locked && patch.locked !== false && ['x', 'y', 'scale', 'rotation'].some((key) => key in patch)) return current
+      return { ...current, ...patch }
+    })
   }
 
   function saveCurrentAlignment() {
@@ -2207,15 +2249,14 @@ function App() {
   }
 
   function togglePaperLock() {
+    paperMissSinceRef.current = null
     if (paperLockEnabledRef.current) {
       paperLockEnabledRef.current = false
       setPaperLockEnabled(false)
       setTransform((current) => ({ ...current, locked: false }))
-      setPaperDetectionMessage((current) => {
-        if (current === PAPER_TRACKING_MESSAGE) return PAPER_FOUND_MESSAGE
-        if (current === PAPER_TRACKING_PAUSED_MESSAGE) return PAPER_UNAVAILABLE_MESSAGE
-        return current
-      })
+      setPaperDetection(null)
+      setPaperDetectionStatus('idle')
+      setPaperDetectionMessage('Align manually: drag, resize, or rotate the guide.')
       return
     }
 
@@ -2229,12 +2270,15 @@ function App() {
     if (!file) return
     cancelPracticeRequest()
 
+    const operationGeneration = uploadOperationGenerationRef.current + 1
+    uploadOperationGenerationRef.current = operationGeneration
     if (!file.type.startsWith('image/')) {
+      setUploadedImageGeneration(operationGeneration)
+      setUploadMessage('Choose an image, such as a PNG or JPEG.')
       input.value = ''
       return
     }
-    const operationGeneration = uploadOperationGenerationRef.current + 1
-    uploadOperationGenerationRef.current = operationGeneration
+    setUploadMessage('Opening image…')
     const restoreCurrentImageGeneration = () => {
       if (uploadOperationGenerationRef.current !== operationGeneration) return false
       setUploadedImageGeneration(operationGeneration)
@@ -2247,6 +2291,14 @@ function App() {
       void (async () => {
         if (uploadOperationGenerationRef.current !== operationGeneration) return
         const originalSrc = String(reader.result)
+        try {
+          const decoded = await loadImage(originalSrc)
+          if (!decoded.naturalWidth || !decoded.naturalHeight) throw new Error('Empty image')
+        } catch {
+          if (restoreCurrentImageGeneration()) setUploadMessage('Cannot open this image. Try another PNG or JPEG.')
+          return
+        }
+        if (uploadOperationGenerationRef.current !== operationGeneration) return
         const nextUploadedImage: UploadedImageState = {
           imageId: createPracticeSessionId(),
           originalSrc,
@@ -2270,6 +2322,7 @@ function App() {
           return
         }
 
+        setUploadMessage('')
         resetUploadCleanup()
         const abandonedImageId = uploadedImage?.imageId
         setUploadedImageGeneration(operationGeneration)
@@ -2283,11 +2336,11 @@ function App() {
         setTraceSurface(targetMode === 'practice' ? 'screen' : 'camera')
         setMode(targetMode)
         input.value = ''
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+        window.scrollTo({ top: 0, behavior: 'instant' })
       })()
     }
     const reportFileReadFailure = () => {
-      if (restoreCurrentImageGeneration()) window.alert('TraceBuddy could not read this image. Try another image file or choose a built-in template.')
+      if (restoreCurrentImageGeneration()) setUploadMessage('Cannot read this image. Try another PNG or JPEG.')
     }
     reader.onerror = reportFileReadFailure
     reader.onabort = reportFileReadFailure
@@ -2295,7 +2348,7 @@ function App() {
       reader.readAsDataURL(file)
     } catch {
       restoreCurrentImageGeneration()
-      window.alert('TraceBuddy could not read this image. Try another image file or choose a built-in template.')
+      setUploadMessage('Cannot read this image. Try another PNG or JPEG.')
     }
   }
 
@@ -2350,31 +2403,35 @@ function App() {
             <small>Camera + screen tracing</small>
           </span>
         </button>
-        <nav aria-label="Main navigation">
+        <button className="nav-toggle" type="button" aria-expanded={navOpen} aria-controls="main-nav" onClick={() => setNavOpen((open) => !open)}>Menu</button>
+        <nav id="main-nav" className={navOpen ? 'nav-open' : ''} aria-label="Main navigation" onClick={() => setNavOpen(false)}>
           <button className={mode === 'welcome' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('welcome'))} aria-current={mode === 'welcome' ? 'page' : undefined}>Home</button>
           <button className={mode === 'picker' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('picker'))} aria-current={mode === 'picker' ? 'page' : undefined}>Pictures</button>
           <button className={mode === 'together' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(openTogether)} aria-current={mode === 'together' ? 'page' : undefined}>Together</button>
           <button className={mode === 'learn' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => setMode('learn'))} aria-current={mode === 'learn' ? 'page' : undefined}>Learn</button>
           <button className={mode === 'trace' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openTrace())} aria-current={mode === 'trace' ? 'page' : undefined}>Camera</button>
           <button className={mode === 'practice' ? 'active' : ''} type="button" onClick={() => navigateWithPracticeFlush(() => openPractice())} aria-current={mode === 'practice' ? 'page' : undefined}>Practice</button>
-          <button className="topbar-help" type="button" onClick={() => setHelpOpen(true)}>Help</button>
+          <button className="topbar-help" type="button" onClick={(event) => { event.stopPropagation(); setHelpOpen(true) }}>Help</button>
         </nav>
       </header>
 
       <p className="sr-only" aria-live="polite">{modeLabels[mode]} screen</p>
 
-      {helpOpen && (
+      <DialogPresence open={helpOpen}>
         <ParentHelpDialog
           onClose={closeHelp}
           onPictures={() => navigateWithPracticeFlush(() => setMode('picker'))}
           onPractice={() => navigateWithPracticeFlush(() => openPractice())}
           onCamera={() => navigateWithPracticeFlush(() => openTrace())}
         />
-      )}
+      </DialogPresence>
 
       {mode === 'welcome' && <WelcomeScreen onStart={() => setMode('picker')} onTogether={openTogether} onLearn={() => setMode('learn')} onDemo={() => openTrace(drawings[0])} onPractice={() => openPractice(drawings[0])} />}
       {mode === 'picker' && (
         <PickerScreen
+          pickerState={pickerState}
+          onPickerStateChange={setPickerState}
+          uploadMessage={uploadMessage}
           selectedDrawing={selectedDrawing}
           traceSurface={traceSurface}
           onTraceSurfaceChange={setTraceSurface}
@@ -2424,6 +2481,7 @@ function App() {
       )}
       {mode === 'trace' && (
         <TraceScreen
+          uploadMessage={uploadMessage}
           pictureName={pictureName}
           pictureTheme={pictureTheme}
           overlaySrc={overlaySrc}
@@ -2463,6 +2521,7 @@ function App() {
           onRestoreAlignment={restoreSavedAlignment}
         />
       )}
+      {mode === 'practice' && uploadMessage && <p className="upload-message practice-upload-message" role="status">{uploadMessage}</p>}
       {mode === 'practice' && practiceRestorePending && <section className="practice-screen" role="status">Opening your drawing…</section>}
       {mode === 'practice' && !practiceRestorePending && (
         <PracticeScreen
@@ -2484,6 +2543,65 @@ function App() {
       )}
     </main>
   )
+}
+
+function DialogPresence({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const [present, setPresent] = useState(open)
+  const [lastOpen, setLastOpen] = useState(open)
+  if (lastOpen !== open) {
+    setLastOpen(open)
+    if (open) setPresent(true)
+  }
+  useEffect(() => {
+    if (open) return
+    const timer = window.setTimeout(() => setPresent(false), 160)
+    return () => window.clearTimeout(timer)
+  }, [open])
+  return present || open ? <div className="dialog-presence" data-open={open}>{children}</div> : null
+}
+
+function HoldToExit({ onExit }: { onExit: () => void }) {
+  const [holding, setHolding] = useState(false)
+  const confirmationRef = useRef<HTMLDialogElement>(null)
+  const completedHoldRef = useRef(false)
+  const timerRef = useRef<number | null>(null)
+  const cancel = () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+    timerRef.current = null
+    setHolding(false)
+  }
+  const start = () => {
+    if (timerRef.current !== null) return
+    completedHoldRef.current = false
+    setHolding(true)
+    timerRef.current = window.setTimeout(() => { completedHoldRef.current = true; timerRef.current = null; setHolding(false); onExit() }, 1500)
+  }
+  useEffect(() => () => { if (timerRef.current !== null) window.clearTimeout(timerRef.current) }, [])
+  return <>
+    <button className={`child-mode-exit ${holding ? 'holding' : ''}`} type="button"
+    onPointerDown={(event) => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); start() }}
+    onPointerUp={cancel} onPointerCancel={cancel} onLostPointerCapture={cancel} onBlur={cancel}
+    onKeyDown={(event) => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); if (!event.repeat) start() } }}
+    onKeyUp={(event) => { if (event.key === ' ' || event.key === 'Enter') cancel() }}
+    onClick={(event) => {
+      // Assistive activation has no pointer hold. A normal short tap stays put.
+      if (event.detail !== 0 || completedHoldRef.current) return
+      cancel()
+      confirmationRef.current?.showModal()
+    }}
+    aria-haspopup="dialog"
+    aria-label="Exit child mode. Hold 1.5 seconds, or activate for parent confirmation. Keyboard: hold Space or Enter.">
+    <svg className="hold-ring" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" /></svg>
+    <span>{holding ? 'Keep holding…' : 'Hold to exit child mode'}</span>
+    </button>
+    <dialog ref={confirmationRef} className="child-exit-confirmation" aria-labelledby="child-exit-title">
+      <h2 id="child-exit-title">Exit child mode?</h2>
+      <div className="child-exit-actions">
+        <button className="secondary-button" type="button" autoFocus onClick={() => confirmationRef.current?.close()}>Stay</button>
+        <button className="primary-button" type="button" onClick={() => { confirmationRef.current?.close(); onExit() }}>Exit</button>
+      </div>
+    </dialog>
+  </>
 }
 
 function ParentHelpDialog({
@@ -2554,7 +2672,7 @@ function ParentHelpDialog({
         <div className="parent-help-heading">
           <div>
             <p className="eyebrow">Parent help</p>
-            <h2 id="parent-help-title">What would you like to do?</h2>
+            <h2 id="parent-help-title">Parent help</h2>
           </div>
           <button className="parent-help-close" type="button" aria-label="Close parent help" onClick={onClose}>×</button>
         </div>
@@ -2584,7 +2702,7 @@ function WelcomeScreen({ onStart, onTogether, onLearn, onDemo, onPractice }: { o
     <section className="hero-screen">
       <div className="hero-copy">
         <p className="eyebrow">Camera overlay drawing practice</p>
-        <h1>Trace drawings on real paper with your camera.</h1>
+        <h1>A picture. A pencil. Your imagination.</h1>
         <p className="lede">
           Pick a cute picture, trace it on real paper with the camera, or practice directly on the screen with a finger or stylus.
         </p>
@@ -2656,14 +2774,14 @@ function LearningScreen({
       <div className="learning-heading">
         <div>
           <p className="eyebrow">Gentle guided drawing</p>
-          <h1>Learn the shapes behind the picture.</h1>
+          <h1>Lessons</h1>
           <p>Follow one prompt at a time, then practice that exact step on screen or over real paper.</p>
         </div>
         <button className="secondary-button compact" type="button" onClick={onPictures}>Browse all pictures</button>
       </div>
 
       <div className="learning-layout">
-        <aside className="lesson-library" aria-label="Guided lessons">
+        <details className="lesson-browser"><summary>Choose a lesson</summary><aside className="lesson-library" aria-label="Guided lessons">
           <div className="lesson-library-heading">
             <strong>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished</strong>
             <small>Progress stays on this device.</small>
@@ -2679,7 +2797,7 @@ function LearningScreen({
               </button>
             )
           })}
-        </aside>
+        </aside></details>
 
         <article className="lesson-stage-card">
           <div className="lesson-stage-meta">
@@ -2696,15 +2814,9 @@ function LearningScreen({
             {lessonFinished && <span className="lesson-finished-badge">Finished ✓</span>}
           </div>
 
-          <div className="lesson-step-dots" aria-label={`Step ${stepIndex + 1} of ${lesson.steps.length}`}>
-            {lesson.steps.map((candidateStep, index) => (
-              <button key={candidateStep.title} type="button" className={index === stepIndex ? 'active' : index < stepIndex ? 'visited' : ''} aria-label={`Go to step ${index + 1}: ${candidateStep.title}`} aria-current={index === stepIndex ? 'step' : undefined} onClick={() => onStepChange(index)}>{index + 1}</button>
-            ))}
-          </div>
-
           <div className="lesson-workspace">
             <div className="lesson-picture">
-              <img key={`${lesson.id}-${stepIndex}`} src={drawingImageSrc(stepDrawing)} alt={`${lesson.title}, ${step.title}`} />
+              <img src={drawingImageSrc(stepDrawing)} alt={`${lesson.title}, ${step.title}`} />
               <span>New lines are coral. Earlier lines stay faint.</span>
             </div>
             <div className="lesson-instruction" aria-live="polite">
@@ -2723,14 +2835,22 @@ function LearningScreen({
             <button type="button" className="secondary-button" onClick={onPractice}>Practice this step on screen</button>
             <button type="button" className="secondary-button" onClick={onPaper}>Trace this step on paper</button>
           </div>
+          <details className="lesson-step-navigation"><summary>Jump to a step</summary>
+          <div className="lesson-step-dots" aria-label={`Step ${stepIndex + 1} of ${lesson.steps.length}`}>
+            {lesson.steps.map((candidateStep, index) => (
+              <button key={candidateStep.title} type="button" className={index === stepIndex ? 'active' : index < stepIndex ? 'visited' : ''} aria-label={`Go to step ${index + 1}: ${candidateStep.title}`} aria-current={index === stepIndex ? 'step' : undefined} onClick={() => onStepChange(index)}>{index + 1}</button>
+            ))}
+          </div>
+
+          </details>
           {storageMessage && <p className="preference-message" role="status">{storageMessage}</p>}
         </article>
       </div>
 
-      <section className="handwriting-card">
+      <details className="handwriting-disclosure"><summary>Practice words</summary><section className="handwriting-card">
         <div>
           <p className="eyebrow">Handwriting studio</p>
-          <h2>Practice a name, word, or family message.</h2>
+          <h2>Handwriting</h2>
           <p>TraceBuddy turns the words into a large on-screen guide. Nothing is uploaded.</p>
         </div>
         <form onSubmit={(event) => { event.preventDefault(); onPracticeWords(practiceWords) }}>
@@ -2740,7 +2860,7 @@ function LearningScreen({
           </label>
           <button type="submit" className="primary-button">Practice these words</button>
         </form>
-      </section>
+      </section></details>
     </section>
   )
 }
@@ -2765,7 +2885,7 @@ function FamilyActivitiesScreen({
 
   function selectActivity(activityId: string) {
     setSelectedId(activityId)
-    window.requestAnimationFrame(() => featureRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    window.requestAnimationFrame(() => featureRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }))
   }
 
   return (
@@ -2773,7 +2893,7 @@ function FamilyActivitiesScreen({
       <div className="family-heading">
         <div>
           <p className="eyebrow">Together time</p>
-          <h1>Draw, talk, and make a memory together.</h1>
+          <h1>Together</h1>
           <p>Twelve short invitations for kids, siblings, grandparents, and anyone who wants to join. No scores, timers, or wrong answers.</p>
         </div>
         <button className="secondary-button compact" type="button" onClick={onPictures}>Browse pictures</button>
@@ -2866,7 +2986,12 @@ function PreviousWorkSection({
   )
 }
 
+type PickerState = { category: PickerCategoryId; difficulty: DrawingDifficultyFilter; query: string; favoritesOnly: boolean }
+
 function PickerScreen({
+  pickerState,
+  onPickerStateChange,
+  uploadMessage,
   selectedDrawing,
   traceSurface,
   onTraceSurfaceChange,
@@ -2890,6 +3015,9 @@ function PickerScreen({
   onDownloadDrawing,
   learningProgress,
 }: {
+  pickerState: PickerState
+  onPickerStateChange: React.Dispatch<React.SetStateAction<PickerState>>
+  uploadMessage: string
   selectedDrawing: Drawing
   traceSurface: TraceSurface
   onTraceSurfaceChange: (surface: TraceSurface) => void
@@ -2913,19 +3041,12 @@ function PickerScreen({
   onDownloadDrawing: (drawing: Drawing) => void
   learningProgress: LearningProgress
 }) {
-  const [activeCategory, setActiveCategory] = useState<PickerCategoryId>('all')
-  const [difficulty, setDifficulty] = useState<DrawingDifficultyFilter>('all')
-  const [query, setQuery] = useState('')
-  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const { category: activeCategory, difficulty, query, favoritesOnly } = pickerState
+  const setActiveCategory = (category: PickerCategoryId) => onPickerStateChange((current) => ({ ...current, category }))
+  const setDifficulty = (difficulty: DrawingDifficultyFilter) => onPickerStateChange((current) => ({ ...current, difficulty }))
+  const setQuery = (query: string) => onPickerStateChange((current) => ({ ...current, query }))
+  const setFavoritesOnly = (update: boolean | ((value: boolean) => boolean)) => onPickerStateChange((current) => ({ ...current, favoritesOnly: typeof update === 'function' ? update(current.favoritesOnly) : update }))
   const [customText, setCustomText] = useState('')
-  const categoryCounts = useMemo(() => {
-    const counts: Partial<Record<PickerCategoryId, number>> = { all: drawings.length }
-    for (const drawing of drawings) {
-      counts[drawing.category] = (counts[drawing.category] ?? 0) + 1
-      if (drawing.collection) counts[drawing.collection] = (counts[drawing.collection] ?? 0) + 1
-    }
-    return counts
-  }, [])
   const visibleDrawings = useMemo(() => filterDrawings({
     category: activeCategory,
     difficulty,
@@ -2946,11 +3067,9 @@ function PickerScreen({
 
   return (
     <section className="picker-screen">
-      <div className="section-heading picker-heading">
-        <div>
-          <p className="eyebrow">Choose a tracing picture</p>
-          <h1>Pick from a bigger tracing library.</h1>
-          <p>Browse simple line-art templates, then use the camera over paper or practice directly on the screen.</p>
+      <div className="picker-title-row"><h1>Pictures</h1>
+        <details className="picker-alternates"><summary>Words, upload & surface</summary>
+          <div className="picker-alternate-body">
           <div className="surface-switch" role="group" aria-label="Tracing surface">
             <button type="button" className={traceSurface === 'camera' ? 'active' : ''} aria-pressed={traceSurface === 'camera'} onClick={() => onTraceSurfaceChange('camera')}>
               <strong>Camera + paper</strong>
@@ -2968,47 +3087,13 @@ function PickerScreen({
             </label>
             <button type="submit">Trace words</button>
           </form>
-        </div>
-        <label className="upload-pill" aria-label="Upload your own tracing image">
-          <span className="drawing-icon" aria-hidden="true"><ImageIcon /></span>
-          <span>
-            <strong>Upload your own</strong>
-            <small>Photo or drawing</small>
-          </span>
-          <input type="file" accept="image/*" onChange={(event) => onUpload(event.currentTarget)} />
-        </label>
-      </div>
-
-      {previousWorkSessions.length > 0 && (
-        <PreviousWorkSection
-          sessions={previousWorkSessions}
-          clearInProgress={previousWorkClearInProgress}
-          onResume={onResumeWork}
-          onStartFresh={onStartFreshWork}
-          onDuplicate={onDuplicateWork}
-          onDelete={onDeleteWork}
-          onDeleteAll={onDeleteAllWork}
-        />
-      )}
-
-      <section className="discovery-panel" aria-labelledby="find-picture-title">
-        <div className="discovery-heading">
-          <div>
-            <p className="eyebrow">Find a favorite</p>
-            <h2 id="find-picture-title">What should we trace today?</h2>
+          <label className="upload-pill" aria-label="Upload your own tracing image"><ImageIcon /><span><strong>Upload your own</strong><small>Photo or drawing</small></span><input type="file" accept="image/*" onChange={(event) => onUpload(event.currentTarget)} /></label>
           </div>
-          <button
-            type="button"
-            className={`favorites-filter ${favoritesOnly ? 'active' : ''}`}
-            aria-pressed={favoritesOnly}
-            onClick={() => setFavoritesOnly((current) => !current)}
-          >
-            <span aria-hidden="true">♥</span>
-            Favorites
-            <small>{drawingPreferences.favoriteIds.length}</small>
-          </button>
-        </div>
-
+        </details>
+      </div>
+      {uploadMessage && <p className="upload-message" role="status">{uploadMessage}</p>}
+      <section className="discovery-panel" aria-label="Picture filters">
+        <div className="picker-filters">
         <label className="drawing-search">
           <span>Search pictures</span>
           <input
@@ -3019,14 +3104,10 @@ function PickerScreen({
           />
         </label>
 
-        <div className="difficulty-strip" role="group" aria-label="Difficulty level">
-          {drawingDifficultyFilters.map((filter) => (
-            <button key={filter.id} type="button" className={difficulty === filter.id ? 'active' : ''} aria-pressed={difficulty === filter.id} onClick={() => setDifficulty(filter.id)}>
-              {filter.label}
-            </button>
-          ))}
+        <label className="filter-select"><span>Level</span><select aria-label="Difficulty level" value={difficulty} onChange={(event) => setDifficulty(event.target.value as DrawingDifficultyFilter)}>{drawingDifficultyFilters.map((filter) => <option key={filter.id} value={filter.id}>{filter.label}</option>)}</select></label>
+        <label className="filter-select"><span>Category</span><select aria-label="Template category" value={activeCategory} onChange={(event) => setActiveCategory(event.target.value as PickerCategoryId)}>{drawingCategories.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select></label>
+          <button type="button" className={`favorites-filter ${favoritesOnly ? 'active' : ''}`} aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly((current) => !current)}>Favorites <small>{drawingPreferences.favoriteIds.length}</small></button>
         </div>
-
         {recentDrawings.length > 0 && (
           <div className="recent-picks" aria-label="Recent picks">
             <strong>Recent</strong>
@@ -3039,15 +3120,6 @@ function PickerScreen({
         )}
         {drawingPreferencesMessage && <p className="preference-message" role="status">{drawingPreferencesMessage}</p>}
       </section>
-
-      <div className="category-strip" aria-label="Template categories">
-        {drawingCategories.map((category) => (
-          <button key={category.id} type="button" className={activeCategory === category.id ? 'active' : ''} aria-pressed={activeCategory === category.id} aria-label={`${category.label}, ${categoryCounts[category.id] ?? 0} templates`} onClick={() => setActiveCategory(category.id)}>
-            <span>{category.label}</span>
-            <small aria-hidden="true">{categoryCounts[category.id] ?? 0}</small>
-          </button>
-        ))}
-      </div>
 
       <div className="template-count" aria-live="polite">
         Showing {visibleDrawings.length} of {drawings.length} {visibleDrawings.length === 1 ? 'template' : 'templates'}.
@@ -3067,7 +3139,7 @@ function PickerScreen({
                 <strong>{drawing.name}</strong>
                 <small>{drawing.theme}</small>
               </span>
-              <span className="difficulty-badge">{drawing.difficulty}</span>
+              <span className="difficulty-badge"><span aria-hidden="true">{drawing.difficulty === 'Starter' ? '●○○' : drawing.difficulty === 'Medium' ? '●●○' : '●●●'}</span> {drawing.difficulty}</span>
             </button>
             <div className="drawing-card-exports" role="group" aria-label={`${drawing.name} actions`}>
               <button type="button" aria-label={`Print ${drawing.name} worksheet`} onClick={() => onPrintDrawing(drawing)}>Print</button>
@@ -3092,6 +3164,18 @@ function PickerScreen({
           <p>Try a different word or open up the level and category.</p>
           {filtersAreActive && <button type="button" onClick={clearDiscoveryFilters}>Show all pictures</button>}
         </div>
+      )}
+
+      {previousWorkSessions.length > 0 && (
+        <PreviousWorkSection
+          sessions={previousWorkSessions}
+          clearInProgress={previousWorkClearInProgress}
+          onResume={onResumeWork}
+          onStartFresh={onStartFreshWork}
+          onDuplicate={onDuplicateWork}
+          onDelete={onDeleteWork}
+          onDeleteAll={onDeleteAllWork}
+        />
       )}
 
       <div className="picker-more" aria-label="More ways to create">
@@ -3137,6 +3221,7 @@ function PickerScreen({
 }
 
 function TraceScreen({
+  uploadMessage,
   pictureName,
   pictureTheme,
   overlaySrc,
@@ -3175,6 +3260,7 @@ function TraceScreen({
   onSaveAlignment,
   onRestoreAlignment,
 }: {
+  uploadMessage: string
   pictureName: string
   pictureTheme: string
   overlaySrc: string
@@ -3223,10 +3309,12 @@ function TraceScreen({
   })
   const [setupChecks, setSetupChecks] = useState({ stable: false, page: false, light: false })
   const [childTraceMode, setChildTraceMode] = useState(false)
+  const [childStageWidth, setChildStageWidth] = useState<number | null>(null)
   const traceSectionRef = useRef<HTMLElement>(null)
   const setupDialogRef = useRef<HTMLDivElement>(null)
   const setupReturnFocusRef = useRef<HTMLElement | null>(null)
-  const manualTransformDisabled = paperLockEnabled
+  const manualTransformDisabled = paperLockEnabled || transform.locked
+  const paperLost = paperLockEnabled && paperDetectionStatus !== 'found'
   const paperTrackingPaused = paperLockEnabled && cameraStatus !== 'ready'
   const setupReady = Object.values(setupChecks).every(Boolean)
 
@@ -3258,7 +3346,7 @@ function TraceScreen({
     const backgroundElements = [
       document.querySelector<HTMLElement>('.topbar'),
       ...Array.from(traceSection.children)
-        .filter((element) => !element.classList.contains('setup-coach-backdrop'))
+        .filter((element) => !element.contains(dialog))
         .filter((element): element is HTMLElement => element instanceof HTMLElement),
     ].filter((element): element is HTMLElement => Boolean(element))
     backgroundElements.forEach((element) => { element.inert = true })
@@ -3343,6 +3431,8 @@ function TraceScreen({
   }
 
   const startChildTraceMode = () => {
+    if (paperLost) return
+    setChildStageWidth(stageRef.current?.clientWidth ?? null)
     updateTransform({ locked: true })
     setControlsExpanded(false)
     setChildTraceMode(true)
@@ -3352,6 +3442,9 @@ function TraceScreen({
 
   const exitChildTraceMode = () => {
     setChildTraceMode(false)
+    window.requestAnimationFrame(() => {
+      traceSectionRef.current?.querySelector<HTMLButtonElement>('.start-child-trace')?.focus()
+    })
     const exitFullscreen = document.exitFullscreen
     if (document.fullscreenElement && exitFullscreen) void exitFullscreen.call(document).catch(() => undefined)
   }
@@ -3363,7 +3456,7 @@ function TraceScreen({
 
   return (
     <section ref={traceSectionRef} className={`trace-screen ${childTraceMode ? 'child-trace-mode' : ''}`}>
-      {setupOpen && (
+      <DialogPresence open={setupOpen}>
         <div
           ref={setupDialogRef}
           className="setup-coach-backdrop"
@@ -3378,7 +3471,7 @@ function TraceScreen({
           <div className="setup-coach">
             <div className="setup-coach-heading">
               <span className="setup-coach-time">30-second parent setup</span>
-              <h2 id="setup-coach-title">Make the tracing space safe and easy.</h2>
+              <h2 id="setup-coach-title">Parent setup</h2>
               <p>Check these three things before handing the pencil to your child.</p>
             </div>
             <div className="setup-checklist">
@@ -3404,9 +3497,9 @@ function TraceScreen({
             </div>
           </div>
         </div>
-      )}
+      </DialogPresence>
 
-      {childTraceMode && <button className="child-mode-exit" type="button" onClick={exitChildTraceMode}>Exit child mode</button>}
+      {childTraceMode && <HoldToExit onExit={exitChildTraceMode} />}
       <div className="trace-header">
         <div>
           <p className="eyebrow">Trace mode</p>
@@ -3415,18 +3508,19 @@ function TraceScreen({
         </div>
         <div className="trace-header-actions">
           <button className="secondary-button compact" type="button" onClick={() => setSetupOpen(true)}>Parent setup</button>
-          <button className="primary-button compact" type="button" onClick={startChildTraceMode}>Start child trace</button>
+          <button className="primary-button compact start-child-trace" type="button" disabled={paperLost} onClick={startChildTraceMode}>Start child trace</button>
           <button className="secondary-button compact" type="button" onClick={onPicker}>Change picture</button>
           <button className="secondary-button compact" type="button" onClick={onPractice}>Practice on screen</button>
           <label className="secondary-button compact file-button">
             Upload
             <input type="file" accept="image/*" onChange={(event) => onUpload(event.currentTarget)} />
           </label>
+          {uploadMessage && <p className="upload-message" role="status">{uploadMessage}</p>}
         </div>
       </div>
 
       <div className="trace-layout">
-        <div ref={stageRef} className="camera-stage" aria-label="Camera tracing stage">
+        <div ref={stageRef} className="camera-stage" aria-label="Camera tracing stage" style={childTraceMode && childStageWidth ? { width: `min(${childStageWidth}px, 100%)`, marginInline: 'auto' } : undefined}>
           <video ref={videoRef} className={cameraStatus === 'ready' ? 'camera-video visible' : 'camera-video'} playsInline muted />
           <div className={`demo-camera ${cameraStatus === 'ready' ? 'hidden' : ''}`}>
             <div className="desk-grid" />
@@ -3455,9 +3549,11 @@ function TraceScreen({
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onLostPointerCapture={onPointerUp}
             style={{
               transform: `translate(calc(-50% + ${transform.x}px), calc(-50% + ${transform.y}px)) rotate(${transform.rotation}deg) scale(${transform.scale})`,
-              opacity: transform.opacity,
+              opacity: paperLost ? 0 : transform.opacity,
             }}
           >
             <img className={transform.outline ? 'outline-filter' : ''} src={overlaySrc} alt="Tracing overlay" draggable={false} />
@@ -3465,9 +3561,10 @@ function TraceScreen({
 
           <div className="stage-badge">
             <span aria-hidden="true">{transform.locked || paperLockEnabled ? <LockIcon /> : <MoveIcon />}</span>
-            <span>{paperTrackingPaused ? 'Paper lock paused — retry camera' : paperLockEnabled ? 'Paper lock on — follows sheet' : transform.locked ? 'Locked — trace now' : 'Drag picture to move'}</span>
+            <span>{paperLost && !paperTrackingPaused ? 'Paper lost — hold still or realign' : paperTrackingPaused ? 'Paper lock paused — retry camera' : paperLockEnabled ? 'Paper lock on — follows sheet' : transform.locked ? 'Locked — trace now' : 'Drag picture to move'}</span>
           </div>
 
+          {paperLost && !paperTrackingPaused && <div className="paper-recovery" role="status"><strong>Paper lost — hold still or realign</strong><button type="button" onClick={onFindPaper}>Find paper again</button>{!childTraceMode && <button type="button" onClick={onTogglePaperLock}>Align manually</button>}</div>}
           {cameraStatus !== 'ready' && (
             <div className="camera-help">
               <strong>{cameraStatus === 'starting' ? 'Starting camera' : 'Demo mode'}</strong>
@@ -3498,7 +3595,7 @@ function TraceScreen({
               <p>Safety: make sure the phone or tablet cannot fall onto the child or paper.</p>
               <div className="setup-inline-actions">
                 <button type="button" onClick={() => setSetupOpen(true)}>Open setup coach</button>
-                <button type="button" onClick={startChildTraceMode}>Start child trace</button>
+                <button type="button" disabled={paperLost} onClick={startChildTraceMode}>Start child trace</button>
               </div>
             </div>
 
@@ -3507,8 +3604,8 @@ function TraceScreen({
               <strong>Find the paper automatically.</strong>
               <small>TraceBuddy looks for the largest bright sheet and can keep the drawing centered on it as the camera view shifts.</small>
               <div className="paper-actions">
-                <button type="button" onClick={onFindPaper} disabled={cameraStatus !== 'ready'}>Find paper</button>
-                <button type="button" className={paperLockEnabled ? 'active' : ''} aria-pressed={paperLockEnabled} onClick={onTogglePaperLock} disabled={cameraStatus !== 'ready' && !paperLockEnabled}>
+                <button type="button" onClick={onFindPaper} disabled={cameraStatus !== 'ready' || (transform.locked && !paperLockEnabled)}>Find paper</button>
+                <button type="button" className={paperLockEnabled ? 'active' : ''} aria-pressed={paperLockEnabled} onClick={onTogglePaperLock} disabled={!paperLockEnabled && (cameraStatus !== 'ready' || transform.locked)}>
                   {paperLockEnabled ? 'Stop paper lock' : 'Track paper'}
                 </button>
               </div>
@@ -3609,13 +3706,13 @@ function TraceScreen({
               <button type="button" aria-label="Move overlay down" disabled={manualTransformDisabled} onClick={() => updateTransform((current) => ({ y: current.y + 10 }))}><ArrowIcon direction="down" /></button>
             </div>
 
-            <button className="reset-button" type="button" onClick={onReset}>Reset overlay</button>
+            <button className="reset-button" type="button" disabled={manualTransformDisabled} onClick={onReset}>Reset overlay</button>
             <div className="alignment-memory">
               <strong>Use this setup again</strong>
               <small>Save the current size, position, rotation, and opacity on this device.</small>
               <div>
                 <button type="button" onClick={onSaveAlignment}>Save alignment</button>
-                <button type="button" disabled={!savedAlignment} onClick={onRestoreAlignment}>Resume saved</button>
+                <button type="button" disabled={!savedAlignment || manualTransformDisabled} onClick={onRestoreAlignment}>Resume saved</button>
               </div>
             </div>
             <p className="privacy-note">Privacy: paper detection runs locally in this browser and does not upload photos or camera video anywhere.</p>

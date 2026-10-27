@@ -95,7 +95,7 @@ try {
     mobilePickerOrder.discovery < mobilePickerOrder.firstDrawing && mobilePickerOrder.firstDrawing < mobilePickerOrder.moreWays,
     `Mobile picker should put discovery and drawings before secondary content: ${JSON.stringify(mobilePickerOrder)}`,
   )
-  assert(mobilePickerOrder.firstDrawing < 1900, `The first mobile drawing is still buried too far down the page: ${mobilePickerOrder.firstDrawing}px`)
+  assert(mobilePickerOrder.firstDrawing < 844, `The first mobile drawing is still buried too far down the page: ${mobilePickerOrder.firstDrawing}px`)
   await page.setViewport({ width: 1180, height: 900, deviceScaleFactor: 1 })
 
   await page.type('.drawing-search input', 'Guam')
@@ -131,11 +131,11 @@ try {
   await clickByText(page, 'Show all pictures')
   await page.waitForFunction(() => document.querySelectorAll('[data-drawing-id]').length === 54)
 
-  await clickByText(page, 'Island')
-  await clickByText(page, 'Starter')
+  await page.select('select[aria-label="Template category"]', 'island')
+  await page.select('select[aria-label="Difficulty level"]', 'Starter')
   const combinedFilterValid = await page.$$eval('[data-drawing-id]', (cards) => cards.length > 0 && cards.every((card) => {
     const difficulty = card.querySelector('.difficulty-badge')?.textContent?.trim()
-    return difficulty === 'Starter' && card.getAttribute('data-drawing-category') === 'island'
+    return difficulty.endsWith('Starter') && card.getAttribute('data-drawing-category') === 'island'
   }))
   assert(combinedFilterValid, 'Combined category and difficulty filters returned an invalid result')
 
