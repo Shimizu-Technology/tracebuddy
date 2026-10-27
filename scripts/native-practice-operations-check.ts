@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createOperationQueue, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from '../mobile/practiceOperations.ts'
+import { createOperationQueue, followLatestSave, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from '../mobile/practiceOperations.ts'
 import { createPracticePreviewCache } from '../mobile/practicePreviewCache.ts'
 import { normalizeResumeContext, strokePointAction } from '../mobile/practiceModel.ts'
 
@@ -139,3 +139,19 @@ assert.deepEqual(revision, original, 'thumbnail caching never edits resumed stro
 cache.clear()
 assert.equal(cache.get('three', revision), undefined)
 console.log('Native operation models passed: pending save/clear overlaps, queued preference/resume fences, screen-independent clear fences, ordinary leave saves, lesson resume, stroke gaps and bounded revision cache (no native render coverage)')
+
+// Leave/Done: a superseded attempt follows the newest save; a revoked one stays false.
+{
+  let current = true
+  const newer = Promise.resolve(true)
+  assert.equal(await followLatestSave(Promise.resolve(false), () => newer, () => current), true, 'superseded save follows the newer successful save')
+  const failing = Promise.resolve(false)
+  assert.equal(await followLatestSave(Promise.resolve(false), () => failing, () => current), false, 'superseded save reports a newer failure')
+  const only = Promise.resolve(false)
+  assert.equal(await followLatestSave(only, () => only, () => current), false, 'a genuine failure stays false')
+  current = false
+  assert.equal(await followLatestSave(Promise.resolve(false), () => newer, () => current), false, 'Clear revokes even a successful newer save')
+  current = true
+  assert.equal(await followLatestSave(Promise.resolve(true), () => null, () => current), true, 'plain success')
+  console.log('followLatestSave: superseded, failed, revoked and plain saves behave as expected')
+}

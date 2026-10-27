@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "check": "npm run lint && npm run build && npm run check:finish-find-model && npm run check:practice-model && npm run check:discovery-model && npm run check:learning-model && npm run check:setup-model && npm run check:family-model && npm run check:mobile-print && npm run check:ar-model && npm run check:native-practice-model && npm run check:native-practice-operations && npm run check:native-safety-model && npm run check:audit-model && npm run check:contrast && npm run mobile:typecheck && npm run mobile:doctor",
+    "check": "npm run lint && npm run build && npm run check:finish-find-model && npm run check:practice-model && npm run check:discovery-model && npm run check:learning-model && npm run check:setup-model && npm run check:family-model && npm run check:mobile-print && npm run check:ar-model && npm run check:native-practice-model && npm run check:native-practice-operations && npm run check:native-safety-model && npm run check:native-finish-find-model && npm run check:audit-model && npm run check:contrast && npm run mobile:typecheck && npm run mobile:doctor",
     "check:viewports": "node scripts/viewport-check.mjs",
     "check:storage": "node scripts/storage-check.mjs",
     "check:offline": "node scripts/offline-check.mjs",
@@ -43,7 +43,8 @@
     "check:web-round2": "node scripts/web-round2-check.mjs",
     "check:native-safety-model": "tsx scripts/native-safety-model-check.ts",
     "check:finish-find-model": "tsx scripts/finish-find-model-check.ts && tsx scripts/finish-find-save-model-check.ts",
-    "check:finish-find": "node scripts/finish-find-check.mjs"
+    "check:finish-find": "node scripts/finish-find-check.mjs",
+    "check:native-finish-find-model": "tsx scripts/native-finish-find-model-check.ts"
   },
   "dependencies": {
     "react": "^19.2.6",

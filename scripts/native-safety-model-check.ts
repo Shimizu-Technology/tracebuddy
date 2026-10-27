@@ -120,6 +120,7 @@ for (const phase of ['decode', 'frame', 'permission', 'capture', 'photos'] as co
     const update = () => { stateUpdates++ }
     const flush = () => new Promise<void>((resolve) => setImmediate(resolve))
     const save = appCallback('savePracticeImage', {
+      finishPracticeStroke: () => undefined, savePracticeSessionNow: async () => true,
       imageExportRef, leaveInProgressRef, selectedStickerIdRef: { current: 'piece' },
       uploadedImage: { uri: 'guide.jpg' }, guideOnTop: false, stickers: [], captureImageKeys, createCaptureReadiness,
       setExportReadiness: update, setIsSavingImage: update, setSelectedStickerId: update,
@@ -135,7 +136,7 @@ for (const phase of ['decode', 'frame', 'permission', 'capture', 'photos'] as co
       Alert: { alert: (title: string) => { events.push(title) } },
     })
     const leave = appCallback('leavePractice', {
-      imageExportRef, leaveInProgressRef,
+      imageExportRef, leaveInProgressRef, finishLifetimeRef: { current: { mounted: true, token: 0 } },
       savePracticeSessionNow: async () => { events.push('flush'); return true },
       Alert: { alert: () => assert.fail('Blocked navigation cannot alert') },
     })

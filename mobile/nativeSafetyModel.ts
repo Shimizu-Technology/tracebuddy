@@ -10,8 +10,8 @@ export function holdProgress(elapsedMs: number) {
 
 export function parentModeHelp(arSupported: boolean) {
   return arSupported
-    ? 'Choose Camera + paper, On-screen practice, or Paper Lock (Beta). Paper Lock can drift; check alignment on your device.'
-    : 'Choose Camera + paper or On-screen practice. Paper Lock (Beta) needs a device with AR world tracking.'
+    ? 'Choose Trace on paper, Draw on screen, or Paper Lock (Beta). Paper Lock can drift; check alignment on your device.'
+    : 'Choose Trace on paper or Draw on screen. Paper Lock (Beta) needs a device with AR world tracking.'
 }
 
 export function selectedFamilyActivity(value: unknown, ids: readonly string[]) {
