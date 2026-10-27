@@ -179,7 +179,9 @@ Paper Lock must be evaluated on physical AR-capable hardware. The Simulator can 
 - On a stable stand, target peak-to-peak jitter is no more than 3 mm over ten seconds.
 - Move the device 10–20 cm and tilt it about 20 degrees. After settling, target residual error remains within 8 mm for Surface Lock and 5 mm for Marker Lock.
 - Run a ten-minute trace with no crash, freeze over one second, or serious/critical thermal state. Record battery change.
-- Cover the page/marker with a hand or pencil for 2–3 seconds. The UI must leave the safe locked state, prevent child mode, then recover or offer Reset within eight seconds.
+- In Marker Lock, cover the marker with a hand or pencil for 2–3 seconds. The guide must hide, the UI must leave the safe locked state, stop/prevent child mode, then recover or offer Reset within eight seconds.
+- Surface Lock is anchored to the table. It cannot detect a covered or moved page when world tracking stays normal; covering only the page may leave the guide visible and child mode available. Verify the parent guidance explains this limitation. A parent must stay with the child, stop tracing while the page is hidden, check alignment before continuing, and relock after page movement. Record page-coverage behavior separately; do not mark page-visibility detection as passed.
+- Separately interrupt world tracking or frame delivery in Surface Lock. The guide must hide, the UI must leave the safe locked state, stop/prevent child mode, then recover or offer Reset within eight seconds. Run the same tracking/frame-loss safety check in Marker Lock.
 - Slide the page 5–10 cm and rotate it 15 degrees. Marker Lock should follow when the marker moves with the page. Surface Lock must explain that it is table-anchored and require relocking.
 - Background the app, open Control Center, rotate the device, and exercise iPad multitasking. Each interruption must recover within eight seconds or show a working Reset/Camera Trace path.
 - Try dim light, glare, a white table, rapid motion, a partial marker, and a marker outside the frame. Each case must give specific guidance instead of silently showing a stale guide.

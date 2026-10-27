@@ -46,6 +46,10 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
   private var placeRevision = 0
   private var resetRevision = 0
   private var lastPayload = ""
+  private var sessionGeneration = 0
+  private var trackingLossToken = ARDeadlineToken()
+  private var freshnessToken = ARDeadlineToken()
+  private var freshnessTimer: Timer?
   private var relocalizationTimer: Timer?
   private var textureLoad: AnyCancellable?
 
@@ -104,8 +108,7 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
       arView.session.delegate = self
       startSessionIfPossible(resetTracking: !sessionRunning)
     } else {
-      relocalizationTimer?.invalidate()
-      relocalizationTimer = nil
+      cancelTrackingLoss()
       arView.session.pause()
       arView.session.delegate = nil
       sessionRunning = false
@@ -270,8 +273,7 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
   }
 
   private func resetSession(resetTracking: Bool) {
-    relocalizationTimer?.invalidate()
-    relocalizationTimer = nil
+    cancelTrackingLoss()
     guideRoot.transform = .identity
     guideRoot.isEnabled = false
     guideEntity?.removeFromParent()
@@ -291,8 +293,8 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
           case .normal = cameraTrackingState,
           let frame = arView.session.currentFrame,
           case .normal = frame.camera.trackingState,
-          frame.timestamp >= sessionStartedAt,
-          CACurrentMediaTime() - frame.timestamp <= candidateLifetime else { return false }
+          traceBuddyFrameIsFresh(timestamp: frame.timestamp, sessionStartedAt: sessionStartedAt,
+                                 now: CACurrentMediaTime(), lifetime: candidateLifetime) else { return false }
     return true
   }
 
@@ -306,6 +308,7 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
   }
 
   private func clearCandidate() {
+    cancelFreshnessDeadline()
     latestSurfaceTransform = nil
     markerTransform = nil
     markerIsTracked = false
@@ -314,6 +317,8 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
   }
 
   private func invalidateTracking() {
+    sessionGeneration += 1
+    cancelTrackingLoss()
     cameraTrackingState = .notAvailable
     clearCandidate()
   }
@@ -370,6 +375,9 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
 
   private func updatePlacement() {
     guard active, hasAppeared, sessionRunning else { return }
+    // Re-arm on processed frames, independently of deduplicated bridge emits.
+    // The locked Surface path also needs a watchdog if ARKit stops delivering.
+    defer { if candidateIsFresh { armFreshnessDeadline() } }
     guard cameraIsNormal else {
       clearCandidate()
       emitCameraState()
@@ -382,8 +390,7 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
     }
     if isLocked {
       guideRoot.isEnabled = true
-      relocalizationTimer?.invalidate()
-      relocalizationTimer = nil
+      cancelTrackingLoss()
       emit(session: "running", tracking: "normal", reason: "none", anchor: "tracked", placement: "locked")
       return
     }
@@ -406,8 +413,7 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
     arView.session.pause()
     sessionRunning = false
     invalidateTracking()
-    relocalizationTimer?.invalidate()
-    relocalizationTimer = nil
+    cancelTrackingLoss()
     emit(session: "interrupted", tracking: "unavailable", reason: "none", anchor: isLocked ? "stale" : "none", placement: isLocked ? "locked" : "none")
   }
 
@@ -424,10 +430,10 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
     let authoritativeTracking = tracking == "normal" && !cameraIsNormal ? cameraStateName : tracking
     let authoritativeReason = tracking == "normal" && !cameraIsNormal ? cameraReasonName : reason
     let fresh = session == "running" && candidateIsFresh
-    let payload = [session, authoritativeTracking, authoritativeReason, anchor, placement, String(fresh), message ?? ""].joined(separator: "|")
+    let payload = [String(resetRevision), guideImageUri ?? "", session, authoritativeTracking, authoritativeReason, anchor, placement, String(fresh), message ?? ""].joined(separator: "|")
     guard payload != lastPayload else { return }
     lastPayload = payload
-    var event: [String: Any] = ["session": session, "tracking": authoritativeTracking, "reason": authoritativeReason, "anchor": anchor, "placement": placement, "candidateFresh": fresh]
+    var event: [String: Any] = ["resetRevision": resetRevision, "guideImageUri": guideImageUri ?? "", "session": session, "tracking": authoritativeTracking, "reason": authoritativeReason, "anchor": anchor, "placement": placement, "candidateFresh": fresh]
     if let message { event["message"] = message }
     onStateChange(event)
   }
@@ -483,16 +489,59 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
     }
   }
 
+  private func cancelTrackingLoss() {
+    trackingLossToken.invalidate()
+    relocalizationTimer?.invalidate()
+    relocalizationTimer = nil
+  }
+
   private func scheduleTrackingLoss() {
-    guard relocalizationTimer == nil else { return }
-    relocalizationTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: false) { [weak self] _ in
+    guard relocalizationTimer == nil, active, hasAppeared, sessionRunning else { return }
+    let generation = sessionGeneration
+    let token = trackingLossToken.arm()
+    let timer = Timer(timeInterval: 8, repeats: false) { [weak self] _ in
       Task { @MainActor in
-        guard let self, self.isLocked else { return }
-        self.relocalizationTimer = nil
+        guard let self, self.isLocked, self.hasAppeared,
+              self.trackingLossToken.accepts(token, session: generation, currentSession: self.sessionGeneration,
+                                             active: self.active, running: self.sessionRunning) else { return }
+        self.cancelTrackingLoss()
         self.guideRoot.isEnabled = false
         self.emit(session: "running", tracking: "limited", reason: "unknown", anchor: "stale", placement: "locked")
       }
     }
+    relocalizationTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
+  private func cancelFreshnessDeadline() {
+    freshnessToken.invalidate()
+    freshnessTimer?.invalidate()
+    freshnessTimer = nil
+  }
+
+  private func armFreshnessDeadline() {
+    cancelFreshnessDeadline()
+    guard let frame = arView.session.currentFrame else { return }
+    let generation = sessionGeneration
+    let token = freshnessToken.arm()
+    let remaining = max(0.001, frame.timestamp + candidateLifetime - CACurrentMediaTime())
+    let timer = Timer(timeInterval: remaining, repeats: false) { [weak self] _ in
+      Task { @MainActor in
+        guard let self, self.hasAppeared,
+              self.freshnessToken.accepts(token, session: generation, currentSession: self.sessionGeneration,
+                                          active: self.active, running: self.sessionRunning) else { return }
+        // Tolerate an early timer firing; frame age, never bridge receipt time,
+        // is authority. Healthy frames invalidate every prior deadline token.
+        if self.candidateIsFresh { self.armFreshnessDeadline(); return }
+        self.clearCandidate()
+        self.emit(session: "running", tracking: self.cameraStateName, reason: self.cameraReasonName,
+                  anchor: self.isLocked ? "stale" : "none", placement: self.isLocked ? "locked" : "none",
+                  message: "Tracking frames stopped. Hold still or reset Paper Lock.")
+        if self.isLocked { self.scheduleTrackingLoss() }
+      }
+    }
+    freshnessTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
   }
 
   // Frame processing reads the latest image anchor, rather than queuing an extra
@@ -514,8 +563,7 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
     markerIsTracked = true
     candidateTimestamp = arView.session.currentFrame?.timestamp
     if isLocked {
-      relocalizationTimer?.invalidate()
-      relocalizationTimer = nil
+      cancelTrackingLoss()
       guideRoot.setTransformMatrix(transform, relativeTo: nil)
       guideRoot.isEnabled = candidateIsFresh
       emit(session: "running", tracking: "normal", reason: "none", anchor: "tracked", placement: "locked")

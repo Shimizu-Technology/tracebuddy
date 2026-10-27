@@ -6,6 +6,8 @@ export type ARAnchorState = 'none' | 'surfaceFound' | 'markerFound' | 'tracked' 
 export type ARPlacementState = 'none' | 'preview' | 'locked'
 
 export type ARNativeState = {
+  resetRevision: number
+  guideImageUri: string | null
   session: ARSessionState
   tracking: ARTrackingState
   reason: ARTrackingReason
@@ -30,6 +32,8 @@ export type ARDisplayState =
   | 'unsupported'
 
 export const initialARNativeState: ARNativeState = {
+  resetRevision: 0,
+  guideImageUri: null,
   session: 'idle',
   tracking: 'unavailable',
   reason: 'none',
@@ -126,6 +130,8 @@ export function normalizeARNativeState(value: unknown): ARNativeState {
   const placements: ARPlacementState[] = ['none', 'preview', 'locked']
 
   return {
+    resetRevision: Number.isSafeInteger(candidate.resetRevision) && (candidate.resetRevision ?? -1) >= 0 ? candidate.resetRevision! : -1,
+    guideImageUri: typeof candidate.guideImageUri === 'string' ? candidate.guideImageUri : null,
     session: sessions.includes(candidate.session as ARSessionState) ? candidate.session as ARSessionState : 'failed',
     tracking: trackingStates.includes(candidate.tracking as ARTrackingState) ? candidate.tracking as ARTrackingState : 'unavailable',
     reason: reasons.includes(candidate.reason as ARTrackingReason) ? candidate.reason as ARTrackingReason : 'unknown',
@@ -134,4 +140,15 @@ export function normalizeARNativeState(value: unknown): ARNativeState {
     candidateFresh: candidate.candidateFresh === true,
     message: typeof candidate.message === 'string' ? candidate.message.slice(0, 240) : undefined,
   }
+}
+
+// Both the reset command and the captured drawing/preset must match. Reject
+// queued events before they can restore preview or child-mode readiness.
+export function isCurrentAREvent(state: ARNativeState, resetRevision: number, guideUri: string | null) {
+  return guideUri !== null && state.resetRevision === resetRevision && state.guideImageUri === guideUri
+}
+
+export type ARGuideCapture = { key: string; uri: string }
+export function currentARGuide(capture: ARGuideCapture | null, key: string) {
+  return capture?.key === key ? capture.uri : null
 }

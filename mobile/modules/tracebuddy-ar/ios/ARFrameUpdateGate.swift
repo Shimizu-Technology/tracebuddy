@@ -21,3 +21,14 @@ final class ARFrameUpdateGate: @unchecked Sendable {
   }
 }
 
+
+// A Timer may already have queued its MainActor task when invalidated. Tokens
+// reject that task after re-arm/cancellation or a replacement session.
+struct ARDeadlineToken {
+  private(set) var revision = 0
+  mutating func invalidate() { revision += 1 }
+  mutating func arm() -> Int { invalidate(); return revision }
+  func accepts(_ token: Int, session: Int, currentSession: Int, active: Bool, running: Bool) -> Bool {
+    token == revision && session == currentSession && active && running
+  }
+}

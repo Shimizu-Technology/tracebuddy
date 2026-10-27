@@ -11,8 +11,11 @@ import {
   clampARValue,
   deriveARDisplayState,
   initialARNativeState,
+  isCurrentAREvent,
+  currentARGuide,
   normalizeARNativeState,
 } from '../mobile/src/features/ar/arTraceState'
+import { prepareARGuide } from '../mobile/src/features/ar/arGuideCapture'
 import type { ARNativeState } from '../mobile/src/features/ar/arTraceState'
 
 const running = (overrides: Partial<ARNativeState>): ARNativeState => ({
@@ -49,6 +52,8 @@ assert.equal(canEnterARChildMode({ ...locked, reason: 'relocalizing' }), false)
 
 assert.deepEqual(normalizeARNativeState(null), initialARNativeState)
 assert.deepEqual(normalizeARNativeState({ session: 'surprise', tracking: 'fast', reason: 'bad', anchor: 'screen', placement: 'floating' }), {
+  resetRevision: -1,
+  guideImageUri: null,
   session: 'failed',
   tracking: 'unavailable',
   reason: 'unknown',
@@ -107,6 +112,39 @@ assert.equal(normalizeARNativeState({ ...locked, candidateFresh: undefined }).ca
 assert.deepEqual(availableARTraceSurfaces(false), ['camera', 'screen'])
 assert.deepEqual(availableARTraceSurfaces(true), ['camera', 'screen', 'ar'])
 
+// Delayed bridge delivery must never re-enable Lock or child entry after Reset.
+for (const mode of ['surface', 'marker'] as const) {
+  for (const placement of ['preview', 'locked'] as const) {
+    const old = running({ resetRevision: 2, guideImageUri: 'portrait.png', placement,
+      anchor: placement === 'locked' ? 'tracked' : mode === 'marker' ? 'markerFound' : 'surfaceFound' })
+    assert.equal(isCurrentAREvent(old, 3, 'portrait.png'), false)
+    assert.equal(isCurrentAREvent({ ...old, resetRevision: 3 }, 3, 'portrait.png'), true)
+    assert.equal(isCurrentAREvent(old, 2, 'landscape.png'), false)
+    assert.equal(isCurrentAREvent(old, 2, null), false)
+    assert.equal(isCurrentAREvent(normalizeARNativeState({ ...old, resetRevision: undefined }), 0, 'portrait.png'), false)
+  }
+}
+const portrait = { key: 'drawing:portrait', uri: 'portrait.png' }
+assert.equal(currentARGuide(portrait, 'drawing:landscape'), null)
+assert.equal(currentARGuide(portrait, 'differentDrawing:portrait'), null)
+assert.equal(currentARGuide(null, 'drawing:landscape'), null) // failed capture
+const released: string[] = []
+let captureKey = 'portrait'
+let finishCapture!: (uri: string) => void
+const delayed = prepareARGuide({
+  capture: () => new Promise<string>((resolve) => { finishCapture = resolve }),
+  isCurrent: () => captureKey === 'portrait', release: (uri) => released.push(uri),
+})
+captureKey = 'landscape'
+finishCapture('delayed-portrait.png')
+assert.equal(await delayed, null)
+assert.deepEqual(released, ['delayed-portrait.png'])
+await assert.rejects(prepareARGuide({ capture: async () => { throw new Error('capture failed') },
+  isCurrent: () => true, release: (uri) => released.push(uri) }))
+const retryUri = await prepareARGuide({ capture: async () => 'landscape.png',
+  isCurrent: () => true, release: (uri) => released.push(uri) })
+assert.equal(currentARGuide({ key: captureKey, uri: retryUri! }, 'landscape'), 'landscape.png')
+
 // Run the actual pure Swift math/policy on macOS. Linux CI still runs all JS
 // transitions; simd/RealityKit device linkage remains the separate iOS build gate.
 if (process.platform === 'darwin') {
@@ -160,6 +198,33 @@ precondition(gate.begin()); precondition(!gate.begin()); gate.end(); preconditio
 DispatchQueue.concurrentPerform(iterations: 100) { _ in
   if gate.begin() { precondition(!gate.begin()); gate.end() }
 }
+// Timer tasks queued before invalidation, failure, interruption, or reset
+// must be rejected even if the replacement session is running and locked.
+var deadline = ARDeadlineToken()
+let first = deadline.arm()
+precondition(deadline.accepts(first, session: 1, currentSession: 1, active: true, running: true))
+precondition(!deadline.accepts(first, session: 1, currentSession: 1, active: false, running: true))
+precondition(!deadline.accepts(first, session: 1, currentSession: 1, active: true, running: false))
+precondition(!deadline.accepts(first, session: 1, currentSession: 2, active: true, running: true))
+deadline.invalidate()
+precondition(!deadline.accepts(first, session: 1, currentSession: 1, active: true, running: true))
+// Healthy frames can be bridge-deduplicated: rearming invalidates old tasks.
+for _ in 0..<60 { _ = deadline.arm() }
+precondition(!deadline.accepts(first, session: 1, currentSession: 1, active: true, running: true))
+// A stationary healthy preview may emit just once but processed frames keep
+// its deadline fresh. Once frames stop, both preview and locked policies expire.
+var lastFrame = 10.0
+for frame in 1...60 {
+  let now = 10.0 + Double(frame) / 60.0
+  lastFrame = now
+  precondition(traceBuddyFrameIsFresh(timestamp: lastFrame, sessionStartedAt: 10, now: now, lifetime: 0.5))
+}
+for locked in [false, true] {
+  let normal = traceBuddyFrameIsFresh(timestamp: lastFrame, sessionStartedAt: 10, now: lastFrame + 0.51, lifetime: 0.5)
+  precondition(!fresh(normal, true, locked, true, lastFrame, lastFrame + 0.51))
+}
+precondition(!traceBuddyFrameIsFresh(timestamp: 9.9, sessionStartedAt: 10, now: 10.1, lifetime: 0.5))
+precondition(!traceBuddyFrameIsFresh(timestamp: 11, sessionStartedAt: 10, now: 10.1, lifetime: 0.5))
 print("Swift page-corner, freshness and frame-coalescing checks passed.")
 ` })
   assert.equal(swift.status, 0, swift.stderr || swift.stdout)

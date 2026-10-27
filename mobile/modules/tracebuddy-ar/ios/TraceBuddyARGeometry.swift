@@ -37,3 +37,8 @@ func traceBuddyCandidateIsFresh(
   let age = now - timestamp
   return age >= 0 && age <= lifetime
 }
+
+// ARFrame timestamps and CACurrentMediaTime share the monotonic clock.
+func traceBuddyFrameIsFresh(timestamp: Double, sessionStartedAt: Double, now: Double, lifetime: Double) -> Bool {
+  timestamp >= sessionStartedAt && now >= timestamp && now - timestamp <= lifetime
+}

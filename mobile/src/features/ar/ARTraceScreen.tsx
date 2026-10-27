@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import {
   Alert,
@@ -28,9 +28,12 @@ import {
   clampARValue,
   deriveARDisplayState,
   initialARNativeState,
+  isCurrentAREvent,
+  currentARGuide,
   normalizeARNativeState,
 } from './arTraceState'
-import type { ARNativeState, ARPagePreset, ARPlacementMode } from './arTraceState'
+import { prepareARGuide } from './arGuideCapture'
+import type { ARGuideCapture, ARNativeState, ARPagePreset, ARPlacementMode } from './arTraceState'
 
 type UploadedGuide = { uri: string; name: string }
 
@@ -78,12 +81,14 @@ function GuideTexture({
   selectedDrawing,
   uploadedImage,
   onReady,
+  onError,
 }: {
   captureTarget: RefObject<View | null>
   pagePreset: ARPagePreset
   selectedDrawing: Drawing
   uploadedImage: UploadedGuide | null
   onReady: () => void
+  onError: () => void
 }) {
   const page = arPagePresets[pagePreset]
   const width = 720
@@ -99,6 +104,7 @@ function GuideTexture({
               resizeMode="contain"
               style={styles.captureImage}
               onLoad={onReady}
+              onError={onError}
             />
           ) : (
             <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
@@ -110,6 +116,13 @@ function GuideTexture({
 }
 
 export default function ARTraceScreen(props: Props) {
+  // A different drawing starts a new capture/native generation, even if the
+  // parent changes A → B → A before an earlier capture has completed.
+  const drawingKey = JSON.stringify([props.selectedDrawing.id, props.selectedDrawing.svg, props.uploadedImage?.uri])
+  return <ARTraceSession key={drawingKey} {...props} />
+}
+
+function ARTraceSession(props: Props) {
   const {
     insetsTop,
     insetsBottom,
@@ -130,8 +143,10 @@ export default function ARTraceScreen(props: Props) {
   const [nativeState, setNativeState] = useState<ARNativeState>(initialARNativeState)
   const [placementMode, setPlacementMode] = useState<ARPlacementMode>('surface')
   const [pagePreset, setPagePreset] = useState<ARPagePreset>('letterPortrait')
-  const [guideUri, setGuideUri] = useState<string | null>(null)
-  const [captureReady, setCaptureReady] = useState(false)
+  const [guideCapture, setGuideCapture] = useState<ARGuideCapture | null>(null)
+  const [captureReadyKey, setCaptureReadyKey] = useState<string | null>(null)
+  const [captureErrorKey, setCaptureErrorKey] = useState<string | null>(null)
+  const [captureAttempt, setCaptureAttempt] = useState(0)
   const [opacity, setOpacity] = useState(0.72)
   const [scale, setScale] = useState(0.88)
   const [rotation, setRotation] = useState(0)
@@ -139,49 +154,76 @@ export default function ARTraceScreen(props: Props) {
   const [offsetY, setOffsetY] = useState(0)
   const [placeRevision, setPlaceRevision] = useState(0)
   const [resetRevision, setResetRevision] = useState(0)
+  const expectedResetRevision = useRef(0)
   const [controlsOpen, setControlsOpen] = useState(true)
   const [childMode, setChildMode] = useState(false)
   const captureTarget = useRef<View>(null)
   const page = arPagePresets[pagePreset]
   const setupReady = Object.values(setupChecks).every(Boolean)
-  const displayState = deriveARDisplayState(nativeState, placementMode)
+  const guideKey = JSON.stringify([selectedDrawing.id, selectedDrawing.svg, uploadedImage?.uri, pagePreset])
+  const guideUri = currentARGuide(guideCapture, guideKey)
+  const expectedGuide = useRef({ key: guideKey, uri: guideUri })
+  useLayoutEffect(() => { expectedGuide.current = { key: guideKey, uri: guideUri } }, [guideKey, guideUri])
+  const currentNativeState = isCurrentAREvent(nativeState, resetRevision, guideUri) ? nativeState : initialARNativeState
+  const displayState = deriveARDisplayState(currentNativeState, placementMode)
   const displayCopy = arDisplayCopy[displayState]
-  const trackingAdvice = arTrackingAdvice(nativeState)
-  const placementReady = canLockARPlacement(nativeState, placementMode)
-  const childModeReady = canEnterARChildMode(nativeState)
+  const trackingAdvice = arTrackingAdvice(currentNativeState)
+  const placementReady = canLockARPlacement(currentNativeState, placementMode)
+  const childModeReady = canEnterARChildMode(currentNativeState)
 
-  const handleCaptureReady = useCallback(() => setCaptureReady(true), [])
+  const resetPlacement = useCallback(() => {
+    // Advance synchronously, before native receives the prop or queued events.
+    expectedResetRevision.current += 1
+    setResetRevision(expectedResetRevision.current)
+    setNativeState(initialARNativeState)
+    setChildMode(false)
+    setControlsOpen(true)
+  }, [])
+
+  const handleCaptureReady = useCallback(() => {
+    if (expectedGuide.current.key === guideKey) setCaptureReadyKey(guideKey)
+  }, [guideKey])
 
   useEffect(() => {
-    if (!captureReady || !captureTarget.current) return
+    if (captureReadyKey !== guideKey || !captureTarget.current) return
     let cancelled = false
-    let nextUri: string | null = null
     void waitForTwoFrames().then(async () => {
       if (cancelled || !captureTarget.current) return
-      nextUri = await captureRef(captureTarget, { format: 'png', quality: 1, result: 'tmpfile' })
-      if (cancelled) {
-        releaseCapture(nextUri)
-        return
-      }
-      setGuideUri(nextUri)
+      const uri = await prepareARGuide({
+        capture: () => captureRef(captureTarget, { format: 'png', quality: 1, result: 'tmpfile' }),
+        isCurrent: () => !cancelled && expectedGuide.current.key === guideKey,
+        release: releaseCapture,
+      })
+      if (!uri) return
+      setNativeState(initialARNativeState)
+      setChildMode(false)
+      setGuideCapture({ key: guideKey, uri })
+      setCaptureErrorKey(null)
     }).catch(() => {
-      if (!cancelled) Alert.alert('Guide not ready', 'TraceBuddy could not prepare this picture for Paper Lock. Try regular Camera Trace.')
+      if (!cancelled && expectedGuide.current.key === guideKey) {
+        setGuideCapture(null)
+        setCaptureErrorKey(guideKey)
+      }
     })
     return () => { cancelled = true }
-  }, [captureReady, pagePreset, selectedDrawing.id, uploadedImage?.uri])
+  }, [captureReadyKey, guideKey, captureAttempt])
 
   useEffect(() => () => {
-    if (guideUri) releaseCapture(guideUri)
-  }, [guideUri])
+    if (guideCapture) releaseCapture(guideCapture.uri)
+  }, [guideCapture])
+
+  const retryGuide = useCallback(() => {
+    setCaptureErrorKey(null)
+    setCaptureReadyKey(null)
+    setCaptureAttempt((value) => value + 1)
+  }, [])
 
   const changePlacementMode = useCallback((nextMode: ARPlacementMode) => {
-    setChildMode(false)
+    resetPlacement()
     setPlacementMode(nextMode)
     setOffsetX(nextMode === 'marker' ? page.widthMeters / 2 + 0.04 : 0)
     setOffsetY(nextMode === 'marker' ? page.heightMeters / 2 - 0.025 : 0)
-    setNativeState(initialARNativeState)
-    setResetRevision((value) => value + 1)
-  }, [page.heightMeters, page.widthMeters])
+  }, [page.heightMeters, page.widthMeters, resetPlacement])
 
   const printMarker = useCallback(async () => {
     try {
@@ -219,7 +261,7 @@ export default function ARTraceScreen(props: Props) {
         <StatusBar style="dark" />
         <Text style={styles.setupEyebrow}>PARENT SETUP · PAPER LOCK (BETA)</Text>
         <Text style={styles.setupTitle}>Make the tracing space safe and steady.</Text>
-        <Text style={styles.setupCopy}>Paper Lock (Beta) uses the table or a printed marker to position the guide. It can drift or lose tracking. Use a stand and check alignment before tracing.</Text>
+        <Text style={styles.setupCopy}>Paper Lock (Beta) uses the table or a printed marker to position the guide. It can drift or lose tracking. Use a stand and check alignment before tracing. Stay with your child: Surface Lock cannot detect a covered or moved page; Marker Lock detects marker loss.</Text>
         {([
           ['stable', 'Stand is stable', 'The device cannot tip or fall into the drawing area.'],
           ['page', 'Whole page is visible', 'Leave room around every edge so tracking can recover.'],
@@ -244,12 +286,15 @@ export default function ARTraceScreen(props: Props) {
     )
   }
 
+  const childModeActive = childMode && childModeReady
+
   return (
     <View style={styles.shell}>
-      <StatusBar style="light" hidden={childMode} />
-      <GuideTexture captureTarget={captureTarget} pagePreset={pagePreset} selectedDrawing={selectedDrawing} uploadedImage={uploadedImage} onReady={handleCaptureReady} />
+      <StatusBar style="light" hidden={childModeActive} />
+      <GuideTexture key={`${guideKey}:${captureAttempt}`} captureTarget={captureTarget} pagePreset={pagePreset} selectedDrawing={selectedDrawing} uploadedImage={uploadedImage} onReady={handleCaptureReady} onError={() => { if (expectedGuide.current.key === guideKey) setCaptureErrorKey(guideKey) }} />
       {guideUri ? (
         <TraceBuddyARView
+          key={guideUri}
           style={StyleSheet.absoluteFill}
           active
           guideImageUri={guideUri}
@@ -265,6 +310,7 @@ export default function ARTraceScreen(props: Props) {
           resetRevision={resetRevision}
           onStateChange={(event) => {
             const nextState = normalizeARNativeState(event.nativeEvent)
+            if (!isCurrentAREvent(nextState, expectedResetRevision.current, expectedGuide.current.uri)) return
             setNativeState(nextState)
             if (childMode && !canEnterARChildMode(nextState)) {
               setChildMode(false)
@@ -272,9 +318,11 @@ export default function ARTraceScreen(props: Props) {
             }
           }}
         />
-      ) : <View style={styles.preparing}><Text style={styles.preparingText}>Preparing {pictureName}…</Text></View>}
+      ) : <View style={styles.preparing}>
+        <Text style={styles.preparingText}>{captureErrorKey === guideKey ? 'The guide could not be prepared.' : `Preparing ${pictureName}…`}</Text>
+      </View>}
 
-      {!childMode ? (
+      {!childModeActive ? (
         <View style={[styles.header, { paddingTop: insetsTop + 10 }]} pointerEvents="box-none">
           <Pressable style={styles.headerButton} onPress={onPicker} accessibilityRole="button" accessibilityLabel="Back to picture picker"><Text style={styles.headerButtonText}>Pictures</Text></Pressable>
           <View style={styles.titleCard}><Text style={styles.title} numberOfLines={1}>{pictureName}</Text><Text style={styles.subtitle} numberOfLines={1}>{pictureTheme} · Paper Lock (Beta)</Text></View>
@@ -284,25 +332,26 @@ export default function ARTraceScreen(props: Props) {
         <Pressable style={[styles.childExit, { top: insetsTop + 10 }]} onPress={() => setChildMode(false)} accessibilityRole="button"><Text style={styles.childExitText}>Exit child mode</Text></Pressable>
       )}
 
-      <View style={[styles.statusCard, { top: insetsTop + (childMode ? 66 : 76) }]} accessibilityRole="alert" accessibilityLiveRegion="polite">
+      <View style={[styles.statusCard, { top: insetsTop + (childModeActive ? 66 : 76) }]} accessibilityRole="alert" accessibilityLiveRegion="polite">
         <View style={[styles.statusDot, displayState === 'locked' && styles.statusDotReady]} />
         <View style={styles.statusCopy}><Text style={styles.statusTitle}>{displayCopy.title}</Text><Text style={styles.statusDetail}>{trackingAdvice ?? displayCopy.detail}</Text></View>
       </View>
 
-      {!childMode ? (
+      {!childModeActive ? (
         <View style={[styles.controlsDock, { paddingBottom: insetsBottom + 10 }]} pointerEvents="box-none">
           {!controlsOpen ? (
             <Pressable style={styles.openControls} onPress={() => setControlsOpen(true)} accessibilityRole="button"><Text style={styles.openControlsText}>Adjust Paper Lock</Text></Pressable>
           ) : (
             <ScrollView style={styles.controlsSheet} contentContainerStyle={styles.controlsContent} showsVerticalScrollIndicator={false}>
               <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>Adjust Paper Lock</Text><Text style={styles.sheetCopy}>Place the guide with the center square. Artwork has an inset margin.</Text></View><ARControlButton label="Hide" onPress={() => setControlsOpen(false)} /></View>
+              {captureErrorKey === guideKey ? <Pressable style={styles.secondaryButton} onPress={retryGuide} accessibilityRole="button"><Text style={styles.secondaryButtonText}>Retry guide</Text></Pressable> : null}
               <View style={styles.segmentRow}>
                 <ARControlButton label="Surface Lock" selected={placementMode === 'surface'} onPress={() => changePlacementMode('surface')} />
                 <ARControlButton label="Marker Lock" selected={placementMode === 'marker'} onPress={() => changePlacementMode('marker')} />
               </View>
-              {placementMode === 'marker' ? <Pressable style={styles.markerButton} onPress={() => { void printMarker() }} accessibilityRole="button"><Text style={styles.markerButtonText}>Print the 50 mm Paper Lock marker</Text></Pressable> : <Text style={styles.modeNote}>Surface Lock stays on the table. If the paper moves, reset and lock it again.</Text>}
+              {placementMode === 'marker' ? <Pressable style={styles.markerButton} onPress={() => { void printMarker() }} accessibilityRole="button"><Text style={styles.markerButtonText}>Print the 50 mm Paper Lock marker</Text></Pressable> : <Text style={styles.modeNote}>Surface Lock stays on the table and cannot detect a covered or moved page. Stay with your child; stop if the page is hidden, and reset if it moves.</Text>}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow} accessibilityLabel="Paper size">
-                {(Object.keys(arPagePresets) as ARPagePreset[]).map((preset) => <ARControlButton key={preset} label={arPagePresets[preset].label} selected={pagePreset === preset} onPress={() => { const nextPage = arPagePresets[preset]; setPagePreset(preset); setChildMode(false); setNativeState(initialARNativeState); setCaptureReady(false); if (placementMode === 'marker') { setOffsetX(nextPage.widthMeters / 2 + 0.04); setOffsetY(nextPage.heightMeters / 2 - 0.025) } setResetRevision((value) => value + 1) }} />)}
+                {(Object.keys(arPagePresets) as ARPagePreset[]).map((preset) => <ARControlButton key={preset} label={arPagePresets[preset].label} selected={pagePreset === preset} onPress={() => { if (preset === pagePreset) return; const nextPage = arPagePresets[preset]; resetPlacement(); setGuideCapture(null); expectedGuide.current.uri = null; setPagePreset(preset); if (placementMode === 'marker') { setOffsetX(nextPage.widthMeters / 2 + 0.04); setOffsetY(nextPage.heightMeters / 2 - 0.025) } }} />)}
               </ScrollView>
               <View style={styles.adjustGrid}>
                 <View style={styles.adjustGroup}><Text style={styles.adjustLabel}>Opacity · {Math.round(opacity * 100)}%</Text><View style={styles.segmentRow}><ARControlButton label="Less opacity" onPress={() => setOpacity((value) => clampARValue(value - 0.08, 0.12, 1))} /><ARControlButton label="More opacity" onPress={() => setOpacity((value) => clampARValue(value + 0.08, 0.12, 1))} /></View></View>
@@ -312,7 +361,7 @@ export default function ARTraceScreen(props: Props) {
               <View style={styles.nudgeGroup}><Text style={styles.adjustLabel}>Precise nudge</Text><View style={styles.segmentRow}><ARControlButton label="Nudge left" onPress={() => setOffsetX((value) => clampARValue(value - 0.005, -0.25, 0.25))} /><ARControlButton label="Nudge up" onPress={() => setOffsetY((value) => clampARValue(value - 0.005, -0.25, 0.25))} /><ARControlButton label="Nudge down" onPress={() => setOffsetY((value) => clampARValue(value + 0.005, -0.25, 0.25))} /><ARControlButton label="Nudge right" onPress={() => setOffsetX((value) => clampARValue(value + 0.005, -0.25, 0.25))} /></View></View>
               <View style={styles.actionRow}>
                 <Pressable style={[styles.placeButton, !placementReady && styles.buttonDisabled]} disabled={!placementReady} accessibilityState={{ disabled: !placementReady }} onPress={() => setPlaceRevision((value) => value + 1)} accessibilityRole="button"><Text style={styles.placeButtonText}>Lock to paper</Text></Pressable>
-                <Pressable style={styles.resetButton} onPress={() => { setChildMode(false); setNativeState(initialARNativeState); setResetRevision((value) => value + 1) }} accessibilityRole="button"><Text style={styles.resetButtonText}>Reset</Text></Pressable>
+                <Pressable style={styles.resetButton} onPress={resetPlacement} accessibilityRole="button"><Text style={styles.resetButtonText}>Reset</Text></Pressable>
               </View>
               <Pressable style={[styles.childButton, !childModeReady && styles.buttonDisabled]} disabled={!childModeReady} accessibilityState={{ disabled: !childModeReady }} onPress={() => { setControlsOpen(false); setChildMode(true) }} accessibilityRole="button"><Text style={[styles.childButtonText, !childModeReady && styles.disabledButtonText]}>Start child trace</Text></Pressable>
             </ScrollView>
