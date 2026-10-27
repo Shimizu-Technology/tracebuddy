@@ -1163,6 +1163,7 @@ function TraceBuddyMobile() {
     setSelectedDrawing(drawing)
     setUploadedImage(null)
     if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
+    latestPracticeSessionRef.current = null
     setActivePracticeSession(null)
     setMode(traceSurface === 'screen' ? 'practice' : traceSurface === 'ar' ? 'ar' : 'trace')
     if (traceSurface === 'camera') maybeOpenParentSetup()
@@ -1222,6 +1223,7 @@ function TraceBuddyMobile() {
           height: asset.height,
         })
         if (abandonedUploadUri && abandonedUploadUri !== persistedUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
+        latestPracticeSessionRef.current = null
         setActivePracticeSession(null)
         setMode(traceSurface === 'screen' ? 'practice' : traceSurface === 'ar' ? 'ar' : 'trace')
         if (traceSurface === 'camera') maybeOpenParentSetup()
@@ -1274,6 +1276,7 @@ function TraceBuddyMobile() {
 
   const openScreenPractice = useCallback(() => {
     setTraceSurface('screen')
+    latestPracticeSessionRef.current = null
     setActivePracticeSession(null)
     setMode('practice')
   }, [])
@@ -1395,6 +1398,7 @@ function TraceBuddyMobile() {
     void preparePracticeSessionForOpen(session).then((readySession) => {
       if (!readySession || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       applyPracticeSource(readySession.source)
+      latestPracticeSessionRef.current = readySession
       setActivePracticeSession(readySession)
       setMode('practice')
     })
@@ -1406,6 +1410,7 @@ function TraceBuddyMobile() {
     void preparePracticeSourceForOpen(session.source).then((source) => {
       if (!source || operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
       applyPracticeSource(source)
+      latestPracticeSessionRef.current = null
       setActivePracticeSession(null)
       setMode('practice')
     })
@@ -1452,6 +1457,7 @@ function TraceBuddyMobile() {
               if (operationGeneration !== previousWorkOperationGenerationRef.current || drawingPreferencesClearInProgressRef.current) return
               setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== session.sessionId))
               if (activePracticeSession?.sessionId === session.sessionId) setActivePracticeSession(null)
+              if (latestPracticeSessionRef.current?.sessionId === session.sessionId) latestPracticeSessionRef.current = null
               if (imageCleanupPending) Alert.alert('Work deleted', 'The saved drawing was removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work to retry cleanup.')
             })
             .catch(() => {
@@ -1477,6 +1483,7 @@ function TraceBuddyMobile() {
           void deleteAllPreviousWorkSessions()
             .then(({ imageCleanupPending }) => {
               setPreviousWorkSessions([])
+              latestPracticeSessionRef.current = null
               setActivePracticeSession(null)
               setUploadedImage(null)
               drawingPreferencesInteractionRef.current = true
@@ -1517,9 +1524,9 @@ function TraceBuddyMobile() {
   }, [])
 
   const handlePracticeSessionDeleted = useCallback((sessionId: string) => {
+    latestPracticeSessionRef.current = null
     setActivePracticeSession(null)
     resumeSessionIdRef.current = null
-    latestPracticeSessionRef.current = null
     setPreviousWorkSessions((current) => current.filter((item) => item.sessionId !== sessionId))
   }, [])
 
@@ -1545,6 +1552,7 @@ function TraceBuddyMobile() {
     setSelectedDrawing(drawing)
     setUploadedImage(null)
     if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
+    latestPracticeSessionRef.current = null
     setActivePracticeSession(null)
     setTraceSurface(surface)
     setMode(surface === 'screen' ? 'practice' : 'trace')
@@ -1564,6 +1572,7 @@ function TraceBuddyMobile() {
     setSelectedDrawing(drawing)
     setUploadedImage(null)
     if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
+    latestPracticeSessionRef.current = null
     setActivePracticeSession(null)
     setTraceSurface('screen')
     setMode('practice')
@@ -1578,6 +1587,7 @@ function TraceBuddyMobile() {
     setSelectedDrawing(drawing)
     setUploadedImage(null)
     if (abandonedUploadUri) cleanupStoredImageUrisIfUnusedBestEffort([abandonedUploadUri])
+    latestPracticeSessionRef.current = null
     setActivePracticeSession(null)
     setTraceSurface(surface)
     setMode(surface === 'screen' ? 'practice' : 'trace')
