@@ -167,6 +167,8 @@ Pass if the complete cached app shell loads and a static page never replaces the
 
 ### Paper Lock release gate
 
+Use the [short TestFlight checklist](PAPER_LOCK_TESTFLIGHT_CHECKLIST.md) to run and record this gate. The limits and matrix below remain the source of truth.
+
 Paper Lock must be evaluated on physical AR-capable hardware. The Simulator can prove only that the native module links and the fallback UI works.
 
 - Print a calibration page with corner crosses and a 10 mm grid. For Marker Lock, print the in-app marker at 100% scale and verify the square is 50 mm wide.

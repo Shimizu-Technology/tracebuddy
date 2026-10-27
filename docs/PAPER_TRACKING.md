@@ -67,7 +67,7 @@ Tradeoffs:
 - Adds setup friction.
 - Needs marker design and calibration work.
 
-## Current iOS option: Paper Lock
+## Current iOS option: Paper Lock (Beta)
 
 Version 1.3 uses native ARKit/RealityKit to anchor drawings to a horizontal surface or an optional printable 50 mm marker.
 
