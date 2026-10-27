@@ -1944,6 +1944,7 @@ function App() {
       uploadOperationGenerationRef.current += 1
       setSelectedDrawing(drawing)
       setUploadedImage(null)
+      setUploadMessage('')
       if (abandonedImageId) void deleteUploadedImageRecordIfUnused(abandonedImageId)
       resetUploadCleanup()
     }
@@ -1961,6 +1962,7 @@ function App() {
       uploadOperationGenerationRef.current += 1
       setSelectedDrawing(drawing)
       setUploadedImage(null)
+      setUploadMessage('')
       if (abandonedImageId) void deleteUploadedImageRecordIfUnused(abandonedImageId)
       resetUploadCleanup()
     }
@@ -3562,7 +3564,7 @@ function TraceScreen({
             <span>{paperLost && !paperTrackingPaused ? 'Paper lost — hold still or realign' : paperTrackingPaused ? 'Paper lock paused — retry camera' : paperLockEnabled ? 'Paper lock on — follows sheet' : transform.locked ? 'Locked — trace now' : 'Drag picture to move'}</span>
           </div>
 
-          {paperLost && !paperTrackingPaused && <div className="paper-recovery" role="status"><strong>Paper lost — hold still or realign</strong><button type="button" onClick={onFindPaper}>Find paper again</button><button type="button" onClick={onTogglePaperLock}>Align manually</button></div>}
+          {paperLost && !paperTrackingPaused && <div className="paper-recovery" role="status"><strong>Paper lost — hold still or realign</strong><button type="button" onClick={onFindPaper}>Find paper again</button>{!childTraceMode && <button type="button" onClick={onTogglePaperLock}>Align manually</button>}</div>}
           {cameraStatus !== 'ready' && (
             <div className="camera-help">
               <strong>{cameraStatus === 'starting' ? 'Starting camera' : 'Demo mode'}</strong>

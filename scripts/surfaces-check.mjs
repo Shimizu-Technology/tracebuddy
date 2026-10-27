@@ -207,7 +207,16 @@ try {
   await page.evaluate(()=>{window.__scrollBehavior=[];const original=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(o){window.__scrollBehavior.push(o.behavior);original.call(this,o)}})
   await page.click('[data-family-activity-id="guam-memory-map"]')
   await pause(100)
-  assert(await page.evaluate(()=>window.__scrollBehavior.every(x=>x==='auto')),'Together ignored reduced motion')
+  assert(await page.evaluate(()=>window.__scrollBehavior.length>0&&window.__scrollBehavior.every(x=>x==='auto')),'Together did not scroll to the activity, or ignored reduced motion')
+  // Token pairs can pass while a later rule overrides a rendered color, so also
+  // measure what the browser actually paints on every visible primary button.
+  await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'no-preference'}])
+  await page.goto(url+'#home',{waitUntil:'networkidle0'})
+  const primary=await page.$$eval('.primary-button',buttons=>buttons.filter(b=>b.getClientRects().length).map(b=>{const s=getComputedStyle(b);return{text:b.textContent.trim(),color:s.color,background:s.backgroundColor}}))
+  assert(primary.length>0,'No visible .primary-button to measure')
+  const rgb=v=>v.match(/[\d.]+/g).slice(0,3).map(Number)
+  const lum=c=>{const [r,g,b]=c.map(x=>x/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return r*.2126+g*.7152+b*.0722}
+  for(const b of primary){const x=lum(rgb(b.color)),y=lum(rgb(b.background)),ratio=(Math.max(x,y)+.05)/(Math.min(x,y)+.05);assert(ratio>=4.5,`${b.text}: rendered ${b.color} on ${b.background} is ${ratio.toFixed(2)}:1`)}
   results.push({tracking:'lost → reacquired',reducedMotion:'auto',permissionRetry:'visible'})
   console.log(JSON.stringify(results,null,2))
   if(evidence)writeFileSync(join(evidence,'surfaces-results.json'),JSON.stringify(results,null,2))
