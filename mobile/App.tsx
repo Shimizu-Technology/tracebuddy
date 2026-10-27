@@ -45,7 +45,7 @@ import type { OperationGuard } from './practiceOperations'
 
 import { createPracticePreviewCache } from './practicePreviewCache'
 
-import { saveTemporaryCapture } from './captureUtils'
+import { captureImageKeys, createCaptureReadiness, saveTemporaryCapture } from './captureUtils'
 import { isDismissedPrintSheet } from './printUtils'
 import ARTraceScreen from './src/features/ar/ARTraceScreen'
 import { isTraceBuddyARSupported } from './modules/tracebuddy-ar/src/TraceBuddyARModule'
@@ -752,6 +752,7 @@ function TraceBuddyMobile() {
   const [childTraceMode, setChildTraceMode] = useState(false)
   const [arSupported] = useState(() => Platform.OS === 'ios' && isTraceBuddyARSupported())
   const activityInteractionRef = useRef(false)
+  const [activityStorageMessage, setActivityStorageMessage] = useState('')
   const [selectedActivityId, setSelectedActivityId] = useState(familyActivities[0].id)
   const [secondaryActionsOpen, setSecondaryActionsOpen] = useState(false)
   const [traceSurface, setTraceSurface] = useState<TraceSurface>('camera')
@@ -868,11 +869,9 @@ function TraceBuddyMobile() {
     void Promise.all([
       AsyncStorage.getItem(parentSetupSeenKey),
       AsyncStorage.getItem(savedAlignmentKey),
-      AsyncStorage.getItem(familyActivityKey),
-    ]).then(([setupSeen, rawAlignment, activityId]) => {
+    ]).then(([setupSeen, rawAlignment]) => {
       if (cancelled || !isCurrent()) return
       parentSetupSeenRef.current = setupSeen === '1'
-      if (!activityInteractionRef.current) setSelectedActivityId(selectedFamilyActivity(activityId, familyActivities.map((activity) => activity.id)))
       setSavedAlignment(normalizeTraceAlignment(rawAlignment ? JSON.parse(rawAlignment) : null))
     }).catch(() => undefined).finally(() => {
       if (!cancelled) setParentSetupHydrated(true)
@@ -900,12 +899,22 @@ function TraceBuddyMobile() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    const isCurrent = captureWorkOperation()
+    void AsyncStorage.getItem(familyActivityKey).then((activityId) => {
+      if (cancelled || !isCurrent() || activityInteractionRef.current) return
+      setSelectedActivityId(selectedFamilyActivity(activityId, familyActivities.map((activity) => activity.id)))
+    }).catch(() => { if (!cancelled && isCurrent()) setActivityStorageMessage('The last activity could not be restored. You can choose one below.') })
+    return () => { cancelled = true }
+  }, [captureWorkOperation])
+
   const chooseFamilyActivity = useCallback((id: string) => {
     if (drawingPreferencesClearInProgressRef.current) return
     const next = selectedFamilyActivity(id, familyActivities.map((activity) => activity.id))
     activityInteractionRef.current = true
     setSelectedActivityId(next)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(familyActivityKey, next), captureWorkOperation()).catch(() => undefined)
+    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(familyActivityKey, next), captureWorkOperation()).then(() => setActivityStorageMessage('')).catch(() => setActivityStorageMessage('This activity choice will last for this visit only.'))
   }, [captureWorkOperation])
 
   const saveDrawingPreferences = useCallback((nextPreferences: DrawingPreferences) => {
@@ -1391,6 +1400,7 @@ function TraceBuddyMobile() {
               setSelectedLesson(guidedLessons[0])
               activityInteractionRef.current = true
               setSelectedActivityId(familyActivities[0].id)
+              setActivityStorageMessage('')
               resumeSessionIdRef.current = null
               navigationRef.current = { current: 'picker', history: [] }
               parentSetupSeenRef.current = false
@@ -1852,6 +1862,7 @@ function TraceBuddyMobile() {
       <FamilyActivitiesScreen
         insetsTop={insets.top}
         insetsBottom={insets.bottom}
+        storageMessage={activityStorageMessage}
         selectedId={selectedActivityId}
         onSelect={chooseFamilyActivity}
         onPractice={(activity) => openFamilyActivity(activity, 'screen')}
@@ -2121,6 +2132,7 @@ function TraceBuddyMobile() {
 function FamilyActivitiesScreen({
   insetsTop,
   insetsBottom,
+  storageMessage,
   selectedId,
   onSelect,
   onPractice,
@@ -2131,6 +2143,7 @@ function FamilyActivitiesScreen({
 }: {
   insetsTop: number
   insetsBottom: number
+  storageMessage: string
   selectedId: string
   onSelect: (id: string) => void
   onPractice: (activity: FamilyActivity) => void
@@ -2157,6 +2170,7 @@ function FamilyActivitiesScreen({
           <Text style={styles.familyScreenCopy}>Twelve short invitations for kids, siblings, grandparents, and anyone who wants to join. No scores or wrong answers.</Text>
         </View>
 
+        {storageMessage ? <Text style={styles.preferenceMessage} accessibilityLiveRegion="polite">{storageMessage}</Text> : null}
         <Text style={styles.familyChooseLabel}>CHOOSE AN ACTIVITY</Text>
         <Text style={styles.familyChooseHint}>Swipe to find one that feels fun today.</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familyActivityGrid} accessibilityLabel="Family activities">
@@ -2199,11 +2213,11 @@ function formatPreviousWorkDate(value: string) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-function PracticeStickerView({ sticker, selected, frameStyle }: { sticker: PracticeSticker; selected?: boolean; frameStyle: object }) {
+function PracticeStickerView({ sticker, selected, frameStyle, onImageLoad, onImageError }: { sticker: PracticeSticker; selected?: boolean; frameStyle: object; onImageLoad?: () => void; onImageError?: () => void }) {
   return (
     <View style={[styles.practiceStickerFrame, frameStyle, { opacity: sticker.opacity, transform: [{ rotate: `${sticker.rotation}deg` }] }, selected && styles.practiceStickerFrameSelected]} pointerEvents="none">
       {sticker.kind === 'image' && sticker.uri ? (
-        <Image source={{ uri: sticker.uri }} style={styles.practiceStickerImage} resizeMode="contain" />
+        <Image source={{ uri: sticker.uri }} style={styles.practiceStickerImage} resizeMode="contain" onLoad={onImageLoad} onError={onImageError} />
       ) : sticker.svg ? (
         <SvgXml xml={sticker.svg} width="100%" height="100%" />
       ) : null}
@@ -2534,21 +2548,21 @@ const PracticeInkHistory = memo(function PracticeInkHistory({ strokes, idPrefix 
 
 })
 
-function PracticeDocument({ side, uploadedImage, selectedDrawing, guideOpacity, guideOnTop, stickers, selectedStickerId = null, practiceStrokes, activePath = '', activeStrokeRender = null, idPrefix }: {
-  side: number; uploadedImage: UploadedImage | null; selectedDrawing: Drawing; guideOpacity: number; guideOnTop: boolean; stickers: PracticeSticker[]; selectedStickerId?: string | null; practiceStrokes: PracticeStroke[]; activePath?: string; activeStrokeRender?: PracticeStroke | null; idPrefix: string
+function PracticeDocument({ side, uploadedImage, selectedDrawing, guideOpacity, guideOnTop, stickers, selectedStickerId = null, practiceStrokes, activePath = '', activeStrokeRender = null, idPrefix, onImageLoad, onImageError }: {
+  side: number; uploadedImage: UploadedImage | null; selectedDrawing: Drawing; guideOpacity: number; guideOnTop: boolean; stickers: PracticeSticker[]; selectedStickerId?: string | null; practiceStrokes: PracticeStroke[]; activePath?: string; activeStrokeRender?: PracticeStroke | null; idPrefix: string; onImageLoad?: (key: string) => void; onImageError?: (key: string) => void
 }) {
   const topGuideOpacity = Math.max(guideOpacity, 0.48)
   return (
             <View style={{ width: side, height: side, overflow: 'hidden', backgroundColor: '#FFFDF7' }}>
             <View style={[styles.practiceGuide, { opacity: guideOpacity }]} pointerEvents="none">
               {uploadedImage ? (
-                <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
+                <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" onLoad={() => onImageLoad?.('guide-base')} onError={() => onImageError?.('guide-base')} />
               ) : (
                 <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
               )}
             </View>
             {stickers.map((sticker) => (
-              <PracticeStickerView key={sticker.stickerId} sticker={sticker} selected={selectedStickerId === sticker.stickerId} frameStyle={sizedStickerFrame(sticker, { width: side, height: side })} />
+              <PracticeStickerView key={sticker.stickerId} sticker={sticker} selected={selectedStickerId === sticker.stickerId} onImageLoad={() => onImageLoad?.(`sticker-${sticker.stickerId}`)} onImageError={() => onImageError?.(`sticker-${sticker.stickerId}`)} frameStyle={sizedStickerFrame(sticker, { width: side, height: side })} />
             ))}
             <Svg
               pointerEvents="none"
@@ -2567,7 +2581,7 @@ function PracticeDocument({ side, uploadedImage, selectedDrawing, guideOpacity, 
             {guideOnTop && (
               <View style={[styles.practiceGuide, { opacity: topGuideOpacity }]} pointerEvents="none">
                 {uploadedImage ? (
-                  <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" />
+                  <Image source={{ uri: uploadedImage.uri }} style={styles.practiceGuideImage} resizeMode="contain" onLoad={() => onImageLoad?.('guide-top')} onError={() => onImageError?.('guide-top')} />
                 ) : (
                   <SvgXml xml={selectedDrawing.svg} width="100%" height="100%" />
                 )}
@@ -2629,6 +2643,7 @@ function PracticeScreen({
   const [activePanel, setActivePanel] = useState<PracticePanelId | null>(null)
   const [practiceRibbonHeight, setPracticeRibbonHeight] = useState(0)
   const [isSavingImage, setIsSavingImage] = useState(false)
+  const [exportReadiness, setExportReadiness] = useState<ReturnType<typeof createCaptureReadiness> | null>(null)
   const [viewportLocked, setViewportLocked] = useState(true)
   const [viewport, setViewport] = useState<PracticeViewport>(defaultPracticeViewport)
   const canvasSizeRef = useRef(canvasSize)
@@ -3411,6 +3426,8 @@ function PracticeScreen({
 
   const savePracticeImage = useCallback(async () => {
     if (isSavingImage) return
+    const readiness = createCaptureReadiness(captureImageKeys(uploadedImage?.uri, guideOnTop, stickers))
+    setExportReadiness(readiness)
     const restoreStickerId = selectedStickerIdRef.current
 
     try {
@@ -3422,6 +3439,7 @@ function PracticeScreen({
       }
 
       setSelectedStickerId(null)
+      await readiness.ready
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
       await saveTemporaryCapture(
         () => captureRef(exportDocumentRef, { width: documentCapture.width, height: documentCapture.height, useRenderInContext: true, format: 'png', quality: 1, result: 'tmpfile' }),
@@ -3435,9 +3453,11 @@ function PracticeScreen({
       Alert.alert('Could not save image', 'Try again in a moment or take a screenshot for now.')
     } finally {
       if (restoreStickerId) setSelectedStickerId(restoreStickerId)
+      readiness.dispose()
+      setExportReadiness(null)
       setIsSavingImage(false)
     }
-  }, [isSavingImage])
+  }, [guideOnTop, isSavingImage, stickers, uploadedImage])
 
   const practiceRibbonPanelTop = practiceRibbonHeight + 12
 
@@ -3445,7 +3465,7 @@ function PracticeScreen({
     <View style={[styles.practiceShell, { paddingLeft: safeInsets.left, paddingRight: safeInsets.right }]}>
       {isSavingImage && <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', left: -2000, top: 0 }}>
         <View ref={exportDocumentRef} collapsable={false}>
-          <PracticeDocument side={documentCapture.side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} practiceStrokes={practiceStrokes} activePath={activePath} activeStrokeRender={activeStrokeRender} idPrefix="export" />
+          <PracticeDocument side={documentCapture.side} uploadedImage={uploadedImage} selectedDrawing={selectedDrawing} guideOpacity={guideOpacity} guideOnTop={guideOnTop} stickers={stickers} practiceStrokes={practiceStrokes} activePath={activePath} activeStrokeRender={activeStrokeRender} idPrefix="export" onImageLoad={exportReadiness?.loaded} onImageError={exportReadiness?.failed} />
         </View>
       </View>}
       <StatusBar style="dark" />
