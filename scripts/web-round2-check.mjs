@@ -33,10 +33,10 @@ async function draw(p, offset = 0, settle = 750) {
   await pause(settle)
 }
 async function button(p, name, scope = p) { await scope.getByRole('button', { name, exact: true }).filter({ visible: true }).first().click(); await pause() }
-async function pictures(p) {
+async function pictures(p) { // Gallery actions now live at the first-class destination.
   if (await p.locator('.nav-toggle').isVisible()) await button(p, 'Menu')
-  await button(p, 'Pictures', p.locator('#main-nav'))
-  await p.locator('.picker-screen').waitFor()
+  await button(p, 'My drawings', p.locator('#main-nav'))
+  await p.locator('.drawings-screen').waitFor()
 }
 async function work(p) { return p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('tracebuddy.previousWork.v1.session.')).map((k) => JSON.parse(localStorage.getItem(k)))) }
 async function shot(p, name) { if (output) await p.screenshot({ path: `${output}/${engine}-${name}.png` }) }

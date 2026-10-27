@@ -125,7 +125,7 @@ try {
       assert.equal(original.strokes.length, 1)
       await click(page, '.action-tool button')
       assert.equal((await saved(page)).strokes.length, 0, 'Undo must persist empty ink for an existing session')
-      await textButton(page, 'Pictures', 'nav button')
+      await textButton(page, 'My drawings', 'nav button')
       await textButton(page, 'Copy', '.previous-work-card button')
       await page.waitForFunction(() => document.querySelectorAll('.previous-work-card').length === 2)
       page.once('dialog', (dialog) => dialog.accept())
@@ -141,7 +141,7 @@ try {
       await click(page, '.lesson-library button:nth-of-type(2)')
       const lesson = await page.evaluate(() => localStorage.getItem('tracebuddy.learning.active.v1'))
       assert(lesson)
-      await textButton(page, 'Pictures', 'nav button')
+      await textButton(page, 'My drawings', 'nav button')
       await page.evaluate(() => {
         const original = IDBDatabase.prototype.transaction
         window.__restoreClearTransaction = () => { IDBDatabase.prototype.transaction = original }
@@ -218,7 +218,7 @@ try {
       await page.reload(); await page.waitForSelector('.practice-document')
       assert.deepEqual((await saved(page)).strokes, before.strokes, 'Reload preserves every emitted width')
       assert.equal(await rasterDelta(page, original, await canonical(page)), 0, 'Reload preserves erased pixels')
-      await textButton(page, 'Pictures', 'nav[aria-label="Main navigation"] button')
+      await textButton(page, 'My drawings', 'nav[aria-label="Main navigation"] button')
       await page.waitForSelector('.previous-work-preview svg')
       assert.equal(await rasterDelta(page, original, await canonical(page, '.previous-work-preview svg')), 0, 'Previous Work preserves thick ink/erasing')
       await textButton(page, 'Resume', '.previous-work-card button')
@@ -297,7 +297,7 @@ try {
         assert.deepEqual((await saved(page)).strokes, selected.strokes)
         assert.equal((await saved(page)).source.drawingId, selected.source.drawingId)
         assert(await page.evaluate((id) => JSON.parse(localStorage.getItem('tracebuddy.previousWork.v1.index')).ids.includes(id), selected.sessionId), 'Stale index cleanup must not drop newer saved work')
-        await textButton(page, 'Pictures', 'nav[aria-label="Main navigation"] button')
+        await textButton(page, 'My drawings', 'nav[aria-label="Main navigation"] button')
         assert((await page.$$eval('.previous-work-card > strong', (els) => els.map((el) => el.textContent))).includes(selected.title), 'Hydration must retain the newer gallery record')
       } else {
         await page.evaluate(() => {

@@ -1,9 +1,12 @@
+import { keepsakeStamps } from '../../shared/finishFind'
+import type { KeepsakeStamp } from '../../shared/finishFind'
 import { useId } from 'react'
 import type { Ref } from 'react'
 import { guideBounds, inkGroups, normalizePracticeStrokeWidth } from './document'
 import type { InkStroke, PracticeDocumentSize } from './document'
 
 type Props = {
+  stamp?: KeepsakeStamp
   size: PracticeDocumentSize
   strokes: InkStroke[]
   guide: string
@@ -13,7 +16,7 @@ type Props = {
   className?: string
 }
 
-export function PracticeDocument({ size, strokes, guide, guideOpacity, guideOnTop, svgRef, className }: Props) {
+export function PracticeDocument({ size, strokes, guide, guideOpacity, guideOnTop, svgRef, className, stamp }: Props) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, '')
   const bounds = guideBounds(size)
   const groups = inkGroups(strokes)
@@ -41,6 +44,7 @@ export function PracticeDocument({ size, strokes, guide, guideOpacity, guideOnTo
         ))}
       </g>
       {guideOnTop && <image className="practice-guide-image on-top" href={guide} {...bounds} preserveAspectRatio="xMidYMid meet" opacity={Math.max(guideOpacity, 0.48)} style={{ mixBlendMode: 'multiply' }} />}
+      {stamp && <g className="keepsake-stamp" transform={`translate(${Math.max(5, size.width - 120)} ${Math.max(5, size.height - 120)}) scale(2.5)`}><circle cx="16" cy="16" r="18" fill="#fff8ef" /><path d={keepsakeStamps.find((item) => item.id === stamp)?.path} fill="none" stroke="#a43f2b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></g>}
     </svg>
   )
 }
