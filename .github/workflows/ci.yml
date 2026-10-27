@@ -36,8 +36,8 @@ jobs:
           npm run drawings:contact-sheets
           git ls-files --error-unmatch artifacts/drawings/contact-sheet-160.svg artifacts/drawings/contact-sheet-420.svg > /dev/null
           git diff --exit-code -- artifacts/drawings/contact-sheet-160.svg artifacts/drawings/contact-sheet-420.svg
-      - run: npm audit --audit-level=high
-      - run: npm --prefix mobile audit --audit-level=high
+      - run: npm run audit:check -- .
+      - run: npm run audit:check -- mobile
       - name: Run browser regressions against a production preview
         env:
           CHECK_CHROME: ${{ steps.chrome.outputs.chrome-path }}
