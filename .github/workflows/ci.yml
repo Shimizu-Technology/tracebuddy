@@ -15,7 +15,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -29,7 +29,16 @@ jobs:
         id: chrome
       - run: npm ci
       - run: npm --prefix mobile ci
-      - run: npx playwright install --with-deps webkit
+      # The WebKit download/apt step occasionally hangs on hosted runners.
+      # Bound each attempt and retry instead of waiting for the job timeout.
+      - name: Install WebKit for browser checks
+        run: |
+          for attempt in 1 2 3; do
+            timeout 300 npx playwright install --with-deps webkit && exit 0
+            echo "WebKit install attempt $attempt failed or timed out; retrying"
+            sleep 10
+          done
+          exit 1
       - run: npm run check
       - run: npm run drawings:validate
       - name: Verify generated drawing contact sheets
