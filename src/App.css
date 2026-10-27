@@ -1873,41 +1873,11 @@ button.active:disabled {
   will-change: transform;
 }
 
-.practice-guide-image {
-  position: absolute;
-  inset: 6%;
-  width: 88%;
-  height: 88%;
-  object-fit: contain;
-  pointer-events: none;
-  user-select: none;
-  filter: contrast(1.05);
-}
-
-.practice-guide-image.on-top {
-  z-index: 2;
-  mix-blend-mode: multiply;
-}
-
-.practice-ink {
-  position: absolute;
-  inset: 0;
+.practice-document {
+  display: block;
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
-}
-
-.practice-ink path {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 11;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.practice-ink path.active {
-  stroke: var(--coral);
 }
 
 .practice-controls {
@@ -3381,4 +3351,58 @@ input[type='range'] {
   .setup-checklist button {
     min-height: 130px;
   }
+}
+
+/* Practice workspace: the page and child tools form one bounded drawing area. */
+.practice-screen.coloring-studio { padding-top: 0.75rem; }
+.practice-screen .practice-header { margin-bottom: 0.5rem; }
+.practice-screen .practice-header h1 { font-size: clamp(1.25rem, 3vw, 2rem); margin: 0; overflow-wrap: anywhere; }
+.practice-screen .practice-header .eyebrow,
+.practice-screen .practice-header p:not(.eyebrow) { display: none; }
+.practice-screen .practice-studio-shell { gap: 0.5rem; }
+.practice-screen .studio-card { padding: 0; border: 0; box-shadow: none; background: transparent; gap: 0.3rem; }
+.practice-screen .practice-status-strip { min-height: 0; padding: 0.2rem 0.5rem; }
+.practice-screen .practice-save-status { padding: 0.2rem 0.4rem; white-space: normal; }
+.practice-screen .practice-canvas { min-height: 0; height: clamp(240px, calc(100dvh - 395px), 720px); border-radius: 16px; background: var(--paper, #fffdf8); }
+.practice-screen .practice-toolbar-ribbon { display: block; padding: 0.35rem; border-radius: 16px; backdrop-filter: none; box-shadow: none; }
+.practice-screen .practice-toolbar-primary { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.practice-screen .studio-tool-group { min-width: 0; min-height: 0; padding: 0.25rem; border: 0; background: transparent; gap: 0.25rem; border-radius: 0; }
+.practice-screen .studio-tool-group > span { font-size: 0.75rem; letter-spacing: 0; text-transform: none; }
+.practice-screen .color-tool { flex: 1 1 100%; overflow: hidden; }
+.practice-screen .compact-swatches { flex-wrap: nowrap; overflow-x: auto; padding: 4px; gap: 8px; overscroll-behavior-x: contain; }
+.practice-screen .compact-swatches button { flex: 0 0 auto; }
+.practice-screen .brush-type-buttons { flex-wrap: nowrap; }
+.practice-screen .brush-type-buttons button { display: grid; justify-items: center; align-content: center; gap: 2px; min-width: 56px; min-height: 44px; padding: 0.25rem; border-radius: 12px; }
+.practice-screen .size-tool { flex: 1 1 auto; }
+.practice-screen .size-buttons { flex-wrap: nowrap; }
+.practice-screen .size-buttons button { min-width: 44px; }
+.practice-screen .action-tool { min-width: 0; }
+.practice-screen .practice-toolbar-more { display: block; border-top: 1px solid var(--muted); padding-top: 0.25rem; }
+.practice-screen .practice-toolbar-more > summary { display: flex; max-width: none; background: transparent; border: 0; border-radius: 8px; font-size: 0.85rem; font-weight: 700; padding: 0.4rem; min-height: 44px; }
+.practice-screen .practice-toolbar-more > summary::after { content: none; }
+.practice-screen .practice-toolbar-more > .trace-header-actions { display: flex; flex-wrap: wrap; width: auto; gap: 0.5rem; margin: 0.5rem 0; }
+.practice-screen .practice-toolbar-more .secondary-button { width: auto; }
+.practice-screen .practice-toolbar-more-content { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 0; }
+.practice-screen .practice-toolbar-more:not([open]) > :not(summary) { display: none; }
+.practice-screen button, .practice-screen summary { touch-action: manipulation; user-select: none; }
+@media (pointer: coarse) {
+  .practice-screen button, .practice-screen summary, .practice-screen .file-button { min-width: 44px; min-height: 44px; }
+  .practice-screen .compact-swatches button { width: 48px; height: 48px; }
+}
+@media (max-width: 600px) {
+  .practice-screen .practice-toolbar-primary { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .practice-screen .color-tool, .practice-screen [aria-label="Brush type"] { grid-column: 1 / -1; }
+  .practice-screen .brush-type-buttons button { flex: 1 1 0; min-width: 0; }
+  .practice-screen .brush-type-buttons { display: flex; }
+  .practice-screen .size-tool { grid-column: 1; }
+  .practice-screen .action-tool { grid-column: 2; }
+  .practice-screen .practice-canvas { height: clamp(210px, calc(100dvh - 430px), 500px); }
+}
+@media (min-width: 700px) and (max-width: 1000px) and (max-height: 600px) {
+  .practice-screen .practice-studio-shell { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; }
+  .practice-screen .practice-canvas { height: max(180px, calc(100dvh - 170px)); }
+  .practice-screen .practice-toolbar-primary { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .practice-screen .color-tool, .practice-screen [aria-label="Brush type"] { grid-column: 1 / -1; }
+  .practice-screen .brush-type-buttons button { min-width: 0; flex: 1 1 0; }
+  .practice-screen .practice-toolbar-more { grid-column: 1 / -1; }
 }

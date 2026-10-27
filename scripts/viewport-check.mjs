@@ -23,7 +23,7 @@ async function checkViewport(name, width, height, expectedSelector, action) {
       pageErrors.push(`request failed: ${request.url()} (${errorText})`)
     })
     const isMobile = Math.min(width, height) < 600
-    await page.setViewport({ width, height, deviceScaleFactor: isMobile ? 2 : 1, isMobile })
+    await page.setViewport({ width, height, deviceScaleFactor: isMobile ? 2 : 1, isMobile, hasTouch: isMobile })
     await page.goto(url, { waitUntil: 'networkidle0' })
     if (action) await action(page)
     await waitForSelector(page, expectedSelector)
@@ -100,8 +100,8 @@ async function checkViewport(name, width, height, expectedSelector, action) {
         }
       })
       console.log('desktop-practice-toolbar', JSON.stringify(toolbar, null, 2))
-      if (toolbar.scrollWidth > toolbar.clientWidth + 1 || !toolbar.advancedOpen || toolbar.advancedDisplay === 'none' || toolbar.advancedWidth < 500) {
-        throw new Error(`desktop-practice toolbar failed its expanded-layout checks: ${JSON.stringify(toolbar)}`)
+      if (toolbar.scrollWidth > toolbar.clientWidth + 1 || toolbar.advancedOpen) {
+        throw new Error(`desktop-practice parent tools should start collapsed: ${JSON.stringify(toolbar)}`)
       }
     }
   } finally {
