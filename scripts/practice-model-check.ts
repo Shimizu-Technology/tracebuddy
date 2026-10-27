@@ -41,3 +41,16 @@ for (const width of [-10, 0, Infinity, NaN, maxPracticeStrokeWidth * 2]) {
   const bounded = normalizePracticeStrokeWidth(width)
   assert(Number.isFinite(bounded) && bounded >= 0.5 && bounded <= maxPracticeStrokeWidth)
 }
+
+// Base letters and combining marks must remain on the same SVG text line.
+for (const segmenterAvailable of [true, false]) {
+  const descriptor = Object.getOwnPropertyDescriptor(Intl, 'Segmenter')!
+  try {
+    if (!segmenterAvailable) Object.defineProperty(Intl, 'Segmenter', { value: undefined, configurable: true })
+    for (const text of ['aaaaaaaaaaae\u0301'.repeat(3), 'aaaaaaaaaaaq\u0307'.repeat(3)]) {
+      const lines = splitTraceText(text)
+      assert.equal(lines.join(''), sanitizeTraceText(text))
+      assert(lines.every((line) => !/^\p{M}/u.test(line)), 'A line cannot detach an accent from its base')
+    }
+  } finally { Object.defineProperty(Intl, 'Segmenter', descriptor) }
+}

@@ -767,6 +767,7 @@ async function deletePreviousWorkSession(sessionId: string, preserveImageId?: st
   })()
   const ids = readPreviousWorkIds().filter((id) => id !== sessionId)
   window.localStorage.removeItem(previousWorkSessionKey(sessionId))
+  if (readLocalValue(activePracticeKey) === sessionId) window.localStorage.removeItem(activePracticeKey)
   window.localStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids }))
   const imageId = deletedSession?.source.uploadedImage?.imageId
   const imageCleanupPending = imageId ? !(await deleteUploadedImageRecordIfUnused(imageId, imageId === preserveImageId)) : false
@@ -2139,6 +2140,7 @@ function App() {
   }
 
   function openGuidedLesson(lesson: GuidedLesson) {
+    if (drawingPreferencesClearInProgressRef.current) return
     setSelectedLesson(lesson)
     try {
       window.localStorage.setItem(activeLessonKey, lesson.id)
@@ -3844,6 +3846,12 @@ function PracticeScreen({
       brushToolId,
     }
 
+    // New empty drafts do not belong in Previous Work. Persisted sessions still
+    // save an empty snapshot after Undo/Clear so old ink cannot reappear.
+    if (snapshotStrokes.length === 0 && !persistedSessionRef.current) {
+      setSaveStatus('saved')
+      return true
+    }
     const nextSignature = makePracticeSaveSignature(savedSession)
     if (nextSignature === lastSavedSignatureRef.current) {
       setSaveStatus('saved')

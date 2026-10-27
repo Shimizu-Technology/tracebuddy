@@ -115,6 +115,69 @@ async function exportPng(page) {
   return page.evaluate(() => window.__png)
 }
 try {
+  {
+    const { context, page } = await setup(390, 844)
+    try {
+      await page.goto(`${url}/#practice`)
+      await page.waitForSelector('.practice-document')
+      await pause(700)
+      assert.equal(await page.evaluate(() => localStorage.getItem('tracebuddy.previousWork.v1.index')), null, 'Untouched drafts must not create gallery entries')
+      assert.equal(await page.evaluate(() => localStorage.getItem('tracebuddy.practice.active.v1')), null)
+      await draw(page, await geometry(page))
+      const original = await saved(page)
+      assert.equal(original.strokes.length, 1)
+      await click(page, '.action-tool button')
+      assert.equal((await saved(page)).strokes.length, 0, 'Undo must persist empty ink for an existing session')
+      await textButton(page, 'Pictures', 'nav button')
+      await textButton(page, 'Copy', '.previous-work-card button')
+      await page.waitForFunction(() => document.querySelectorAll('.previous-work-card').length === 2)
+      page.once('dialog', (dialog) => dialog.accept())
+      await textButton(page, 'Delete', '.previous-work-card button')
+      await page.waitForFunction(() => document.querySelectorAll('.previous-work-card').length === 1)
+      assert.equal(await page.evaluate(() => localStorage.getItem('tracebuddy.practice.active.v1')), original.sessionId, 'Deleting another work must retain the active pointer')
+      page.once('dialog', (dialog) => dialog.accept())
+      await textButton(page, 'Delete', '.previous-work-card button')
+      await page.waitForFunction(() => document.querySelectorAll('.previous-work-card').length === 0)
+      assert.equal(await page.evaluate(() => localStorage.getItem('tracebuddy.practice.active.v1')), null, 'Deleting active work clears its pointer')
+
+      await textButton(page, 'Learn', 'nav button')
+      await click(page, '.lesson-library button:nth-of-type(2)')
+      const lesson = await page.evaluate(() => localStorage.getItem('tracebuddy.learning.active.v1'))
+      assert(lesson)
+      await textButton(page, 'Pictures', 'nav button')
+      await page.evaluate(() => {
+        const original = IDBDatabase.prototype.transaction
+        window.__restoreClearTransaction = () => { IDBDatabase.prototype.transaction = original }
+        IDBDatabase.prototype.transaction = function (...args) {
+          const tx = original.apply(this, args)
+          if (args[1] !== 'readwrite') return tx
+          return new Proxy(tx, {
+            get(target, property) {
+              const value = Reflect.get(target, property, target)
+              return typeof value === 'function' ? value.bind(target) : value
+            },
+            set(target, property, value) {
+              return Reflect.set(target, property, property === 'oncomplete' && typeof value === 'function'
+                ? (event) => { window.__finishClear = () => value.call(target, event) } : value, target)
+            },
+          })
+        }
+      })
+      page.once('dialog', (dialog) => dialog.accept())
+      await textButton(page, 'Clear local work')
+      await page.waitForFunction(() => Boolean(window.__finishClear))
+      await textButton(page, 'Learn', 'nav button')
+      await click(page, '.lesson-library button:nth-of-type(3)')
+      assert.equal(await page.evaluate(() => localStorage.getItem('tracebuddy.learning.active.v1')), null, 'Lesson selection cannot recreate keys during clear')
+      assert.equal(await page.$eval('.lesson-library button[aria-current="true"]', (el) => el.dataset.lessonId), lesson, 'Clear guard must also preserve selection state')
+      await page.evaluate(() => { window.__restoreClearTransaction(); window.__finishClear() })
+      await pause(200)
+      assert.equal(await page.evaluate(() => localStorage.getItem('tracebuddy.learning.active.v1')), null)
+      await click(page, '.lesson-library button:nth-of-type(3)')
+      assert(await page.evaluate(() => localStorage.getItem('tracebuddy.learning.active.v1')), 'Lesson selection recovers after clear')
+      results.push({ scenario: 'draft-save-delete-and-clear-lesson-guard', result: 'passed' })
+    } finally { await context.close() }
+  }
   for (const scale of (process.env.PRACTICE_RACE_ONLY ? [] : [1, 2.4, 5])) {
     const { context, page } = await setup()
     try {

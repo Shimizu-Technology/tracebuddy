@@ -53,7 +53,13 @@ export function splitTraceText(value: string) {
   const lines: string[] = []
   let currentLine = ''
   for (const word of safeText.split(' ')) {
-    const chunks = Array.from(word).join('').match(/.{1,12}/gu) ?? []
+    // Segmenter keeps full graphemes together. Older native runtimes fall back
+    // to base-plus-mark clusters so decomposed accents never start a new line.
+    const clusters = typeof Intl.Segmenter === 'function'
+      ? Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(word), ({ segment }) => segment)
+      : word.match(/\P{M}\p{M}*|\p{M}+/gu) ?? []
+    const chunks: string[] = []
+    for (let index = 0; index < clusters.length; index += 12) chunks.push(clusters.slice(index, index + 12).join(''))
     for (const chunk of chunks) {
       const next = currentLine ? `${currentLine} ${chunk}` : chunk
       if (Array.from(next).length > 12 && currentLine) {
