@@ -40,7 +40,7 @@ import type { NavigationState } from './practiceModel'
 import { brushSizes, brushTools, documentStrokeWidth, makePracticeSessionTitle, normalizePracticeSource, normalizeSavedPracticeSession, normalizeSavedPracticeStroke, practiceStrokeWidth } from './practiceStorageModel'
 import type { BrushToolId, PracticeSource, PracticeSticker, PracticeStroke, SavedPracticeSession, UploadedImage } from './practiceStorageModel'
 
-import { createOperationQueue, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from './practiceOperations'
+import { createOperationQueue, followLatestSave, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from './practiceOperations'
 import type { OperationGuard } from './practiceOperations'
 
 import { createPracticePreviewCache } from './practicePreviewCache'
@@ -2880,7 +2880,7 @@ function PracticeScreen({
     }
   }, [])
 
-  const savePracticeSessionNow = useCallback(async () => {
+  const attemptPracticeSave = useCallback(async () => {
     if (!autosaveReadyRef.current) return false
     const requestId = saveRequestRef.current + 1
     saveRequestRef.current = requestId
@@ -3005,6 +3005,16 @@ function PracticeScreen({
       return false
     }
   }, [isWorkOperationCurrent, workOperationGeneration, brushToolId, guideOnTop, guideOpacity, markerColor, markerWidth, materializeActivePracticeStroke, onSessionDeleted, onSessionSaved, practiceSource, rememberPendingImageCleanup, retryPendingImageCleanup, sessionTitle])
+
+  // Leave and Done need the newest snapshot's outcome, not a superseded attempt's.
+  const latestSaveRef = useRef<Promise<boolean> | null>(null)
+  const savePracticeSessionNow = useCallback(async () => {
+    const generation = saveGenerationRef.current
+    const stillCurrent = () => isWorkOperationCurrent(workOperationGeneration) && generation === saveGenerationRef.current
+    const attempt = attemptPracticeSave()
+    latestSaveRef.current = attempt
+    return followLatestSave(attempt, () => latestSaveRef.current, stillCurrent)
+  }, [attemptPracticeSave, isWorkOperationCurrent, workOperationGeneration])
 
   const stickerRevision = useMemo(() => JSON.stringify(stickers), [stickers])
 

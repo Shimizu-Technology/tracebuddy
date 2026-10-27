@@ -32,3 +32,20 @@ export async function writeIfCurrent(isCurrent: OperationGuard, write: () => Pro
 export function shouldPersistResume(enabled: boolean, mode: string, clearing: boolean) {
   return !clearing && (enabled || mode !== 'picker')
 }
+
+/**
+ * A save attempt resolves false both when it fails and when a newer attempt
+ * supersedes it. Follow superseding attempts while the work is still current so
+ * leave and Done report the newest snapshot; a revoked operation stays false.
+ */
+export async function followLatestSave(first: Promise<boolean>, latest: () => Promise<boolean> | null, stillCurrent: OperationGuard) {
+  let attempt = first
+  let saved = await attempt
+  while (!saved && stillCurrent()) {
+    const newer = latest()
+    if (!newer || newer === attempt) break
+    attempt = newer
+    saved = await attempt
+  }
+  return saved && stillCurrent()
+}
