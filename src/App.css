@@ -3503,13 +3503,13 @@ h1, h2, h3, .trace-header > div { min-width: 0; overflow-wrap: anywhere; letter-
 .eyebrow, .control-card > span { color: var(--instruction-label); text-transform: none; letter-spacing: normal; font-size: var(--type-label); }
 .primary-button, .camera-help button { color: var(--on-action); background: var(--action-fill); box-shadow: none; }
 .hero-screen { min-height: auto; padding-block: var(--space-8); }
-.hero-copy h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 750; line-height: 1.15; letter-spacing: normal; max-width: 16ch; }
+.hero-copy h1 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; letter-spacing: normal; max-width: 16ch; }
 .hero-actions { gap: var(--space-2); }
 .hero-demo-card, .drawing-card, .controls-panel, .setup-card, .family-callout, .family-feature, .learning-callout, .previous-work-section { box-shadow: none; background: var(--paper); border-radius: var(--radius-panel); }
 .mock-camera-bg, .demo-camera { background: #e8ede6; }
 .setup-card { background: transparent; border: 0; }
 .family-feature-art, .family-feature-copy, .handwriting-card, .lesson-picture, .lesson-instruction, .discovery-panel, .alignment-memory { background: transparent; box-shadow: none; border: 0; }
-.family-heading h1, .learning-heading h1, .picker-screen h1, .trace-header h1 { font-size: var(--type-display); font-weight: 750; }
+.family-heading h1, .learning-heading h1, .picker-screen h1, .trace-header h1 { font-size: var(--type-display); font-weight: 800; }
 .family-heading, .learning-heading { margin-bottom: var(--space-4); }
 .family-heading .eyebrow, .learning-heading .eyebrow, .picker-heading .eyebrow { display: none; }
 .family-activity-card { border-radius: var(--radius-control); }
@@ -3679,3 +3679,23 @@ input::placeholder { color: var(--muted); opacity: 1; }
 /* Disabled labels stay readable while the neutral fill explains the inactive state. */
 .app-shell { --disabled-fill: #eee9e1; }
 .app-shell button:disabled { opacity: 1; color: var(--muted); background: var(--disabled-fill); border-color: var(--line); }
+
+/* Keep the rounded family character at every heading size. */
+.app-shell h1, .app-shell h2, .app-shell h3 {
+  font-family: ui-rounded, "SF Pro Rounded", "Avenir Next", Nunito, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 800;
+  letter-spacing: normal;
+}
+.child-exit-confirmation {
+  max-width: min(28rem, calc(100% - 2rem));
+  box-sizing: border-box;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--paper);
+  color: var(--ink);
+}
+.child-exit-confirmation::backdrop { background: rgb(20 32 51 / 55%); }
+.child-exit-confirmation h2 { margin: 0 0 var(--space-4); font-size: var(--type-subtitle); }
+.child-exit-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.child-exit-actions button { flex: 1 1 5rem; }

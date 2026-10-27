@@ -2091,6 +2091,7 @@ function App() {
     if (drawingPreferencesClearInProgressRef.current) return
     if (!window.confirm('Delete all Previous Work, favorites, recent picks, lesson progress, and locally stored uploaded images from this browser?')) return
 
+    cancelPracticeRequest()
     drawingPreferencesClearInProgressRef.current = true
     setDrawingPreferencesClearInProgress(true)
     previousWorkOperationGenerationRef.current += 1
@@ -2109,6 +2110,10 @@ function App() {
         learningProgressRef.current = { ...emptyLearningProgress, stepByLessonId: {} }
         setLearningProgress({ ...emptyLearningProgress, stepByLessonId: {} })
         setLearningProgressMessage('')
+        setSelectedLesson(guidedLessons[0])
+        setPickerState({ category: 'all', difficulty: 'all', query: '', favoritesOnly: false })
+        pickerScrollRef.current = 0
+        window.scrollTo({ top: 0, behavior: 'instant' })
         setSavedAlignment(null)
         if (imageCleanupPending) window.alert('Saved drawings were cleared, but this browser could not finish removing stored image files. Use Clear local work again to retry.')
       })
@@ -2555,6 +2560,8 @@ function DialogPresence({ open, children }: { open: boolean; children: React.Rea
 
 function HoldToExit({ onExit }: { onExit: () => void }) {
   const [holding, setHolding] = useState(false)
+  const confirmationRef = useRef<HTMLDialogElement>(null)
+  const completedHoldRef = useRef(false)
   const timerRef = useRef<number | null>(null)
   const cancel = () => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
@@ -2563,19 +2570,36 @@ function HoldToExit({ onExit }: { onExit: () => void }) {
   }
   const start = () => {
     if (timerRef.current !== null) return
+    completedHoldRef.current = false
     setHolding(true)
-    timerRef.current = window.setTimeout(() => { timerRef.current = null; setHolding(false); onExit() }, 1500)
+    timerRef.current = window.setTimeout(() => { completedHoldRef.current = true; timerRef.current = null; setHolding(false); onExit() }, 1500)
   }
   useEffect(() => () => { if (timerRef.current !== null) window.clearTimeout(timerRef.current) }, [])
-  return <button className={`child-mode-exit ${holding ? 'holding' : ''}`} type="button"
+  return <>
+    <button className={`child-mode-exit ${holding ? 'holding' : ''}`} type="button"
     onPointerDown={(event) => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); start() }}
     onPointerUp={cancel} onPointerCancel={cancel} onLostPointerCapture={cancel} onBlur={cancel}
     onKeyDown={(event) => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); if (!event.repeat) start() } }}
     onKeyUp={(event) => { if (event.key === ' ' || event.key === 'Enter') cancel() }}
-    aria-label="Hold 1.5 seconds to exit child mode. Keyboard: hold Space or Enter.">
+    onClick={(event) => {
+      // Assistive activation has no pointer hold. A normal short tap stays put.
+      if (event.detail !== 0 || completedHoldRef.current) return
+      cancel()
+      confirmationRef.current?.showModal()
+    }}
+    aria-haspopup="dialog"
+    aria-label="Exit child mode. Hold 1.5 seconds, or activate for parent confirmation. Keyboard: hold Space or Enter.">
     <svg className="hold-ring" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" /></svg>
     <span>{holding ? 'Keep holding…' : 'Hold to exit child mode'}</span>
-  </button>
+    </button>
+    <dialog ref={confirmationRef} className="child-exit-confirmation" aria-labelledby="child-exit-title">
+      <h2 id="child-exit-title">Exit child mode?</h2>
+      <div className="child-exit-actions">
+        <button className="secondary-button" type="button" autoFocus onClick={() => confirmationRef.current?.close()}>Stay</button>
+        <button className="primary-button" type="button" onClick={() => { confirmationRef.current?.close(); onExit() }}>Exit</button>
+      </div>
+    </dialog>
+  </>
 }
 
 function ParentHelpDialog({
@@ -3416,6 +3440,9 @@ function TraceScreen({
 
   const exitChildTraceMode = () => {
     setChildTraceMode(false)
+    window.requestAnimationFrame(() => {
+      traceSectionRef.current?.querySelector<HTMLButtonElement>('.start-child-trace')?.focus()
+    })
     const exitFullscreen = document.exitFullscreen
     if (document.fullscreenElement && exitFullscreen) void exitFullscreen.call(document).catch(() => undefined)
   }
@@ -3479,7 +3506,7 @@ function TraceScreen({
         </div>
         <div className="trace-header-actions">
           <button className="secondary-button compact" type="button" onClick={() => setSetupOpen(true)}>Parent setup</button>
-          <button className="primary-button compact" type="button" disabled={paperLost} onClick={startChildTraceMode}>Start child trace</button>
+          <button className="primary-button compact start-child-trace" type="button" disabled={paperLost} onClick={startChildTraceMode}>Start child trace</button>
           <button className="secondary-button compact" type="button" onClick={onPicker}>Change picture</button>
           <button className="secondary-button compact" type="button" onClick={onPractice}>Practice on screen</button>
           <label className="secondary-button compact file-button">
