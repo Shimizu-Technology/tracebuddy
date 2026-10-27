@@ -57,7 +57,7 @@ export default function KeepsakeView({ title, date, stamp, reduceMotion, saving,
             {saveFailed && <Pressable style={styles.button} onPress={onRetry} accessibilityRole="button"><Text style={styles.buttonText}>Not saved · Retry</Text></Pressable>}
             <Pressable style={({ pressed }) => [styles.button, styles.primary, saving && styles.disabled, pressed && (reduceMotion ? styles.reducedPressed : styles.pressed)]} onPress={onSave} disabled={saving} accessibilityRole="button" accessibilityLabel="Save picture to Photos"><Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save picture'}</Text></Pressable>
             <Pressable ref={keepRef} style={({ pressed }) => [styles.button, pressed && (reduceMotion ? styles.reducedPressed : styles.pressed)]} onPress={close} accessibilityRole="button"><Text style={styles.buttonText}>Keep drawing</Text></Pressable>
-            <Pressable style={({ pressed }) => [styles.button, pressed && (reduceMotion ? styles.reducedPressed : styles.pressed)]} onPress={onGallery} accessibilityRole="button"><Text style={styles.buttonText}>My drawings</Text></Pressable>
+            <Pressable style={({ pressed }) => [styles.button, saving && styles.disabled, pressed && (reduceMotion ? styles.reducedPressed : styles.pressed)]} onPress={onGallery} disabled={saving} accessibilityState={{ disabled: saving, busy: saving }} accessibilityRole="button"><Text style={styles.buttonText}>My drawings</Text></Pressable>
           </View>
         </ScrollView>
       </Animated.View>

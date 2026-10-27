@@ -66,3 +66,97 @@ assert.equal(opened, 1)
 await assert.rejects(finishAfterSave(async () => { throw Error('storage offline') }, () => { opened++ }))
 assert.equal(opened, 1)
 console.log('Done waits for save, leaves failures recoverable, and retains blank finished/stamp-only keepsakes')
+
+// Run the App's real save/Done/Clear/leave callbacks with native IO replaced
+// by deferred storage. Synthetic true/false saves cannot detect revoked writes.
+const { readFileSync } = await import('node:fs')
+const { runInNewContext } = await import('node:vm')
+const ts = await import('typescript')
+const source = readFileSync(new URL('../mobile/App.tsx', import.meta.url), 'utf8')
+const ast = ts.createSourceFile('App.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+function callback(name: string, bindings: Record<string, unknown>) {
+  let text = ''
+  function visit(node: import('typescript').Node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === name && node.initializer && ts.isCallExpression(node.initializer)) text = node.initializer.arguments[0].getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.ok(text, `${name} exists`)
+  return runInNewContext(ts.transpileModule(`var callback = ${text}; callback`, { compilerOptions: { target: ts.ScriptTarget.ES2023 } }).outputText, bindings) as (...args: unknown[]) => Promise<unknown>
+}
+const flush = () => new Promise<void>((resolve) => setImmediate(resolve))
+for (const phase of ['cleanup', 'write'] as const) {
+  for (const interruption of ['none', 'clear', 'navigation', 'unmount', 'parent-clear', 'session', 'generation'] as const) {
+    let resume!: () => void
+    const deferred = new Promise<void>((resolve) => { resume = resolve })
+    const events: string[] = []
+    const ref = <T,>(current: T) => ({ current })
+    let currentWork = true
+    let cleanupCalls = 0
+    let writeCalls = 0
+    const bindings: Record<string, unknown> = {
+      autosaveReadyRef: ref(true), saveRequestRef: ref(0), saveGenerationRef: ref(0),
+      workOperationGeneration: 7, isWorkOperationCurrent: () => currentWork,
+      completingRef: ref(false), finishLifetimeRef: ref({ mounted: true, token: 0 }),
+      leaveInProgressRef: ref(false), imageExportRef: ref({ token: 0, readiness: null }),
+      sessionIdRef: ref('original'), sessionCreatedAtRef: ref('2026-10-27T10:00:00Z'),
+      finishedAtRef: ref<string | undefined>(undefined), stampRef: ref<string | undefined>('heart'),
+      persistedSessionRef: ref(true), lastSavedSignatureRef: ref('old'), savedStickerUrisRef: ref([]),
+      pendingClearRef: ref(null), practiceStrokesRef: ref(old.strokes), stickersRef: ref([]),
+      activePathRef: ref(''), activePointsRef: ref([]), activePointCountRef: ref(0), lastPointRef: ref(null), drawingActiveRef: ref(false), touchOwnerRef: ref(null),
+      practiceSource: loaded.source, sessionTitle: 'Flower', guideOpacity: 0.24, guideOnTop: true, markerColor: '#18243A', markerWidth: 9, brushToolId: 'marker', stickers: [],
+      setSaveStatus: () => undefined, setCompleting: () => { events.push('completing') },
+      setKeepsakeDate: () => undefined, setActivePanel: () => undefined,
+      setKeepsakeOpen: () => { events.push('keepsake') }, milestoneHaptic: () => { events.push('haptic') },
+      finishPracticeStroke: () => undefined, materializeActivePracticeStroke: () => null,
+      retryPendingImageCleanup: async () => { if (++cleanupCalls === 1 && phase === 'cleanup') await deferred },
+      savePreviousWorkSession: async () => { if (++writeCalls === 1 && phase === 'write') await deferred; events.push('write') },
+      deletePreviousWorkSession: async () => ({ imageCleanupPending: false, pendingImageUris: [] }),
+      cleanupStoredImageUrisIfUnused: async () => undefined, rememberPendingImageCleanup: () => undefined,
+      storedUploadedImageUrisFromStickers: () => [], makePracticeSaveSignature: JSON.stringify,
+      hasKeepsakeContent, finishAfterSave, formatPreviousWorkDate: (value: string) => value,
+      onSessionSaved: () => { events.push('saved') }, onSessionDeleted: () => undefined,
+      Alert: { alert: () => { events.push('alert') } }, cancelActivePathUpdate: () => undefined,
+      setActivePath: () => undefined, setActiveStrokeRender: () => undefined, setPracticeStrokes: () => undefined,
+      setStickers: () => undefined, setStamp: () => undefined, setSelectedStickerId: () => undefined,
+      createPracticeSessionId: () => 'replacement',
+    }
+    const saveResults: unknown[] = []
+    const save = callback('savePracticeSessionNow', bindings)
+    bindings.savePracticeSessionNow = async () => { const result = await save(); saveResults.push(result); return result }
+    const done = callback('finishDrawing', bindings)
+    const finishing = done()
+    await flush()
+    assert.ok(!events.includes('keepsake') && !events.includes('haptic'), 'Pending storage cannot finish')
+    if (interruption === 'clear') await callback('clearPracticeStrokes', bindings)()
+    if (interruption === 'navigation') await callback('leavePractice', bindings)(() => { events.push('navigate') })
+    if (interruption === 'parent-clear') currentWork = false
+    if (interruption === 'session') (bindings.sessionIdRef as { current: string }).current = 'replacement'
+    if (interruption === 'generation') (bindings.saveGenerationRef as { current: number }).current++
+    if (interruption === 'unmount') {
+      let effect = ''
+      function find(node: import('typescript').Node) {
+        if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('finishLifetimeRef.current.mounted = false')) effect = node.arguments[0].getText(ast)
+        ts.forEachChild(node, find)
+      }
+      find(ast)
+      assert.ok(effect, 'Finish teardown is wired')
+      runInNewContext(ts.transpileModule(`const effect = ${effect}; effect`, { compilerOptions: { target: ts.ScriptTarget.ES2023 } }).outputText, bindings)()()
+    }
+    await flush()
+    const completingUpdates = events.filter((event) => event === 'completing').length
+    resume(); await finishing; await flush()
+    if (interruption === 'none') {
+      assert.equal(events.filter((event) => event === 'keepsake').length, 1)
+      assert.equal(events.filter((event) => event === 'haptic').length, 1)
+      assert.equal(saveResults.at(-1), true)
+    } else {
+      assert.ok(!events.includes('keepsake') && !events.includes('haptic'), `${phase}/${interruption}: revoked Done cannot celebrate`)
+      if (['clear', 'generation', 'parent-clear', 'navigation'].includes(interruption)) assert.equal(saveResults.at(-1), false, 'Revoked actual save returns false')
+      if (interruption === 'clear' && phase === 'cleanup') assert.equal(writeCalls, 0, 'Cleared finish never starts a session write')
+      if (interruption === 'navigation') assert.ok(events.includes('navigate'), 'The actual leave callback completes')
+      if (interruption === 'unmount') assert.equal(events.filter((event) => event === 'completing').length, completingUpdates, 'No finish state update after unmount')
+    }
+  }
+}
+console.log('Actual Done/save callbacks: deferred cleanup + write → Clear/navigation/unmount/session/generation/parent clear suppress revoked finish; successful finish still opens once')

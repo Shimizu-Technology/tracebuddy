@@ -24,8 +24,8 @@ export function hasKeepsakeContent(strokeCount: number, stickerCount: number, st
   return strokeCount > 0 || stickerCount > 0 || stamp !== undefined || finishedAt !== undefined
 }
 
-export async function finishAfterSave(save: () => Promise<boolean>, showKeepsake: () => void) {
-  if (!await save()) return false
+export async function finishAfterSave(save: () => Promise<boolean>, showKeepsake: () => void, isCurrent: () => boolean = () => true) {
+  if (!await save() || !isCurrent()) return false
   showKeepsake()
   return true
 }

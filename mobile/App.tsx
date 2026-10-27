@@ -2677,6 +2677,11 @@ function PracticeScreen({
   const [keepsakeDate, setKeepsakeDate] = useState(() => formatPreviousWorkDate(initialSession?.finishedAt ?? new Date().toISOString()))
   const [completing, setCompleting] = useState(false)
   const completingRef = useRef(false)
+  const finishLifetimeRef = useRef({ mounted: true, token: 0 })
+  useEffect(() => {
+    finishLifetimeRef.current.mounted = true
+    return () => { finishLifetimeRef.current.mounted = false; finishLifetimeRef.current.token += 1 }
+  }, [])
   const doneButtonRef = useRef<View | null>(null)
   const [stamp, setStamp] = useState<KeepsakeStamp | undefined>(initialSession?.stamp)
   const stampRef = useRef(stamp)
@@ -2876,17 +2881,17 @@ function PracticeScreen({
   }, [])
 
   const savePracticeSessionNow = useCallback(async () => {
-    if (!autosaveReadyRef.current) return true
+    if (!autosaveReadyRef.current) return false
     const requestId = saveRequestRef.current + 1
     saveRequestRef.current = requestId
     const generation = saveGenerationRef.current
     // This parent-owned generation survives unmount. Ordinary leave/background
     // saves may finish; Clear permanently revokes their storage permission.
     const isCurrent = () => isWorkOperationCurrent(workOperationGeneration) && generation === saveGenerationRef.current
-    if (!isCurrent()) return true
+    if (!isCurrent() || requestId !== saveRequestRef.current) return false
     setSaveStatus('saving')
     await retryPendingImageCleanup()
-    if (!isCurrent()) return true
+    if (!isCurrent() || requestId !== saveRequestRef.current) return false
     const pendingClear = pendingClearRef.current
     if (pendingClear) {
       pendingClearRef.current = null
@@ -2904,10 +2909,10 @@ function PracticeScreen({
         }
         if (imageCleanupPending) rememberPendingImageCleanup(pendingImageUris)
         if (unsavedImageCleanupPending) rememberPendingImageCleanup(pendingClear.imageUris)
-        if (!isCurrent()) return true
+        if (!isCurrent() || requestId !== saveRequestRef.current) return false
         onSessionDeleted(pendingClear.sessionId)
         if (imageCleanupPending || unsavedImageCleanupPending) Alert.alert('Drawing cleared', 'The saved drawing was removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work in the picker to retry cleanup.')
-        if (!isCurrent() || requestId !== saveRequestRef.current) return true
+        if (!isCurrent() || requestId !== saveRequestRef.current) return false
       } catch {
         if (!pendingClearRef.current) pendingClearRef.current = pendingClear
         if (isCurrent() && requestId === saveRequestRef.current) setSaveStatus('error')
@@ -2932,7 +2937,7 @@ function PracticeScreen({
           rememberPendingImageCleanup(pendingImageUris)
           Alert.alert('Drawing cleared', 'The saved drawing was removed, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work in the picker to retry cleanup.')
         }
-        if (!isCurrent() || requestId !== saveRequestRef.current) return true
+        if (!isCurrent() || requestId !== saveRequestRef.current) return false
         lastSavedSignatureRef.current = ''
         persistedSessionRef.current = false
         sessionIdRef.current = createPracticeSessionId()
@@ -2977,7 +2982,7 @@ function PracticeScreen({
 
     try {
       await savePreviousWorkSession(savedSession, isCurrent)
-      if (!isCurrent() || requestId !== saveRequestRef.current) return true
+      if (!isCurrent() || requestId !== saveRequestRef.current) return false
       persistedSessionRef.current = true
       const nextStickerUris = storedUploadedImageUrisFromStickers(snapshotStickers)
       const removedStickerUris = savedStickerUrisRef.current.filter((uri) => !nextStickerUris.includes(uri))
@@ -2990,7 +2995,7 @@ function PracticeScreen({
           Alert.alert('Work saved', 'Your drawing was saved, but TraceBuddy could not finish deleting one or more private image files. Use Clear local work in the picker to retry cleanup.')
         }
       }
-      if (!isCurrent()) return true
+      if (!isCurrent() || requestId !== saveRequestRef.current) return false
       lastSavedSignatureRef.current = nextSignature
       setSaveStatus('saved')
       onSessionSaved(savedSession, workOperationGeneration)
@@ -3023,6 +3028,7 @@ function PracticeScreen({
   const leavePractice = useCallback((action: () => void) => {
     if (leaveInProgressRef.current || imageExportRef.current.readiness) return
     leaveInProgressRef.current = true
+    finishLifetimeRef.current.token += 1
     void savePracticeSessionNow().then((saved) => {
       if (saved) {
         leaveInProgressRef.current = false
@@ -3517,7 +3523,7 @@ function PracticeScreen({
     try {
       setIsSavingImage(true)
       finishPracticeStroke()
-      if (!await savePracticeSessionNow()) return
+      if (!await savePracticeSessionNow() || !isCurrent()) return
       const permission = await MediaLibrary.requestPermissionsAsync(true)
       if (!isCurrent()) return
       if (!photoAccessAllowed(permission)) {
@@ -3555,7 +3561,15 @@ function PracticeScreen({
 
 
   const finishDrawing = useCallback(async () => {
-    if (completingRef.current) return
+    if (completingRef.current || leaveInProgressRef.current || imageExportRef.current.readiness) return
+    const token = ++finishLifetimeRef.current.token
+    const sessionId = sessionIdRef.current
+    const generation = saveGenerationRef.current
+    const isCurrent = () => finishLifetimeRef.current.mounted
+      && finishLifetimeRef.current.token === token
+      && sessionIdRef.current === sessionId
+      && saveGenerationRef.current === generation
+      && isWorkOperationCurrent(workOperationGeneration)
     completingRef.current = true
     setCompleting(true)
     finishPracticeStroke()
@@ -3567,12 +3581,12 @@ function PracticeScreen({
         setActivePanel(null)
         milestoneHaptic()
         setKeepsakeOpen(true)
-      })
+      }, isCurrent)
     } finally {
       completingRef.current = false
-      setCompleting(false)
+      if (finishLifetimeRef.current.mounted) setCompleting(false)
     }
-  }, [finishPracticeStroke, savePracticeSessionNow])
+  }, [finishPracticeStroke, isWorkOperationCurrent, savePracticeSessionNow, workOperationGeneration])
 
   const chooseStamp = useCallback((next: KeepsakeStamp) => {
     stampRef.current = toggleStamp(stampRef.current, next)
