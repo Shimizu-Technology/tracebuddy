@@ -39,7 +39,8 @@
     "check:practice-model": "tsx scripts/practice-model-check.ts",
     "check:practice": "node scripts/practice-check.mjs && node scripts/practice-regression-check.mjs",
     "check:surfaces": "node scripts/surfaces-check.mjs",
-    "check:contrast": "node scripts/contrast-check.mjs"
+    "check:contrast": "node scripts/contrast-check.mjs",
+    "check:web-round2": "node scripts/web-round2-check.mjs"
   },
   "dependencies": {
     "react": "^19.2.6",
@@ -55,6 +56,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "playwright": "^1.56.1",
     "puppeteer-core": "^25.1.0",
     "tsx": "^4.23.13",
     "typescript": "~6.0.2",

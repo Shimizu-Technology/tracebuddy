@@ -29,6 +29,7 @@ jobs:
         id: chrome
       - run: npm ci
       - run: npm --prefix mobile ci
+      - run: npx playwright install --with-deps webkit
       - run: npm run check
       - run: npm run drawings:validate
       - name: Verify generated drawing contact sheets
@@ -59,6 +60,8 @@ jobs:
               npm run check:family
               npm run check:navigation
               npm run check:surfaces
+              npm run check:web-round2
+              CHECK_ENGINE=webkit npm run check:web-round2
               exit 0
             fi
             sleep 1

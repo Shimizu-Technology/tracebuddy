@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { browserLifecycle } from './browser-lifecycle.mjs'
 import { join } from 'node:path'
-import puppeteer from 'puppeteer-core'
-import { closeBrowser, findChromeExecutable } from './browser-utils.mjs'
+import { launchBrowser, closeBrowser, findChromeExecutable } from './browser-utils.mjs'
 
 // Chromium runs in CI without another dependency. For the Safari-engine pass,
 // install Playwright outside the repo and set PRACTICE_PLAYWRIGHT to its module.
@@ -19,11 +18,9 @@ const browser = webkit ? await (async () => {
   const { webkit } = await import(process.env.PRACTICE_PLAYWRIGHT || 'playwright')
   server = await webkit.launchServer({ headless: true })
   return webkit.connect(server.wsEndpoint())
-})() : await puppeteer.launch({ executablePath: findChromeExecutable(), headless: true, protocolTimeout: 30_000, args: ['--no-sandbox'] })
+})() : await launchBrowser({ executablePath: findChromeExecutable(), headless: true, protocolTimeout: 30_000, args: ['--no-sandbox'] })
 const pid = webkit ? server.process().pid : browser.process().pid
-const lifecycle = (action) => {
-  if (process.env.DEV_LIFECYCLE_SESSION) execFileSync('dev-lifecycle', [action, '--session', process.env.DEV_LIFECYCLE_SESSION, ...(action === 'claim' ? ['--owner', 'tracebuddy-w1', 'process', String(pid)] : ['process', String(pid)])])
-}
+const lifecycle = (action) => { if (webkit) browserLifecycle(action, pid) }
 lifecycle('claim')
 const pause = (ms = 80) => new Promise((resolve) => setTimeout(resolve, ms))
 const click = async (page, selector) => { await page.$eval(selector, (el) => el.click()); await pause() }
@@ -182,6 +179,9 @@ try {
     const { context, page } = await setup()
     try {
       await page.goto(`${url}/#practice`); await page.waitForSelector('.practice-document')
+      // The compact child toolbar allows a 140px page at enlarged text. Force
+      // that minimum here so width/eraser/export coverage stays worst-case.
+      await page.addStyleTag({ content: '.practice-screen .practice-canvas { height:140px !important; min-height:140px !important }' })
       await zoom(page, scale)
       await page.$eval('.practice-canvas', (el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }))
       await pause(150)
@@ -191,7 +191,7 @@ try {
       // Center of the 420x420 guide is document (500,500). A second point
       // independently checks position away from the zoom center after scrolling.
       const p = await geometry(page)
-      assert(Math.abs(p.side - 208) <= 0.1, `Smallest supported 210px bordered page must have 208px content: ${p.side}`)
+      assert(Math.abs(p.side - 138) <= 0.1, `Smallest supported 140px bordered page must have 138px content: ${p.side}`)
       await draw(page, p)
       const ink = await page.$eval('.practice-ink > g > path', (el) => {
         const start = el.getPointAtLength(0)

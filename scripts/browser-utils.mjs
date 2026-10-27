@@ -1,3 +1,5 @@
+import { browserLifecycle } from './browser-lifecycle.mjs'
+import puppeteer from 'puppeteer-core'
 import { existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
@@ -34,6 +36,12 @@ export async function waitForSelector(page, selector) {
   await page.waitForSelector(selector, { timeout: 5_000 })
 }
 
+export async function launchBrowser(options) {
+  const browser = await puppeteer.launch(options)
+  browserLifecycle('claim', browser.process().pid)
+  return browser
+}
+
 export async function closeBrowser(browser) {
   const browserProcess = browser.process()
   const ownedProcessIds = browserProcess ? safeBrowserProcessTree(browserProcess.pid) : []
@@ -48,6 +56,7 @@ export async function closeBrowser(browser) {
   // Detached Chrome updater/crash-reporter children can retain inherited pipes.
   // Release only our closed browser's parent-side streams, leaving updaters alone.
   browserProcess?.stdio.forEach((stream) => stream?.destroy())
+  if (browserProcess) browserLifecycle('release', browserProcess.pid)
 }
 
 function safeBrowserProcessTree(rootProcessId) {
