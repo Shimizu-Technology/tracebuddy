@@ -3516,11 +3516,12 @@ h1, h2, h3, .trace-header > div { min-width: 0; overflow-wrap: anywhere; letter-
 .family-activity-card.active { background: var(--peach); }
 .family-meta span { background: transparent; }
 .picker-screen { padding-top: var(--space-4); }
-.picker-title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.picker-title-row { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
 .picker-title-row h1 { margin: 0; }
 summary { cursor: pointer; min-height: 44px; padding: var(--space-3); border-radius: var(--radius-control); color: var(--ink); font-size: var(--type-label); font-weight: 750; }
-.picker-alternates { position: relative; }
-.picker-alternate-body { position: absolute; right: 0; z-index: 30; width: min(32rem, calc(100vw - 2rem)); max-height: 65dvh; overflow: auto; overscroll-behavior: contain; padding: var(--space-4); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: 0 8px 24px rgb(20 32 51 / 12%); }
+.picker-alternates { position: static; }
+.picker-alternates:not([open]) .picker-alternate-body { display: none; }
+.picker-alternate-body { position: absolute; top: 100%; right: 0; z-index: 30; width: min(32rem, 100%); max-height: 65dvh; overflow: auto; overscroll-behavior: contain; padding: var(--space-4); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: 0 8px 24px rgb(20 32 51 / 12%); }
 .picker-alternate-body .upload-pill { width: 100%; }
 .upload-pill > svg { width: 24px; }
 .upload-message { color: var(--coral-dark); font-size: var(--type-label); margin: var(--space-2) 0; }
@@ -3687,9 +3688,9 @@ input::placeholder { color: var(--muted); opacity: 1; }
   letter-spacing: normal;
 }
 .child-exit-confirmation {
-  max-width: min(28rem, calc(100% - 2rem));
+  width: min(28rem, calc(100% - 2rem));
   box-sizing: border-box;
-  padding: var(--space-5);
+  padding: var(--space-6);
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   background: var(--paper);

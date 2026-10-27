@@ -28,6 +28,24 @@ const browser = await puppeteer.launch({ executablePath: findChromeExecutable(),
 const results = []
 const shot = async (page, name) => { if (evidence) { mkdirSync(evidence, { recursive: true }); await page.screenshot({ path: join(evidence, name + '.png') }) } }
 try {
+  // A wrapped summary must anchor its panel to the whole title row, across fonts.
+  for (const width of [320, 360]) for (const enlarged of [false, true]) {
+    const context = await browser.createBrowserContext()
+    const page = await context.newPage()
+    await page.setViewport({width, height:740, isMobile:true, hasTouch:true})
+    await page.goto(url+'#pictures', {waitUntil:'networkidle0'})
+    await page.addStyleTag({content:`* {font-family:Verdana, "DejaVu Sans", sans-serif !important} html {font-size:${enlarged ? 200 : 100}%}`})
+    await page.click('.picker-alternates > summary')
+    const bounds = await page.$eval('.picker-alternate-body', e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,scrollWidth:e.scrollWidth,clientWidth:e.clientWidth}})
+    assert(bounds.left>=0 && bounds.right<=width && bounds.scrollWidth<=bounds.clientWidth+1, 'Picker alternatives clip: '+JSON.stringify({width,enlarged,bounds}))
+    await shot(page,`picker-alternatives-${width}-${enlarged ? 'text200' : 'default'}-wide-font`)
+    await page.click('.surface-switch button:nth-child(2)')
+    assert(await page.$eval('.surface-switch button:nth-child(2)',e=>e.getAttribute('aria-pressed'))==='true', 'Practice surface remains usable')
+    await page.click('.picker-alternates > summary')
+    assert(await page.$eval('.picker-alternate-body',e=>getComputedStyle(e).display)==='none', 'Closed alternatives must have no layout box')
+    results.push({pickerWidth:width,enlarged,wideFont:true,passed:true,bounds})
+    await context.close()
+  }
   for (const [name, w, h] of [['phone',390,844],['small-phone',360,740],['ipad-portrait',820,1180],['ipad-landscape',1180,820],['desktop',1440,900]]) {
     const context = await browser.createBrowserContext()
     const page = await context.newPage()
@@ -110,6 +128,7 @@ try {
     await page.$eval('.child-mode-exit', e=>e.click())
     await page.waitForSelector('.child-exit-confirmation[open]')
     assert(await page.$('.child-trace-mode'), name+': semantic activation bypassed confirmation')
+    assert(await page.$eval('.child-exit-confirmation', e=>parseFloat(getComputedStyle(e).padding)>=16),name+': confirmation content needs breathing room')
     assert(await page.$eval('.child-exit-confirmation .secondary-button', e=>e===document.activeElement),name+': Stay must receive initial focus')
     await shot(page,name+'--semantic-exit-confirmation')
     await page.click('.child-exit-confirmation .secondary-button')
