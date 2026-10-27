@@ -11,6 +11,8 @@ function deferred() {
 
 // Use the same queues, guard and read/commit pipeline as native AsyncStorage.
 // Pause before queueing, during index reads, and during the storage commit.
+// The retained save closure reads only parent-owned generation state; protection
+// does not depend on a transient mounted flag or surviving screen instance.
 for (const pauseAt of ['cleanup', 'index', 'commit'] as const) {
   const sessions = createOperationQueue()
   const preferences = createOperationQueue()
@@ -18,11 +20,10 @@ for (const pauseAt of ['cleanup', 'index', 'commit'] as const) {
   const pause = deferred()
   const started = deferred()
   let generation = 0
-  let mounted = true
   let clearing = false
   let enabled = true
   assert.equal(shouldPersistResume(enabled, 'picker', clearing), true)
-  const isCurrent = operationGuard(generation, () => generation, () => mounted && !clearing)
+  const isCurrent = operationGuard(generation, () => generation, () => !clearing)
   const waitAt = async (stage: string) => {
     if (stage !== pauseAt) return
     started.resolve()
@@ -48,7 +49,6 @@ for (const pauseAt of ['cleanup', 'index', 'commit'] as const) {
   generation++
   clearing = true
   enabled = false
-  mounted = false
   const clear = sessions(async () => {
     await preferences(async () => { store.delete('resume') })
     store.clear()
@@ -66,29 +66,48 @@ for (const pauseAt of ['cleanup', 'index', 'commit'] as const) {
   assert.equal(normalizeResumeContext(store.get('resume'), ['line', 'flower']), null)
   assert.equal(isCurrent(), false, 'ending clear does not revalidate old saves')
   // New intentional work must save normally after Clear, including its lesson.
-  mounted = true
-  const next = operationGuard(generation, () => generation, () => mounted && !clearing)
+  const next = operationGuard(generation, () => generation, () => !clearing)
   assert.equal(shouldPersistResume(enabled, 'learn', clearing), true)
   await preferences(() => writeIfCurrent(next, async () => { store.set('resume', { mode: 'learn', lessonId: 'flower' }) }))
   assert.equal(normalizeResumeContext(store.get('resume'), ['line', 'flower'])?.lessonId, 'flower')
 }
 
 // A queued preference/resume operation must recheck after clear, even once its
-// transient clearing flag is false. Also cover unmount without any clear.
-for (const invalidate of ['clear', 'unmount']) {
+// transient clearing flag is false.
+{
   let generation = 0
-  let mounted = true
   const queue = createOperationQueue()
   const pause = deferred()
   const blocker = queue(() => pause.promise)
-  const guard = operationGuard(generation, () => generation, () => mounted)
+  const guard = operationGuard(generation, () => generation)
   const writes: string[] = []
   const pending = ['preferences', 'resume', 'alignment', 'lesson', 'setup'].map((key) => queue(() => writeIfCurrent(guard, async () => { writes.push(key) })))
-  if (invalidate === 'clear') generation++
-  else mounted = false
+  generation++
   pause.resolve()
   await Promise.all([blocker, ...pending])
   assert.deepEqual(writes, [])
+}
+
+// Exiting the screen alone must not discard a pending save. The captured
+// parent generation stays valid until Clear, regardless of screen lifetime.
+{
+  const generation = 0
+  const queue = createOperationQueue()
+  const pause = deferred()
+  const started = deferred()
+  const guard = operationGuard(generation, () => generation)
+  const store = new Map<string, unknown>()
+  const pending = queueSessionWrite(queue, guard, 'ordinary-leave', async () => {
+    started.resolve()
+    await pause.promise
+    return ['older-session']
+  }, async (ids) => { store.set('index', ids); store.set('ordinary-leave', 'ink') })
+  await started.promise
+  // The screen exits while the storage operation still owns its captured guard.
+  pause.resolve()
+  assert.equal(await pending, true)
+  assert.deepEqual(store.get('index'), ['ordinary-leave', 'older-session'])
+  assert.equal(store.get('ordinary-leave'), 'ink')
 }
 
 // Same transition decision as the touch handler: commit and reset at each exit,
@@ -119,4 +138,4 @@ assert.equal(cache.get('one', revision), undefined)
 assert.deepEqual(revision, original, 'thumbnail caching never edits resumed strokes')
 cache.clear()
 assert.equal(cache.get('three', revision), undefined)
-console.log('Native operation models passed: pending save/clear overlaps, queued preference/resume fences, unmount, lesson resume, stroke gaps and bounded revision cache (no native render coverage)')
+console.log('Native operation models passed: pending save/clear overlaps, queued preference/resume fences, screen-independent clear fences, ordinary leave saves, lesson resume, stroke gaps and bounded revision cache (no native render coverage)')

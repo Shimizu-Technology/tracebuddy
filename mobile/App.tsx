@@ -2560,11 +2560,6 @@ function PracticeScreen({
   const persistedSessionRef = useRef(Boolean(initialSession))
   const saveGenerationRef = useRef(0)
   const saveRequestRef = useRef(0)
-  const mountedRef = useRef(true)
-  useEffect(() => {
-    mountedRef.current = true
-    return () => { mountedRef.current = false }
-  }, [])
   const appStateRef = useRef(AppState.currentState)
   const pendingClearRef = useRef<{ sessionId: string; imageUris: string[] } | null>(null)
   const pendingImageCleanupUrisRef = useRef<string[]>([])
@@ -2718,7 +2713,9 @@ function PracticeScreen({
     const requestId = saveRequestRef.current + 1
     saveRequestRef.current = requestId
     const generation = saveGenerationRef.current
-    const isCurrent = () => mountedRef.current && isWorkOperationCurrent(workOperationGeneration) && generation === saveGenerationRef.current
+    // This parent-owned generation survives unmount. Ordinary leave/background
+    // saves may finish; Clear permanently revokes their storage permission.
+    const isCurrent = () => isWorkOperationCurrent(workOperationGeneration) && generation === saveGenerationRef.current
     if (!isCurrent()) return true
     setSaveStatus('saving')
     await retryPendingImageCleanup()
