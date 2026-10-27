@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { continueDrawing, finishAfterSave, hasKeepsakeContent, keepsakeStamps, makeNativeModePreference, newestDrawings, normalizeModePreference, normalizeStamp, toggleStamp } from '../mobile/finishFindModel.ts'
 import { normalizeSavedPracticeSession } from '../mobile/practiceStorageModel.ts'
 import { normalizeResumeContext, navigate, goBack } from '../mobile/practiceModel.ts'
+import { followLatestSave } from '../mobile/practiceOperations.ts'
 
 const old = {
   version: 2, sessionId: 'old', updatedAt: '2026-10-26T10:00:00Z',
@@ -122,6 +123,10 @@ for (const phase of ['cleanup', 'write'] as const) {
       createPracticeSessionId: () => 'replacement',
     }
     const saveResults: unknown[] = []
+    // The real save body plus its leave/Done wrapper, which follows superseding attempts.
+    bindings.attemptPracticeSave = callback('attemptPracticeSave', bindings)
+    bindings.followLatestSave = followLatestSave
+    bindings.latestSaveRef = ref(null)
     const save = callback('savePracticeSessionNow', bindings)
     bindings.savePracticeSessionNow = async () => { const result = await save(); saveResults.push(result); return result }
     const done = callback('finishDrawing', bindings)
@@ -152,7 +157,9 @@ for (const phase of ['cleanup', 'write'] as const) {
       assert.equal(saveResults.at(-1), true)
     } else {
       assert.ok(!events.includes('keepsake') && !events.includes('haptic'), `${phase}/${interruption}: revoked Done cannot celebrate`)
-      if (['clear', 'generation', 'parent-clear', 'navigation'].includes(interruption)) assert.equal(saveResults.at(-1), false, 'Revoked actual save returns false')
+      if (['clear', 'generation', 'parent-clear'].includes(interruption)) assert.equal(saveResults.at(-1), false, 'Revoked actual save returns false')
+      // Ordinary navigation still saves the newest snapshot; Done is revoked by its finish token, not by a failed save.
+      if (interruption === 'navigation') assert.ok(saveResults.every((result) => result === true), 'Leaving saves the drawing; a superseded save follows it instead of reporting failure')
       if (interruption === 'clear' && phase === 'cleanup') assert.equal(writeCalls, 0, 'Cleared finish never starts a session write')
       if (interruption === 'navigation') assert.ok(events.includes('navigate'), 'The actual leave callback completes')
       if (interruption === 'unmount') assert.equal(events.filter((event) => event === 'completing').length, completingUpdates, 'No finish state update after unmount')
