@@ -200,6 +200,7 @@ try {
     // Custom words through the handwriting UI, including all accepted characters.
     for (const value of ['Aleksandra Wiśniewska-Kowalczyk', 'Wiśniewska', 'å ñ ʼ', 'åñʼ'.repeat(16), '名字をなぞって練習しましょう'.repeat(4).slice(0, 48), 'W'.repeat(48)]) {
       await page.goto(`${url}/#learn`, { waitUntil: 'networkidle0' })
+      await page.waitForSelector('.handwriting-disclosure > summary')
       await page.click('.handwriting-disclosure > summary')
       await page.$eval('.handwriting-card input', (input) => { input.value = '' })
       await page.type('.handwriting-card input', value)
