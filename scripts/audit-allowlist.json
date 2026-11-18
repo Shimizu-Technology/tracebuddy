@@ -23,7 +23,20 @@
     "nodes": [
       "node_modules/picomatch"
     ],
-    "range": "*"
+    "range": "*",
+    "reviewedConsumers": [
+      "@typescript-eslint/eslint-plugin",
+      "@typescript-eslint/parser",
+      "@typescript-eslint/type-utils",
+      "@typescript-eslint/typescript-estree",
+      "@typescript-eslint/utils",
+      "@vitejs/plugin-react",
+      "fdir",
+      "tinyglobby",
+      "typescript-eslint",
+      "vite"
+    ],
+    "devOnly": true
   },
   {
     "advisory": "GHSA-fc5q-39xc-vjpf",
@@ -38,6 +51,29 @@
       "node_modules/micromatch/node_modules/picomatch",
       "node_modules/picomatch"
     ],
-    "range": "*"
+    "range": "*",
+    "reviewedConsumers": [
+      "@expo/cli",
+      "@expo/metro",
+      "@expo/metro-config",
+      "@expo/metro-file-map",
+      "@react-native/babel-plugin-codegen",
+      "@react-native/codegen",
+      "@react-native/community-cli-plugin",
+      "@react-native/virtualized-lists",
+      "babel-preset-expo",
+      "expo",
+      "fdir",
+      "jest-util",
+      "jest-worker",
+      "metro",
+      "metro-config",
+      "metro-file-map",
+      "metro-transform-worker",
+      "micromatch",
+      "react-native",
+      "tinyglobby"
+    ],
+    "devOnly": false
   }
 ]

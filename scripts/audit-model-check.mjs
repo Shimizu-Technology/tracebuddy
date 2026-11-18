@@ -110,17 +110,19 @@ console.log('Audit model and CLI checks passed: clean, vulnerable, expiry, schem
 
 // Both new picomatch exceptions must remain scoped to the reviewed dependency paths.
 for (const project of ['.', 'mobile']) {
+  const expectedNodes = project === '.' ? ['node_modules/picomatch'] : ['node_modules/jest-util/node_modules/picomatch', 'node_modules/micromatch/node_modules/picomatch', 'node_modules/picomatch']
   const entry = allowlist.find(item => item.project === project && item.package === 'picomatch')
   assert.ok(entry, `Missing reviewed picomatch scope for ${project}`)
+  assert.deepEqual(entry.nodes, expectedNodes)
   const report = structuredClone(clean)
   report.metadata.vulnerabilities.high = report.metadata.vulnerabilities.total = 1
   report.vulnerabilities.picomatch = {
-    name: 'picomatch', severity: 'high', isDirect: false, range: entry.range, nodes: entry.nodes,
+    name: 'picomatch', severity: 'high', isDirect: false, range: entry.range, nodes: expectedNodes,
     via: [{ title: 'Repeated extglob ReDoS', severity: 'high', url: `https://github.com/advisories/${entry.advisory}` }],
   }
-  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18' }).problems.length, 0)
-  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-12-19' }).problems.length, 1)
+  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18', lockPackages: Object.fromEntries(expectedNodes.map(node => [node, { dev: true }])) }).problems.length, 0)
+  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-12-19', lockPackages: Object.fromEntries(expectedNodes.map(node => [node, { dev: true }])) }).problems.length, 1)
   report.vulnerabilities.picomatch.nodes = ['node_modules/unreviewed/node_modules/picomatch']
-  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18' }).problems.length, 1)
+  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18', lockPackages: Object.fromEntries(expectedNodes.map(node => [node, { dev: true }])) }).problems.length, 1)
 }
 console.log('Root/mobile picomatch exception expiry and path boundaries passed')
