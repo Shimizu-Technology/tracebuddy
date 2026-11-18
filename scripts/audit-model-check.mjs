@@ -121,7 +121,7 @@ for (const project of ['.', 'mobile']) {
     via: [{ title: 'Repeated extglob ReDoS', severity: 'high', url: `https://github.com/advisories/${entry.advisory}` }],
   }
   assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18', lockPackages: Object.fromEntries(expectedNodes.map(node => [node, { dev: true }])) }).problems.length, 0)
-  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-12-19', lockPackages: Object.fromEntries(expectedNodes.map(node => [node, { dev: true }])) }).problems.length, 1)
+  assert.equal(evaluateAudit(report, allowlist, { project, today: '2027-02-01', lockPackages: Object.fromEntries(expectedNodes.map(node => [node, { dev: true }])) }).problems.length, 1)
   report.vulnerabilities.picomatch.nodes = ['node_modules/unreviewed/node_modules/picomatch']
   assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18', lockPackages: Object.fromEntries(expectedNodes.map(node => [node, { dev: true }])) }).problems.length, 1)
 }

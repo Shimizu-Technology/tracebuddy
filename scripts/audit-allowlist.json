@@ -18,7 +18,7 @@
     "project": ".",
     "via": "Vite / ESLint local project-file discovery",
     "reason": "No patched picomatch release exists as of 2026-11-18 (latest 4.0.7). This transitive copy matches trusted repository globs during local builds/linting; application source does not import it or accept user-supplied glob patterns. It is not part of the shipped app runtime. Do not expose development tooling to untrusted requests. Remove this exception when a patched compatible release is available.",
-    "reviewBy": "2026-12-18",
+    "reviewBy": "2027-01-31",
     "isDirect": false,
     "nodes": [
       "node_modules/picomatch"
@@ -44,7 +44,7 @@
     "project": "mobile",
     "via": "Expo / Metro / Jest local source-file discovery",
     "reason": "No patched picomatch release exists as of 2026-11-18 (latest 4.0.7). This transitive copy matches trusted repository globs during local builds/linting; application source does not import it or accept user-supplied glob patterns. It is not part of the shipped app runtime. Do not expose development tooling to untrusted requests. Remove this exception when a patched compatible release is available.",
-    "reviewBy": "2026-12-18",
+    "reviewBy": "2027-01-31",
     "isDirect": false,
     "nodes": [
       "node_modules/jest-util/node_modules/picomatch",
