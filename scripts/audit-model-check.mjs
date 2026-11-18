@@ -107,3 +107,20 @@ try {
   rmSync(bin, { recursive: true, force: true })
 }
 console.log('Audit model and CLI checks passed: clean, vulnerable, expiry, schema, project/path/direct/range scope, malformed and service errors')
+
+// Both new picomatch exceptions must remain scoped to the reviewed dependency paths.
+for (const project of ['.', 'mobile']) {
+  const entry = allowlist.find(item => item.project === project && item.package === 'picomatch')
+  assert.ok(entry, `Missing reviewed picomatch scope for ${project}`)
+  const report = structuredClone(clean)
+  report.metadata.vulnerabilities.high = report.metadata.vulnerabilities.total = 1
+  report.vulnerabilities.picomatch = {
+    name: 'picomatch', severity: 'high', isDirect: false, range: entry.range, nodes: entry.nodes,
+    via: [{ title: 'Repeated extglob ReDoS', severity: 'high', url: `https://github.com/advisories/${entry.advisory}` }],
+  }
+  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18' }).problems.length, 0)
+  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-12-19' }).problems.length, 1)
+  report.vulnerabilities.picomatch.nodes = ['node_modules/unreviewed/node_modules/picomatch']
+  assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18' }).problems.length, 1)
+}
+console.log('Root/mobile picomatch exception expiry and path boundaries passed')
