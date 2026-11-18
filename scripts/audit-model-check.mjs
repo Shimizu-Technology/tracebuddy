@@ -126,3 +126,37 @@ for (const project of ['.', 'mobile']) {
   assert.equal(evaluateAudit(report, allowlist, { project, today: '2026-11-18', lockPackages: Object.fromEntries(expectedNodes.map(node => [node, { dev: true }])) }).problems.length, 1)
 }
 console.log('Root/mobile picomatch exception expiry and path boundaries passed')
+
+// A reviewed consumer name cannot cover a new resolved instance (including npm aliases).
+const instanceEntry = { advisory: 'GHSA-test-instance', package: 'picomatch', project: '.', via: 'fixture', reason: 'fixture', reviewBy: '2099-01-31', isDirect: false, range: '*', nodes: ['node_modules/picomatch'], reviewedConsumers: ['vite'], reviewedConsumerNodes: ['node_modules/vite'] }
+const instanceReport = { auditReportVersion: 2, vulnerabilities: {
+  picomatch: { name: 'picomatch', severity: 'high', isDirect: false, range: '*', nodes: ['node_modules/picomatch'], via: [{title: 'fixture', severity: 'high', url: 'https://github.com/advisories/GHSA-test-instance'}] },
+  vite: { name: 'vite', severity: 'high', isDirect: true, range: '*', nodes: ['node_modules/vite'], via: ['picomatch'] },
+}, metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 2, critical: 0, total: 2 }, dependencies: {prod: 0, dev: 2, optional: 0, peer: 0, peerOptional: 0, total: 2} } }
+assert.equal(evaluateAudit(instanceReport, [instanceEntry], { project: '.' }).problems.length, 0)
+instanceReport.vulnerabilities.vite.nodes.push('node_modules/vite-alias')
+assert.match(evaluateAudit(instanceReport, [instanceEntry], { project: '.' }).problems[0], /unreviewed dependent instance/)
+
+// A scan must use the same lockfile graph throughout its registry request.
+{
+  const { mkdtempSync, writeFileSync, chmodSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const path = await import('node:path')
+  const { spawnSync } = await import('node:child_process')
+  const { fileURLToPath } = await import('node:url')
+  const fixture = mkdtempSync(path.join(tmpdir(), 'audit-lock-'))
+  const cleanReport = { auditReportVersion: 2, vulnerabilities: {}, metadata: { vulnerabilities: {info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0}, dependencies: {prod: 0, dev: 0, optional: 0, peer: 0, peerOptional: 0, total: 0} } }
+  try {
+    writeFileSync(path.join(fixture, 'package-lock.json'), '{"packages":{}}')
+    const fakeNpm = path.join(fixture, 'npm')
+    writeFileSync(fakeNpm, '#!/bin/sh\ncase " $* " in *" --include=dev "*) ;; *) exit 2;; esac\nif [ "$MUTATE_AUDIT_LOCK" = 1 ]; then printf " " >> package-lock.json; fi\nprintf "%s" "$CLEAN_AUDIT_REPORT"\n')
+    chmodSync(fakeNpm, 0o755)
+    const script = fileURLToPath(new URL('./audit-check.mjs', import.meta.url))
+    const env = { ...process.env, NODE_ENV: 'production', PATH: `${fixture}${path.delimiter}${process.env.PATH}`, CLEAN_AUDIT_REPORT: JSON.stringify(cleanReport) }
+    const stable = spawnSync(process.execPath, [script, fixture], {env, encoding: 'utf8'})
+    assert.equal(stable.status, 0, stable.stderr)
+    const changed = spawnSync(process.execPath, [script, fixture], {env: {...env, MUTATE_AUDIT_LOCK: '1'}, encoding: 'utf8'})
+    assert.equal(changed.status, 1)
+    assert.match(changed.stderr, /Lockfile changed during audit/)
+  } finally { rmSync(fixture, {recursive: true, force: true}) }
+}
