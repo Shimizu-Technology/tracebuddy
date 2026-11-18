@@ -149,10 +149,10 @@ assert.match(evaluateAudit(instanceReport, [instanceEntry], { project: '.' }).pr
   try {
     writeFileSync(path.join(fixture, 'package-lock.json'), '{"packages":{}}')
     const fakeNpm = path.join(fixture, 'npm')
-    writeFileSync(fakeNpm, '#!/bin/sh\ncase " $* " in *" --include=dev "*) ;; *) exit 2;; esac\nif [ "$MUTATE_AUDIT_LOCK" = 1 ]; then printf " " >> package-lock.json; fi\nprintf "%s" "$CLEAN_AUDIT_REPORT"\n')
+    writeFileSync(fakeNpm, '#!/bin/sh\ncase " $* " in *" --include=dev "*) ;; *) exit 2;; esac\ncase " $* " in *" --offline=false "*) ;; *) exit 2;; esac\nif [ "$MUTATE_AUDIT_LOCK" = 1 ]; then printf " " >> package-lock.json; fi\nprintf "%s" "$CLEAN_AUDIT_REPORT"\n')
     chmodSync(fakeNpm, 0o755)
     const script = fileURLToPath(new URL('./audit-check.mjs', import.meta.url))
-    const env = { ...process.env, NODE_ENV: 'production', PATH: `${fixture}${path.delimiter}${process.env.PATH}`, CLEAN_AUDIT_REPORT: JSON.stringify(cleanReport) }
+    const env = { ...process.env, NODE_ENV: 'production', npm_config_offline: 'true', PATH: `${fixture}${path.delimiter}${process.env.PATH}`, CLEAN_AUDIT_REPORT: JSON.stringify(cleanReport) }
     const stable = spawnSync(process.execPath, [script, fixture], {env, encoding: 'utf8'})
     assert.equal(stable.status, 0, stable.stderr)
     const changed = spawnSync(process.execPath, [script, fixture], {env: {...env, MUTATE_AUDIT_LOCK: '1'}, encoding: 'utf8'})
