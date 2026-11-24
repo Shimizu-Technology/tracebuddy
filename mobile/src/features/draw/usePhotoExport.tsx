@@ -5,12 +5,15 @@ import { captureRef, releaseCapture } from 'react-native-view-shot'
 import { captureImageKeys, capturePixelWidth, createCaptureReadiness, saveTemporaryCapture } from '../../../captureUtils'
 import { documentCapture } from '../../../nativeSafetyModel'
 import type { SavedPracticeSession } from '../../../practiceStorageModel'
+import { lineForSource } from '../../data/catalog'
 import { requestDrawingPhotoExport, saveToLibraryAsync } from '../../data/drawingPhotos'
+import { readPictureLine } from '../../data/usePictureLine'
 import { DrawingDocument } from './DrawingDocument'
 import { createInkExport } from './createInkExport'
 
 type Capture = {
   session: SavedPracticeSession
+  guideSvg: string
   inkUri?: string
   readiness: ReturnType<typeof createCaptureReadiness>
 }
@@ -35,6 +38,9 @@ export function usePhotoExport() {
     let ink: ReturnType<typeof createInkExport>
     try {
       if (!await requestDrawingPhotoExport() || !active.current) return
+      const guide = await readPictureLine(lineForSource(session.source))
+      if (guide.status === 'error') throw guide.error
+      if (!active.current) return
       // Capture a second, unzoomed square. The on-screen Metal view is
       // replaced with a decoded transparent ink image for native view-shot.
       ink = createInkExport(session.strokes, capturePixelWidth(documentCapture.width, PixelRatio.get()))
@@ -42,7 +48,7 @@ export function usePhotoExport() {
       const keys = captureImageKeys(session.source.uploadedImage?.uri, false, session.stickers)
       const readiness = createCaptureReadiness(inkUri ? [...keys, 'ink'] : keys)
       cleanup.current = readiness.dispose
-      setCapture({ session, inkUri, readiness })
+      setCapture({ session, guideSvg: guide.xml, inkUri, readiness })
       await readiness.ready
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
       if (!node.current || !active.current) return
@@ -72,7 +78,7 @@ export function usePhotoExport() {
   const captureView = capture && (
     <View style={styles.offscreen} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View ref={node} collapsable={false}>
-        <DrawingDocument side={documentCapture.side} session={capture.session} inkUri={capture.inkUri}
+        <DrawingDocument side={documentCapture.side} session={capture.session} guideSvg={capture.guideSvg} inkUri={capture.inkUri}
           onImageLoad={capture.readiness.loaded} onImageError={capture.readiness.failed} />
       </View>
     </View>

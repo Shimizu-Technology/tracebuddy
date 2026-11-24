@@ -18,8 +18,9 @@ import TraceBuddyARView from '../../../modules/tracebuddy-ar/src/TraceBuddyARVie
 import { isTraceBuddyARSupported } from '../../../modules/tracebuddy-ar/src/TraceBuddyARModule'
 import { prepareARGuide } from '../ar/arGuideCapture'
 import { currentDrawingImageUri } from '../../data/drawingPhotos'
+import { usePictureLine } from '../../data/usePictureLine'
 import {
-  arDisplayCopy, arGuideGenerationKey, arPagePresets, arTrackingAdvice, canEnterARChildMode, canLockARPlacement,
+  arDisplayCopy, arPagePresets, arTrackingAdvice, canEnterARChildMode, canLockARPlacement,
   currentARGuide, deriveARDisplayState, initialARNativeState, isCurrentAREvent, normalizeARNativeState,
 } from '../ar/arTraceState'
 import type { ARGuideCapture, ARNativeState, ARPagePreset } from '../ar/arTraceState'
@@ -60,9 +61,10 @@ function waitForTwoFrames() {
 }
 
 /** Draws the guide off screen so it can be captured as the texture ARKit places on the paper. */
-function GuideTexture({ target, picture, preset, onReady, onError }: {
+function GuideTexture({ target, picture, guideSvg, preset, onReady, onError }: {
   target: RefObject<View | null>
   picture: PaperPicture
+  guideSvg: string
   preset: ARPagePreset
   onReady: () => void
   onError: () => void
@@ -74,7 +76,7 @@ function GuideTexture({ target, picture, preset, onReady, onError }: {
       <View ref={target} collapsable={false} style={[styles.capturePage, { width: captureWidth, height }]} onLayout={picture.kind === 'drawing' ? onReady : undefined}>
         <View style={styles.captureGuide}>
           {picture.kind === 'drawing'
-            ? <SvgXml xml={picture.svg} width="100%" height="100%" />
+            ? <SvgXml xml={guideSvg} width="100%" height="100%" />
             : <Image source={{ uri: picture.uri }} contentFit="contain" style={styles.fill} onLoad={onReady} onError={onError} />}
         </View>
       </View>
@@ -106,6 +108,7 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   const [readyKey, setReadyKey] = useState<string | null>(null)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [captureAttempt, setCaptureAttempt] = useState(0)
+  const line = usePictureLine(picture.picture, captureAttempt)
   const [pose, setPose] = useState<ScreenPose>({ x: 0, y: 0, scale: arStartScale, rotation: 0 })
   const [resetRevision, setResetRevision] = useState(0)
   const [stick, setStick] = useState<StickState>(initialStickState)
@@ -128,7 +131,7 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   const expectedReset = useRef(0)
   const target = useRef<View>(null)
   const page = arPagePresets[preset]
-  const guideKey = arGuideGenerationKey({ id: picture.key, svg: picture.kind === 'drawing' ? picture.svg : '' }, picture.kind === 'photo' ? picture.uri : undefined, preset, captureAttempt)
+  const guideKey = JSON.stringify([picture.key, preset, captureAttempt])
   const guideUri = currentARGuide(capture, guideKey)
   const expectedGuide = useRef({ key: guideKey, uri: guideUri })
   useLayoutEffect(() => { expectedGuide.current = { key: guideKey, uri: guideUri } }, [guideKey, guideUri])
@@ -310,7 +313,8 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   return (
     <View style={styles.screen} accessibilityViewIsModal>
       <StatusBar style="light" hidden={childMode} animated />
-      <GuideTexture key={guideKey} target={target} picture={picture} preset={preset} onReady={() => { if (expectedGuide.current.key === guideKey) setReadyKey(guideKey) }} onError={() => setErrorKey(guideKey)} />
+      {line.status === 'ready' ? <GuideTexture key={guideKey} target={target} picture={picture} guideSvg={line.xml} preset={preset}
+        onReady={() => { if (expectedGuide.current.key === guideKey) setReadyKey(guideKey) }} onError={() => setErrorKey(guideKey)} /> : null}
       <GestureDetector gesture={gesture}>
         <View style={StyleSheet.absoluteFill}>
           {guideUri ? (
@@ -359,7 +363,9 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
 
       {controls ? <TopBar top={insets.top + theme.space.sm} {...sides} onClose={() => router.back()} action={{ glyph: ArrowCounterClockwiseIcon, label: 'Start over', onPress: reset }} /> : null}
       <Pill
-        text={errorKey === guideKey ? 'The picture couldn’t be prepared. Tap Page to try again.' : phase === 'placing' ? 'Placing the picture on the paper…' : `${status.title}. ${advice ?? status.detail}`}
+        text={errorKey === guideKey || line.status === 'error' ? 'The picture couldn’t be prepared. Tap Page to try again.'
+          : !guideUri ? 'Getting your picture ready…'
+            : phase === 'placing' ? 'Placing the picture on the paper…' : `${status.title}. ${advice ?? status.detail}`}
         style={[styles.status, { top: insets.top + theme.space.sm + (controls ? paperTheme.size.topButton + theme.space.sm : 0) }]}
       />
       {controls ? (

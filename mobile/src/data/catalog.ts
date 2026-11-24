@@ -3,6 +3,7 @@ import { createTextDrawing, drawingById, sanitizeTraceText } from '../../../shar
 import type { Drawing } from '../../../shared'
 import type { PracticeSource, UploadedImage } from '../../practiceStorageModel'
 import { generatedArt } from './art.generated'
+import type { PictureLine } from './pictureLineModel'
 import { drawingFromPracticeSource, makePracticeSource } from './practiceSource'
 
 export const artLevels = ['simple', 'detailed'] as const
@@ -26,11 +27,12 @@ export type GeneratedArt = {
   id: string
   name: string
   category: PictureCategory
-  line: () => string
+  line: Extract<PictureLine, { kind: 'asset' }>
   color: () => number
 }
 
-export type Picture = Pick<GeneratedArt, 'id' | 'name' | 'category' | 'line'> & {
+export type Picture = Pick<GeneratedArt, 'id' | 'name' | 'category'> & {
+  line: PictureLine
   level?: ArtLevel
   color?: () => number
   uploadedImage?: UploadedImage
@@ -56,7 +58,7 @@ const legacyCategory: Record<Drawing['category'], PictureCategory> = {
 }
 
 function legacyPicture(drawing: Drawing): Picture {
-  return { id: drawing.id, name: drawing.name, category: legacyCategory[drawing.category], line: () => drawing.svg }
+  return { id: drawing.id, name: drawing.name, category: legacyCategory[drawing.category], line: { kind: 'inline', xml: drawing.svg } }
 }
 
 export function catalogPictures(level: ArtLevel): readonly Picture[] {
@@ -100,7 +102,7 @@ export function resolvePicture(params: IncomingParams): Picture | null {
     if (!uri.startsWith('file://')) return null
     const name = photoDrawingName
     return {
-      id: 'my-photo', name, category: 'fun', line: () => '',
+      id: 'my-photo', name, category: 'fun', line: { kind: 'inline', xml: '' },
       uploadedImage: {
         uri, name,
         width: Number(readParam(params.photoWidth)) || undefined,
@@ -132,7 +134,7 @@ export function paramsForPicture(picture: Picture): PictureParams {
   } : picture.level ? { id: picture.id, level: picture.level } : { id: picture.id, legacy: '1' }
 }
 
-export function sourceForPicture(picture: Picture): PracticeSource {
+export function sourceForPicture(picture: Picture, guideSvg: string): PracticeSource {
   // Legacy IDs must continue finding the original guide, including reused subject names.
   const drawingId = picture.level ? `tb2-${picture.level}-${picture.id}` : picture.id
   const legacy = drawingById(drawingId)
@@ -140,15 +142,32 @@ export function sourceForPicture(picture: Picture): PracticeSource {
     id: drawingId, name: picture.name, theme: picture.uploadedImage ? 'Local image' : picture.name,
     category: picture.category === 'letters' ? 'letters' : 'starters',
     difficulty: picture.level === 'detailed' ? 'Detailed' : 'Starter',
-    svg: picture.line(),
+    // Saved work keeps a snapshot so future catalog changes and older app
+    // versions still open it over the exact guide it was drawn on.
+    svg: guideSvg,
   }, picture.uploadedImage ?? null)
+}
+
+function curatedDrawingParams(drawingId: string): { id: string; level: ArtLevel } | undefined {
+  const match = /^tb2-(simple|detailed)-(.+)$/.exec(drawingId)
+  if (match) return { id: match[2], level: match[1] === 'detailed' ? 'detailed' : 'simple' }
+}
+
+export function lineForSource(source: PracticeSource): PictureLine {
+  if (source.kind === 'upload' && source.uploadedImage) return { kind: 'inline', xml: '' }
+  if (source.drawingSvg === undefined) {
+    const params = curatedDrawingParams(source.drawingId)
+    const art = params && generatedArt[params.level].find((picture) => picture.id === params.id)
+    if (art) return art.line
+  }
+  return { kind: 'inline', xml: drawingFromPracticeSource(source).drawing.svg }
 }
 
 export function paramsForSource(source: PracticeSource): PictureParams {
   const { drawing, uploadedImage } = drawingFromPracticeSource(source)
   if (uploadedImage) return paramsForPicture({ ...legacyPicture(drawing), uploadedImage })
-  const generatedId = /^tb2-(simple|detailed)-(.+)$/.exec(source.drawingId)
-  if (generatedId) return { id: generatedId[2], level: generatedId[1] === 'detailed' ? 'detailed' : 'simple' }
+  const curated = curatedDrawingParams(source.drawingId)
+  if (curated) return curated
   if (source.kind === 'custom' && source.drawingId.startsWith('custom-text-')) {
     const svgText = [...(source.drawingSvg ?? '').matchAll(/<text\b[^>]*>([^<]*)<\/text>/g)]
       .map(([, line]) => line.replace(/&(?:lt|gt|quot|apos|amp);/g, (entity) =>

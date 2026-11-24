@@ -14,6 +14,7 @@ import { currentDrawingImageUri } from '../../data/drawingPhotos'
 import { parentSetupSeenKey } from '../../data/storageKeys'
 import { parentSetupSeenValue, parseParentSetupSeen } from '../../data/localSettings'
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
+import { usePictureLine } from '../../data/usePictureLine'
 import { Button } from '../../ui/Button'
 import { DotsThreeIcon } from '../../ui/icons'
 import { Text } from '../../ui/Text'
@@ -63,6 +64,7 @@ function MissingPicture() {
 }
 
 function PaperSession({ picture, params }: { picture: PaperPicture; params: PaperParams }) {
+  const line = usePictureLine(picture.picture)
   const insets = useSafeAreaInsets()
   const window = useWindowDimensions()
   const reduceMotion = useReduceMotion()
@@ -110,7 +112,7 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const { handedOff } = stick
 
   const showGuide = camera.cameraOn && !handedOff && setup.hydrated
-  const controls = showGuide && !locked && !done
+  const controls = showGuide && line.status === 'ready' && !locked && !done
   // Child mode keeps the locked alignment through a turn of the device, and hides it until the device turns back.
   const turnedAway = locked && !setup.hydrated
 
@@ -278,9 +280,10 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
             onMountError={camera.onMountError}
           />
         ) : null}
-        {showGuide && !turnedAway ? (
+        {showGuide && !turnedAway && line.status === 'ready' ? (
           <GuideLayer
             picture={picture}
+            guideSvg={line.xml}
             values={values}
             page={page}
             center={center}
@@ -299,7 +302,7 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
       </Animated.View>
 
       {/* Nothing that leads away is on screen in child mode, even if the camera stops. */}
-      {!locked && (controls || !camera.cameraOn) ? (
+      {!locked && (controls || !camera.cameraOn || line.status !== 'ready') ? (
         <TopBar
           top={insets.top + theme.space.sm}
           {...sides}
@@ -307,6 +310,8 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
           action={controls ? { glyph: DotsThreeIcon, label: 'More options', onPress: openMore } : undefined}
         />
       ) : null}
+      {showGuide && line.status !== 'ready' ? <Pill text={line.status === 'loading' ? 'Getting your picture ready…' : 'This picture couldn’t open.'}
+        announce style={[styles.absolute, { top: topLimit + theme.space.sm }]} /> : null}
       {controls && hint ? <Pill text="Pinch to resize · twist to turn" style={[styles.absolute, { top: topLimit + theme.space.sm }]} /> : null}
       {turnedAway ? <Pill text="Turn the device back to keep tracing" announce style={[styles.absolute, { top: insets.top + theme.space.xl }]} /> : null}
       {setup.loadFailed && !locked ? <Pill text="Couldn’t open your saved setup. Trying again…" announce style={[styles.absolute, { top: topLimit + theme.space.sm }]} /> : null}
