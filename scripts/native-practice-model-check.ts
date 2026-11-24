@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
-import { saveTemporaryCapture } from '../mobile/captureUtils.ts'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
+import { runInNewContext } from 'node:vm'
+import { capturePixelWidth, saveTemporaryCapture } from '../mobile/captureUtils.ts'
 import { documentFrame, documentPoint, goBack, navigate, normalizeResumeContext, ownedTouch, photoAccessAllowed } from '../mobile/practiceModel.ts'
 import type { NavigationState } from '../mobile/practiceModel.ts'
+import { keepStrokeOnPinch, keepStrokeSample, strokePath, withFinalPoint } from '../mobile/src/features/draw/strokeGeometry.ts'
 
 let navigation: NavigationState = { current: 'picker', history: [] }
 navigation = navigate(navigation, 'learn')
@@ -108,3 +112,34 @@ for (const width of [NaN, Infinity, -1, 0]) assert.equal(normalizeSavedPracticeS
 assert.equal(practiceStrokeWidth(maxPracticeStrokeWidth * 2), maxPracticeStrokeWidth)
 assert.equal(normalizeSavedPracticeStroke({ path: 'M 0 0', width: maxPracticeStrokeWidth * 2 })?.width, maxPracticeStrokeWidth)
 console.log(`Native Previous Work widths passed: ${widthRoundTrips} brush/size/canvas/zoom round trips and persisted eraser widths only (no render or native mask coverage)`)
+
+
+// A pinch can start either with a quick moving finger or a slowly resting one.
+assert.equal(keepStrokeOnPinch(140, 20), false)
+assert.equal(keepStrokeOnPinch(275, 7), false)
+assert.equal(keepStrokeOnPinch(180, 9), true)
+assert.deepEqual(withFinalPoint([{ x: 0, y: 0 }], { x: 4, y: 0 }), [{ x: 0, y: 0 }, { x: 4, y: 0 }], 'A short flick keeps the lift point instead of saving a dot')
+assert.deepEqual(withFinalPoint([{ x: 0, y: 0 }, { x: 9, y: 0 }], { x: 9, y: 0 }), [{ x: 0, y: 0 }, { x: 9, y: 0 }])
+assert.deepEqual(withFinalPoint([{ x: 0, y: 0 }], null), [{ x: 0, y: 0 }], 'A tap with no movement stays a dot')
+assert.equal(keepStrokeSample({ x: 0, y: 0 }, { x: 1, y: 0 }, 2), false)
+assert.equal(keepStrokeSample({ x: 0, y: 0 }, { x: 5, y: 0 }, 40), false)
+assert.equal(keepStrokeSample({ x: 0, y: 0 }, { x: 6, y: 0 }, 40), true)
+assert.equal(strokePath([{ x: 0, y: 5 }], 10), 'M 0 5 L 0.01 5')
+assert.equal(strokePath([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 5, y: 0 }, { x: 6, y: 0 }], 40),
+  'M 0 0 L 5 0 L 6 0', 'Simplification preserves the final point')
+assert.equal(capturePixelWidth(1000, 2), 2000)
+assert.equal(capturePixelWidth(1000, 3), 3000)
+
+// Metro's Worklets transform captures dependencies at declaration time.
+// Exercise its compiled path too, since Node hoists the TypeScript functions.
+const mobileRequire = createRequire(new URL('../mobile/package.json', import.meta.url))
+const babel = mobileRequire('@babel/core')
+const filename = fileURLToPath(new URL('../mobile/src/features/draw/strokeGeometry.ts', import.meta.url))
+const compiled = babel.transformFileSync(filename, {
+  caller: { name: 'metro', bundler: 'metro', platform: 'ios', engine: 'hermes', isDev: false },
+  presets: [mobileRequire.resolve('babel-preset-expo')],
+}).code
+const worklets: { strokePath?: typeof strokePath } = {}
+runInNewContext(compiled, { exports: worklets, global: { Error } })
+assert.ok(worklets.strokePath)
+assert.equal(worklets.strokePath([{ x: 0, y: 5 }], 10), 'M 0 5 L 0.01 5')

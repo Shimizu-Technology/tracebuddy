@@ -4,6 +4,10 @@ import {
   parseModePreference, parseParentSetupSeen, parseResumeContext, parseSavedAlignment,
   serializeModePreference, serializeResumeContext,
 } from '../mobile/src/data/localSettings.ts'
+import { toggleFavoriteDrawing } from '../shared/index.ts'
+import { createFavoritePreference, parseArtFavorites } from '../mobile/src/data/favoritePreference.ts'
+import { createPracticeImageCleanup, drawingImageUris } from '../mobile/src/data/practiceImageCleanup.ts'
+import { drawingTitle, rebasePracticeImageUri } from '../mobile/src/data/practiceSource.ts'
 import { normalizeLegacyPracticeAutosave } from '../mobile/src/data/legacyPractice.ts'
 import { createPreviousWorkStorage, parsePreviousWorkSession, previousWorkSessionKey } from '../mobile/src/data/previousWork.ts'
 import {
@@ -18,6 +22,8 @@ assert.deepEqual(localSettingKeys, [
   'tracebuddy.savedAlignment.v1',
   'tracebuddy.familyActivity.v1',
   'tracebuddy.modePreference.v1',
+  'tracebuddy.whoIsDrawing.v1',
+  'tracebuddy.artFavorites.v1',
 ])
 assert.equal(previousWorkIndexKey, 'tracebuddy.previousWork.v1.index')
 assert.equal(legacyPracticeAutosavePrefix, 'tracebuddy.practice.v1.')
@@ -58,12 +64,23 @@ const records = new Map([
   })],
   ['tracebuddy.practice.v1.invalid', '{'],
 ])
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => { resolve = done })
+  return { promise, resolve }
+}
+
 let allowWrite = true
+let afterMultiGetSnapshot: (() => Promise<void>) | undefined
 const storage = createPreviousWorkStorage({
   getAllKeys: async () => [...records.keys()],
   getItem: async (key) => records.get(key) ?? null,
   setItem: async (key, value) => { records.set(key, value) },
-  multiGet: async (keys) => keys.map((key) => [key, records.get(key) ?? null]),
+  multiGet: async (keys) => {
+    const snapshot = keys.map((key): [string, string | null] => [key, records.get(key) ?? null])
+    await afterMultiGetSnapshot?.()
+    return snapshot
+  },
   multiSet: async (entries) => {
     if (!allowWrite) throw new Error('fixture storage write failed')
     entries.forEach(([key, value]) => records.set(key, value))
@@ -99,6 +116,26 @@ assert.deepEqual(await storage.loadPreviousWorkSessions(() => false), sessions)
 assert.equal(records.get(previousWorkIndexKey), '{broken', 'A revoked read cannot rewrite the index')
 assert.deepEqual(await storage.loadPreviousWorkSessions(), sessions)
 assert.deepEqual(JSON.parse(records.get(previousWorkIndexKey)!), { version: 1, ids: sessions.map((session) => session.sessionId) })
+// This load is also used by the flag-off app. Start a read against a dangling
+// ID, then save that ID again at the front, leaving the serialized index equal.
+const readStarted = deferred()
+const resumeRead = deferred()
+afterMultiGetSnapshot = async () => { readStarted.resolve(); await resumeRead.promise }
+records.delete(historicalSessionKey)
+const indexBeforeRace = records.get(previousWorkIndexKey)
+const repairing = storage.loadPreviousWorkSessions()
+await readStarted.promise
+await storage.savePreviousWorkSession(keepsake, () => true)
+assert.equal(records.get(previousWorkIndexKey), indexBeforeRace, 'Restoring the first record leaves the IDs identical')
+afterMultiGetSnapshot = undefined
+resumeRead.resolve()
+assert.deepEqual(await repairing, sessions, 'Repair must reread rows and keep the restored session')
+assert.equal(records.get(previousWorkIndexKey), indexBeforeRace)
+records.delete(historicalSessionKey)
+assert.deepEqual(await storage.loadPreviousWorkSessions(), [sessions[1]])
+assert.deepEqual(JSON.parse(records.get(previousWorkIndexKey)!).ids, [sessions[1].sessionId])
+await storage.savePreviousWorkSession(keepsake, () => true)
+
 await storage.savePreviousWorkSession({ ...saved, sessionId: 'revoked' }, () => false)
 assert.ok(!records.has(previousWorkSessionKey('revoked')), 'A revoked save cannot write a new session')
 
@@ -151,4 +188,87 @@ const uploadResume = {
 const storedUploadResume = serializeResumeContext({ ...uploadResume, history: [...uploadResume.history] })
 assert.deepEqual(parseResumeContext(storedUploadResume), JSON.parse(storedUploadResume))
 
-console.log('Native storage: 1.2 Previous Work and current keepsakes round-trip, autosave migration retries safely, revoked writes are ignored, settings keep their wire formats')
+// iOS moves the Documents directory when a build is installed over the app.
+const oldUpload = 'file:///sandbox/old/Documents/tracebuddy-uploads/work-photo.png'
+const currentDocuments = 'file:///sandbox/current/Documents/'
+assert.equal(rebasePracticeImageUri(oldUpload, currentDocuments), currentDocuments + 'tracebuddy-uploads/work-photo.png')
+assert.equal(rebasePracticeImageUri(oldUpload, null), oldUpload)
+const otherImage = 'file:///sandbox/old/Documents/other-folder/work-photo.png'
+assert.equal(rebasePracticeImageUri(otherImage, currentDocuments), otherImage)
+
+const uploadedSession = {
+  ...saved,
+  source: { ...uploadResume.source, uploadedImage: { ...uploadResume.source.uploadedImage, uri: oldUpload } },
+  title: 'IMG_4821.HEIC',
+}
+assert.equal(drawingTitle(uploadedSession), 'My photo')
+assert.equal(drawingTitle({ ...uploadedSession, title: uploadedSession.title + ' copy' }), 'My photo copy')
+assert.equal(drawingTitle(saved), saved.title)
+assert.deepEqual(drawingImageUris(uploadedSession), [oldUpload])
+const currentUpload = rebasePracticeImageUri(oldUpload, currentDocuments)
+const photoFiles = new Set([currentUpload])
+let photoReferences: string[] | null = []
+const imageCleanup = createPracticeImageCleanup(currentDocuments, {
+  list: async (directory) => [...photoFiles].map((uri) => uri.slice(directory.length)),
+  readReferences: async () => {
+    if (!photoReferences) throw new Error('Malformed session')
+    return photoReferences
+  },
+  remove: async (uri) => { photoFiles.delete(uri) },
+})
+const releasePicker = imageCleanup.acquire([oldUpload])
+const releaseCanvas = imageCleanup.acquire([currentUpload])
+await imageCleanup.sweep()
+assert.ok(photoFiles.has(currentUpload), 'A pending pick survives a sweep')
+releasePicker()
+releasePicker()
+await imageCleanup.sweep()
+assert.ok(photoFiles.has(currentUpload), 'Two consumers hold independent references')
+releaseCanvas()
+photoReferences = [oldUpload, oldUpload]
+await imageCleanup.sweep([currentUpload])
+photoReferences = [oldUpload]
+await imageCleanup.sweep([currentUpload])
+assert.ok(photoFiles.has(currentUpload), 'Deleting one shared record keeps the remaining copy or resume reference')
+photoReferences = null
+await assert.rejects(imageCleanup.sweep())
+assert.ok(photoFiles.has(currentUpload), 'An incomplete scan cannot delete a photo')
+photoReferences = []
+await imageCleanup.sweep([otherImage])
+assert.ok(photoFiles.has(currentUpload), 'Only managed candidates can be removed')
+await imageCleanup.sweep()
+assert.equal(photoFiles.size, 0, 'Releasing the final reference allows cleanup')
+
+const hydrationStarted = deferred()
+const finishHydration = deferred()
+let legacyFavorites = JSON.stringify(preferences)
+let artFavorites = JSON.stringify(['crab'])
+let failLegacyWrite = false
+const legacy = createFavoritePreference(async () => {
+  hydrationStarted.resolve()
+  await finishHydration.promise
+  return legacyFavorites
+}, async (value) => {
+  if (failLegacyWrite) throw new Error('Could not write legacy favorites')
+  legacyFavorites = value
+}, parseDrawingPreferences, toggleFavoriteDrawing)
+const art = createFavoritePreference(async () => artFavorites, async (value) => { artFavorites = value },
+  parseArtFavorites, (value, id) => [...value, id])
+const initialLegacy = legacy.read()
+await hydrationStarted.promise
+const firstEdit = legacy.toggle('line-paths')
+assert.deepEqual(await art.toggle('cat'), { value: ['crab', 'cat'], revision: 1 })
+finishHydration.resolve()
+assert.deepEqual(await initialLegacy, { value: preferences, revision: 1 })
+const confirmed = await firstEdit
+assert.deepEqual(confirmed.value, { ...preferences, favoriteIds: ['butterfly', 'line-paths'] })
+assert.equal(confirmed.revision, 2)
+failLegacyWrite = true
+await Promise.all([
+  assert.rejects(legacy.toggle('butterfly')),
+  assert.rejects(legacy.toggle('line-paths')),
+])
+assert.deepEqual((await legacy.read()).value, confirmed.value, 'A failed edit cannot resurrect unconfirmed state')
+assert.deepEqual((await art.read()).value, ['crab', 'cat'], 'A legacy failure does not affect art favorites')
+
+console.log('Native storage: legacy/current formats, serialized index repair, photo references and independent confirmed favorites')

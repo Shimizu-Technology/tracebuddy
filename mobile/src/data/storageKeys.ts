@@ -9,6 +9,8 @@ export const parentSetupSeenKey = 'tracebuddy.parentSetupSeen.v1'
 export const resumeContextKey = 'tracebuddy.resumeContext.v1'
 export const familyActivityKey = 'tracebuddy.familyActivity.v1'
 export const savedAlignmentKey = 'tracebuddy.savedAlignment.v1'
+export const whoIsDrawingKey = 'tracebuddy.whoIsDrawing.v1'
+export const artFavoritesKey = 'tracebuddy.artFavorites.v1'
 export { modePreferenceKey }
 
 export const localSettingKeys = [
@@ -19,6 +21,8 @@ export const localSettingKeys = [
   savedAlignmentKey,
   familyActivityKey,
   modePreferenceKey,
+  whoIsDrawingKey,
+  artFavoritesKey,
 ] as const
 
 export type LocalSettingKey = typeof localSettingKeys[number]

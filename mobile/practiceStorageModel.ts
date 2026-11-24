@@ -7,10 +7,12 @@ import type { KeepsakeStamp } from './finishFindModel'
 export const defaultMarkerColor = '#18243A'
 export const maxPracticeStrokeWidth = 1_000_000
 export function practiceStrokeWidth(width: number) {
+  'worklet'
   return Number.isFinite(width) ? Math.min(maxPracticeStrokeWidth, Math.max(Number.MIN_VALUE, width)) : 1
 }
 
 export function documentStrokeWidth(markerWidth: number, multiplier: number, side: number, zoom: number) {
+  'worklet'
   return practiceStrokeWidth(markerWidth * multiplier * 1000 / Math.max(1, side) / Math.max(1, zoom))
 }
 

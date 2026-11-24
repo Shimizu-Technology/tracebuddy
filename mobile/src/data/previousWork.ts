@@ -63,51 +63,52 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO) {
     return parsePreviousWorkIndex(await storage.getItem(previousWorkIndexKey))
   }
 
-  async function recoverPreviousWorkIdsFromSessions() {
-    const keys = await storage.getAllKeys()
-    const sessionKeys = keys.filter((key) => key.startsWith(previousWorkSessionPrefix))
-    const entries = await storage.multiGet(sessionKeys)
+  async function readSessions(keys: string[]) {
+    if (!keys.length) return []
+    const entries = await storage.multiGet(keys)
     return entries
-      .map(([, rawSession]) => {
-        if (!rawSession) return null
+      .flatMap(([, rawSession]) => {
         try {
-          return parsePreviousWorkSession(rawSession)
+          const session = parsePreviousWorkSession(rawSession)
+          return session ? [session] : []
         } catch {
-          return null
+          return []
         }
       })
-      .filter((session): session is SavedPracticeSession => Boolean(session))
       .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-      .map((session) => session.sessionId)
   }
 
   async function loadPreviousWorkSessions(isCurrent: () => boolean = () => true) {
-    const ids = await readPreviousWorkIds().catch(async () => {
-      const recoveredIds = await recoverPreviousWorkIdsFromSessions()
-      await queuePreviousWorkWrite(() => writeIfCurrent(isCurrent, () => storage.setItem(previousWorkIndexKey, serializePreviousWorkIndex(recoveredIds)))).catch(() => undefined)
-      return recoveredIds
-    })
-    if (ids.length === 0) return []
-
-    const entries = await storage.multiGet(ids.map(previousWorkSessionKey))
-    const sessions = entries
-      .map(([, rawSession]) => {
-        if (!rawSession) return null
-        try {
-          return parsePreviousWorkSession(rawSession)
-        } catch {
-          return null
-        }
-      })
-      .filter((session): session is SavedPracticeSession => Boolean(session))
-      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-
-    const validIds = sessions.map((session) => session.sessionId)
-    if (isCurrent() && (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index]))) {
-      await queuePreviousWorkWrite(() => writeIfCurrent(isCurrent, () => storage.setItem(previousWorkIndexKey, serializePreviousWorkIndex(validIds)))).catch(() => undefined)
+    async function readIndex() {
+      const rawIndex = await storage.getItem(previousWorkIndexKey)
+      try {
+        return parsePreviousWorkIndex(rawIndex)
+      } catch {
+        return null
+      }
     }
 
-    return sessions
+    const ids = await readIndex()
+    const sessions = ids ? await readSessions(ids.map(previousWorkSessionKey)) : []
+    const matchesIndex = (index: string[] | null, records: SavedPracticeSession[]) =>
+      index?.length === records.length && records.every((record, position) => record.sessionId === index[position])
+    if (matchesIndex(ids, sessions) || (ids && !isCurrent())) return sessions
+
+    // A write can restore a missing row without changing the IDs in the index.
+    // Reread both the index and its records while writes are excluded.
+    return queuePreviousWorkWrite(async () => {
+      const latestIds = await readIndex()
+      const keys = latestIds
+        ? latestIds.map(previousWorkSessionKey)
+        : (await storage.getAllKeys()).filter((key) => key.startsWith(previousWorkSessionPrefix))
+      const latestSessions = await readSessions(keys)
+      if (!matchesIndex(latestIds, latestSessions)) {
+        await writeIfCurrent(isCurrent, () => storage.setItem(
+          previousWorkIndexKey, serializePreviousWorkIndex(latestSessions.map(({ sessionId }) => sessionId)),
+        )).catch(() => undefined)
+      }
+      return latestSessions
+    })
   }
 
   async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { width: number; height: number }, isCurrent: () => boolean = () => true) {
