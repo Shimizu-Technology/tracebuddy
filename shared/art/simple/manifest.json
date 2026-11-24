@@ -457,5 +457,221 @@
     "line": "balloons/line.svg",
     "color": "balloons/color.webp",
     "notes": ""
+  },
+  {
+    "id": "hamster",
+    "name": "Hamster",
+    "category": "animals",
+    "level": "simple",
+    "line": "hamster/line.svg",
+    "color": "hamster/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "horse",
+    "name": "Horse",
+    "category": "animals",
+    "level": "simple",
+    "line": "horse/line.svg",
+    "color": "horse/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pig",
+    "name": "Pig",
+    "category": "animals",
+    "level": "simple",
+    "line": "pig/line.svg",
+    "color": "pig/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sheep",
+    "name": "Sheep",
+    "category": "animals",
+    "level": "simple",
+    "line": "sheep/line.svg",
+    "color": "sheep/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "monkey",
+    "name": "Monkey",
+    "category": "animals",
+    "level": "simple",
+    "line": "monkey/line.svg",
+    "color": "monkey/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "panda",
+    "name": "Panda",
+    "category": "animals",
+    "level": "simple",
+    "line": "panda/line.svg",
+    "color": "panda/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "penguin",
+    "name": "Penguin",
+    "category": "animals",
+    "level": "simple",
+    "line": "penguin/line.svg",
+    "color": "penguin/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "tiger",
+    "name": "Tiger",
+    "category": "animals",
+    "level": "simple",
+    "line": "tiger/line.svg",
+    "color": "tiger/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "stegosaurus",
+    "name": "Stegosaurus",
+    "category": "dinosaurs",
+    "level": "simple",
+    "line": "stegosaurus/line.svg",
+    "color": "stegosaurus/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pterodactyl",
+    "name": "Pterodactyl",
+    "category": "dinosaurs",
+    "level": "simple",
+    "line": "pterodactyl/line.svg",
+    "color": "pterodactyl/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "ankylosaurus",
+    "name": "Ankylosaurus",
+    "category": "dinosaurs",
+    "level": "simple",
+    "line": "ankylosaurus/line.svg",
+    "color": "ankylosaurus/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "dino-egg",
+    "name": "Dino Egg",
+    "category": "dinosaurs",
+    "level": "simple",
+    "line": "dino-egg/line.svg",
+    "color": "dino-egg/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "astronaut",
+    "name": "Astronaut",
+    "category": "space",
+    "level": "simple",
+    "line": "astronaut/line.svg",
+    "color": "astronaut/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "ringed-planet",
+    "name": "Ringed Planet",
+    "category": "space",
+    "level": "simple",
+    "line": "ringed-planet/line.svg",
+    "color": "ringed-planet/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "alien",
+    "name": "Friendly Alien",
+    "category": "space",
+    "level": "simple",
+    "line": "alien/line.svg",
+    "color": "alien/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "ufo",
+    "name": "Flying Saucer",
+    "category": "space",
+    "level": "simple",
+    "line": "ufo/line.svg",
+    "color": "ufo/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "donut",
+    "name": "Donut",
+    "category": "food",
+    "level": "simple",
+    "line": "donut/line.svg",
+    "color": "donut/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pizza",
+    "name": "Pizza Slice",
+    "category": "food",
+    "level": "simple",
+    "line": "pizza/line.svg",
+    "color": "pizza/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "strawberry",
+    "name": "Strawberry",
+    "category": "food",
+    "level": "simple",
+    "line": "strawberry/line.svg",
+    "color": "strawberry/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "watermelon",
+    "name": "Watermelon Slice",
+    "category": "food",
+    "level": "simple",
+    "line": "watermelon/line.svg",
+    "color": "watermelon/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "christmas-tree",
+    "name": "Christmas Tree",
+    "category": "holidays",
+    "level": "simple",
+    "line": "christmas-tree/line.svg",
+    "color": "christmas-tree/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "snowman",
+    "name": "Snowman",
+    "category": "holidays",
+    "level": "simple",
+    "line": "snowman/line.svg",
+    "color": "snowman/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "present",
+    "name": "Present",
+    "category": "holidays",
+    "level": "simple",
+    "line": "present/line.svg",
+    "color": "present/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "gingerbread",
+    "name": "Gingerbread Friend",
+    "category": "holidays",
+    "level": "simple",
+    "line": "gingerbread/line.svg",
+    "color": "gingerbread/color.webp",
+    "notes": ""
   }
 ]

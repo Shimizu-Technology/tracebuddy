@@ -120,3 +120,54 @@ Six subjects were reused verbatim from Leon's approved S1 style test (`research/
 ## Transparent color backgrounds
 
 After processing, each `color.webp` gets a transparent background: flood-fill the white from all four corners at 8% fuzz (`magick color.webp -alpha set -fuzz 8% -fill none -draw "color 0,0 floodfill"` for each corner), with WebP alpha quality 90. The thick outlines stop the fill, so white inside the subject (eyes, bellies) stays white. Without this, the pictures sit on white squares inside the pastel tiles. Every future batch needs this step.
+
+---
+
+## Batch 1 (expansion)
+
+Added **24 new subjects** across 5 categories (`animals`, `dinosaurs`, `space`, `food`, `holidays`), bringing the Simple set from 51 to **75 subjects**.
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch1/raw/simple/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch1/simple-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Line weight (`Disk:4` erosion survival):** min `30.2%`, median `51.3%`, max `66.0%`.
+- **Enclosed exterior pockets cleared:** `ringed-planet` (both open-space gaps inside the tilted ring) and `donut` (center hole).
+
+### Per-Subject Descriptions (24 Batch 1 Subjects)
+
+#### Animals
+- **`hamster` ("Hamster"):** Sitting chubby baby hamster in three-quarter view facing right with round ears, puffed cheeks, tiny paws holding a plump acorn, and tucked feet (`Disk:4 = 51.4%`). Color: golden-apricot fur, cream cheeks/belly/paws, blush inner ears, caramel acorn.
+- **`horse` ("Horse"):** Standing right-facing chubby baby horse with smooth rounded 3-tuft mane, smiling muzzle, 4 separated hooved legs, and curved tail (`Disk:4 = 47.5%`). Color: chestnut-caramel coat, cream muzzle, cocoa mane/tail, charcoal hooves.
+- **`pig` ("Pig"):** Standing right-facing chubby baby pig with floppy ears, oval snout, 4 separated hooved legs, and curly spiral tail (`Disk:4 = 53.9%`). Color: rosy-pink body, blush-coral snout/ears, cocoa hooves.
+- **`sheep` ("Sheep"):** Standing right-facing baby sheep with cloud-bumped fleece, fluffy head tuft, smiling face, 4 legs with hooves, and puffy tail (`Disk:4 = 58.1%`). Color: warm ivory-cream fleece, biscuit-peach face/legs, charcoal-brown hooves.
+- **`monkey` ("Monkey"):** Sitting chubby baby monkey facing slightly right, waving one arm, with big round ears, heart-curved face mask, oval belly, and long curling tail (`Disk:4 = 51.0%`). Color: caramel-brown fur/tail, peach-cream face/belly/ears/paws.
+- **`panda` ("Panda"):** Sitting chubby baby panda facing slightly right holding a 2-leaf bamboo stalk, drawn with all dark markings as hollow traceable regions (`Disk:4 = 45.4%`). Color: warm cream-white fur, soft charcoal-slate ears/eye patches/arms/legs, blush inner ears/paw pads, spring-mint bamboo.
+- **`penguin` ("Penguin"):** Standing chubby baby penguin facing slightly right with outstretched flippers, heart-curved face/belly outline, and webbed feet (`Disk:4 = 57.5%`). Color: slate-navy charcoal outer plumage, warm ivory-white face/belly, tangerine-orange beak and feet.
+- **`tiger` ("Tiger"):** Standing right-facing chubby baby tiger cub with hollow outlined forehead/body/tail stripes, round paws, and curving tail (`Disk:4 = 38.6%`). Color: sunny tangerine-apricot coat, warm cream muzzle/belly/paws, charcoal-brown stripes.
+
+#### Dinosaurs
+- **`stegosaurus` ("Stegosaurus"):** Standing right-facing chubby baby Stegosaurus with 5 rounded diamond back plates, 3 round spots, 4 legs with toenails, and 2 rounded tail spikes (`Disk:4 = 45.7%`). Color: sage-mint body, butter-cream belly/spikes/toenails, coral-apricot back plates/spots.
+- **`pterodactyl` ("Pterodactyl"):** Flying right-facing chubby baby pterodactyl with swept-back crest, smiling rounded beak, scalloped wide wings, and tucked feet (`Disk:4 = 42.8%`). Color: sky-periwinkle body, warm butter-cream belly, golden-peach wing membranes, coral cheek spot.
+- **`ankylosaurus` ("Ankylosaurus"):** Standing right-facing chubby baby Ankylosaurus with rounded ridge spikes, 3 oval side armor plates, corner head horns, and big round bone tail club (`Disk:4 = 42.3%`). Color: moss-sage body, butter-cream belly/horns/club, golden-ochre spikes/plates.
+- **`dino-egg` ("Dino Egg"):** Smiling baby dinosaur popping out of a cracked spotted eggshell with paws on the zigzag rim and the top shell cap tilted on its head (`Disk:4 = 60.5%`). Color: spring-mint dino with coral-orange ridges and butter-cream chest, ivory-cream eggshell with sky-teal spots.
+
+#### Space
+- **`astronaut` ("Astronaut"):** Standing friendly chubby kid astronaut waving hello in a puffy spacesuit with a clear open helmet visor showing their smiling face, 2-button chest box (no text/brands), and moon boots (`Disk:4 = 36.9%`). Color: pearl-ivory suit, pale sky-ice visor interior, warm tan face and brown hair, coral collar/cuffs, sky-blue gloves/chest box, golden belt/boots.
+- **`ringed-planet` ("Ringed Planet"):** Plump tilted Saturn-style planet with curved bands, round craters, and a wide tilted ring with open space gaps cleared transparent (`Disk:4 = 60.9%`). Color: coral-apricot and butter-yellow planet bands, tangerine craters, lavender-periwinkle ring.
+- **`alien` ("Friendly Alien"):** Cute, friendly waving baby space alien with two bobble-tipped antennae, big smiling eyes, and star-badge belt (`Disk:4 = 49.7%`). Color: mint-lime skin, butter-yellow antenna tips/star, periwinkle-lavender suit, coral-pink belt.
+- **`ufo` ("Flying Saucer"):** Chubby retro flying saucer with round glass bubble dome, 3 round portholes, rounded bottom hub, and 3 stubby landing feet (`Disk:4 = 56.9%`). Color: sky-aqua dome, silver-lavender upper hull, butter-yellow portholes, coral-pink belly rim, periwinkle feet.
+
+#### Food
+- **`donut` ("Donut"):** Straight-on plump frosted sprinkle donut with wavy scalloped glaze, 8 chunky capsule sprinkles, and transparent center hole (`Disk:4 = 59.1%`). Color: golden-tan dough, rosy strawberry-pink frosting, pastel yellow/sky-blue/mint/cream sprinkles.
+- **`pizza` ("Pizza Slice"):** Gently tilted chubby pepperoni pizza slice with puffy crust, melty side cheese drip, and 4 big round pepperoni circles (`Disk:4 = 63.6%`). Color: golden-tan crust, butter-yellow cheese, tomato-coral pepperoni.
+- **`strawberry` ("Strawberry"):** Plump upright rounded strawberry with 5 chunky crown leaves, short stem, and 6 hollow teardrop seeds (`Disk:4 = 66.0%`). Color: strawberry-coral red berry, butter-yellow seeds, meadow-leaf green crown and stem.
+- **`watermelon` ("Watermelon Slice"):** Plump crescent watermelon slice with 3 curved rind/flesh layers and 7 hollow teardrop seeds (`Disk:4 = 51.2%`). Color: juicy coral pink-red flesh, cream-mint inner rind, leaf-green outer rind, charcoal-brown seeds.
+
+#### Holidays
+- **`christmas-tree` ("Christmas Tree"):** Plump 3-tier scalloped Christmas tree on a chunky trunk, topped with a 5-point star and decorated with 6 round baubles and draped ribbon garlands (`Disk:4 = 30.2%`). Color: pine-meadow green tree, caramel trunk, golden star, coral garlands, pastel ornaments.
+- **`snowman` ("Snowman"):** Chubby smiling 2-ball snowman wearing a hollow outlined top hat, carrot nose, striped scarf, thick hollow raised branch arms, and 2 belly buttons (`Disk:4 = 48.9%`). Color: soft snow-ivory body, slate-charcoal hat/buttons, coral-and-mint scarf, tangerine carrot nose, caramel branch arms.
+- **`present` ("Present"):** Straight-on plump wrapped holiday gift box with overhanging lid, crossed ribbon bands, puffy 2-loop bow, and polka dots (`Disk:4 = 59.8%`). Color: sky-blue box/lid, butter-yellow polka dots, coral-red ribbons and bow.
+- **`gingerbread` ("Gingerbread Friend"):** Chubby smiling gingerbread cookie friend with rounded bowtie, 2 candy buttons, and wavy frosting wrist/ankle bands (`Disk:4 = 56.9%`). Color: cinnamon-caramel cookie, vanilla-cream frosting bands, coral-red bowtie, mint and yellow buttons.
+
+### Batch 1 Rejection & Regeneration Log (Simple)
+
+- **0 rejections** across all 24 Simple line-art and 24 Simple colorization generations (48/48 approved on first attempt). Note: `dino-egg` color added a tiny green tail peeking at the left rim of the shell that is not in `line.svg`; kept cleanly to stay within image-generation quota.
