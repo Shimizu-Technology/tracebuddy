@@ -9,6 +9,186 @@
     "notes": ""
   },
   {
+    "id": "sea-turtle",
+    "name": "Sea Turtle",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "sea-turtle/line.svg",
+    "color": "sea-turtle/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "octopus",
+    "name": "Octopus",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "octopus/line.svg",
+    "color": "octopus/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "fish",
+    "name": "Fish",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "fish/line.svg",
+    "color": "fish/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "whale",
+    "name": "Whale",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "whale/line.svg",
+    "color": "whale/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "dolphin",
+    "name": "Dolphin",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "dolphin/line.svg",
+    "color": "dolphin/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "seahorse",
+    "name": "Seahorse",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "seahorse/line.svg",
+    "color": "seahorse/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "jellyfish",
+    "name": "Jellyfish",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "jellyfish/line.svg",
+    "color": "jellyfish/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "cat",
+    "name": "Sleepy Cat",
+    "category": "animals",
+    "level": "detailed",
+    "line": "cat/line.svg",
+    "color": "cat/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "puppy",
+    "name": "Puppy",
+    "category": "animals",
+    "level": "detailed",
+    "line": "puppy/line.svg",
+    "color": "puppy/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "bunny",
+    "name": "Bunny",
+    "category": "animals",
+    "level": "detailed",
+    "line": "bunny/line.svg",
+    "color": "bunny/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "elephant",
+    "name": "Elephant",
+    "category": "animals",
+    "level": "detailed",
+    "line": "elephant/line.svg",
+    "color": "elephant/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "lion",
+    "name": "Lion",
+    "category": "animals",
+    "level": "detailed",
+    "line": "lion/line.svg",
+    "color": "lion/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "giraffe",
+    "name": "Giraffe",
+    "category": "animals",
+    "level": "detailed",
+    "line": "giraffe/line.svg",
+    "color": "giraffe/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "owl",
+    "name": "Owl",
+    "category": "animals",
+    "level": "detailed",
+    "line": "owl/line.svg",
+    "color": "owl/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "duck",
+    "name": "Duck",
+    "category": "animals",
+    "level": "detailed",
+    "line": "duck/line.svg",
+    "color": "duck/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "butterfly",
+    "name": "Butterfly",
+    "category": "animals",
+    "level": "detailed",
+    "line": "butterfly/line.svg",
+    "color": "butterfly/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "snail",
+    "name": "Snail",
+    "category": "animals",
+    "level": "detailed",
+    "line": "snail/line.svg",
+    "color": "snail/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "t-rex",
+    "name": "T. rex",
+    "category": "dinosaurs",
+    "level": "detailed",
+    "line": "t-rex/line.svg",
+    "color": "t-rex/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "long-neck",
+    "name": "Long-neck Dinosaur",
+    "category": "dinosaurs",
+    "level": "detailed",
+    "line": "long-neck/line.svg",
+    "color": "long-neck/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "triceratops",
+    "name": "Triceratops",
+    "category": "dinosaurs",
+    "level": "detailed",
+    "line": "triceratops/line.svg",
+    "color": "triceratops/color.webp",
+    "notes": ""
+  },
+  {
     "id": "unicorn",
     "name": "Unicorn",
     "category": "magic",
@@ -18,13 +198,220 @@
     "notes": ""
   },
   {
+    "id": "dragon",
+    "name": "Baby Dragon",
+    "category": "magic",
+    "level": "detailed",
+    "line": "dragon/line.svg",
+    "color": "dragon/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "castle",
+    "name": "Castle",
+    "category": "magic",
+    "level": "detailed",
+    "line": "castle/line.svg",
+    "color": "castle/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "crown",
+    "name": "Crown",
+    "category": "magic",
+    "level": "detailed",
+    "line": "crown/line.svg",
+    "color": "crown/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "rainbow",
+    "name": "Rainbow",
+    "category": "magic",
+    "level": "detailed",
+    "line": "rainbow/line.svg",
+    "color": "rainbow/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "mermaid",
+    "name": "Mermaid",
+    "category": "magic",
+    "level": "detailed",
+    "line": "mermaid/line.svg",
+    "color": "mermaid/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "rocket",
+    "name": "Rocket",
+    "category": "go",
+    "level": "detailed",
+    "line": "rocket/line.svg",
+    "color": "rocket/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "race-car",
+    "name": "Race Car",
+    "category": "go",
+    "level": "detailed",
+    "line": "race-car/line.svg",
+    "color": "race-car/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "airplane",
+    "name": "Airplane",
+    "category": "go",
+    "level": "detailed",
+    "line": "airplane/line.svg",
+    "color": "airplane/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sailboat",
+    "name": "Sailboat",
+    "category": "go",
+    "level": "detailed",
+    "line": "sailboat/line.svg",
+    "color": "sailboat/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "train",
+    "name": "Train",
+    "category": "go",
+    "level": "detailed",
+    "line": "train/line.svg",
+    "color": "train/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "fire-truck",
+    "name": "Fire Truck",
+    "category": "go",
+    "level": "detailed",
+    "line": "fire-truck/line.svg",
+    "color": "fire-truck/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sun",
+    "name": "Sun",
+    "category": "nature",
+    "level": "detailed",
+    "line": "sun/line.svg",
+    "color": "sun/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "flower",
+    "name": "Flower",
+    "category": "nature",
+    "level": "detailed",
+    "line": "flower/line.svg",
+    "color": "flower/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "apple-tree",
+    "name": "Apple Tree",
+    "category": "nature",
+    "level": "detailed",
+    "line": "apple-tree/line.svg",
+    "color": "apple-tree/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "house",
+    "name": "House",
+    "category": "nature",
+    "level": "detailed",
+    "line": "house/line.svg",
+    "color": "house/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "mushroom",
+    "name": "Mushroom",
+    "category": "nature",
+    "level": "detailed",
+    "line": "mushroom/line.svg",
+    "color": "mushroom/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "moon-stars",
+    "name": "Moon and Stars",
+    "category": "nature",
+    "level": "detailed",
+    "line": "moon-stars/line.svg",
+    "color": "moon-stars/color.webp",
+    "notes": ""
+  },
+  {
     "id": "latte-stone",
     "name": "Latte Stone",
     "category": "guam",
     "level": "detailed",
     "line": "latte-stone/line.svg",
     "color": "latte-stone/color.webp",
-    "notes": "WIP: 4 complete subjects so far; full 51-subject manifest will replace this on completion."
+    "notes": ""
+  },
+  {
+    "id": "coconut-crab",
+    "name": "Coconut Crab",
+    "category": "guam",
+    "level": "detailed",
+    "line": "coconut-crab/line.svg",
+    "color": "coconut-crab/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "koko-bird",
+    "name": "Ko'ko' Bird",
+    "category": "guam",
+    "level": "detailed",
+    "line": "koko-bird/line.svg",
+    "color": "koko-bird/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "carabao",
+    "name": "Carabao",
+    "category": "guam",
+    "level": "detailed",
+    "line": "carabao/line.svg",
+    "color": "carabao/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "proa",
+    "name": "Proa",
+    "category": "guam",
+    "level": "detailed",
+    "line": "proa/line.svg",
+    "color": "proa/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "coconut-tree",
+    "name": "Coconut Tree",
+    "category": "guam",
+    "level": "detailed",
+    "line": "coconut-tree/line.svg",
+    "color": "coconut-tree/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "bougainvillea",
+    "name": "Bougainvillea",
+    "category": "guam",
+    "level": "detailed",
+    "line": "bougainvillea/line.svg",
+    "color": "bougainvillea/color.webp",
+    "notes": ""
   },
   {
     "id": "guam-island",
@@ -33,6 +420,42 @@
     "level": "detailed",
     "line": "guam-island/line.svg",
     "color": "guam-island/color.webp",
-    "notes": "Coastline extracted from U.S. Census Bureau cb_2023_us_state_500k (public domain)."
+    "notes": "Derived from U.S. Census Bureau Cartographic Boundary File cb_2023_us_state_500k (Public Domain, 17 U.S.C. 105), simplified with Ramer-Douglas-Peucker including Cocos Island."
+  },
+  {
+    "id": "ice-cream",
+    "name": "Ice Cream",
+    "category": "fun",
+    "level": "detailed",
+    "line": "ice-cream/line.svg",
+    "color": "ice-cream/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "cupcake",
+    "name": "Cupcake",
+    "category": "fun",
+    "level": "detailed",
+    "line": "cupcake/line.svg",
+    "color": "cupcake/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "birthday-cake",
+    "name": "Birthday Cake",
+    "category": "fun",
+    "level": "detailed",
+    "line": "birthday-cake/line.svg",
+    "color": "birthday-cake/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "balloons",
+    "name": "Balloons",
+    "category": "fun",
+    "level": "detailed",
+    "line": "balloons/line.svg",
+    "color": "balloons/color.webp",
+    "notes": ""
   }
 ]
