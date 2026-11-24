@@ -87,11 +87,6 @@ export function snapRotation(degrees: number, threshold?: number) {
   return Math.abs(degrees - square) < limit ? square : degrees
 }
 
-export function isSnapped(degrees: number, threshold?: number) {
-  'worklet'
-  return Math.abs(degrees - nearestSquareAngle(degrees)) < (threshold ?? paperTheme.snapDegrees)
-}
-
 export function rotatePoint(point: Point, center: Point, degrees: number): Point {
   'worklet'
   const radians = (degrees * Math.PI) / 180
@@ -100,12 +95,6 @@ export function rotatePoint(point: Point, center: Point, degrees: number): Point
   const dx = point.x - center.x
   const dy = point.y - center.y
   return { x: center.x + dx * cos - dy * sin, y: center.y + dx * sin + dy * cos }
-}
-
-/** Where the guide center goes when it scales by factor around a focal point, so the fingers stay on the same spot. */
-export function scaleAbout(center: Point, focal: Point, factor: number): Point {
-  'worklet'
-  return { x: focal.x + (center.x - focal.x) * factor, y: focal.y + (center.y - focal.y) * factor }
 }
 
 export function pageCorner(handle: Handle, center: Point, page: Size, scale: number, rotation: number): Point {
@@ -139,43 +128,17 @@ export function handleTransform(start: Point, touch: Point, center: Point, start
   }
 }
 
-/** Keeps at least part of the guide on screen so it can never be dragged out of reach. */
-export function clampOffset(offset: Point, screen: Size): Point {
-  'worklet'
-  return { x: clamp(offset.x, -screen.width / 2, screen.width / 2), y: clamp(offset.y, -screen.height / 2, screen.height / 2) }
-}
-
-export function boundingSize(page: Size, scale: number, rotation: number): Size {
-  const radians = (rotation * Math.PI) / 180
-  const cos = Math.abs(Math.cos(radians))
-  const sin = Math.abs(Math.sin(radians))
-  return {
-    width: (page.width * cos + page.height * sin) * scale,
-    height: (page.width * sin + page.height * cos) * scale,
-  }
-}
-
 /**
- * While the More sheet is open the whole scene (camera and guide together, so their alignment stays true)
- * moves up, and shrinks only if the guide cannot fit above the sheet.
+ * Keeps the guide's center inside the stage, inset a little, so some of the guide is always on screen and
+ * within reach. `rest` is where the guide sits with no offset.
  */
-export function sheetLift({ screen, sheetHeight, topLimit, center, bounds, margin }: {
-  screen: Size
-  sheetHeight: number
-  topLimit: number
-  center: Point
-  bounds: Size
-  margin: number
-}) {
-  const top = topLimit + margin
-  const bottom = screen.height - sheetHeight - margin
-  const available = Math.max(1, bottom - top)
-  const scale = Math.min(1, available / Math.max(1, bounds.height))
-  const half = (bounds.height * scale) / 2
-  const sceneMiddle = screen.height / 2
-  const scaledCenter = sceneMiddle + (center.y - sceneMiddle) * scale
-  const target = scale < 1 ? top + available / 2 : clamp(scaledCenter, top + half, bottom - half)
-  return { dy: target - scaledCenter, scale }
+export function clampCenterOffset(offset: Point, rest: Point, stage: Size, inset?: number): Point {
+  'worklet'
+  const keep = inset ?? paperTheme.size.keepVisible
+  return {
+    x: clamp(offset.x, keep - rest.x, stage.width - keep - rest.x),
+    y: clamp(offset.y, keep - rest.y, stage.height - keep - rest.y),
+  }
 }
 
 /**
@@ -215,6 +178,27 @@ function round(value: number) {
   return Math.round(value * 100) / 100
 }
 
+/** Where the 1.x camera screen drew its square overlay before any user offset (App.tsx). */
+export function legacyOverlayBase(stage: Size) {
+  return { size: Math.min(stage.width * 0.78, stage.height * 0.44, 430), center: { x: stage.width / 2, y: stage.height / 2 - 24 } }
+}
+
+export type RestoreGeometry = { stage: Size; rest: Point; artWidth: number }
+
+/**
+ * A 1.x setup offset a square overlay from a different center and scaled a different base size. Move it into
+ * 2.0's coordinates so the picture lands where and as big as it was.
+ */
+export function fromLegacySetup(setup: GuideSetup, geometry: RestoreGeometry): GuideSetup {
+  const base = legacyOverlayBase(geometry.stage)
+  return {
+    ...setup,
+    x: base.center.x + setup.x - geometry.rest.x,
+    y: base.center.y + setup.y - geometry.rest.y,
+    scale: clampScale((setup.scale * base.size) / Math.max(1, geometry.artWidth)),
+  }
+}
+
 function entryToSetup(value: unknown): GuideSetup | null {
   const alignment = normalizeTraceAlignment(value)
   if (!alignment) return null
@@ -248,10 +232,29 @@ function storedOrientations(value: unknown) {
  * so a setup saved with the 1.x Save button still opens, and 1.x still reads the latest 2.0 setup.
  */
 export function parseRememberedSetup(raw: string | null, orientation: ScreenOrientation): GuideSetup | null {
+  return readRememberedSetup(raw, orientation)?.setup ?? null
+}
+
+/** The saved setup for this orientation, and whether it is a 1.x setup that still needs converting. */
+export function readRememberedSetup(raw: string | null, orientation: ScreenOrientation) {
   const value = parseJson(raw)
   const entries = storedOrientations(value)
-  if (entries) return entries[orientation] ?? null
-  return entryToSetup(value)
+  if (entries) {
+    const setup = entries[orientation]
+    return setup ? { setup, legacy: false } : null
+  }
+  const setup = entryToSetup(value)
+  return setup ? { setup, legacy: true } : null
+}
+
+/** The setup to show: converted from 1.x if needed, and always with its center on screen. */
+export function restoreSetup(raw: string | null, orientation: ScreenOrientation, geometry: RestoreGeometry): GuideSetup {
+  const saved = readRememberedSetup(raw, orientation)
+  if (!saved) return defaultGuideSetup
+  const setup = saved.legacy ? fromLegacySetup(saved.setup, geometry) : saved.setup
+  // A restored guide comes back well inside the screen, where it is easy to grab, not tucked under a button.
+  const inset = Math.min(geometry.stage.width, geometry.stage.height) / 4
+  return { ...setup, ...clampCenterOffset({ x: setup.x, y: setup.y }, geometry.rest, geometry.stage, inset) }
 }
 
 export function serializeRememberedSetup(previousRaw: string | null, orientation: ScreenOrientation, setup: GuideSetup) {
@@ -276,15 +279,4 @@ const colorAttribute = /\b(stroke|fill)="(#[0-9a-fA-F]{3,8}|black|currentColor)"
 /** Light lines for dark paper: every colored stroke and fill in the guide turns white. */
 export function lightLinesSvg(svg: string, color: string = paperTheme.colors.lightLines) {
   return svg.replace(colorAttribute, (_match, attribute: string) => `${attribute}="${color}"`)
-}
-
-export type StickLockAction = 'childMode' | 'place' | 'wait'
-
-/**
- * Paper Lock's Lock button. It turns on child mode only when tracking says the guide is held on the paper;
- * when the table is found it places the guide first; otherwise it waits and says why.
- */
-export function stickLockAction(placementReady: boolean, childModeReady: boolean): StickLockAction {
-  if (childModeReady) return 'childMode'
-  return placementReady ? 'place' : 'wait'
 }

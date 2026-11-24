@@ -10,6 +10,7 @@ export const CaretLeftIcon: Icon = require('phosphor-react-native/src/icons/Care
 export const CaretRightIcon: Icon = require('phosphor-react-native/src/icons/CaretRight').CaretRightIcon
 export const CaretUpIcon: Icon = require('phosphor-react-native/src/icons/CaretUp').CaretUpIcon
 export const CheckIcon: Icon = require('phosphor-react-native/src/icons/Check').CheckIcon
+export const CrosshairSimpleIcon: Icon = require('phosphor-react-native/src/icons/CrosshairSimple').CrosshairSimpleIcon
 export const DotsThreeIcon: Icon = require('phosphor-react-native/src/icons/DotsThree').DotsThreeIcon
 export const FileIcon: Icon = require('phosphor-react-native/src/icons/File').FileIcon
 export const FlipHorizontalIcon: Icon = require('phosphor-react-native/src/icons/FlipHorizontal').FlipHorizontalIcon

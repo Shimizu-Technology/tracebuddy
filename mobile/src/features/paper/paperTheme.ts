@@ -26,6 +26,9 @@ export const paperTheme = {
     fader: { width: theme.target.adult + 4, knob: 32, track: 8, maxHeight: 360, heightFraction: 0.4 },
     frame: { stroke: 2.5, dash: 9, gap: 7, outset: 10, radius: 12, handle: 16, handleStroke: 3 },
     handleHit: 36,
+    // The guide's center stays at least this far inside the screen, so it can't be lost.
+    keepVisible: 48,
+    switchRow: theme.target.adult,
     ring: 3,
     nudge: theme.target.adult,
     tipArt: 120,
@@ -40,10 +43,11 @@ export const paperTheme = {
   opacity: { grain: 0.04, shadow: 0.35, stillConfetti: 0.85 },
   // Gentle snap to the square angles. A sheet of paper is rarely more than a few degrees off.
   snapDegrees: 4,
+  snapReleaseDegrees: 7,
   nudgeStep: 2,
   fade: { min: 0.15, max: 1, step: 0.05, initial: 0.6 },
   scale: { min: 0.35, max: 2.2 },
   page: { aspect: 8.5 / 11, widthFraction: 0.78, heightFraction: 0.62, artInset: 0.86, tableTilt: -2 },
-  timing: { sheetSettleMs: 450, hintMs: 4200, toastMs: 2000, saveDelayMs: 400, cardDismissPx: 80, cardDismissVelocity: 600, confettiMs: 1400 },
+  timing: { cameraHandoffMs: 350, sheetSettleMs: 450, hintMs: 4200, toastMs: 2000, saveDelayMs: 400, cardDismissPx: 80, cardDismissVelocity: 600, confettiMs: 1400 },
   moreSheetDetent: 0.4,
 } as const

@@ -1,22 +1,21 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { StyleSheet, View } from 'react-native'
 import type { AccessibilityActionEvent } from 'react-native'
-import * as Haptics from 'expo-haptics'
 import { Image } from 'expo-image'
-import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { GestureDetector } from 'react-native-gesture-handler'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import type { SharedValue } from 'react-native-reanimated'
 import { SvgXml } from 'react-native-svg'
-import { scheduleOnRN } from 'react-native-worklets'
 
 import { theme } from '../../ui/theme'
-import {
-  clampOffset, clampScale, fitArt, handleTransform, hitHandle, isSnapped, lightLinesSvg, normalizeDegrees,
-  rotatePoint, scaleAbout, snapRotation,
-} from './paperModel'
+import { accessibilityPose, guideAccessibilityActions } from './guideMotion'
+import { fitArt, lightLinesSvg } from './paperModel'
 import type { Point, Size } from './paperModel'
 import type { PaperPicture } from './pictureSource'
 import { paperTheme } from './paperTheme'
+import { useGuideGesture } from './useGuideGesture'
+
+const cameraLimits = paperTheme.scale
 
 export type GuideValues = {
   x: SharedValue<number>
@@ -39,111 +38,23 @@ type Props = {
   reduceMotion: boolean
   /** Changes when the setup is replaced from outside a gesture (restored, page flip), so the picture is laid out again. */
   layoutKey: number
+  gestureActive: SharedValue<number>
   onGestureStart: () => void
   onGestureEnd: () => void
 }
 
-const moveMode = 0
-const handleMode = 1
-const accessibilityScaleStep = 0.1
-const accessibilityTurnStep = 90
-
-function snapHaptic() {
-  void Haptics.selectionAsync().catch(() => undefined)
-}
-
-export function GuideLayer({ picture, values, page, center, stage, locked, lightLines, mirror, reduceMotion, layoutKey, onGestureStart, onGestureEnd }: Props) {
+export function GuideLayer({ picture, values, page, center, stage, locked, lightLines, mirror, reduceMotion, layoutKey, gestureActive, onGestureStart, onGestureEnd }: Props) {
   const { x, y, scale, rotation, opacity } = values
   const art = fitArt(page)
-  const mode = useSharedValue(moveMode)
-  const start = useSharedValue<Point>({ x: 0, y: 0 })
-  const startScale = useSharedValue(1)
-  const startRotation = useSharedValue(0)
-  const rawRotation = useSharedValue(0)
-  const wasSnapped = useSharedValue(true)
   // The picture is laid out at this scale and only transformed in between, so it is redrawn sharp after each gesture.
   const renderScale = useSharedValue(scale.get())
   useEffect(() => { renderScale.set(scale.get()) }, [layoutKey, renderScale, scale])
 
-  const gesture = useMemo(() => {
-    const guideCenter = () => {
-      'worklet'
-      return { x: center.x + x.get(), y: center.y + y.get() }
-    }
-    const moveCenterTo = (next: Point) => {
-      'worklet'
-      const offset = clampOffset({ x: next.x - center.x, y: next.y - center.y }, stage)
-      x.set(offset.x)
-      y.set(offset.y)
-    }
-    const applyRotation = (raw: number) => {
-      'worklet'
-      const snapped = isSnapped(raw)
-      if (snapped && !wasSnapped.get()) scheduleOnRN(snapHaptic)
-      wasSnapped.set(snapped)
-      rotation.set(snapRotation(raw))
-    }
-    const begin = () => {
-      'worklet'
-      rawRotation.set(rotation.get())
-      wasSnapped.set(isSnapped(rotation.get()))
-    }
-    const finish = () => {
-      'worklet'
-      rotation.set(normalizeDegrees(rotation.get()))
-      renderScale.set(scale.get())
-      scheduleOnRN(onGestureEnd)
-    }
-
-    const pan = Gesture.Pan()
-      .enabled(!locked)
-      .maxPointers(2)
-      .onBegin((event) => {
-        const touch = { x: event.x, y: event.y }
-        mode.set(hitHandle(touch, guideCenter(), page, scale.get(), rotation.get()) ? handleMode : moveMode)
-        start.set(touch)
-        startScale.set(scale.get())
-        startRotation.set(rotation.get())
-        begin()
-      })
-      .onStart(() => { scheduleOnRN(onGestureStart) })
-      .onChange((event) => {
-        if (mode.get() === handleMode && event.numberOfPointers === 1) {
-          const next = handleTransform(start.get(), { x: event.x, y: event.y }, guideCenter(), startScale.get(), startRotation.get())
-          scale.set(next.scale)
-          applyRotation(next.rotation)
-          return
-        }
-        mode.set(moveMode)
-        moveCenterTo({ x: guideCenter().x + event.changeX, y: guideCenter().y + event.changeY })
-      })
-      .onEnd(finish)
-
-    const pinch = Gesture.Pinch()
-      .enabled(!locked)
-      .onStart(() => { scheduleOnRN(onGestureStart) })
-      .onChange((event) => {
-        const previous = scale.get()
-        const next = clampScale(previous * event.scaleChange)
-        scale.set(next)
-        moveCenterTo(scaleAbout(guideCenter(), { x: event.focalX, y: event.focalY }, next / previous))
-      })
-      .onEnd(finish)
-
-    const turn = Gesture.Rotation()
-      .enabled(!locked)
-      .onBegin(begin)
-      .onStart(() => { scheduleOnRN(onGestureStart) })
-      .onChange((event) => {
-        const previous = rotation.get()
-        rawRotation.set(rawRotation.get() + (event.rotationChange * 180) / Math.PI)
-        applyRotation(rawRotation.get())
-        moveCenterTo(rotatePoint(guideCenter(), { x: event.anchorX, y: event.anchorY }, rotation.get() - previous))
-      })
-      .onEnd(finish)
-
-    return Gesture.Simultaneous(pan, pinch, turn)
-  }, [center, locked, mode, onGestureEnd, onGestureStart, page, rawRotation, renderScale, rotation, scale, stage, start, startRotation, startScale, wasSnapped, x, y])
+  const onEnd = useCallback(() => {
+    renderScale.set(scale.get())
+    onGestureEnd()
+  }, [onGestureEnd, renderScale, scale])
+  const gesture = useGuideGesture({ values, rest: center, stage, handlePage: page, limits: cameraLimits, enabled: !locked, active: gestureActive, onStart: onGestureStart, onEnd })
 
   const artStyle = useAnimatedStyle(() => {
     const laidOut = renderScale.get()
@@ -188,14 +99,10 @@ export function GuideLayer({ picture, values, page, center, stage, locked, light
 
   function onAccessibilityAction(event: AccessibilityActionEvent) {
     if (locked) return
-    const action = event.nativeEvent.actionName
-    if (action === 'bigger' || action === 'smaller') {
-      scale.set(clampScale(scale.get() + (action === 'bigger' ? accessibilityScaleStep : -accessibilityScaleStep)))
-    } else if (action === 'turnLeft' || action === 'turnRight') {
-      rotation.set(normalizeDegrees(snapRotation(rotation.get()) + (action === 'turnRight' ? accessibilityTurnStep : -accessibilityTurnStep)))
-    }
-    renderScale.set(scale.get())
-    onGestureEnd()
+    const next = accessibilityPose({ x: x.get(), y: y.get(), scale: scale.get(), rotation: rotation.get() }, event.nativeEvent.actionName, cameraLimits)
+    scale.set(next.scale)
+    rotation.set(next.rotation)
+    onEnd()
   }
 
   return (
@@ -216,12 +123,7 @@ export function GuideLayer({ picture, values, page, center, stage, locked, light
           accessibilityRole="adjustable"
           accessibilityLabel={`${picture.name} picture`}
           accessibilityHint={locked ? 'Locked.' : 'Drag to move, pinch to resize, twist to turn. Swipe up or down for more actions.'}
-          accessibilityActions={locked ? [] : [
-            { name: 'bigger', label: 'Make bigger' },
-            { name: 'smaller', label: 'Make smaller' },
-            { name: 'turnLeft', label: 'Turn left' },
-            { name: 'turnRight', label: 'Turn right' },
-          ]}
+          accessibilityActions={locked ? [] : guideAccessibilityActions}
           onAccessibilityAction={onAccessibilityAction}
           pointerEvents="none"
           style={[styles.accessibilityBox, { left: center.x - page.width / 2, top: center.y - page.height / 2, width: page.width, height: page.height }]}

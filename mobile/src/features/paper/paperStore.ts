@@ -15,7 +15,7 @@ export type PaperOptions = {
   stickAvailable: boolean
 }
 
-export type PaperRequest = 'tips' | 'stick'
+export type PaperRequest = 'tips' | 'stick' | 'center'
 
 const initialOptions: PaperOptions = { sheetOpen: false, sheetTop: null, lightLines: false, mirror: false, canUseLightLines: true, stickAvailable: false }
 

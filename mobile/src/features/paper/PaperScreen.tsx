@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Linking, Platform, StyleSheet, useWindowDimensions, View } from 'react-native'
-import { CameraView, useCameraPermissions } from 'expo-camera'
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native'
+import { CameraView } from 'expo-camera'
 import * as Haptics from 'expo-haptics'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
-import { router, useNavigation } from 'expo-router'
+import { router, useFocusEffect } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated'
+import Animated, { useSharedValue } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { isTraceBuddyARSupported } from '../../../modules/tracebuddy-ar/src/TraceBuddyARModule'
+import { devKitEnabled } from '../../devKit'
 import { parentSetupSeenKey } from '../../data/storageKeys'
 import { parentSetupSeenValue, parseParentSetupSeen } from '../../data/localSettings'
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
@@ -24,19 +25,20 @@ import { GuideLayer } from './GuideLayer'
 import { LockBadge } from './LockBadge'
 import { MoreContent } from './MoreSheet'
 import { BottomBar, Pill, TopBar } from './PaperControls'
-import { boundingSize, clampOffset, fitPage, screenOrientation, sheetCover, sheetLift } from './paperModel'
+import { clampCenterOffset, fitArt, fitPage, screenOrientation, sheetCover } from './paperModel'
+import { drawOnScreenInstead, openStickToPaper } from './paperNavigation'
 import { paperStore, usePaperOptions } from './paperStore'
 import type { PaperRequest } from './paperStore'
 import { paperTheme } from './paperTheme'
 import { PermissionCard } from './PermissionCard'
-import type { CameraAccess } from './PermissionCard'
-import { paperRouteParams, resolvePaperPicture } from './pictureSource'
+import { resolvePaperPicture } from './pictureSource'
 import type { PaperParams, PaperPicture } from './pictureSource'
 import { TableStandIn } from './TableStandIn'
 import { TipsCard } from './TipsCard'
+import { useCameraAccess } from './useCameraAccess'
+import { useChildModeGuard } from './useChildModeGuard'
 import { useRememberedSetup } from './useRememberedSetup'
-
-type CameraState = 'starting' | 'live' | 'none' | 'error'
+import { useSceneLift } from './useSceneLift'
 
 const keepAwakeTag = 'tracebuddy-paper'
 const barHeight = paperTheme.size.lockButton + theme.space.xxl + theme.space.xl
@@ -59,13 +61,15 @@ function MissingPicture() {
 function PaperSession({ picture, params }: { picture: PaperPicture; params: PaperParams }) {
   const insets = useSafeAreaInsets()
   const window = useWindowDimensions()
-  const navigation = useNavigation()
   const reduceMotion = useReduceMotion()
   const options = usePaperOptions()
-  const [permission, requestPermission] = useCameraPermissions()
-  const [arSupported] = useState(() => Platform.OS === 'ios' && isTraceBuddyARSupported())
-  const [camera, setCamera] = useState<CameraState>('starting')
   const cameraRef = useRef<CameraView>(null)
+  const camera = useCameraAccess(cameraRef)
+  const { restart: restartCamera } = camera
+  const [arSupported] = useState(() => Platform.OS === 'ios' && isTraceBuddyARSupported())
+  // Stick to paper runs its own AR camera session, so this screen lets go of the camera first.
+  const [handedOff, setHandedOff] = useState(false)
+  const handoff = useRef<'none' | 'waiting' | 'open'>('none')
   const [locked, setLocked] = useState(false)
   const [tips, setTips] = useState(false)
   const [done, setDone] = useState(false)
@@ -78,21 +82,24 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const scale = useSharedValue(1)
   const rotation = useSharedValue(0)
   const opacity = useSharedValue<number>(paperTheme.fade.initial)
-  const stableValues = useMemo(() => ({ x, y, scale, rotation, opacity }), [opacity, rotation, scale, x, y])
-  const orientation = screenOrientation(window)
-  const setup = useRememberedSetup(orientation, stableValues)
+  const gestureActive = useSharedValue(0)
+  const values = useMemo(() => ({ x, y, scale, rotation, opacity }), [opacity, rotation, scale, x, y])
 
   // Layout: the page sits in the space between the top buttons and the bottom bar.
+  const orientation = screenOrientation(window)
   const stage = useMemo(() => ({ width: window.width, height: window.height }), [window.width, window.height])
   const topLimit = insets.top + theme.space.md + paperTheme.size.topButton
   const bottomLimit = window.height - insets.bottom - barHeight
   const center = useMemo(() => ({ x: window.width / 2, y: (topLimit + bottomLimit) / 2 }), [bottomLimit, topLimit, window.width])
+  // 1.x setups had no page orientation, so they convert against the tall page.
+  const geometry = useMemo(() => ({ stage, rest: center, artWidth: fitArt(fitPage(stage, 'portrait')).width }), [center, stage])
+  const setup = useRememberedSetup(orientation, values, geometry, locked)
   const page = useMemo(() => fitPage(stage, setup.page), [setup.page, stage])
 
-  const access: CameraAccess | null = !permission ? null
-    : permission.granted ? (camera === 'error' ? 'unavailable' : null)
-      : permission.canAskAgain ? 'ask' : 'denied'
-  const cameraOn = Boolean(permission?.granted) && camera !== 'error'
+  const showGuide = camera.cameraOn && !handedOff && setup.hydrated
+  const controls = showGuide && !locked && !done
+  // Child mode keeps the locked alignment through a turn of the device, and hides it until the device turns back.
+  const turnedAway = locked && !setup.hydrated
 
   useEffect(() => paperStore.startPicture({ canUseLightLines: picture.kind === 'drawing', stickAvailable: arSupported }), [arSupported, picture.kind])
 
@@ -101,30 +108,23 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
     return () => { void deactivateKeepAwake(keepAwakeTag).catch(() => undefined) }
   }, [])
 
-  // Child mode: no swipe back to the picture list until a grown-up unlocks.
-  useEffect(() => {
-    navigation.setOptions({ gestureEnabled: !locked })
-    navigation.getParent()?.setOptions({ gestureEnabled: !locked })
-  }, [locked, navigation])
+  useChildModeGuard(locked, useCallback(() => setToast('Hold the lock to unlock first'), []))
+
+  // Coming back from Stick to paper, this screen owns the camera again. Closing More on the way there doesn't count.
+  useFocusEffect(useCallback(() => {
+    if (handoff.current === 'waiting') return
+    if (handoff.current === 'open') restartCamera()
+    handoff.current = 'none'
+    setHandedOff(false)
+  }, [restartCamera]))
 
   // First time only, once the camera can show the paper.
   useEffect(() => {
-    if (!cameraOn) return undefined
+    if (!camera.cameraOn) return undefined
     let active = true
     void readLocalSetting(parentSetupSeenKey).then((raw) => { if (active && !parseParentSetupSeen(raw)) setTips(true) }).catch(() => undefined)
     return () => { active = false }
-  }, [cameraOn])
-
-  // In the Simulator there is no camera. Show the table stand-in instead of a black screen.
-  useEffect(() => {
-    if (!permission?.granted || camera !== 'starting') return undefined
-    const check = setTimeout(() => {
-      void cameraRef.current?.getAvailableLensesAsync()
-        .then((lenses) => setCamera((current) => (current === 'starting' && lenses.length === 0 ? 'none' : current)))
-        .catch(() => undefined)
-    }, paperTheme.timing.saveDelayMs)
-    return () => clearTimeout(check)
-  }, [camera, permission?.granted])
+  }, [camera.cameraOn])
 
   useEffect(() => {
     if (!hint) return undefined
@@ -143,12 +143,18 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
     void writeLocalSetting(parentSetupSeenKey, () => parentSetupSeenValue, () => true).catch(() => undefined)
   }, [])
 
-  const { persist } = setup
+  const { persist, recenter } = setup
   const onRequest = useCallback((request: PaperRequest) => {
     if (request === 'tips') setTips(true)
+    if (request === 'center') recenter()
     if (request !== 'stick') return
-    // Open Paper Lock only after the More sheet has finished closing, so two transitions never overlap.
-    const open = () => router.push({ pathname: '/paper/stick/[id]', params: paperRouteParams(params) })
+    // Let go of the camera, wait for the More sheet to close and the camera session to stop, then open AR.
+    handoff.current = 'waiting'
+    setHandedOff(true)
+    const open = () => setTimeout(() => {
+      handoff.current = 'open'
+      openStickToPaper(params)
+    }, paperTheme.timing.cameraHandoffMs)
     if (!paperStore.get().sheetOpen) {
       open()
       return
@@ -158,13 +164,13 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
       stop()
       open()
     })
-  }, [params])
+  }, [params, recenter])
 
   const hideHint = useCallback(() => setHint(false), [])
 
-  // iPad floats native form sheets mid-screen, where the guide can't be kept clear of them, so wide
-  // screens show More as a bottom card instead. Its measured height drives the same lift.
-  const cardSheets = window.width >= paperTheme.size.cardSheetMinWidth
+  // iPad floats native form sheets mid-screen, and a 40% sheet is tiny on a phone held sideways, so those
+  // show More as a bottom card instead. Its measured height drives the same lift.
+  const cardSheets = Platform.OS === 'ios' && (Platform.isPad || orientation === 'landscape')
   const openMore = useCallback(() => {
     if (!cardSheets) {
       router.push('/paper/more')
@@ -182,74 +188,81 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
 
   useEffect(() => paperStore.connect({
     nudge: (dx, dy) => {
-      const next = clampOffset({ x: stableValues.x.get() + dx, y: stableValues.y.get() + dy }, stage)
-      stableValues.x.set(next.x)
-      stableValues.y.set(next.y)
+      const next = clampCenterOffset({ x: values.x.get() + dx, y: values.y.get() + dy }, center, stage)
+      values.x.set(next.x)
+      values.y.set(next.y)
       persist()
     },
     request: onRequest,
-  }), [onRequest, persist, stableValues, stage])
+  }), [center, onRequest, persist, stage, values])
 
-  // While More is open, lift the whole scene so the guide stays in view above the sheet.
-  const sceneDy = useSharedValue(0)
-  const sceneScale = useSharedValue(1)
-  useEffect(() => {
-    const lift = options.sheetOpen ? sheetLift({
-      screen: stage,
-      sheetHeight: sheetCover(stage.height, options.sheetTop),
-      topLimit,
-      center: { x: center.x + stableValues.x.get(), y: center.y + stableValues.y.get() },
-      bounds: boundingSize(page, stableValues.scale.get(), stableValues.rotation.get()),
-      margin: theme.space.md,
-    }) : { dy: 0, scale: 1 }
-    sceneDy.set(reduceMotion ? lift.dy : withSpring(lift.dy, theme.motion.spring))
-    sceneScale.set(reduceMotion ? lift.scale : withSpring(lift.scale, theme.motion.spring))
-  }, [center, options.sheetOpen, options.sheetTop, page, reduceMotion, sceneDy, sceneScale, stableValues, stage, topLimit])
-  const sceneStyle = useAnimatedStyle(() => ({ transform: [{ translateY: sceneDy.get() }, { scale: sceneScale.get() }] }))
+  const sceneStyle = useSceneLift({
+    open: options.sheetOpen,
+    cover: sheetCover(stage.height, options.sheetTop),
+    values,
+    gestureActive,
+    rest: center,
+    page,
+    stage,
+    topLimit,
+    reduceMotion,
+  })
 
   const lock = useCallback(() => {
-    // Child mode never keeps the scene lifted for a More card.
+    // Child mode starts only over a camera that is showing the paper (or the Simulator's stand-in).
+    if (!camera.cameraReady) {
+      setToast('Wait for the camera, then lock')
+      return
+    }
     paperStore.set({ sheetOpen: false, sheetTop: null })
     setMoreCard(false)
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined)
     setHint(false)
     setLocked(true)
     setToast('Locked. Time to trace!')
-  }, [])
+  }, [camera.cameraReady])
+
+  // Dev kit only: shortly after Lock, `fault=camera` makes the camera fail and `fault=leave` tries to navigate
+  // back, to check child mode stays sealed.
+  const fault = devKitEnabled ? params.fault : undefined
+  const { onMountError } = camera
+  useEffect(() => {
+    if (!fault || !locked) return undefined
+    const fail = setTimeout(() => {
+      if (fault === 'camera') onMountError()
+      if (fault === 'leave') router.back()
+    }, paperTheme.timing.toastMs)
+    return () => clearTimeout(fail)
+  }, [fault, locked, onMountError])
 
   const unlock = useCallback(() => {
     setLocked(false)
     setToast('Unlocked')
   }, [])
 
-  const drawOnScreen = useCallback(() => {
-    router.replace({ pathname: '/draw/[id]', params: paperRouteParams(params) } as never)
-  }, [params])
-
-  const showGuide = cameraOn && setup.hydrated
-  const controls = showGuide && !locked && !done
   const sides = { left: insets.left + theme.space.lg, right: insets.right + theme.space.lg }
   const faderHeight = Math.min(paperTheme.size.fader.maxHeight, window.height * paperTheme.size.fader.heightFraction)
+  const cameraShown = camera.cameraOn && !handedOff
 
   return (
     <View style={styles.screen}>
       <StatusBar style="light" hidden={locked} animated />
       <Animated.View style={[StyleSheet.absoluteFill, sceneStyle]}>
-        {cameraOn && camera === 'none' ? <TableStandIn stage={stage} page={page} center={center} /> : null}
-        {cameraOn && camera !== 'none' ? (
+        {cameraShown && camera.camera === 'none' ? <TableStandIn stage={stage} page={page} center={center} /> : null}
+        {cameraShown && camera.camera !== 'none' ? (
           <CameraView
             ref={cameraRef}
             style={StyleSheet.absoluteFill}
             facing="back"
             autofocus="on"
-            onCameraReady={() => setCamera('live')}
-            onMountError={() => setCamera('error')}
+            onCameraReady={camera.onCameraReady}
+            onMountError={camera.onMountError}
           />
         ) : null}
-        {showGuide ? (
+        {showGuide && !turnedAway ? (
           <GuideLayer
             picture={picture}
-            values={stableValues}
+            values={values}
             page={page}
             center={center}
             stage={stage}
@@ -258,22 +271,31 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
             mirror={options.mirror}
             reduceMotion={reduceMotion}
             layoutKey={setup.layoutKey}
+            gestureActive={gestureActive}
             onGestureStart={hideHint}
             onGestureEnd={persist}
           />
         ) : null}
       </Animated.View>
 
-      {controls || !cameraOn ? (
-        <TopBar top={insets.top + theme.space.sm} {...sides} onClose={() => router.back()} action={controls ? { glyph: DotsThreeIcon, label: 'More options', onPress: openMore } : undefined} />
+      {/* Nothing that leads away is on screen in child mode, even if the camera stops. */}
+      {!locked && (controls || !camera.cameraOn) ? (
+        <TopBar
+          top={insets.top + theme.space.sm}
+          {...sides}
+          onClose={() => router.back()}
+          action={controls ? { glyph: DotsThreeIcon, label: 'More options', onPress: openMore } : undefined}
+        />
       ) : null}
-      {controls && hint ? <Pill text="Pinch to resize · twist to turn" style={[styles.hint, { top: topLimit + theme.space.sm }]} /> : null}
+      {controls && hint ? <Pill text="Pinch to resize · twist to turn" style={[styles.absolute, { top: topLimit + theme.space.sm }]} /> : null}
+      {turnedAway ? <Pill text="Turn the device back to keep tracing" style={[styles.absolute, { top: insets.top + theme.space.xl }]} /> : null}
+      {locked && !camera.cameraOn ? <Pill text="The camera stopped. Ask a grown-up to unlock." style={[styles.absolute, { top: insets.top + theme.space.xl }]} /> : null}
       {controls ? (
         <FadeSlider
-          opacity={stableValues.opacity}
+          opacity={opacity}
           syncKey={setup.layoutKey}
           onChangeEnd={persist}
-          style={[styles.fader, { right: insets.right + theme.space.md, top: center.y - faderHeight / 2, height: faderHeight }]}
+          style={[styles.absolute, { right: insets.right + theme.space.md, top: center.y - faderHeight / 2, height: faderHeight }]}
         />
       ) : null}
       {controls ? (
@@ -281,6 +303,7 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
           bottom={insets.bottom + theme.space.md}
           {...sides}
           page={setup.page}
+          lockDimmed={!camera.cameraReady}
           onPage={() => {
             setup.changePage(setup.page === 'portrait' ? 'landscape' : 'portrait')
             setToast(setup.page === 'portrait' ? 'Wide page' : 'Tall page')
@@ -290,16 +313,16 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
         />
       ) : null}
 
-      {toast ? <Pill text={toast} style={[styles.toast, { bottom: insets.bottom + barHeight }]} /> : null}
-      {locked ? <LockBadge onUnlock={unlock} style={[styles.badge, { right: insets.right + theme.space.lg, bottom: insets.bottom + theme.space.lg }]} /> : null}
+      {toast ? <Pill text={toast} style={[styles.absolute, { bottom: insets.bottom + barHeight }]} /> : null}
+      {locked ? <LockBadge onUnlock={unlock} style={[styles.absolute, { right: insets.right + theme.space.lg, bottom: insets.bottom + theme.space.lg }]} /> : null}
 
-      {access ? (
+      {!locked && camera.access ? (
         <PermissionCard
-          access={access}
+          access={camera.access}
           reduceMotion={reduceMotion}
-          onAllow={() => { setCamera('starting'); void requestPermission().catch(() => undefined) }}
-          onOpenSettings={() => { void Linking.openSettings().catch(() => undefined) }}
-          onDrawOnScreen={drawOnScreen}
+          onAllow={camera.retry}
+          onOpenSettings={camera.openSettings}
+          onDrawOnScreen={() => drawOnScreenInstead(params)}
         />
       ) : null}
       {moreCard && controls ? (
@@ -324,8 +347,5 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: paperTheme.colors.backdrop, overflow: 'hidden' },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: theme.space.lg, padding: theme.space.xl, backgroundColor: theme.colors.background },
   centerText: { textAlign: 'center' },
-  hint: { position: 'absolute' },
-  toast: { position: 'absolute' },
-  fader: { position: 'absolute' },
-  badge: { position: 'absolute' },
+  absolute: { position: 'absolute' },
 })

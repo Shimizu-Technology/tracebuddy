@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, StyleSheet, Switch, useWindowDimensions, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Switch, useWindowDimensions, View } from 'react-native'
 import { router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { Icon } from '../../ui/Icon'
 import type { IconGlyph } from '../../ui/Icon'
-import { CaretDownIcon, CaretLeftIcon, CaretRightIcon, CaretUpIcon, InfoIcon, PushPinIcon } from '../../ui/icons'
+import { CaretDownIcon, CaretLeftIcon, CaretRightIcon, CaretUpIcon, CrosshairSimpleIcon, InfoIcon, PushPinIcon } from '../../ui/icons'
 import { IconButton } from '../../ui/IconButton'
 import { PressTarget } from '../../ui/PressTarget'
 import { Text } from '../../ui/Text'
@@ -26,6 +26,30 @@ function Row({ title, detail, children }: { title: string; detail?: string; chil
       </View>
       {children}
     </View>
+  )
+}
+
+/** The whole row is one switch for touch and VoiceOver; the switch inside only shows the state. */
+function SwitchRow({ title, detail, value, disabled, onChange }: { title: string; detail?: string; value: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
+  const stacked = useWindowDimensions().fontScale >= theme.layout.stackedHeaderFontScale
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={title}
+      accessibilityHint={detail}
+      accessibilityState={{ checked: value, disabled }}
+      disabled={disabled}
+      onPress={() => onChange(!value)}
+      style={[styles.row, styles.switchRow, stacked && styles.stackedRow]}
+    >
+      <View style={[styles.rowText, stacked && styles.stackedText]}>
+        <Text variant="body">{title}</Text>
+        {detail ? <Text variant="small" tone="muted">{detail}</Text> : null}
+      </View>
+      <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <Switch value={value} disabled={disabled} trackColor={{ true: theme.colors.coral }} />
+      </View>
+    </Pressable>
   )
 }
 
@@ -64,18 +88,15 @@ export function MoreContent({ onClose }: { onClose: () => void }) {
           </View>
         </View>
       </Row>
-      <Row title="Light lines" detail={options.canUseLightLines ? 'For dark paper' : 'For line drawings, not photos'}>
-        <Switch
-          accessibilityLabel="Light lines"
-          value={options.lightLines && options.canUseLightLines}
-          disabled={!options.canUseLightLines}
-          onValueChange={(lightLines) => paperStore.set({ lightLines })}
-          trackColor={{ true: theme.colors.coral }}
-        />
-      </Row>
-      <Row title="Mirror" detail="Flip the picture">
-        <Switch accessibilityLabel="Mirror" value={options.mirror} onValueChange={(mirror) => paperStore.set({ mirror })} trackColor={{ true: theme.colors.coral }} />
-      </Row>
+      <SwitchRow
+        title="Light lines"
+        detail={options.canUseLightLines ? 'For dark paper' : 'For line drawings, not photos'}
+        value={options.lightLines && options.canUseLightLines}
+        disabled={!options.canUseLightLines}
+        onChange={(lightLines) => paperStore.set({ lightLines })}
+      />
+      <SwitchRow title="Mirror" detail="Flip the picture" value={options.mirror} onChange={(mirror) => paperStore.set({ mirror })} />
+      <LinkRow glyph={CrosshairSimpleIcon} title="Center the picture" detail="Keeps its size and turn" onPress={() => paperStore.request('center')} />
       {options.stickAvailable ? (
         <LinkRow
           glyph={PushPinIcon}
@@ -129,6 +150,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   rowText: { flex: 1, gap: theme.space.xs / 2 },
+  switchRow: { minHeight: paperTheme.size.switchRow },
   stackedRow: { flexDirection: 'column', alignItems: 'flex-start' },
   stackedText: { flex: 0, alignSelf: 'stretch' },
   linkText: { flex: 1, gap: theme.space.xs / 2 },

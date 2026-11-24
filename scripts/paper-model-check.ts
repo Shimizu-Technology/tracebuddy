@@ -3,9 +3,9 @@ import assert from 'node:assert/strict'
 import { normalizeTraceAlignment } from '../shared/setup'
 import { childExitHoldMs } from '../mobile/nativeSafetyModel'
 import {
-  boundingSize, clampOffset, clampScale, defaultGuideSetup, fadeFromTrack, fadePercent, fitArt, fitPage, handleTransform,
-  hitHandle, isSnapped, lightLinesSvg, normalizeDegrees, pageCorner, parseRememberedSetup, rotatePoint, scaleAbout,
-  screenOrientation, serializeRememberedSetup, sheetCover, sheetLift, snapRotation, stepFade, stickLockAction, trackFraction,
+  clampCenterOffset, clampScale, defaultGuideSetup, fadeFromTrack, fadePercent, fitArt, fitPage, handleTransform, hitHandle,
+  lightLinesSvg, normalizeDegrees, pageCorner, parseRememberedSetup, rotatePoint, screenOrientation, serializeRememberedSetup,
+  sheetCover, snapRotation, stepFade, trackFraction,
 } from '../mobile/src/features/paper/paperModel'
 import type { GuideSetup } from '../mobile/src/features/paper/paperModel'
 import { paperTheme } from '../mobile/src/features/paper/paperTheme'
@@ -48,22 +48,18 @@ assert.equal(snapRotation(87), 90)
 assert.equal(snapRotation(268), 270)
 assert.equal(snapRotation(-92), -90)
 assert.equal(snapRotation(45), 45)
-assert.ok(isSnapped(1) && isSnapped(179) && !isSnapped(10))
 
 // Gestures keep the spot under the fingers still.
 const rotated = rotatePoint({ x: 10, y: 0 }, { x: 0, y: 0 }, 90)
 close(rotated.x, 0)
 close(rotated.y, 10)
-const focal = { x: 100, y: 200 }
-const guide = { x: 180, y: 260 }
-const scaled = scaleAbout(guide, focal, 2)
-close(scaled.x - focal.x, (guide.x - focal.x) * 2)
-close(scaled.y - focal.y, (guide.y - focal.y) * 2)
-assert.deepEqual(scaleAbout(guide, guide, 3), guide, 'pinching on the center does not move it')
 assert.equal(clampScale(10), paperTheme.scale.max)
 assert.equal(clampScale(0.01), paperTheme.scale.min)
 assert.equal(clampScale(Number.NaN), paperTheme.scale.min)
-assert.deepEqual(clampOffset({ x: 5000, y: -5000 }, phone), { x: phone.width / 2, y: -phone.height / 2 }, 'the guide cannot be dragged out of reach')
+const rest = { x: 195, y: 400 }
+const keep = paperTheme.size.keepVisible
+assert.deepEqual(clampCenterOffset({ x: 5000, y: -5000 }, rest, phone), { x: phone.width - keep - rest.x, y: keep - rest.y }, 'the guide\'s center stays on screen')
+assert.deepEqual(clampCenterOffset({ x: 10, y: -20 }, rest, phone), { x: 10, y: -20 })
 
 // Corner handles: hit testing follows size and turn; dragging a corner resizes and turns around the center.
 const page = { width: 200, height: 260 }
@@ -83,30 +79,11 @@ const quarter = handleTransform({ x: center.x + 100, y: center.y }, { x: center.
 close(quarter.rotation, 100)
 close(quarter.scale, 1)
 
-// The More sheet lifts the scene so the whole guide stays visible above it.
-const sheetHeight = phone.height * paperTheme.moreSheetDetent
-const topLimit = 100
-const margin = 12
-const pagePhone = fitPage(phone, 'portrait')
-const restCenter = { x: phone.width / 2, y: 430 }
-const lift = sheetLift({ screen: phone, sheetHeight, topLimit, center: restCenter, bounds: boundingSize(pagePhone, 1, 0), margin })
-const liftedBottom = phone.height / 2 + (restCenter.y - phone.height / 2) * lift.scale + lift.dy + (pagePhone.height * lift.scale) / 2
-const liftedTop = liftedBottom - pagePhone.height * lift.scale
-assert.ok(lift.dy < 0, 'the guide moves up')
-assert.ok(liftedBottom <= phone.height - sheetHeight - margin + 1e-6, 'its bottom clears the sheet')
-assert.ok(liftedTop >= topLimit + margin - 1e-6, 'its top stays below the buttons')
-const big = sheetLift({ screen: phone, sheetHeight, topLimit, center: restCenter, bounds: boundingSize(pagePhone, 2, 0), margin })
-assert.ok(big.scale < 1, 'a guide too big for the space shrinks while the sheet is open')
-const highUp = sheetLift({ screen: phone, sheetHeight, topLimit, center: { x: 195, y: 250 }, bounds: { width: 100, height: 100 }, margin })
-close(highUp.dy, 0)
-close(highUp.scale, 1)
+// The More sheet's cover: the detent until it settles, then where it really is.
 close(sheetCover(1000, null), 1000 * paperTheme.moreSheetDetent, 'before it settles, the detent is used')
 close(sheetCover(1000, 1000), 1000 * paperTheme.moreSheetDetent, 'a sheet still sliding in from off screen is ignored')
 close(sheetCover(1194, 657), 1194 - 657, 'a floating iPad sheet covers everything below its top')
 close(sheetCover(1000, 700), 1000 * paperTheme.moreSheetDetent, 'never less than the detent')
-const swapped = boundingSize({ width: 100, height: 200 }, 1, 90)
-close(swapped.width, 200)
-close(swapped.height, 100)
 
 // Fade slider: up is stronger. Accessibility steps stay on round numbers within range.
 close(fadeFromTrack(0, 300), paperTheme.fade.max)
@@ -152,10 +129,6 @@ assert.ok(!/#18243a|#ff795d/i.test(light))
 assert.equal((light.match(/="#FFFFFF"/g) ?? []).length, 3)
 assert.equal((light.match(/fill="none"/g) ?? []).length, 2)
 
-// Paper Lock only turns on child mode when tracking says the guide is held on the paper.
-assert.equal(stickLockAction(false, true), 'childMode')
-assert.equal(stickLockAction(true, false), 'place')
-assert.equal(stickLockAction(false, false), 'wait')
 assert.equal(childExitHoldMs, 1500, 'unlock is a 1.5-second hold')
 
 // Picture params from /paper/[id].

@@ -11,6 +11,8 @@ export type PaperParams = {
   level?: string | string[]
   photo?: string | string[]
   text?: string | string[]
+  /** Dev kit only: simulate a failure (`camera`). */
+  fault?: string | string[]
 }
 
 export type PaperPicture =

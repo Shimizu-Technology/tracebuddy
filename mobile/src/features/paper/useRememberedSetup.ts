@@ -1,26 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AppState } from 'react-native'
 
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
 import { savedAlignmentKey } from '../../data/storageKeys'
 import type { GuideValues } from './GuideLayer'
-import { defaultGuideSetup, parseRememberedSetup, serializeRememberedSetup } from './paperModel'
-import type { GuideSetup, PageOrientation, ScreenOrientation } from './paperModel'
+import { defaultGuideSetup, restoreSetup } from './paperModel'
+import type { GuideSetup, PageOrientation, RestoreGeometry, ScreenOrientation } from './paperModel'
 import { paperTheme } from './paperTheme'
+import { createSetupPersistence } from './setupPersistence'
+import type { OperationQueue } from './setupPersistence'
 
-const alwaysCurrent = () => true
+// writeLocalSetting already runs on the shared settings queue, so this queue only orders this screen's steps.
+function createQueue(): OperationQueue {
+  let tail: Promise<unknown> = Promise.resolve()
+  return (operation) => {
+    const result = tail.then(operation, operation)
+    tail = result.then(() => undefined, () => undefined)
+    return result
+  }
+}
+
+const persistence = createSetupPersistence({
+  read: () => readLocalSetting(savedAlignmentKey),
+  write: (raw) => writeLocalSetting(savedAlignmentKey, () => raw, () => true).then(() => undefined),
+}, createQueue())
 
 /**
- * Remembers the last position, size, turn and fade for each screen orientation, without Save or Resume
- * buttons. The setup loads when the screen opens or the device turns, and saves shortly after each change.
+ * Remembers the last position, size, turn, fade and page for each screen orientation, without Save or Resume
+ * buttons. Each change is saved shortly after, and right away when the screen closes, the app goes to the
+ * background or the device turns. While `frozen` (child mode) a turn doesn't load another setup: the screen
+ * keeps the locked alignment and shows it again when the device turns back.
  */
-export function useRememberedSetup(orientation: ScreenOrientation, values: GuideValues) {
+export function useRememberedSetup(orientation: ScreenOrientation, values: GuideValues, geometry: RestoreGeometry, frozen: boolean) {
   const [page, setPage] = useState<PageOrientation>(defaultGuideSetup.page)
-  const [hydrated, setHydrated] = useState(false)
+  const [loaded, setLoaded] = useState<ScreenOrientation | null>(null)
   const [layoutKey, setLayoutKey] = useState(0)
-  const stored = useRef<string | null>(null)
   const pageRef = useRef(page)
+  const loadedRef = useRef<ScreenOrientation | null>(null)
+  const generation = useRef(0)
+  const dirty = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const orientationRef = useRef(orientation)
+  const geometryRef = useRef(geometry)
+  useEffect(() => { geometryRef.current = geometry }, [geometry])
 
   const apply = useCallback((setup: GuideSetup) => {
     values.x.set(setup.x)
@@ -33,9 +54,13 @@ export function useRememberedSetup(orientation: ScreenOrientation, values: Guide
     setLayoutKey((key) => key + 1)
   }, [values])
 
-  const saveNow = useCallback(() => {
+  // Captures the values now, for the orientation they belong to, before anything else can change them.
+  const flush = useCallback(() => {
     if (timer.current) clearTimeout(timer.current)
     timer.current = null
+    const orientationNow = loadedRef.current
+    if (!dirty.current || !orientationNow) return
+    dirty.current = false
     const setup: GuideSetup = {
       x: values.x.get(),
       y: values.y.get(),
@@ -44,37 +69,39 @@ export function useRememberedSetup(orientation: ScreenOrientation, values: Guide
       opacity: values.opacity.get(),
       page: pageRef.current,
     }
-    const next = serializeRememberedSetup(stored.current, orientationRef.current, setup)
-    stored.current = next
-    void writeLocalSetting(savedAlignmentKey, () => next, alwaysCurrent).catch(() => undefined)
+    void persistence.save({ orientation: orientationNow, setup }).catch(() => undefined)
   }, [values])
 
-  const hydratedRef = useRef(false)
   const persist = useCallback(() => {
-    if (!hydratedRef.current) return
+    if (!loadedRef.current) return
+    dirty.current = true
     if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(saveNow, paperTheme.timing.saveDelayMs)
-  }, [saveNow])
+    timer.current = setTimeout(flush, paperTheme.timing.saveDelayMs)
+  }, [flush])
 
   useEffect(() => {
-    let active = true
-    // Finish the previous orientation's pending save before loading the new one.
-    if (timer.current) saveNow()
-    orientationRef.current = orientation
-    hydratedRef.current = false
-    void readLocalSetting(savedAlignmentKey)
-      .catch(() => null)
-      .then((raw) => {
-        if (!active) return
-        stored.current = raw
-        apply(parseRememberedSetup(raw, orientation) ?? defaultGuideSetup)
-        hydratedRef.current = true
-        setHydrated(true)
-      })
-    return () => { active = false }
-  }, [apply, orientation, saveNow])
+    if (frozen || loadedRef.current === orientation) return undefined
+    flush()
+    generation.current += 1
+    const current = generation.current
+    loadedRef.current = null
+    setLoaded(null)
+    void persistence.load().catch(() => null).then((raw) => {
+      if (current !== generation.current) return
+      apply(restoreSetup(raw, orientation, geometryRef.current))
+      loadedRef.current = orientation
+      setLoaded(orientation)
+    })
+    return undefined
+  }, [apply, flush, frozen, orientation])
 
-  useEffect(() => () => { if (timer.current) saveNow() }, [saveNow])
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => { if (state !== 'active') flush() })
+    return () => {
+      subscription.remove()
+      flush()
+    }
+  }, [flush])
 
   const changePage = useCallback((next: PageOrientation) => {
     pageRef.current = next
@@ -87,5 +114,13 @@ export function useRememberedSetup(orientation: ScreenOrientation, values: Guide
     persist()
   }, [persist, values])
 
-  return { page, hydrated, layoutKey, persist, changePage }
+  /** Back to the middle of the screen, keeping size, turn and page. */
+  const recenter = useCallback(() => {
+    values.x.set(0)
+    values.y.set(0)
+    setLayoutKey((key) => key + 1)
+    persist()
+  }, [persist, values])
+
+  return { page, loadedOrientation: loaded, hydrated: loaded === orientation, layoutKey, persist, changePage, recenter }
 }
