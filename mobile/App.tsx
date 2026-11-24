@@ -30,18 +30,31 @@ import * as MediaLibrary from 'expo-media-library'
 import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { StatusBar } from 'expo-status-bar'
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Circle, Defs, G, Mask, Path, Rect, SvgXml } from 'react-native-svg'
 import { captureRef, releaseCapture } from 'react-native-view-shot'
 
-import { documentFrame, documentPoint, goBack, navigate, normalizeResumeContext, ownedTouch, photoAccessAllowed, strokePointAction } from './practiceModel'
+import { documentFrame, documentPoint, goBack, navigate, ownedTouch, photoAccessAllowed, strokePointAction } from './practiceModel'
 import type { NavigationState } from './practiceModel'
 
-import { brushSizes, brushTools, documentStrokeWidth, makePracticeSessionTitle, normalizePracticeSource, normalizeSavedPracticeSession, normalizeSavedPracticeStroke, practiceStrokeWidth } from './practiceStorageModel'
+import { brushSizes, brushTools, defaultMarkerColor, documentStrokeWidth, makePracticeSessionTitle, normalizePracticeSource } from './practiceStorageModel'
 import type { BrushToolId, PracticeSource, PracticeSticker, PracticeStroke, SavedPracticeSession, UploadedImage } from './practiceStorageModel'
 
-import { createOperationQueue, followLatestSave, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from './practiceOperations'
+import { followLatestSave, operationGuard, shouldPersistResume, writeIfCurrent } from './practiceOperations'
 import type { OperationGuard } from './practiceOperations'
+
+import { createPracticeSessionId, drawingFromPracticeSource, makePracticeSource } from './src/data/practiceSource'
+import { makePracticeSaveSignature, parsePreviousWorkSession, previousWorkSessionKey, serializePreviousWorkIndex } from './src/data/previousWork'
+import {
+  drawingPreferencesKey, familyActivityKey, learningProgressKey, legacyPracticeAutosavePrefix,
+  localSettingKeys, modePreferenceKey, parentSetupSeenKey, previousWorkIndexKey, previousWorkSessionPrefix,
+  resumeContextKey, savedAlignmentKey,
+} from './src/data/storageKeys'
+import { previousWorkStorage, queueDrawingPreferencesOperation, readLocalSetting, writeLocalSetting } from './src/data/nativeStorage'
+import {
+  parentSetupSeenValue, parseDrawingPreferences, parseFamilyActivity, parseLearningProgress, parseModePreference,
+  parseParentSetupSeen, parseResumeContext, parseSavedAlignment, serializeModePreference, serializeResumeContext,
+} from './src/data/localSettings'
 
 import { createPracticePreviewCache } from './practicePreviewCache'
 
@@ -49,18 +62,17 @@ import { captureImageKeys, createCaptureReadiness, saveTemporaryCapture } from '
 import { isDismissedPrintSheet } from './printUtils'
 import KeepsakeView from './KeepsakeView'
 import { KeepsakeStampBadge } from './KeepsakeStamp'
-import { continueDrawing, finishAfterSave, hasKeepsakeContent, makeNativeModePreference, modePreferenceKey, newestDrawings, normalizeModePreference, toggleStamp } from './finishFindModel'
+import { continueDrawing, finishAfterSave, hasKeepsakeContent, newestDrawings, normalizeModePreference, toggleStamp } from './finishFindModel'
 import type { KeepsakeStamp } from './finishFindModel'
 import ARTraceScreen from './src/features/ar/ARTraceScreen'
 import { isTraceBuddyARSupported } from './modules/tracebuddy-ar/src/TraceBuddyARModule'
-import { adjustUnlocked, childExitHoldMs, documentCapture, holdProgress, parentModeHelp, placeholderColor, selectedFamilyActivity } from './nativeSafetyModel'
+import { adjustUnlocked, childExitHoldMs, documentCapture, holdProgress, parentModeHelp, placeholderColor } from './nativeSafetyModel'
 import ARTraceSurfaceSelector from './src/features/ar/ARTraceSurfaceSelector'
 
 import {
   addRecentDrawing,
   buildWorksheetHtml,
   createTextDrawing,
-  drawingById,
   drawingCategories,
   drawingDifficultyFilters,
   drawingForFamilyActivity,
@@ -137,7 +149,7 @@ const defaultTransform: OverlayTransform = {
 
 const markerColorNames = ['Ink', 'Gray', 'Coral', 'Pink', 'Light pink', 'Purple pink', 'Orange red', 'Orange', 'Yellow', 'Dark green', 'Green', 'Blue', 'Light blue', 'Purple', 'Red', 'Brown']
 
-const markerColors = ['#18243A', '#4A5568', '#FF795D', '#FF4FA3', '#F7A8C8', '#D946EF', '#E45336', '#F2994A', '#F2C94C', '#219653', '#27AE60', '#2F80ED', '#56CCF2', '#9B51E0', '#EB5757', '#8B5E3C'] as const
+const markerColors = [defaultMarkerColor, '#4A5568', '#FF795D', '#FF4FA3', '#F7A8C8', '#D946EF', '#E45336', '#F2994A', '#F2C94C', '#219653', '#27AE60', '#2F80ED', '#56CCF2', '#9B51E0', '#EB5757', '#8B5E3C'] as const
 
 const practiceStickerShapes = [
   {
@@ -173,15 +185,6 @@ const practiceStickerShapes = [
 ] as const
 
 const defaultPracticeViewport: PracticeViewport = { x: 0, y: 0, scale: 1 }
-const previousWorkIndexKey = 'tracebuddy.previousWork.v1.index'
-const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
-const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
-const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
-const learningProgressKey = 'tracebuddy.learningProgress.v1'
-const parentSetupSeenKey = 'tracebuddy.parentSetupSeen.v1'
-const resumeContextKey = 'tracebuddy.resumeContext.v1'
-const familyActivityKey = 'tracebuddy.familyActivity.v1'
-const savedAlignmentKey = 'tracebuddy.savedAlignment.v1'
 const uploadedWorkDirectory = `${FileSystem.documentDirectory ?? ''}tracebuddy-uploads/`
 const practiceAutosaveDelayMs = 450
 
@@ -225,270 +228,14 @@ function simplifyPracticePoints(points: PracticePoint[], minDistance: number) {
   return simplified
 }
 
-function createPracticeSessionId() {
-  return `work-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-function makePracticeSource(drawing: Drawing, uploadedImage: UploadedImage | null): PracticeSource {
-  if (uploadedImage) {
-    return {
-      kind: 'upload',
-      drawingId: drawing.id,
-      drawingName: uploadedImage.name,
-      drawingTheme: 'Local image',
-      drawingSvg: drawing.svg,
-      uploadedImage,
-    }
-  }
-
-  const isCustom = drawing.id.startsWith('custom-text-')
-  return {
-    kind: isCustom ? 'custom' : 'drawing',
-    drawingId: drawing.id,
-    drawingName: drawing.name,
-    drawingTheme: drawing.theme,
-    drawingSvg: drawing.svg,
-  }
-}
-
-function drawingFromPracticeSource(source: PracticeSource) {
-  const libraryDrawing = drawingById(source.drawingId)
-  const drawing = libraryDrawing ?? {
-    id: source.drawingId,
-    name: source.drawingName,
-    theme: source.drawingTheme,
-    category: 'letters' as const,
-    difficulty: 'Starter' as const,
-    svg: source.drawingSvg ?? drawings[0].svg,
-  }
-
-  return {
-    drawing,
-    uploadedImage: source.kind === 'upload' ? source.uploadedImage ?? null : null,
-  }
-}
-
-function previousWorkSessionKey(sessionId: string) {
-  return `${previousWorkSessionPrefix}${sessionId}`
-}
-
-function makePracticeSaveSignature(session: Pick<SavedPracticeSession, 'source' | 'strokes' | 'stickers' | 'canvasWidth' | 'canvasHeight' | 'guideOpacity' | 'guideOnTop' | 'markerColor' | 'markerWidth' | 'brushToolId' | 'stamp' | 'finishedAt'>) {
-  return JSON.stringify(session)
-}
-
-function legacyPracticeSessionId(storageKey: string) {
-  const suffix = storageKey.slice(legacyPracticeAutosavePrefix.length).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 150) || createPracticeSessionId()
-  return `legacy-${suffix}`
-}
-
-function isLegacyUploadAutosaveKey(storageKey: string) {
-  return storageKey.slice(legacyPracticeAutosavePrefix.length).startsWith('uploaded_')
-}
-
-function scaleLegacyPathValue(value: number, axis: 'x' | 'y' | 'none', scaleX: number, scaleY: number) {
-  const scaled = axis === 'x' ? value * scaleX : axis === 'y' ? value * scaleY : value
-  return String(Math.round(scaled * 100) / 100)
-}
-
-function legacyPathAxisForCommand(command: string, valueIndex: number): 'x' | 'y' | 'none' {
-  const commandType = command.toUpperCase()
-  if (commandType === 'H') return 'x'
-  if (commandType === 'V') return 'y'
-  if (commandType === 'A') {
-    const arcAxes: Array<'x' | 'y' | 'none'> = ['x', 'y', 'none', 'none', 'none', 'x', 'y']
-    return arcAxes[valueIndex % arcAxes.length]
-  }
-  if (commandType === 'Z') return 'none'
-  return valueIndex % 2 === 0 ? 'x' : 'y'
-}
-
-function scaleLegacyPracticePath(path: string, scaleX: number, scaleY: number) {
-  const tokens = path.match(/[a-zA-Z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi)
-  if (!tokens) return path
-
-  let activeCommand = ''
-  let commandValueIndex = 0
-
-  return tokens.map((token) => {
-    if (/^[a-zA-Z]$/.test(token)) {
-      activeCommand = token
-      commandValueIndex = 0
-      return token
-    }
-
-    const value = Number(token)
-    if (!Number.isFinite(value)) return token
-    const axis = legacyPathAxisForCommand(activeCommand, commandValueIndex)
-    commandValueIndex += 1
-    return scaleLegacyPathValue(value, axis, scaleX, scaleY)
-  }).join(' ')
-}
-
-function scaleLegacyPracticeStroke(stroke: PracticeStroke, scaleX: number, scaleY: number): PracticeStroke {
-  return {
-    ...stroke,
-    path: scaleLegacyPracticePath(stroke.path, scaleX, scaleY),
-    width: practiceStrokeWidth(stroke.width * Math.min(scaleX, scaleY)),
-  }
-}
-
-function legacyPracticeSource(drawingId: string, drawingName: string, storageKey: string): PracticeSource {
-  const libraryDrawing = !isLegacyUploadAutosaveKey(storageKey) ? drawingById(drawingId) : null
-  if (libraryDrawing) return makePracticeSource(libraryDrawing, null)
-
-  const customDrawing = createTextDrawing(drawingName)
-  return {
-    kind: 'custom',
-    drawingId: `${legacyPracticeSessionId(storageKey)}-source`,
-    drawingName,
-    drawingTheme: isLegacyUploadAutosaveKey(storageKey) ? 'Legacy upload · image unavailable' : 'Saved practice',
-    drawingSvg: customDrawing.svg,
-  }
-}
-
-function normalizeLegacyPracticeAutosave(value: unknown, storageKey: string, legacyCanvasSize: { width: number; height: number }): SavedPracticeSession | null {
-  if (!value || typeof value !== 'object') return null
-  const session = value as {
-    drawingId?: unknown
-    drawingName?: unknown
-    updatedAt?: unknown
-    strokes?: unknown
-    guideOpacity?: unknown
-    guideOnTop?: unknown
-    markerColor?: unknown
-    markerWidth?: unknown
-    brushToolId?: unknown
-  }
-  if (typeof session.drawingId !== 'string' || typeof session.drawingName !== 'string') return null
-
-  const scaleX = 1000 / Math.max(1, legacyCanvasSize.width)
-  const scaleY = 1000 / Math.max(1, legacyCanvasSize.height)
-  const strokes = Array.isArray(session.strokes)
-    ? session.strokes
-        .map(normalizeSavedPracticeStroke)
-        .filter((stroke): stroke is PracticeStroke => Boolean(stroke))
-        .map((stroke) => scaleLegacyPracticeStroke(stroke, scaleX, scaleY))
-    : []
-  if (strokes.length === 0) return null
-
-  const source = legacyPracticeSource(session.drawingId, session.drawingName, storageKey)
-  const updatedAt = typeof session.updatedAt === 'string' ? session.updatedAt : new Date().toISOString()
-
-  return {
-    version: 2,
-    sessionId: legacyPracticeSessionId(storageKey),
-    title: makePracticeSessionTitle(source),
-    source,
-    createdAt: updatedAt,
-    updatedAt,
-    strokes,
-    stickers: [],
-    canvasWidth: 1000,
-    canvasHeight: 1000,
-    guideOpacity: typeof session.guideOpacity === 'number' ? clamp(session.guideOpacity, 0.08, 0.66) : 0.24,
-    guideOnTop: typeof session.guideOnTop === 'boolean' ? session.guideOnTop : true,
-    markerColor: typeof session.markerColor === 'string' ? session.markerColor : markerColors[0],
-    markerWidth: typeof session.markerWidth === 'number' ? session.markerWidth : 9,
-    brushToolId: typeof session.brushToolId === 'string' && brushTools.some((tool) => tool.id === session.brushToolId) ? session.brushToolId as BrushToolId : 'marker',
-  }
-}
-
-async function migrateLegacyPracticeAutosaves(legacyCanvasSize: { width: number; height: number }, isCurrent: () => boolean = () => true) {
-  const keys = await AsyncStorage.getAllKeys()
-  const legacyKeys = keys.filter((key) => key.startsWith(legacyPracticeAutosavePrefix))
-
-  for (const key of legacyKeys) {
-    if (!isCurrent()) return
-    try {
-      const rawSession = await AsyncStorage.getItem(key)
-      const migratedSession = rawSession ? normalizeLegacyPracticeAutosave(JSON.parse(rawSession), key, legacyCanvasSize) : null
-      if (!migratedSession || !isCurrent()) continue
-
-      await savePreviousWorkSession(migratedSession, isCurrent)
-      if (isCurrent()) await AsyncStorage.removeItem(key)
-    } catch {
-      // Leave the legacy autosave in place if migration cannot complete.
-    }
-  }
-}
-
-async function readPreviousWorkIds() {
-  const rawIndex = await AsyncStorage.getItem(previousWorkIndexKey)
-  if (!rawIndex) return []
-  const parsed = JSON.parse(rawIndex) as { ids?: unknown }
-  if (!Array.isArray(parsed.ids) || parsed.ids.some((id) => typeof id !== 'string')) {
-    throw new Error('Previous Work index is invalid')
-  }
-  return parsed.ids
-}
-
-async function recoverPreviousWorkIdsFromSessions() {
-  const keys = await AsyncStorage.getAllKeys()
-  const sessionKeys = keys.filter((key) => key.startsWith(previousWorkSessionPrefix))
-  const entries = await AsyncStorage.multiGet(sessionKeys)
-  return entries
-    .map(([, rawSession]) => {
-      if (!rawSession) return null
-      try {
-        return normalizeSavedPracticeSession(JSON.parse(rawSession))
-      } catch {
-        return null
-      }
-    })
-    .filter((session): session is SavedPracticeSession => Boolean(session))
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    .map((session) => session.sessionId)
-}
-
-async function loadPreviousWorkSessions(isCurrent: () => boolean = () => true) {
-  const ids = await readPreviousWorkIds().catch(async () => {
-    const recoveredIds = await recoverPreviousWorkIdsFromSessions()
-    await queuePreviousWorkWrite(() => writeIfCurrent(isCurrent, () => AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: recoveredIds })))).catch(() => undefined)
-    return recoveredIds
-  })
-  if (ids.length === 0) return []
-
-  const entries = await AsyncStorage.multiGet(ids.map(previousWorkSessionKey))
-  const sessions = entries
-    .map(([, rawSession]) => {
-      if (!rawSession) return null
-      try {
-        return normalizeSavedPracticeSession(JSON.parse(rawSession))
-      } catch {
-        return null
-      }
-    })
-    .filter((session): session is SavedPracticeSession => Boolean(session))
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-
-  const validIds = sessions.map((session) => session.sessionId)
-  if (isCurrent() && (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index]))) {
-    await queuePreviousWorkWrite(() => writeIfCurrent(isCurrent, () => AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids: validIds })))).catch(() => undefined)
-  }
-
-  return sessions
-}
-
-async function loadPreviousWorkSessionsWithLegacyMigration(legacyCanvasSize: { width: number; height: number }, isCurrent: () => boolean = () => true) {
-  await migrateLegacyPracticeAutosaves(legacyCanvasSize, isCurrent)
-  return loadPreviousWorkSessions(isCurrent)
-}
-
 const practicePreviewCache = createPracticePreviewCache()
-
-const queuePreviousWorkWrite = createOperationQueue()
-const queueDrawingPreferencesOperation = createOperationQueue()
-
-function queueDrawingPreferencesWrite(operation: () => Promise<unknown>, isCurrent: OperationGuard) {
-  return queueDrawingPreferencesOperation(() => writeIfCurrent(isCurrent, operation))
-}
-
-async function savePreviousWorkSession(session: SavedPracticeSession, isCurrent: OperationGuard) {
-  return queueSessionWrite(queuePreviousWorkWrite, isCurrent, session.sessionId, readPreviousWorkIds, (ids) => AsyncStorage.multiSet([
-    [previousWorkSessionKey(session.sessionId), JSON.stringify(session)],
-    [previousWorkIndexKey, JSON.stringify({ version: 1, ids })],
-  ]))
-}
+const {
+  loadPreviousWorkSessions,
+  loadPreviousWorkSessionsWithLegacyMigration,
+  queuePreviousWorkWrite,
+  readPreviousWorkIds,
+  savePreviousWorkSession,
+} = previousWorkStorage
 
 function isStoredUploadedImageUri(uri?: string) {
   return Boolean(uri && uploadedWorkDirectory && uri.startsWith(uploadedWorkDirectory))
@@ -514,15 +261,15 @@ async function inspectAllStoredSessionsForCleanup() {
   const sessionKeys = keys.filter((key) => key.startsWith(previousWorkSessionPrefix))
   const entries = await AsyncStorage.multiGet(sessionKeys)
   return entries.map(([key, rawSession]) => {
-    const session = rawSession ? normalizeSavedPracticeSession(JSON.parse(rawSession)) : null
+    const session = rawSession ? parsePreviousWorkSession(rawSession) : null
     if (!session) throw new Error(`Could not safely inspect ${key}`)
     return session
   })
 }
 
 async function storedResumeImageUris() {
-  const raw = await AsyncStorage.getItem(resumeContextKey)
-  const context = normalizeResumeContext(raw ? JSON.parse(raw) : null, guidedLessons.map((lesson) => lesson.id))
+  const raw = await readLocalSetting(resumeContextKey)
+  const context = parseResumeContext(raw)
   const source = normalizePracticeSource(context?.source)
   return source?.uploadedImage?.uri ? [source.uploadedImage.uri] : []
 }
@@ -592,7 +339,7 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
     })
     const deletedSession = (() => {
       try {
-        return rawDeletedSession ? normalizeSavedPracticeSession(JSON.parse(rawDeletedSession)) : null
+        return rawDeletedSession ? parsePreviousWorkSession(rawDeletedSession) : null
       } catch {
         sessionInspectionFailed = true
         return null
@@ -601,7 +348,7 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
     if (!isCurrent()) return { imageCleanupPending: false, pendingImageUris: [] }
     const ids = currentIds.filter((id) => id !== sessionId)
     await AsyncStorage.multiRemove([previousWorkSessionKey(sessionId)])
-    await writeIfCurrent(isCurrent, () => AsyncStorage.setItem(previousWorkIndexKey, JSON.stringify({ version: 1, ids })))
+    await writeIfCurrent(isCurrent, () => AsyncStorage.setItem(previousWorkIndexKey, serializePreviousWorkIndex(ids)))
     const preservedUris = new Set(preserveUris.filter(isStoredUploadedImageUri))
     const pendingImageUris = storedUploadedImageUrisFromSession(deletedSession).filter((uri) => !preservedUris.has(uri))
     preservedUris.forEach((uri) => activeStoredImageUris.add(uri))
@@ -617,9 +364,9 @@ async function deletePreviousWorkSession(sessionId: string, preserveUris: string
 
 async function deleteAllPreviousWorkSessions() {
   return queuePreviousWorkWrite(async () => {
-    await queueDrawingPreferencesOperation(() => AsyncStorage.multiRemove([resumeContextKey, drawingPreferencesKey, learningProgressKey, parentSetupSeenKey, savedAlignmentKey, familyActivityKey, modePreferenceKey]))
+    await queueDrawingPreferencesOperation(() => AsyncStorage.multiRemove(localSettingKeys))
     const keys = await AsyncStorage.getAllKeys()
-    const traceBuddyKeys = keys.filter((key) => key === resumeContextKey || key === drawingPreferencesKey || key === learningProgressKey || key === parentSetupSeenKey || key === savedAlignmentKey || key === familyActivityKey || key === modePreferenceKey || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
+    const traceBuddyKeys = keys.filter((key) => localSettingKeys.some((settingKey) => settingKey === key) || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
     practicePreviewCache.clear()
     activeStoredImageUris.clear()
@@ -795,7 +542,7 @@ function TraceBuddyMobile() {
     const next = normalizeModePreference(surface, arSupported)
     modeInteractionRef.current = true
     setTraceSurfaceState(next)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(modePreferenceKey, JSON.stringify(makeNativeModePreference(next))), captureWorkOperation()).catch(() => setDrawingPreferencesMessage('This tracing mode will last for this visit only.'))
+    void writeLocalSetting(modePreferenceKey, () => serializeModePreference(next), captureWorkOperation()).catch(() => setDrawingPreferencesMessage('This tracing mode will last for this visit only.'))
   }, [arSupported, captureWorkOperation])
   const worksheetActionInProgressRef = useRef(false)
   const legacyMigrationCanvasSizeRef = useRef({
@@ -860,10 +607,10 @@ function TraceBuddyMobile() {
 
   useEffect(() => {
     let cancelled = false
-    void AsyncStorage.getItem(drawingPreferencesKey)
+    void readLocalSetting(drawingPreferencesKey)
       .then((rawPreferences) => {
         if (cancelled || drawingPreferencesInteractionRef.current) return
-        const preferences = normalizeDrawingPreferences(rawPreferences ? JSON.parse(rawPreferences) : null)
+        const preferences = parseDrawingPreferences(rawPreferences)
         drawingPreferencesRef.current = preferences
         setDrawingPreferences(preferences)
       })
@@ -880,12 +627,12 @@ function TraceBuddyMobile() {
     let cancelled = false
     const isCurrent = captureWorkOperation()
     void Promise.all([
-      AsyncStorage.getItem(parentSetupSeenKey),
-      AsyncStorage.getItem(savedAlignmentKey),
+      readLocalSetting(parentSetupSeenKey),
+      readLocalSetting(savedAlignmentKey),
     ]).then(([setupSeen, rawAlignment]) => {
       if (cancelled || !isCurrent()) return
-      parentSetupSeenRef.current = setupSeen === '1'
-      setSavedAlignment(normalizeTraceAlignment(rawAlignment ? JSON.parse(rawAlignment) : null))
+      parentSetupSeenRef.current = parseParentSetupSeen(setupSeen)
+      setSavedAlignment(parseSavedAlignment(rawAlignment))
     }).catch(() => undefined).finally(() => {
       if (!cancelled) setParentSetupHydrated(true)
     })
@@ -896,10 +643,10 @@ function TraceBuddyMobile() {
 
   useEffect(() => {
     let cancelled = false
-    void AsyncStorage.getItem(learningProgressKey)
+    void readLocalSetting(learningProgressKey)
       .then((rawProgress) => {
         if (cancelled || learningProgressInteractionRef.current) return
-        const progress = normalizeLearningProgress(rawProgress ? JSON.parse(rawProgress) : null)
+        const progress = parseLearningProgress(rawProgress)
         learningProgressRef.current = progress
         setLearningProgress(progress)
       })
@@ -915,9 +662,9 @@ function TraceBuddyMobile() {
   useEffect(() => {
     let cancelled = false
     const isCurrent = captureWorkOperation()
-    void AsyncStorage.getItem(familyActivityKey).then((activityId) => {
+    void readLocalSetting(familyActivityKey).then((activityId) => {
       if (cancelled || !isCurrent() || activityInteractionRef.current) return
-      setSelectedActivityId(selectedFamilyActivity(activityId, familyActivities.map((activity) => activity.id)))
+      setSelectedActivityId(parseFamilyActivity(activityId))
     }).catch(() => { if (!cancelled && isCurrent()) setActivityStorageMessage('The last activity could not be restored. You can choose one below.') })
     return () => { cancelled = true }
   }, [captureWorkOperation])
@@ -925,19 +672,19 @@ function TraceBuddyMobile() {
   useEffect(() => {
     let cancelled = false
     const isCurrent = captureWorkOperation()
-    void AsyncStorage.getItem(modePreferenceKey).then((preferredMode) => {
+    void readLocalSetting(modePreferenceKey).then((preferredMode) => {
       if (cancelled || !isCurrent() || modeInteractionRef.current) return
-      setTraceSurfaceState(normalizeModePreference(preferredMode, arSupported))
+      setTraceSurfaceState(parseModePreference(preferredMode, arSupported))
     }).catch(() => { if (!cancelled && isCurrent()) setDrawingPreferencesMessage('The tracing mode could not be restored. You can choose one below.') }).finally(() => { if (!cancelled) setModeHydrated(true) })
     return () => { cancelled = true }
   }, [arSupported, captureWorkOperation])
 
   const chooseFamilyActivity = useCallback((id: string) => {
     if (drawingPreferencesClearInProgressRef.current) return
-    const next = selectedFamilyActivity(id, familyActivities.map((activity) => activity.id))
+    const next = parseFamilyActivity(id)
     activityInteractionRef.current = true
     setSelectedActivityId(next)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(familyActivityKey, next), captureWorkOperation()).then(() => setActivityStorageMessage('')).catch(() => setActivityStorageMessage('This activity choice will last for this visit only.'))
+    void writeLocalSetting(familyActivityKey, () => next, captureWorkOperation()).then(() => setActivityStorageMessage('')).catch(() => setActivityStorageMessage('This activity choice will last for this visit only.'))
   }, [captureWorkOperation])
 
   const saveDrawingPreferences = useCallback((nextPreferences: DrawingPreferences) => {
@@ -946,7 +693,7 @@ function TraceBuddyMobile() {
     drawingPreferencesInteractionRef.current = true
     drawingPreferencesRef.current = normalizedPreferences
     setDrawingPreferences(normalizedPreferences)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(drawingPreferencesKey, JSON.stringify(normalizedPreferences)), captureWorkOperation())
+    void writeLocalSetting(drawingPreferencesKey, () => JSON.stringify(normalizedPreferences), captureWorkOperation())
       .then(() => setDrawingPreferencesMessage(''))
       .catch(() => setDrawingPreferencesMessage('Favorites and recent picks will last for this visit only.'))
   }, [captureWorkOperation])
@@ -957,7 +704,7 @@ function TraceBuddyMobile() {
     learningProgressInteractionRef.current = true
     learningProgressRef.current = normalizedProgress
     setLearningProgress(normalizedProgress)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(learningProgressKey, JSON.stringify(normalizedProgress)), captureWorkOperation())
+    void writeLocalSetting(learningProgressKey, () => JSON.stringify(normalizedProgress), captureWorkOperation())
       .then(() => setLearningProgressMessage(''))
       .catch(() => setLearningProgressMessage('Lesson progress will last for this visit only.'))
   }, [captureWorkOperation])
@@ -1045,7 +792,7 @@ function TraceBuddyMobile() {
     parentSetupSeenRef.current = true
     setSetupCoachOpen(false)
     setCameraPromptAllowed(true)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(parentSetupSeenKey, '1'), captureWorkOperation()).catch(() => undefined)
+    void writeLocalSetting(parentSetupSeenKey, () => parentSetupSeenValue, captureWorkOperation()).catch(() => undefined)
   }, [captureWorkOperation])
 
   const dismissParentSetup = useCallback(() => {
@@ -1057,7 +804,7 @@ function TraceBuddyMobile() {
     const alignment = normalizeTraceAlignment({ version: 1, ...transformRef.current })
     if (!alignment) return
     setSavedAlignment(alignment)
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(savedAlignmentKey, JSON.stringify(alignment)), captureWorkOperation())
+    void writeLocalSetting(savedAlignmentKey, () => JSON.stringify(alignment), captureWorkOperation())
       .catch(() => Alert.alert('Alignment not saved', 'You can keep tracing with the current setup, but TraceBuddy could not remember it for next time.'))
   }, [captureWorkOperation])
 
@@ -1274,8 +1021,8 @@ function TraceBuddyMobile() {
   useEffect(() => {
     let cancelled = false
     const isCurrent = captureWorkOperation()
-    void AsyncStorage.getItem(resumeContextKey).then(async (raw) => {
-      const context = normalizeResumeContext(raw ? JSON.parse(raw) : null, guidedLessons.map((lesson) => lesson.id))
+    void readLocalSetting(resumeContextKey).then(async (raw) => {
+      const context = parseResumeContext(raw)
       if (!context || cancelled || !isCurrent()) return
       setSelectedLesson(guidedLessons.find((lesson) => lesson.id === context.lessonId) ?? guidedLessons[0])
       if (context.mode === 'practice') {
@@ -1312,8 +1059,8 @@ function TraceBuddyMobile() {
     if (!resumeHydrated || !shouldPersistResume(resumePersistenceEnabledRef.current, mode, drawingPreferencesClearInProgressRef.current)) return
     resumePersistenceEnabledRef.current = true
     resumeSessionIdRef.current = activePracticeSession?.sessionId ?? null
-    const serialized = JSON.stringify({ mode, lessonId: selectedLesson.id, sessionId: mode === 'practice' ? resumeSessionIdRef.current : null, source: mode === 'practice' ? activeSourceRef.current : undefined, history: navigationRef.current.history })
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(resumeContextKey, serialized), captureWorkOperation()).catch(() => undefined)
+    const serialized = serializeResumeContext({ mode, lessonId: selectedLesson.id, sessionId: mode === 'practice' ? resumeSessionIdRef.current : null, source: mode === 'practice' ? activeSourceRef.current : undefined, history: navigationRef.current.history })
+    void writeLocalSetting(resumeContextKey, () => serialized, captureWorkOperation()).catch(() => undefined)
   }, [activePracticeSession?.sessionId, captureWorkOperation, mode, resumeHydrated, selectedDrawing, selectedLesson.id, uploadedImage])
 
   const openPreviousWorkSession = useCallback((session: SavedPracticeSession) => {
@@ -1455,8 +1202,8 @@ function TraceBuddyMobile() {
     setPreviousWorkSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
     resumeSessionIdRef.current = session.sessionId
     latestPracticeSessionRef.current = session
-    const serialized = JSON.stringify({ ...resumeContextRef.current, sessionId: session.sessionId, source: session.source, history: navigationRef.current.history })
-    void queueDrawingPreferencesWrite(() => AsyncStorage.setItem(resumeContextKey, serialized), isCurrent).catch(() => undefined)
+    const serialized = serializeResumeContext({ ...resumeContextRef.current, sessionId: session.sessionId, source: session.source, history: navigationRef.current.history })
+    void writeLocalSetting(resumeContextKey, () => serialized, isCurrent).catch(() => undefined)
   }, [isWorkOperationCurrent])
 
   const handlePracticeSessionDeleted = useCallback((sessionId: string) => {
@@ -4016,13 +3763,7 @@ function UnlockIcon() {
   )
 }
 
-export default function App() {
-  return (
-    <SafeAreaProvider>
-      <TraceBuddyMobile />
-    </SafeAreaProvider>
-  )
-}
+export default TraceBuddyMobile
 
 const styles = StyleSheet.create({
   appShell: {

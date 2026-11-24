@@ -19,4 +19,16 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['mobile/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', {
+        paths: [{
+          name: 'phosphor-react-native',
+          message: 'Import icons through mobile/src/ui/icons.ts so only the icons we use are bundled.',
+          allowTypeImports: true,
+        }],
+      }],
+    },
+  },
 ])

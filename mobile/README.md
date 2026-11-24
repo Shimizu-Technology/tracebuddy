@@ -36,6 +36,14 @@ MAESTRO_DRIVER_STARTUP_TIMEOUT=180000 maestro --device <SIMULATOR_UDID> test .ma
 
 The flow covers the picture picker, a Together activity, on-screen practice, the Photos export control, and guided lessons. Open and cancel one worksheet print sheet manually as well; Apple's print UI is outside the app process and is intentionally kept out of the reusable flow.
 
+## 2.0 foundation
+
+Open `tracebuddy://dev/kit` in a development build to review the tokens and components. Release builds include the kit only when built with `EXPO_PUBLIC_DEV_KIT=1`; App Store builds should not set it. The app has no navigation link to this route. Every other incoming link returns to the index route, which opens the existing picker and drawing flows.
+
+Use the native stack for sheets. The [example options](src/ui/Sheet.ts) set `presentation: 'formSheet'`, a single short detent, a native grabber, and an undimmed backdrop. Keep phone detents at or below 40%. Give sheet content room to scroll with large text, and move any guide or canvas that the user is adjusting above the sheet before opening it. The kit example supports downward dismissal and an accessible close button. [Expo Router modals](https://docs.expo.dev/router/advanced/modals/)
+
+The canvas still uses `react-native-svg`. A CanvasKit 0.42.0 spike replayed the 1.2 fixture's SVG stroke paths in 1000 × 1000 document coordinates. It verified that ordered clearing on an isolated ink surface allows later ink to draw over the erased area, and that Skia accepts the saved crayon dash pattern. A React Native Skia implementation would still need on-device comparison for textured brushes, guide and sticker compositing, full-square photo export, and input latency. [Shopify's React Native Skia path examples](https://shopify.engineering/getting-started-with-react-native-skia)
+
 ## Scope
 
 This app uses Expo SDK modules that are included in its development and production builds:
