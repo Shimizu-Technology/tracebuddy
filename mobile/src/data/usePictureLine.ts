@@ -9,7 +9,14 @@ import type { PictureLine, PictureLineState } from './pictureLineModel'
 // Holds roughly a mounted gallery window. The native bundle and Expo's disk cache
 // handle the file itself, while concurrent views share a single read into JS.
 const cache = createPictureLineCache(async (moduleId) => {
-  const { localUri } = await Asset.fromModule(moduleId).downloadAsync()
+  const asset = Asset.fromModule(moduleId)
+  // Android Release resolves bundled assets to bare resource names, and expo-asset treats a sized
+  // asset with no scheme as already downloaded. Reset it so the native module copies the file first.
+  if (Platform.OS !== 'web' && !asset.uri.includes(':')) {
+    asset.downloaded = false
+    asset.localUri = null
+  }
+  const { localUri } = await asset.downloadAsync()
   if (!localUri) throw new Error('The line art asset is missing.')
   if (Platform.OS === 'web') {
     const response = await fetch(localUri)
