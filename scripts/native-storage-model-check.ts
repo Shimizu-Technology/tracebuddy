@@ -4,6 +4,7 @@ import {
   parseModePreference, parseParentSetupSeen, parseResumeContext, parseSavedAlignment,
   serializeModePreference, serializeResumeContext,
 } from '../mobile/src/data/localSettings.ts'
+import { normalizeLegacyPracticeAutosave } from '../mobile/src/data/legacyPractice.ts'
 import { createPreviousWorkStorage, parsePreviousWorkSession, previousWorkSessionKey } from '../mobile/src/data/previousWork.ts'
 import {
   legacyPracticeAutosavePrefix, localSettingKeys, previousWorkIndexKey,
@@ -127,5 +128,27 @@ assert.equal(parseModePreference(serializeModePreference('ar'), true), 'ar')
 assert.equal(parseModePreference(serializeModePreference('ar'), false), 'camera')
 assert.equal(parseModePreference('screen', false), 'screen')
 assert.equal(parseModePreference('{broken', true), 'camera')
+
+// A 1.1 autosave of an uploaded photo keeps its strokes; the photo itself was never stored, so the guide says so.
+const uploadedAutosave = normalizeLegacyPracticeAutosave({
+  drawingId: 'uploaded_family-photo', drawingName: 'Family photo', updatedAt: '2026-05-20T08:00:00.000Z',
+  strokes: [{ path: 'M 10 10 L 100 200', color: '#FF4FA3', width: 4, opacity: 0.9, mode: 'draw' }],
+}, 'tracebuddy.practice.v1.uploaded_family-photo', { width: 200, height: 400 })
+assert.ok(uploadedAutosave)
+assert.equal(uploadedAutosave.sessionId, 'legacy-uploaded_family-photo')
+assert.equal(uploadedAutosave.source.kind, 'custom')
+assert.equal(uploadedAutosave.source.drawingTheme, 'Legacy upload · image unavailable')
+assert.equal(uploadedAutosave.strokes[0].path, 'M 50 25 L 500 500')
+
+// Resuming practice on an uploaded photo keeps the photo reference.
+const uploadResume = {
+  mode: 'practice' as const, lessonId: 'easy-flower', sessionId: 'work-upload-1', history: ['picker'] as const,
+  source: {
+    kind: 'upload' as const, drawingId: 'upload-1', drawingName: 'Beach day', drawingTheme: 'Your photo',
+    uploadedImage: { uri: 'file:///var/mobile/Containers/Data/Application/X/Documents/tracebuddy-images/upload-1.jpg', name: 'Beach day', width: 1200, height: 900 },
+  },
+}
+const storedUploadResume = serializeResumeContext({ ...uploadResume, history: [...uploadResume.history] })
+assert.deepEqual(parseResumeContext(storedUploadResume), JSON.parse(storedUploadResume))
 
 console.log('Native storage: 1.2 Previous Work and current keepsakes round-trip, autosave migration retries safely, revoked writes are ignored, settings keep their wire formats')

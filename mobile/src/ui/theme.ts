@@ -41,7 +41,7 @@ export const theme = {
     shadowOpacity: 0.08,
   },
   target: { child: 64, adult: 48, minimum: 44 },
-  icon: { size: 24, weight: 'duotone' },
+  icon: { size: 24, weight: 'bold' },
   motion: {
     spring: { damping: 18, stiffness: 180 },
     press: { scale: 0.96, duration: 140 },

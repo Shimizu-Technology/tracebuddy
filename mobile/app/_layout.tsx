@@ -6,11 +6,12 @@ import { Nunito_800ExtraBold } from '@expo-google-fonts/nunito/800ExtraBold'
 import { useFonts } from 'expo-font'
 import { SplashScreen, Stack } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { useReducedMotion } from 'react-native-reanimated'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
+import { devKitEnabled } from '../src/devKit'
 import { smallSheetOptions } from '../src/ui/Sheet'
 import { theme } from '../src/ui/theme'
+import { useReduceMotion } from '../src/ui/useReduceMotion'
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined)
 
@@ -28,7 +29,7 @@ export const unstable_settings = { initialRouteName: 'index' }
 export default function RootLayout() {
   const [loaded, error] = useFonts(fonts)
   const [timedOut, setTimedOut] = useState(false)
-  const reduceMotion = useReducedMotion()
+  const reduceMotion = useReduceMotion()
   const ready = loaded || Boolean(error) || timedOut
 
   useEffect(() => {
@@ -48,11 +49,13 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'default' }}>
           <Stack.Screen name="index" />
-          <Stack.Screen name="dev/kit" />
-          <Stack.Screen
-            name="dev/kit-sheet"
-            options={{ ...smallSheetOptions, sheetResizeAnimationEnabled: !reduceMotion }}
-          />
+          <Stack.Protected guard={devKitEnabled}>
+            <Stack.Screen name="dev/kit" />
+            <Stack.Screen
+              name="dev/kit-sheet"
+              options={{ ...smallSheetOptions, sheetResizeAnimationEnabled: !reduceMotion }}
+            />
+          </Stack.Protected>
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

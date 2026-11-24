@@ -1,5 +1,11 @@
-import { Redirect } from 'expo-router'
+import { useEffect } from 'react'
+import { router } from 'expo-router'
 
+// Unknown links return to the existing home route. A replace would mount a second legacy app.
 export default function UnmatchedRoute() {
-  return <Redirect href="/" />
+  useEffect(() => {
+    if (router.canDismiss()) router.dismissTo('/')
+    else router.replace('/')
+  }, [])
+  return null
 }

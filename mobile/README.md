@@ -38,7 +38,7 @@ The flow covers the picture picker, a Together activity, on-screen practice, the
 
 ## 2.0 foundation
 
-Open `tracebuddy://dev/kit` in an installed build to review the tokens and components. The app has no navigation link to this route. The index route opens the existing picker and drawing flows.
+Open `tracebuddy://dev/kit` in a development build to review the tokens and components. Release builds include the kit only when built with `EXPO_PUBLIC_DEV_KIT=1`; App Store builds should not set it. The app has no navigation link to this route. Every other incoming link returns to the index route, which opens the existing picker and drawing flows.
 
 Use the native stack for sheets. The [example options](src/ui/Sheet.ts) set `presentation: 'formSheet'`, a single short detent, a native grabber, and an undimmed backdrop. Keep phone detents at or below 40%. Give sheet content room to scroll with large text, and move any guide or canvas that the user is adjusting above the sheet before opening it. The kit example supports downward dismissal and an accessible close button. [Expo Router modals](https://docs.expo.dev/router/advanced/modals/)
 

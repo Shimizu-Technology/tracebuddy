@@ -2,9 +2,10 @@ import type { ReactNode } from 'react'
 import type { PressableProps, StyleProp, ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
 import * as Haptics from 'expo-haptics'
-import Animated, { ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated'
+import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 
 import { theme } from './theme'
+import { useReduceMotion } from './useReduceMotion'
 
 export type PressTargetProps = Pick<PressableProps, 'accessibilityLabel' | 'accessibilityHint' | 'disabled' | 'onPress' | 'testID'> & {
   children: ReactNode
@@ -15,7 +16,7 @@ export type PressTargetProps = Pick<PressableProps, 'accessibilityLabel' | 'acce
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
 export function PressTarget({ disabled, haptic, onPress, style, ...props }: PressTargetProps) {
-  const reduceMotion = useReducedMotion()
+  const reduceMotion = useReduceMotion()
   const scale = useSharedValue(1)
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }))
 

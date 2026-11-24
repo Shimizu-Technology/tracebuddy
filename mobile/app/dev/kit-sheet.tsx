@@ -1,9 +1,9 @@
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { router } from 'expo-router'
-import { XIcon } from 'phosphor-react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { IconButton } from '../../src/ui/IconButton'
+import { XIcon } from '../../src/ui/icons'
 import { Text } from '../../src/ui/Text'
 import { theme } from '../../src/ui/theme'
 

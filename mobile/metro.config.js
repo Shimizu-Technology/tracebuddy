@@ -11,7 +11,9 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 
-// Router's query-string 7 expects a callable CommonJS export. The fixed decoder is ESM.
+// Security pin for GHSA-qr28-fpjm-wq7f: package.json overrides query-string's decode-uri-component to 0.5.1.
+// Router's query-string 7 expects a callable CommonJS export, and the fixed decoder is ESM, so alias it here.
+// Keep the override and this alias together. Jest or Node consumers of query-string would need the same alias.
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'decode-uri-component' && context.originModulePath.includes(`${path.sep}query-string${path.sep}`)) {
     return { type: 'sourceFile', filePath: path.join(projectRoot, 'shims', 'queryStringDecoder.js') }
