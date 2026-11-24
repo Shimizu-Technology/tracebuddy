@@ -25,7 +25,7 @@
     "check:family-model": "tsx scripts/family-model-check.ts",
     "check:mobile-print": "tsx scripts/mobile-print-check.ts",
     "check:ar-model": "tsx scripts/ar-trace-model-check.ts",
-    "check:paper-model": "tsx scripts/paper-model-check.ts && tsx scripts/paper-motion-check.ts && tsx scripts/paper-session-check.ts",
+    "check:paper-model": "tsx scripts/paper-model-check.ts && tsx scripts/paper-motion-check.ts && tsx scripts/paper-session-check.ts && tsx scripts/paper-navigation-check.ts && tsx scripts/paper-hook-check.ts",
     "drawings:validate": "tsx scripts/validate-drawings.ts",
     "drawings:contact-sheets": "tsx scripts/generate-drawing-contact-sheets.ts",
     "audit:check": "node scripts/audit-check.mjs",

@@ -40,7 +40,6 @@ import { PermissionCard } from './PermissionCard'
 import { pictureRouteParams, resolvePaperPicture } from './paperPicture'
 import type { PaperParams, PaperPicture } from './paperPicture'
 import { useCameraAccess } from './useCameraAccess'
-import { childModeState } from './childModeState'
 import { useChildModeGuard } from './useChildModeGuard'
 import { useGuideGesture } from './useGuideGesture'
 import { usePhotoLease } from './usePhotoLease'
@@ -151,12 +150,13 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
     livePose.current = arPoseFor(pose, metersPerPoint, arOffsetLimit, opacity)
   }, [metersPerPoint, opacity, pose])
 
+  const setChildMode = useChildModeGuard(owner, childMode, useCallback(() => setToast('Hold the lock to unlock first'), []))
   const dispatch = useCallback((event: StickEvent) => {
     const before = stickRef.current
     const next = stickTransition(before, event)
     stickRef.current = next.state
-    // The child-mode flag changes in the same step as the state, before anything re-renders.
-    childModeState.set(owner, next.state.phase === 'child')
+    // Child mode is armed (or disarmed) in the same step as the state, before the locked UI renders.
+    if ((before.phase === 'child') !== (next.state.phase === 'child')) setChildMode(next.state.phase === 'child')
     setStick(next.state)
     if (before.phase === 'adjusting' && (next.state.phase === 'placing' || next.state.phase === 'child')) {
       frozenRef.current = livePose.current
@@ -183,7 +183,7 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
     if (next.effect === 'trackingLost') setToast('The picture may have moved. Check it, then lock again.')
     if (next.effect === 'notFound') setToast('Couldn’t find the paper. Try again.')
     return next
-  }, [fade, owner, rotation, scale, x, y])
+  }, [fade, rotation, scale, setChildMode, x, y])
 
   // Gestures and the fade write shared values; only changes made while adjusting reach ARKit, so a late frame
   // can't move or fade a placed guide.
@@ -200,7 +200,6 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
     return () => { void deactivateKeepAwake(keepAwakeTag).catch(() => undefined) }
   }, [])
 
-  useChildModeGuard(owner, childMode, useCallback(() => setToast('Hold the lock to unlock first'), []))
   // Keep a photo's file while it is placed on the paper, taking over On paper's hand-off.
   const photoUri = picture.kind === 'photo' ? picture.picture.uploadedImage?.uri : undefined
   usePhotoLease(photoUri)

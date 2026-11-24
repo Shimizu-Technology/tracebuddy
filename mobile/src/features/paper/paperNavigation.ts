@@ -1,30 +1,40 @@
 import { router } from 'expo-router'
-import { StackActions } from 'expo-router/build/react-navigation/routers'
 
-import { traceBuddy2Enabled } from '../../devKit'
+import { paperLockEnabled, traceBuddy2Enabled } from '../../devKit'
+import { drawInsteadAction } from './drawInstead'
+import type { AppStack } from './drawInstead'
 import { pictureRouteParams } from './paperPicture'
 import type { PaperParams } from './paperPicture'
 import { photoHandoff } from './usePhotoLease'
 
-type Navigation = { dispatch: (action: ReturnType<typeof StackActions.replace>) => void; getParent: () => Navigation | undefined }
+type Navigation = {
+  dispatch: (action: ReturnType<typeof drawInsteadAction>['action']) => void
+  getParent: () => Navigation | undefined
+  getState: () => AppStack | undefined
+}
 
 /** "Draw on the screen instead" exists only where the 2.0 Draw route does. */
 export const canDrawInstead = traceBuddy2Enabled
 
+/** Stick to paper (Paper Lock) stays off in 2.0 until it passes the physical accuracy test. */
+export const canStickToPaper = paperLockEnabled
+
 /**
- * Both tracing screens send "Draw on the screen instead" to the same Draw route with the same picture. Draw
- * takes On paper's place in the app's stack ([Home, Draw], like On the screen from the Picture sheet), and the
- * photo, if any, is handed over so its file is kept through the switch.
+ * Both tracing screens send "Draw on the screen instead" to Draw with the same picture, without stacking a
+ * second Draw (see drawInsteadAction). A new Draw gets the photo, if any, handed over so its file is kept
+ * through the switch.
  */
 export function drawOnScreenInstead(navigation: Navigation, params: PaperParams, photoUri?: string) {
-  photoHandoff.handOff(photoUri)
-  // On paper's routes are a nested stack; Draw replaces that whole group in the app's stack.
+  // On paper's routes are a nested stack, one group in the app's stack.
   const appStack = navigation.getParent() ?? navigation
-  appStack.dispatch(StackActions.replace('draw/[id]', pictureRouteParams(params)))
+  const next = drawInsteadAction(appStack.getState(), params)
+  if (next.kind === 'replace') photoHandoff.handOff(photoUri)
+  appStack.dispatch(next.action)
 }
 
 /** The Stick to paper (Paper Lock) route for the same picture, over On paper. */
 export function openStickToPaper(params: PaperParams, photoUri?: string) {
+  if (!canStickToPaper) return
   photoHandoff.handOff(photoUri)
   router.push({ pathname: '/paper/stick/[id]', params: pictureRouteParams(params) })
 }

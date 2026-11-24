@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect, useNavigation } from 'expo-router'
 
-import { openStickToPaper } from './paperNavigation'
+import { canStickToPaper, openStickToPaper } from './paperNavigation'
 import type { PaperParams } from './paperPicture'
 import { paperStore } from './paperStore'
 import { paperTheme } from './paperTheme'
@@ -44,21 +44,29 @@ export function useStickHandoff(params: PaperParams, photoUri: string | undefine
 
   useFocusEffect(useCallback(() => {
     // Closing More on the way to AR focuses this screen again; that doesn't end the wait.
-    if (stage.current === 'waiting') return () => { if (stage.current === 'waiting') cancel() }
-    if (stage.current === 'open') restartCamera()
-    stage.current = 'none'
-    setHandedOff(false)
-    return undefined
+    if (stage.current !== 'waiting') {
+      if (stage.current === 'open') restartCamera()
+      stage.current = 'none'
+      setHandedOff(false)
+    }
+    // Every focus period: losing focus while waiting (including a wait started after this focus) gives the
+    // camera back.
+    return () => { if (stage.current === 'waiting') cancel() }
   }, [cancel, restartCamera]))
 
   const start = useCallback(() => {
-    if (stage.current !== 'none') return
+    if (!canStickToPaper || stage.current !== 'none') return
     stage.current = 'waiting'
     setHandedOff(true)
     const open = () => {
       pending.current.timer = setTimeout(() => {
         pending.current = {}
-        if (!mounted.current || stage.current !== 'waiting' || !navigation.isFocused()) return
+        if (!mounted.current || stage.current !== 'waiting') return
+        if (!navigation.isFocused()) {
+          // Something else took focus: don't open AR, and give the camera back.
+          cancel()
+          return
+        }
         stage.current = 'open'
         openStickToPaper(params, photoUri)
       }, paperTheme.timing.cameraHandoffMs)
@@ -73,7 +81,7 @@ export function useStickHandoff(params: PaperParams, photoUri: string | undefine
       pending.current.unsubscribe = undefined
       open()
     })
-  }, [navigation, params, photoUri])
+  }, [cancel, navigation, params, photoUri])
 
   return { handedOff, start, cancel }
 }

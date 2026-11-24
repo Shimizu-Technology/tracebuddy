@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { SvgXml } from 'react-native-svg'
 
 import { drawingById } from '@tracebuddy/shared'
+import { paperLockEnabled } from '../../src/devKit'
 import { Button } from '../../src/ui/Button'
 import { Icon } from '../../src/ui/Icon'
 import { PencilSimpleIcon, SparkleIcon, XIcon } from '../../src/ui/icons'
@@ -43,7 +44,9 @@ export default function Kit() {
             <Button label="On paper: camera fails after Lock" variant="quiet" target="adult" onPress={() => router.navigate('/paper/happy-crab?level=simple&fault=camera')} />
             <Button label="On paper: tries to leave after Lock" variant="quiet" target="adult" onPress={() => router.navigate('/paper/happy-crab?level=simple&fault=leave')} />
             <Button label="On paper: a screen is pushed over it after Lock" variant="quiet" target="adult" onPress={() => router.navigate('/paper/happy-crab?level=simple&fault=push')} />
-            <Button label="Open Stick to paper: crab" variant="quiet" target="adult" onPress={() => router.navigate('/paper/stick/happy-crab?level=simple')} />
+            {paperLockEnabled ? (
+              <Button label="Open Stick to paper: crab" variant="quiet" target="adult" onPress={() => router.navigate('/paper/stick/happy-crab?level=simple')} />
+            ) : null}
             <View style={styles.row}>
               <Button label="Secondary" variant="secondary" target="adult" onPress={() => setAction('Secondary pressed')} />
               <Button label="Quiet" variant="quiet" target="adult" onPress={() => setAction('Quiet pressed')} />

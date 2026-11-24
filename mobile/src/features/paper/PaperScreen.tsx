@@ -28,7 +28,7 @@ import { MoreContent } from './MoreSheet'
 import { BottomBar, Pill, TopBar } from './PaperControls'
 import { clampCenterOffset, fitArt, fitPage, screenOrientation, sheetCover } from './paperModel'
 import type { ScreenOrientation } from './paperModel'
-import { canDrawInstead, drawOnScreenInstead } from './paperNavigation'
+import { canDrawInstead, canStickToPaper, drawOnScreenInstead } from './paperNavigation'
 import { paperStore, usePaperOptions } from './paperStore'
 import type { PaperRequest } from './paperStore'
 import { paperTheme } from './paperTheme'
@@ -38,7 +38,6 @@ import type { PaperParams, PaperPicture } from './paperPicture'
 import { TableStandIn } from './TableStandIn'
 import { TipsCard } from './TipsCard'
 import { useCameraAccess } from './useCameraAccess'
-import { childModeState } from './childModeState'
 import { useChildModeGuard } from './useChildModeGuard'
 import { usePhotoLease } from './usePhotoLease'
 import { useRememberedSetup } from './useRememberedSetup'
@@ -115,14 +114,14 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   // Child mode keeps the locked alignment through a turn of the device, and hides it until the device turns back.
   const turnedAway = locked && !setup.hydrated
 
-  useEffect(() => paperStore.startPicture({ canUseLightLines: picture.kind === 'drawing', stickAvailable: arSupported }), [arSupported, picture.kind])
+  useEffect(() => paperStore.startPicture({ canUseLightLines: picture.kind === 'drawing', stickAvailable: canStickToPaper && arSupported }), [arSupported, picture.kind])
 
   useEffect(() => {
     void activateKeepAwakeAsync(keepAwakeTag).catch(() => undefined)
     return () => { void deactivateKeepAwake(keepAwakeTag).catch(() => undefined) }
   }, [])
 
-  useChildModeGuard(owner, locked, useCallback(() => setToast('Hold the lock to unlock first'), []))
+  const setChildMode = useChildModeGuard(owner, locked, useCallback(() => setToast('Hold the lock to unlock first'), []))
 
   // First time only, once the camera can show the paper.
   useEffect(() => {
@@ -228,15 +227,16 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
       setToast('Wait for the camera, then lock')
       return
     }
-    // The child-mode flag goes on here, in the same handler, before anything re-renders.
-    childModeState.set(owner, true)
+    // Arm child mode here, in the same handler, before the locked UI renders: the flag (navigation is refused
+    // from now on) and the swipe-back settings go in the same commit as the lock.
+    setChildMode(true)
     paperStore.set({ sheetOpen: false, sheetTop: null })
     setMoreCard(false)
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined)
     setHint(false)
     setLocked(true)
     setToast('Locked. Time to trace!')
-  }, [camera.cameraReady, owner])
+  }, [camera.cameraReady, setChildMode])
 
   // Dev kit only: shortly after Lock, `fault=camera` makes the camera fail, `fault=leave` tries to navigate back
   // and `fault=push` pushes another screen over it, to check child mode stays sealed.
@@ -253,10 +253,10 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   }, [fault, locked, onMountError])
 
   const unlock = useCallback(() => {
-    childModeState.set(owner, false)
+    setChildMode(false)
     setLocked(false)
     setToast('Unlocked')
-  }, [owner])
+  }, [setChildMode])
 
   const sides = { left: insets.left + theme.space.lg, right: insets.right + theme.space.lg }
   const faderHeight = Math.min(paperTheme.size.fader.maxHeight, window.height * paperTheme.size.fader.heightFraction)
