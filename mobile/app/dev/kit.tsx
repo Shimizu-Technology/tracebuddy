@@ -39,6 +39,7 @@ export default function Kit() {
 
           <Section title="Components">
             <Button label="Open example sheet" haptic onPress={() => router.navigate('/dev/kit-sheet')} />
+            <Button label="Open On paper: crab" variant="secondary" onPress={() => router.navigate('/paper/happy-crab?level=simple')} />
             <View style={styles.row}>
               <Button label="Secondary" variant="secondary" target="adult" onPress={() => setAction('Secondary pressed')} />
               <Button label="Quiet" variant="quiet" target="adult" onPress={() => setAction('Quiet pressed')} />

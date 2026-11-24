@@ -69,22 +69,25 @@ Opens as a native sheet over Home.
 
 ### On paper (camera trace)
 
-- Full-screen camera. The guide is the only thing in the middle and starts sized to a sheet of paper.
-- Gestures on the guide: one-finger drag, pinch to resize, twist to rotate. Snap to 0°/90° near those angles, with a light haptic.
-- **Fade slider** fixed on the right edge, always visible, with a live preview.
+- Full-screen camera. The guide is the only thing in the middle and starts sized to a sheet of paper: a dashed, page-shaped frame (Letter proportions) with the picture inside it, so lining the frame up with the real paper's edges is the whole setup.
+- Gestures on the guide: one-finger drag, pinch to resize, twist to rotate, all at once. Dragging a corner handle resizes and turns for one-handed use. Snap to 0°/90°/180°/270° within about 4°, with a light haptic. VoiceOver gets Make bigger, Make smaller, Turn left and Turn right actions.
+- **Fade slider** fixed on the right edge, always visible while unlocked, with a live preview. It is an adjustable control for VoiceOver.
 - Bottom bar with three buttons: **Page** (flip portrait/landscape), **Lock** (the main action), and **Done**.
 - Top: Close (✕) at left, More (•••) at right.
-- **More** opens a small, undimmed native sheet that never covers the guide (the guide moves up while it's open) and swipes down to close. It holds:
+- **More** opens a small, undimmed native sheet (40% detent) that never covers the guide (the camera and guide move up together, so their alignment stays visible) and swipes down to close. On wide screens (iPad, phones held sideways), where iOS floats form sheets mid-screen, it opens as a bottom card with the same contents and swipe-down instead. It holds:
   - fine-tune nudge
-  - line color (dark or light, for dark paper)
+  - light lines (for dark paper)
   - mirror
-  - stick to paper (Paper Lock) status
+  - stick to paper (Paper Lock), on AR-capable devices
   - setup tips
-  - print this picture (gated)
-- **Lock** hides all controls except a small lock badge, keeps the screen awake, and turns on child mode. Unlocking takes a 1.5-second hold on the badge, with a progress ring. Lock and child mode are one concept.
-- **First time only:** three illustrated tips (steady stand, whole page in view, even light), each one picture and one short line, with a speaker button when read-aloud is on. Swipeable and skippable. Not a checklist gate. The camera permission explanation is one sentence before the system prompt.
+  - print this picture (gated) — later, with the grown-up gate
+- **Lock** hides all controls except a small lock badge, keeps the screen awake, hides the status bar, turns off swipe back, and turns on child mode. Unlocking takes a 1.5-second hold on the badge, with a progress ring and a haptic. A tap only shows "Hold to unlock". With VoiceOver, activating the badge asks for confirmation instead. Lock and child mode are one concept.
+- **Remember the setup:** position, size, turn, fade and page are saved automatically for each screen orientation in `tracebuddy.savedAlignment.v1`. The top-level fields keep the 1.x format (and hold the latest setup); 2.0 adds `page` and `byOrientation`. A 1.x saved setup is used until 2.0 saves its own.
+- **First time only:** three illustrated tips (steady stand, whole page in view, even light), each one picture and one short line, with a speaker button when read-aloud is on (later, with read-aloud). Swipeable and skippable. Not a checklist gate. The "seen" flag reuses `parentSetupSeen`. The camera permission explanation is one sentence before the system prompt.
 - If permission is denied, show a clear Open Settings action and a "Draw on the screen instead" option.
-- **Done:** a gentle well-done moment, with an option to snap a photo of the paper drawing. The photo is taken by the user, saved locally to My drawings, and only goes to Photos if they choose. Privacy copy gets updated to match.
+- **Stick to paper** (Paper Lock) opens as `/paper/stick/[id]` with the same gestures, fade slider and bar, plus an always-visible tracking status. Lock places the guide on the paper first and turns on child mode only when tracking says the guide is held; child mode ends by itself if tracking slips. It uses Surface Lock and Letter pages; Marker Lock and A4 stay in the 1.x Paper Lock screen for now.
+- **Done:** a gentle well-done moment ("Great tracing!", confetti-lite, one success haptic, a still version under Reduce Motion), then Keep tracing or New picture. Snapping a photo of the paper drawing comes later: the photo is taken by the user, saved locally to My drawings, and only goes to Photos if they choose. Privacy copy gets updated to match.
+- In the iOS Simulator (no camera) a table-and-paper stand-in replaces the camera so the screen and gestures can be tried.
 
 ### On the screen (draw)
 
