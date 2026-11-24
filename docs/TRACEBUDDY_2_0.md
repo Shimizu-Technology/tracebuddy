@@ -1,6 +1,6 @@
 # TraceBuddy 2.0
 
-The plan and design spec for the TraceBuddy 2.0 redesign. This is the source of truth for 2.0 work. If code and this document disagree, fix one of them in the same PR.
+The plan and design spec for the TraceBuddy 2.0 redesign. This is the source of truth for 2.0 work. A PR that builds or changes a 2.0 screen keeps that screen and this document in agreement. Legacy screens are out of scope until their 2.0 replacement lands (see Phases).
 
 Status: approved direction, 24 November 2026. The review behind it is at https://claude.ai/artifact/BUhKdDJVfcb6VNKEYdMqum (private to Leon).
 
@@ -31,7 +31,7 @@ Every 2.0 screen follows these. A PR that breaks one needs a written reason.
 3. **Never cover the work.** A panel never hides the guide or canvas the user is adjusting. Panels are short (40% of the screen at most on phones), swipe down to close, and leave the subject visible. If something needs more room, the subject moves up, not under.
 4. **Works without reading.** Every child-facing control is recognizable from its icon. Text labels help adults but never carry the meaning alone. When read-aloud is on, prompts have a speaker button.
 5. **One main action per screen,** visibly larger and in the brand color. Everything else stays quiet.
-6. **Grown-up actions behind a gate.** Deleting, clearing, settings, printing, and words/name setup need a parent gate. Using a photo and tracing do not, so adults are never blocked.
+6. **Grown-up actions behind a gate.** Deleting, clearing, settings, printing, and the handwriting setup in Grown-ups (letter style, guide lines, practice sheets) need a parent gate. Typing a quick name or word, using a photo, and tracing do not, so children and adults are never blocked from drawing.
 7. **Feel native.** Native stack transitions, swipe back, native sheets with detents, spring motion, haptics on lock, unlock, undo, and done. Respect Reduce Motion and Dynamic Type.
 
 ## Visual system
@@ -52,7 +52,7 @@ Every 2.0 screen follows these. A PR that breaks one needs a written reason.
 - **Keep going** card when there's recent work: a big thumbnail and one play button that reopens the last drawing exactly where it was.
 - Category chips in one swipeable row, each with an icon: All, Animals, Ocean, Magic, Things that go, Guam, Letters and numbers, Shapes.
 - A grid of picture tiles, two columns on phones and three to four on iPad. Each tile is the **color art** on a pastel background with the name under it. No per-tile Print, PDF, SVG, level, or "On paper" labels.
-- Special tiles at the start of the grid: **My photo** (pick from Photos) and **My name** (type a name or word; this opens a keyboard sheet, and the sheet is not gated).
+- Special tiles at the start of the grid: **My photo** (pick from Photos) and **My name** (type a name or word in a keyboard sheet). Both are ungated. Handwriting setup options live in Grown-ups.
 - Rows below the grid: **Learn to draw** (lessons) and **Play together** (best 4–6 activities).
 - Search is a magnifier in the header, mostly for adults.
 - Favorites: long-press a tile to favorite it. A Favorites chip appears once there's at least one.
@@ -87,7 +87,7 @@ Opens as a native sheet over Home.
 
 ### On the screen (draw)
 
-- An edge-to-edge square document. The guide is visible underneath at a readable strength, with lines drawn on top.
+- An edge-to-edge square document. The guide shows faintly under the ink, and its outlines are also drawn above the ink so coloring never hides them. This is today's "lines on top" behavior, now always on.
 - One finger draws. Two fingers pan and zoom (zoom range 1–5×). No Draw/Move toggle.
 - **Color rail:** a crayon box of 12 colors always on screen (side rail on iPad and landscape, bottom strip on phone portrait). The current color shows as a raised crayon.
 - **Tools:** three size dots, the brush style (crayon, marker, paint, pencil) as a single button that cycles or opens a small sheet, an eraser, Undo (large), and **Done** (main action). Picking a color while erasing switches back to the last brush.
