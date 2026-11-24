@@ -1,0 +1,131 @@
+import assert from 'node:assert/strict'
+import {
+  parentSetupSeenValue, parseDrawingPreferences, parseFamilyActivity, parseLearningProgress,
+  parseModePreference, parseParentSetupSeen, parseResumeContext, parseSavedAlignment,
+  serializeModePreference, serializeResumeContext,
+} from '../mobile/src/data/localSettings.ts'
+import { createPreviousWorkStorage, parsePreviousWorkSession, previousWorkSessionKey } from '../mobile/src/data/previousWork.ts'
+import {
+  legacyPracticeAutosavePrefix, localSettingKeys, previousWorkIndexKey,
+} from '../mobile/src/data/storageKeys.ts'
+
+assert.deepEqual(localSettingKeys, [
+  'tracebuddy.resumeContext.v1',
+  'tracebuddy.drawingPreferences.v1',
+  'tracebuddy.learningProgress.v1',
+  'tracebuddy.parentSetupSeen.v1',
+  'tracebuddy.savedAlignment.v1',
+  'tracebuddy.familyActivity.v1',
+  'tracebuddy.modePreference.v1',
+])
+assert.equal(previousWorkIndexKey, 'tracebuddy.previousWork.v1.index')
+assert.equal(legacyPracticeAutosavePrefix, 'tracebuddy.practice.v1.')
+
+// Synthetic drawing with the keys and version 2 payload written by the 1.2 release (7fe7f63).
+const savedIn12 = {
+  version: 2,
+  sessionId: 'work-mpufogzk-8p7ksd',
+  title: 'Butterfly',
+  source: { kind: 'drawing', drawingId: 'butterfly', drawingName: 'Butterfly', drawingTheme: 'Symmetry' },
+  createdAt: '2026-06-01T09:00:00.000Z',
+  updatedAt: '2026-06-01T09:01:18.000Z',
+  strokes: [
+    { path: 'M 122 133 L 210 245 L 430 570', color: '#18243A', width: 25, opacity: 0.9, mode: 'draw' },
+    { path: 'M 210 245 L 245 234', color: '#18243A', width: 55, opacity: 1, mode: 'erase' },
+  ],
+  stickers: [{
+    stickerId: 'work-mpufpgpe-q52vbn', kind: 'shape', label: 'Heart',
+    x: 350, y: 390, width: 170, height: 170, rotation: 0, opacity: 0.88,
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M 50 82 L 20 42 L 50 20 L 80 42 Z"/></svg>',
+  }],
+  canvasWidth: 1000,
+  canvasHeight: 1000,
+  guideOpacity: 0.24,
+  guideOnTop: false,
+  markerColor: '#18243A',
+  markerWidth: 9,
+  brushToolId: 'marker',
+}
+const historicalSessionKey = 'tracebuddy.previousWork.v1.session.work-mpufogzk-8p7ksd'
+const legacyKey = 'tracebuddy.practice.v1.line-paths'
+const records = new Map([
+  [historicalSessionKey, JSON.stringify(savedIn12)],
+  [previousWorkIndexKey, JSON.stringify({ version: 1, ids: [savedIn12.sessionId] })],
+  [legacyKey, JSON.stringify({
+    drawingId: 'line-paths', drawingName: 'Line Paths', updatedAt: '2026-05-14T12:00:00.000Z',
+    strokes: [{ path: 'M 20 40 L 60 80', color: '#18243A', width: 2, opacity: 0.9, mode: 'draw' }],
+  })],
+  ['tracebuddy.practice.v1.invalid', '{'],
+])
+let allowWrite = true
+const storage = createPreviousWorkStorage({
+  getAllKeys: async () => [...records.keys()],
+  getItem: async (key) => records.get(key) ?? null,
+  setItem: async (key, value) => { records.set(key, value) },
+  multiGet: async (keys) => keys.map((key) => [key, records.get(key) ?? null]),
+  multiSet: async (entries) => {
+    if (!allowWrite) throw new Error('fixture storage write failed')
+    entries.forEach(([key, value]) => records.set(key, value))
+  },
+  removeItem: async (key) => { records.delete(key) },
+})
+
+assert.equal(previousWorkSessionKey(savedIn12.sessionId), historicalSessionKey)
+const [saved] = await storage.loadPreviousWorkSessions()
+assert.deepEqual(JSON.parse(JSON.stringify(saved)), savedIn12)
+assert.equal(saved.stamp, undefined)
+assert.equal(saved.finishedAt, undefined)
+
+const keepsake = { ...saved, stamp: 'heart' as const, finishedAt: '2026-06-02T09:00:00.000Z' }
+await storage.savePreviousWorkSession(keepsake, () => true)
+assert.deepEqual(await storage.loadPreviousWorkSessions(), [parsePreviousWorkSession(records.get(historicalSessionKey) ?? null)])
+assert.deepEqual((await storage.loadPreviousWorkSessions())[0], keepsake)
+
+allowWrite = false
+await storage.loadPreviousWorkSessionsWithLegacyMigration({ width: 200, height: 400 })
+assert.ok(records.has(legacyKey), 'A failed migration keeps the original autosave')
+allowWrite = true
+const sessions = await storage.loadPreviousWorkSessionsWithLegacyMigration({ width: 200, height: 400 })
+assert.deepEqual(sessions.map((session) => session.sessionId), [savedIn12.sessionId, 'legacy-line-paths'])
+assert.equal(sessions[1].strokes[0].path, 'M 100 100 L 300 200')
+assert.equal(sessions[1].strokes[0].width, 5)
+assert.ok(!records.has(legacyKey), 'A completed migration removes the original autosave')
+assert.ok(records.has('tracebuddy.practice.v1.invalid'), 'Malformed autosaves remain untouched')
+assert.deepEqual(await storage.loadPreviousWorkSessionsWithLegacyMigration({ width: 200, height: 400 }), sessions)
+
+records.set(previousWorkIndexKey, '{broken')
+assert.deepEqual(await storage.loadPreviousWorkSessions(() => false), sessions)
+assert.equal(records.get(previousWorkIndexKey), '{broken', 'A revoked read cannot rewrite the index')
+assert.deepEqual(await storage.loadPreviousWorkSessions(), sessions)
+assert.deepEqual(JSON.parse(records.get(previousWorkIndexKey)!), { version: 1, ids: sessions.map((session) => session.sessionId) })
+await storage.savePreviousWorkSession({ ...saved, sessionId: 'revoked' }, () => false)
+assert.ok(!records.has(previousWorkSessionKey('revoked')), 'A revoked save cannot write a new session')
+
+const preferences = { version: 1, favoriteIds: ['butterfly'], recentIds: ['butterfly', 'line-paths'] }
+const progress = { version: 1, completedLessonIds: ['line-control'], stepByLessonId: { 'line-control': 2, 'easy-flower': 1 } }
+const alignment = { version: 1, x: 12, y: -10, scale: 1.1, rotation: 15, opacity: 0.45 }
+assert.deepEqual(parseDrawingPreferences(JSON.stringify(preferences)), preferences)
+assert.deepEqual(parseLearningProgress(JSON.stringify(progress)), progress)
+assert.deepEqual(parseSavedAlignment(JSON.stringify(alignment)), alignment)
+assert.equal(parseParentSetupSeen(parentSetupSeenValue), true)
+assert.equal(parseParentSetupSeen(null), false)
+assert.equal(parseParentSetupSeen('true'), false)
+assert.equal(parseFamilyActivity('mirror-my-marks'), 'mirror-my-marks')
+assert.equal(parseFamilyActivity('removed-activity'), 'take-turn-doodle')
+
+const resume = {
+  mode: 'practice' as const, lessonId: 'easy-flower', sessionId: savedIn12.sessionId, source: saved.source,
+  history: ['picker', 'learn'] as const,
+}
+const storedResume = serializeResumeContext({ ...resume, history: [...resume.history] })
+assert.deepEqual(parseResumeContext(storedResume), JSON.parse(storedResume))
+assert.deepEqual(parseResumeContext('{"mode":"learn","lessonId":"line-control"}'), {
+  mode: 'learn', lessonId: 'line-control', sessionId: null, source: undefined, history: [],
+})
+assert.equal(serializeModePreference('ar'), '{"version":1,"mode":"camera","nativeSurface":"ar"}')
+assert.equal(parseModePreference(serializeModePreference('ar'), true), 'ar')
+assert.equal(parseModePreference(serializeModePreference('ar'), false), 'camera')
+assert.equal(parseModePreference('screen', false), 'screen')
+assert.equal(parseModePreference('{broken', true), 'camera')
+
+console.log('Native storage: 1.2 Previous Work and current keepsakes round-trip, autosave migration retries safely, revoked writes are ignored, settings keep their wire formats')

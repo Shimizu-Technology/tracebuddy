@@ -62,7 +62,15 @@
           "backgroundColor": "#FFF7EA"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-router",
+        {
+          "sitemap": false
+        }
+      ],
+      "expo-font",
+      "expo-image"
     ],
     "owner": "shimizutechnology",
     "extra": {

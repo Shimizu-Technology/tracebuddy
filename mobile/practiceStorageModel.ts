@@ -4,6 +4,7 @@ import type { KeepsakeStamp } from './finishFindModel'
 // Pure Previous Work model: input, persistence and SVG rendering share document units.
 // 1,000,000 covers all existing native widths (even a 1 pt canvas and legacy
 // pixel-to-document migration), with headroom and a finite SVG geometry bound.
+export const defaultMarkerColor = '#18243A'
 export const maxPracticeStrokeWidth = 1_000_000
 export function practiceStrokeWidth(width: number) {
   return Number.isFinite(width) ? Math.min(maxPracticeStrokeWidth, Math.max(Number.MIN_VALUE, width)) : 1
@@ -110,7 +111,7 @@ export function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | n
 
   return {
     path: stroke.path,
-    color: typeof stroke.color === 'string' ? stroke.color : '#18243A',
+    color: typeof stroke.color === 'string' ? stroke.color : defaultMarkerColor,
     width: practiceStrokeWidth(stroke.width),
     opacity: typeof stroke.opacity === 'number' ? clamp(stroke.opacity, 0.05, 1) : 0.9,
     mode: stroke.mode === 'erase' ? 'erase' : 'draw',
@@ -198,7 +199,7 @@ export function normalizeSavedPracticeSession(value: unknown): SavedPracticeSess
     canvasHeight: typeof session.canvasHeight === 'number' && Number.isFinite(session.canvasHeight) ? Math.max(1, session.canvasHeight) : 1000,
     guideOpacity: typeof session.guideOpacity === 'number' ? clamp(session.guideOpacity, 0.08, 0.66) : 0.24,
     guideOnTop: typeof session.guideOnTop === 'boolean' ? session.guideOnTop : true,
-    markerColor: typeof session.markerColor === 'string' ? session.markerColor : '#18243A',
+    markerColor: typeof session.markerColor === 'string' ? session.markerColor : defaultMarkerColor,
     markerWidth: typeof session.markerWidth === 'number' ? session.markerWidth : 9,
     brushToolId: session.brushToolId && brushTools.some((tool) => tool.id === session.brushToolId) ? session.brushToolId : 'marker',
   }

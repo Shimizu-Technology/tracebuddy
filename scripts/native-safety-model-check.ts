@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { adjustUnlocked, childExitHoldMs, documentCapture, holdProgress, parentModeHelp, placeholderColor, selectedFamilyActivity } from '../mobile/nativeSafetyModel.ts'
+import { parseFamilyActivity } from '../mobile/src/data/localSettings.ts'
 const original = { x: 12, y: 5, scale: 1, rotation: 10, opacity: 0.7 }
 for (const key of ['x', 'y', 'scale', 'rotation', 'opacity'] as const) {
   assert.equal(adjustUnlocked(true, original, (value) => ({ ...value, [key]: 99 })), original)
@@ -179,34 +180,43 @@ for (const phase of ['decode', 'frame', 'permission', 'capture', 'photos'] as co
 console.log('Actual export/leave callbacks: Back blocked during decode/pre-capture; teardown cancels all five await phases without late feedback')
 
 let familyEffectText = ''
+let setupEffectText = ''
 function findFamilyEffect(node: import('typescript').Node) {
-  if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('getItem(familyActivityKey)')) familyEffectText = node.arguments[0].getText(ast)
+  if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect') {
+    const effect = node.arguments[0]?.getText(ast)
+    if (effect?.includes('readLocalSetting(familyActivityKey)')) familyEffectText = effect
+    if (effect?.includes('readLocalSetting(savedAlignmentKey)')) setupEffectText = effect
+  }
   ts.forEachChild(node, findFamilyEffect)
 }
 findFamilyEffect(ast)
 assert.ok(familyEffectText)
+assert.ok(setupEffectText)
 let restored = ''
 const familyBindings = {
   familyActivityKey: 'family', savedAlignmentKey: 'alignment', parentSetupSeenKey: 'setup',
-  familyActivities: [{ id: 'pass' }, { id: 'mirror' }], selectedFamilyActivity,
+  parseFamilyActivity,
   captureWorkOperation: () => () => true, activityInteractionRef: { current: false },
-  AsyncStorage: { getItem: (key: string) => key === 'alignment' ? Promise.reject(Error('alignment read failed')) : Promise.resolve(key === 'family' ? 'mirror' : '1') },
+  readLocalSetting: (key: string) => key === 'alignment' ? Promise.reject(Error('alignment read failed')) : Promise.resolve(key === 'family' ? 'mirror-my-marks' : '1'),
   setSelectedActivityId: (id: string) => { restored = id }, setActivityStorageMessage: () => undefined,
-  parentSetupSeenRef: { current: false }, setSavedAlignment: () => undefined, normalizeTraceAlignment: () => null, setParentSetupHydrated: () => undefined,
+  setParentSetupHydrated: () => undefined,
 }
 const familyJs = ts.transpileModule(`const callback = ${familyEffectText}; callback`, { compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.None } }).outputText
-const cleanupFamily = runInNewContext(familyJs, familyBindings)() as () => void
+const setupJs = ts.transpileModule(`const callback = ${setupEffectText}; callback`, { compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.None } }).outputText
+const cleanupSetup = runInNewContext(setupJs, { ...familyBindings })() as () => void
+const cleanupFamily = runInNewContext(familyJs, { ...familyBindings })() as () => void
 await new Promise<void>((resolve) => setImmediate(resolve))
-assert.equal(restored, 'mirror', 'An unrelated alignment-read rejection must not skip activity restore')
+assert.equal(restored, 'mirror-my-marks', 'An unrelated alignment-read rejection must not skip activity restore')
+cleanupSetup()
 cleanupFamily()
 let warning = ''
 const chooseActivity = appCallback('chooseFamilyActivity', {
   ...familyBindings, drawingPreferencesClearInProgressRef: { current: false },
-  queueDrawingPreferencesWrite: async () => { throw Error('disk full') },
+  writeLocalSetting: async () => { throw Error('disk full') },
   setActivityStorageMessage: (message: string) => { warning = message },
 })
-chooseActivity('pass')
-assert.equal(restored, 'pass', 'Selection responds before storage finishes')
+chooseActivity('take-turn-doodle')
+assert.equal(restored, 'take-turn-doodle', 'Selection responds before storage finishes')
 await new Promise<void>((resolve) => setImmediate(resolve))
 assert.match(warning, /visit only/)
 console.log('Activity caller restores independently of alignment errors and reports write failure')

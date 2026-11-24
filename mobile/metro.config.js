@@ -11,4 +11,12 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 
+// Router's query-string 7 expects a callable CommonJS export. The fixed decoder is ESM.
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'decode-uri-component' && context.originModulePath.includes(`${path.sep}query-string${path.sep}`)) {
+    return { type: 'sourceFile', filePath: path.join(projectRoot, 'shims', 'queryStringDecoder.js') }
+  }
+  return context.resolveRequest(context, moduleName, platform)
+}
+
 module.exports = config
