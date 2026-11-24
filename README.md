@@ -83,6 +83,7 @@ For real tracing, use a phone/iPad stand or prop the device above the paper. Exp
 - [Uploaded image cleanup](docs/UPLOAD_CLEANUP.md)
 - [Expo mobile app plan](docs/MOBILE_APP_PLAN.md)
 - [Real-device testing checklist](docs/REAL_DEVICE_TESTING.md)
+- [TraceBuddy 2.0 plan and design spec](docs/TRACEBUDDY_2_0.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Privacy notes](docs/PRIVACY.md)
 
