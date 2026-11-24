@@ -13,6 +13,13 @@
     },
     "production": {
       "autoIncrement": true
+    },
+    "testflight-2": {
+      "extends": "production",
+      "env": {
+        "EXPO_PUBLIC_TB2": "1",
+        "EXPO_PUBLIC_PAPER_LOCK": "1"
+      }
     }
   },
   "submit": {
