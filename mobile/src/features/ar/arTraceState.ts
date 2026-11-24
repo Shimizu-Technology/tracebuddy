@@ -7,6 +7,8 @@ export type ARPlacementState = 'none' | 'preview' | 'locked'
 
 export type ARNativeState = {
   resetRevision: number
+  /** The latest placement request the native view has acted on (-1 when unknown). */
+  placeRevision: number
   guideImageUri: string | null
   session: ARSessionState
   tracking: ARTrackingState
@@ -33,6 +35,7 @@ export type ARDisplayState =
 
 export const initialARNativeState: ARNativeState = {
   resetRevision: 0,
+  placeRevision: -1,
   guideImageUri: null,
   session: 'idle',
   tracking: 'unavailable',
@@ -131,6 +134,7 @@ export function normalizeARNativeState(value: unknown): ARNativeState {
 
   return {
     resetRevision: Number.isSafeInteger(candidate.resetRevision) && (candidate.resetRevision ?? -1) >= 0 ? candidate.resetRevision! : -1,
+    placeRevision: Number.isSafeInteger(candidate.placeRevision) && (candidate.placeRevision ?? -1) >= 0 ? candidate.placeRevision! : -1,
     guideImageUri: typeof candidate.guideImageUri === 'string' ? candidate.guideImageUri : null,
     session: sessions.includes(candidate.session as ARSessionState) ? candidate.session as ARSessionState : 'failed',
     tracking: trackingStates.includes(candidate.tracking as ARTrackingState) ? candidate.tracking as ARTrackingState : 'unavailable',

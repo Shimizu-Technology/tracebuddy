@@ -4,6 +4,21 @@ import type { Icon } from 'phosphor-react-native'
 // and Metro does not tree-shake. require keeps TypeScript from type-checking the package's .tsx sources,
 // which don't pass this project's strict settings. Add new icons here; the lint rule blocks root value imports.
 /* eslint-disable @typescript-eslint/no-require-imports */
+export const ArrowCounterClockwiseIcon: Icon = require('phosphor-react-native/src/icons/ArrowCounterClockwise').ArrowCounterClockwiseIcon
+export const CaretDownIcon: Icon = require('phosphor-react-native/src/icons/CaretDown').CaretDownIcon
+export const CaretLeftIcon: Icon = require('phosphor-react-native/src/icons/CaretLeft').CaretLeftIcon
+export const CaretRightIcon: Icon = require('phosphor-react-native/src/icons/CaretRight').CaretRightIcon
+export const CaretUpIcon: Icon = require('phosphor-react-native/src/icons/CaretUp').CaretUpIcon
+export const CheckIcon: Icon = require('phosphor-react-native/src/icons/Check').CheckIcon
+export const CrosshairSimpleIcon: Icon = require('phosphor-react-native/src/icons/CrosshairSimple').CrosshairSimpleIcon
+export const DotsThreeIcon: Icon = require('phosphor-react-native/src/icons/DotsThree').DotsThreeIcon
+export const FileIcon: Icon = require('phosphor-react-native/src/icons/File').FileIcon
+export const FlipHorizontalIcon: Icon = require('phosphor-react-native/src/icons/FlipHorizontal').FlipHorizontalIcon
+export const InfoIcon: Icon = require('phosphor-react-native/src/icons/Info').InfoIcon
+export const LockIcon: Icon = require('phosphor-react-native/src/icons/Lock').LockIcon
+export const PushPinIcon: Icon = require('phosphor-react-native/src/icons/PushPin').PushPinIcon
+export const SunIcon: Icon = require('phosphor-react-native/src/icons/Sun').SunIcon
+export const SunDimIcon: Icon = require('phosphor-react-native/src/icons/SunDim').SunDimIcon
 export const PencilSimpleIcon: Icon = require('phosphor-react-native/src/icons/PencilSimple').PencilSimpleIcon
 export const SparkleIcon: Icon = require('phosphor-react-native/src/icons/Sparkle').SparkleIcon
 export const XIcon: Icon = require('phosphor-react-native/src/icons/X').XIcon
@@ -23,11 +38,8 @@ export const ShapesIcon: Icon = require('phosphor-react-native/src/icons/Shapes'
 export const LeafIcon: Icon = require('phosphor-react-native/src/icons/Leaf').LeafIcon
 export const SmileyIcon: Icon = require('phosphor-react-native/src/icons/Smiley').SmileyIcon
 export const PlayIcon: Icon = require('phosphor-react-native/src/icons/Play').PlayIcon
-export const CaretLeftIcon: Icon = require('phosphor-react-native/src/icons/CaretLeft').CaretLeftIcon
-export const DotsThreeIcon: Icon = require('phosphor-react-native/src/icons/DotsThree').DotsThreeIcon
 export const EraserIcon: Icon = require('phosphor-react-native/src/icons/Eraser').EraserIcon
 export const ArrowUUpLeftIcon: Icon = require('phosphor-react-native/src/icons/ArrowUUpLeft').ArrowUUpLeftIcon
-export const CheckIcon: Icon = require('phosphor-react-native/src/icons/Check').CheckIcon
 export const DownloadSimpleIcon: Icon = require('phosphor-react-native/src/icons/DownloadSimple').DownloadSimpleIcon
 export const CornersOutIcon: Icon = require('phosphor-react-native/src/icons/CornersOut').CornersOutIcon
 export const TrashIcon: Icon = require('phosphor-react-native/src/icons/Trash').TrashIcon
