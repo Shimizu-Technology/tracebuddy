@@ -14,9 +14,9 @@ import { CanvasButton } from '../../ui/CanvasButton'
 import { Icon } from '../../ui/Icon'
 import type { IconGlyph } from '../../ui/Icon'
 import {
-  FishSimpleIcon, HeartIcon, ImageIcon, ImagesSquareIcon, IslandIcon, LeafIcon, MagnifyingGlassIcon,
-  PawPrintIcon, PencilSimpleIcon, PlayIcon, RocketLaunchIcon, ShapesIcon, SmileyIcon, SparkleIcon,
-  SquaresFourIcon, TextAaIcon, TipiIcon, UserIcon,
+  BugIcon, FishSimpleIcon, GiftIcon, HeartIcon, IceCreamIcon, ImageIcon, ImagesSquareIcon, IslandIcon, LeafIcon,
+  MagnifyingGlassIcon, PawPrintIcon, PencilSimpleIcon, PlanetIcon, PlayIcon, RocketLaunchIcon, ShapesIcon, SmileyIcon,
+  SparkleIcon, SpiralIcon, SquaresFourIcon, TextAaIcon, TipiIcon, UserIcon, UsersThreeIcon,
 } from '../../ui/icons'
 import { PressTarget } from '../../ui/PressTarget'
 import { Text } from '../../ui/Text'
@@ -29,7 +29,8 @@ import { useFavorites } from './useFavorites'
 
 const categoryIcons: Record<PictureCategory, IconGlyph> = {
   animals: PawPrintIcon, ocean: FishSimpleIcon, magic: SparkleIcon, go: RocketLaunchIcon, guam: IslandIcon,
-  letters: TextAaIcon, shapes: ShapesIcon, dinosaurs: TipiIcon, nature: LeafIcon, fun: SmileyIcon,
+  letters: TextAaIcon, shapes: ShapesIcon, dinosaurs: TipiIcon, nature: LeafIcon, fun: SmileyIcon, bugs: BugIcon,
+  space: PlanetIcon, food: IceCreamIcon, holidays: GiftIcon, people: UsersThreeIcon, patterns: SpiralIcon,
 }
 
 type Category = PictureCategory | 'all' | 'favorites'

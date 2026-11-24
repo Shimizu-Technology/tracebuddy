@@ -51,4 +51,10 @@ export const HandPointingIcon: Icon = require('phosphor-react-native/src/icons/H
 export const TipiIcon: Icon = require('phosphor-react-native/src/icons/Tipi').TipiIcon
 export const MagnifyingGlassIcon: Icon = require('phosphor-react-native/src/icons/MagnifyingGlass').MagnifyingGlassIcon
 export const HeartIcon: Icon = require('phosphor-react-native/src/icons/Heart').HeartIcon
+export const BugIcon: Icon = require('phosphor-react-native/src/icons/Bug').BugIcon
+export const PlanetIcon: Icon = require('phosphor-react-native/src/icons/Planet').PlanetIcon
+export const IceCreamIcon: Icon = require('phosphor-react-native/src/icons/IceCream').IceCreamIcon
+export const GiftIcon: Icon = require('phosphor-react-native/src/icons/Gift').GiftIcon
+export const UsersThreeIcon: Icon = require('phosphor-react-native/src/icons/UsersThree').UsersThreeIcon
+export const SpiralIcon: Icon = require('phosphor-react-native/src/icons/Spiral').SpiralIcon
 /* eslint-enable @typescript-eslint/no-require-imports */

@@ -3,5 +3,6 @@ import type { Pastel } from '../../ui/theme'
 
 export const picturePastel: Record<PictureCategory, Pastel> = {
   ocean: 'sky', animals: 'peach', magic: 'lilac', go: 'butter', guam: 'mint',
-  nature: 'mint', dinosaurs: 'mint', fun: 'rose', letters: 'butter', shapes: 'lilac',
+  nature: 'mint', dinosaurs: 'mint', fun: 'rose', letters: 'butter', shapes: 'lilac', bugs: 'butter',
+  space: 'lilac', food: 'rose', holidays: 'peach', people: 'peach', patterns: 'sky',
 }

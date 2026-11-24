@@ -128,3 +128,7 @@ Every rejected generation was discarded and regenerated until both visual qualit
 
 - **`coconut-crab` line weight:** Lowest `Disk:4` in the set at `18.3%` due to the fine carapace and leg detail, still comfortably above PR #47's 5.9%–16.0% range and crisp in `rsvg-convert` round-trip rendering.
 
+
+## Post-generation fixes
+
+- `latte-stone` color: the shaft came out terracotta. Real latte stones are gray-beige limestone, so the shaft fill was recolored to `#C4B8A4` (flat replace inside the shaft only; the plumeria and leaves are unchanged).
