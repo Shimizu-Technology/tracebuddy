@@ -307,4 +307,4 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "gingerbread", name: "Gingerbread Friend", category: "holidays", color: () => require("../../../shared/art/detailed/gingerbread/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/gingerbread/line.svg") } },
   ],
 }
-// Line art SHA-256: b087454eaab7a4391acaba44bc89f5670d7f6741012701e1a3046c150febc7f0
+// Line art SHA-256: d9147781b2ac80ab56471de5bc7c6796e838e178ea34703b85e421ac151833cf

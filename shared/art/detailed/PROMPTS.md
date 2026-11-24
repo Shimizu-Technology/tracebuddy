@@ -178,3 +178,7 @@ Added **24 new subjects** across 5 categories (`animals`, `dinosaurs`, `space`, 
 1. **`horse` line v2 (REJECTED; v1 retained):** `horse` line v1 measured `Disk:4 = 17.7%` (borderline ~18%), so a single marker-weight regeneration (v2) was attempted; v2 came out thinner at `Disk:4 = 13.8%`, so v2 was rejected and the bolder, cleaner v1 (`17.7%`) was retained as the approved master.
 2. **`ankylosaurus` line v1 (REJECTED → v2 approved):** v1 carapace armor plates and spots rendered too thin (`Disk:4 = 11.9%`, `r5 = 1.1%`). Regenerated once in v2 with bold felt-tip marker weight and 4 wide carapace bands (`Disk:4 = 47.3%`).
 3. **`christmas-tree` line v1 (REJECTED → v2 approved):** v1 contained 13 small patterned ornaments and thin double-line garlands (`Disk:4 = 8.6%`). Regenerated once in v2 with heavy uniform marker weight, simpler round planter pot, and larger bold ornaments (`Disk:4 = 34.4%`).
+
+### Batch 1 Lead Review Fix (Stroke Thickening)
+
+At phone size, `horse` (17.7%), `tiger` (19.0%) and `pterodactyl` (19.3%) read noticeably thinner than the rest of the Detailed set. Instead of spending more image quota, their lines were re-vectorized from the same raw masters with one extra step: after the 1680×1680 threshold, `-morphology Erode Disk:3` (grows the black ink about 3 px per side at 2000 px) before potrace. Same potrace settings and normalization. New `Disk:4` survival measured on a 1024 px render: `horse` 35.4%, `tiger` 32.0%, `pterodactyl` 37.7%. Tiger stripes and the horse mane stay separated. The color previews were left as generated.
