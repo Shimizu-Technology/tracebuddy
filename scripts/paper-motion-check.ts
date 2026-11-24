@@ -4,7 +4,7 @@ import {
   accessibilityPose, dragFrame, frameBounds, handleFrame, liftedPoint, pairFrame, sheetLift, snapStep, startTurn, toGuideLocal,
 } from '../mobile/src/features/paper/guideMotion'
 import type { Pose } from '../mobile/src/features/paper/guideMotion'
-import { canAdjust, showsControls, stickTransition } from '../mobile/src/features/paper/paperLockModel'
+import { arPoseFor, canAdjust, showsControls, stickTransition } from '../mobile/src/features/paper/paperLockModel'
 import type { StickEvent, StickPhase } from '../mobile/src/features/paper/paperLockModel'
 import {
   fitArt, fitPage, legacyOverlayBase, pageCorner, readRememberedSetup, restoreSetup, serializeRememberedSetup,
@@ -176,9 +176,10 @@ await (async () => {
 {
   const run = (phase: StickPhase, event: StickEvent) => stickTransition(phase, event)
   const lockReady = { type: 'lock', placementReady: true, childModeReady: false } as const
-  const tracked = { type: 'tracking', childModeReady: true, trackingOk: true } as const
-  const notYet = { type: 'tracking', childModeReady: false, trackingOk: true } as const
-  const lost = { type: 'tracking', childModeReady: false, trackingOk: false } as const
+  const tracked = { type: 'tracking', childModeReady: true, trackingOk: true, placement: 'locked' } as const
+  const notYet = { type: 'tracking', childModeReady: false, trackingOk: true, placement: 'preview' } as const
+  const lost = { type: 'tracking', childModeReady: false, trackingOk: false, placement: 'none' } as const
+  const noPaper = { type: 'tracking', childModeReady: false, trackingOk: true, placement: 'none' } as const
 
   assert.deepEqual(run('adjusting', lockReady), { phase: 'placing', effect: 'place' })
   assert.deepEqual(run('adjusting', { type: 'lock', placementReady: false, childModeReady: true }), { phase: 'child', effect: 'enterChild' })
@@ -186,6 +187,11 @@ await (async () => {
   assert.deepEqual(run('placing', tracked), { phase: 'child', effect: 'enterChild' })
   assert.deepEqual(run('placing', notYet), { phase: 'placing', effect: null })
   assert.deepEqual(run('placing', lost), { phase: 'adjusting', effect: 'cancelled' }, 'tracking loss cancels a pending lock')
+  assert.deepEqual(run('placing', noPaper), { phase: 'adjusting', effect: 'notFound' }, 'no paper found after Lock: back to adjusting, not stuck placing')
+  assert.deepEqual(run(run('placing', noPaper).phase, lockReady), { phase: 'placing', effect: 'place' }, 'and Lock can try again')
+  assert.deepEqual(run('placing', { type: 'placementTimeout' }), { phase: 'adjusting', effect: 'notFound' }, 'no answer at all also gives Lock back')
+  assert.deepEqual(run('child', { type: 'placementTimeout' }), { phase: 'child', effect: null })
+  assert.deepEqual(run('adjusting', noPaper), { phase: 'adjusting', effect: null })
   assert.deepEqual(run('child', notYet), { phase: 'adjusting', effect: 'trackingLost' })
   assert.deepEqual(run('child', tracked), { phase: 'child', effect: null })
   // The reported escape: Lock, then Done before the placement is acknowledged.
@@ -205,6 +211,22 @@ await (async () => {
     assert.equal(canAdjust(phase), phase === 'adjusting', `gestures only while adjusting (${phase})`)
     assert.equal(showsControls(phase), phase === 'adjusting' || phase === 'placing', `controls (${phase})`)
   }
+}
+
+// 7b. What ARKit receives: a twist across ±180° keeps turning smoothly instead of sticking at 180° and jumping.
+{
+  let previous = arPoseFor({ x: 0, y: 0, scale: 1, rotation: 170 }, 0.001, 0.25).rotationDegrees
+  for (let raw = 171; raw <= 210; raw += 1) {
+    const sent = arPoseFor({ x: 0, y: 0, scale: 1, rotation: raw }, 0.001, 0.25).rotationDegrees
+    assert.ok(sent > -180 && sent <= 180, `${raw}° is sent inside ARKit's range (${sent})`)
+    const step = ((((sent - previous) + 180) % 360) + 360) % 360 - 180
+    near(step, 1, 1e-9, `turning from ${raw - 1}° to ${raw}° moves 1° on screen`)
+    previous = sent
+  }
+  assert.equal(arPoseFor({ x: 0, y: 0, scale: 1, rotation: 210 }, 0.001, 0.25).rotationDegrees, -150)
+  assert.equal(arPoseFor({ x: 0, y: 0, scale: 1, rotation: -200 }, 0.001, 0.25).rotationDegrees, 160)
+  const far = arPoseFor({ x: 900, y: -900, scale: 1, rotation: 0 }, 0.001, 0.25)
+  assert.deepEqual([far.offsetXmeters, far.offsetYmeters], [0.25, -0.25], 'offsets stay within the page\'s reach')
 }
 
 // 8. VoiceOver size and turn steps.

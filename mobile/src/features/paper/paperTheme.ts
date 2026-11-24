@@ -48,6 +48,6 @@ export const paperTheme = {
   fade: { min: 0.15, max: 1, step: 0.05, initial: 0.6 },
   scale: { min: 0.35, max: 2.2 },
   page: { aspect: 8.5 / 11, widthFraction: 0.78, heightFraction: 0.62, artInset: 0.86, tableTilt: -2 },
-  timing: { cameraHandoffMs: 350, sheetSettleMs: 450, hintMs: 4200, toastMs: 2000, saveDelayMs: 400, cardDismissPx: 80, cardDismissVelocity: 600, confettiMs: 1400 },
+  timing: { cameraHandoffMs: 350, placementTimeoutMs: 6000, sheetSettleMs: 450, hintMs: 4200, toastMs: 2000, saveDelayMs: 400, cardDismissPx: 80, cardDismissVelocity: 600, confettiMs: 1400 },
   moreSheetDetent: 0.4,
 } as const

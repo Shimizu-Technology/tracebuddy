@@ -54,6 +54,8 @@ export default function RootLayout() {
         <DrawMoreProvider>
           <Stack screenOptions={{ headerShown: false, animation: reduceMotion ? 'none' : 'default' }}>
             <Stack.Screen name="index" />
+            {/* On paper opens from the Picture sheet: full screen over it, never inside a swipe-to-dismiss sheet. */}
+            <Stack.Screen name="paper" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
             <Stack.Protected guard={traceBuddy2Enabled}>
               <Stack.Screen name="grown-ups" />
               <Stack.Screen name="drawings" />

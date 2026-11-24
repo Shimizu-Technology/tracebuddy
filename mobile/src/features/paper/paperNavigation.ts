@@ -1,14 +1,14 @@
 import { router } from 'expo-router'
 
-import { paperRouteParams } from './pictureSource'
-import type { PaperParams } from './pictureSource'
+import { pictureRouteParams } from './paperPicture'
+import type { PaperParams } from './paperPicture'
 
 /** Both tracing screens send "Draw on the screen instead" to the same Draw route, with the same picture. */
 export function drawOnScreenInstead(params: PaperParams) {
-  router.replace({ pathname: '/draw/[id]', params: paperRouteParams(params) } as never)
+  router.replace({ pathname: '/draw/[id]', params: pictureRouteParams(params) } as never)
 }
 
 /** The Stick to paper (Paper Lock) route for the same picture. */
 export function openStickToPaper(params: PaperParams) {
-  router.push({ pathname: '/paper/stick/[id]', params: paperRouteParams(params) })
+  router.push({ pathname: '/paper/stick/[id]', params: pictureRouteParams(params) })
 }

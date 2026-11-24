@@ -1,16 +1,15 @@
 import { useEffect } from 'react'
 import { StyleSheet, useWindowDimensions, View } from 'react-native'
 import * as Haptics from 'expo-haptics'
-import { Image } from 'expo-image'
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import type { SharedValue } from 'react-native-reanimated'
-import { SvgXml } from 'react-native-svg'
 
 import { Button } from '../../ui/Button'
+import { PictureArt } from '../picture/PictureArt'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
 import { BottomCard } from './BottomCard'
-import type { PaperPicture } from './pictureSource'
+import type { PaperPicture } from './paperPicture'
 import { paperTheme } from './paperTheme'
 
 type Piece = { vx: number; vy: number; spin: number; color: string }
@@ -92,9 +91,7 @@ export function Celebration({ picture, reduceMotion, onKeepTracing, onNewPicture
       >
         <Text variant="title" accessibilityRole="header" style={styles.center} accessibilityLiveRegion="polite">Great tracing!</Text>
         <View style={styles.preview}>
-          {picture.kind === 'drawing'
-            ? <SvgXml xml={picture.svg} width="100%" height="100%" />
-            : <Image source={{ uri: picture.uri }} contentFit="contain" style={styles.fill} />}
+          <PictureArt picture={picture.picture} />
         </View>
       </BottomCard>
       <Confetti reduceMotion={reduceMotion} />
@@ -112,7 +109,6 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.tile,
     backgroundColor: theme.colors.background,
   },
-  fill: { width: '100%', height: '100%' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.md },
   // Natural width, so the buttons stack instead of breaking words at large text sizes.
   action: { flexGrow: 1 },

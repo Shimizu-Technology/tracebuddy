@@ -9,7 +9,8 @@ import {
 } from '../mobile/src/features/paper/paperModel'
 import type { GuideSetup } from '../mobile/src/features/paper/paperModel'
 import { paperTheme } from '../mobile/src/features/paper/paperTheme'
-import { isLocalPhotoUri, paperRouteParams, pictureLevel, resolvePaperPicture } from '../mobile/src/features/paper/pictureSource'
+import { paramsForPicture, resolvePicture } from '../mobile/src/data/catalog'
+import { pictureRouteParams, resolvePaperPicture } from '../mobile/src/features/paper/paperPicture'
 
 const close = (actual: number, expected: number, message?: string) => assert.ok(Math.abs(actual - expected) < 1e-6, message ?? `${actual} ≈ ${expected}`)
 const phone = { width: 390, height: 844 }
@@ -132,17 +133,30 @@ assert.equal((light.match(/fill="none"/g) ?? []).length, 2)
 assert.equal(childExitHoldMs, 1500, 'unlock is a 1.5-second hold')
 
 // Picture params from /paper/[id].
-assert.equal(resolvePaperPicture({ id: 'happy-crab' })?.name, 'Happy Crab')
-assert.equal(resolvePaperPicture({ id: 'happy-crab', level: 'detailed' })?.kind, 'drawing')
+// The same catalog as the Picture sheet and Draw: level, legacy ids, typed words and local photos.
+for (const level of ['simple', 'detailed'] as const) {
+  const fromSheet = resolvePicture({ id: 'happy-crab', level })
+  assert.ok(fromSheet)
+  const paper = resolvePaperPicture({ ...paramsForPicture(fromSheet), level: fromSheet.level })
+  assert.equal(paper?.picture.id, fromSheet.id, `the ${level} pick is the picture the sheet showed`)
+  assert.equal(paper?.picture.level, fromSheet.level)
+  assert.equal(paper?.kind === 'drawing' && paper.svg, fromSheet.line(), 'and the same line art')
+}
+assert.equal(resolvePaperPicture({ id: 'happy-crab', legacy: '1' })?.name, 'Happy Crab', 'legacy ids still open')
 assert.equal(resolvePaperPicture({ id: 'no-such-picture' }), null)
 assert.equal(resolvePaperPicture({}), null)
-assert.equal(resolvePaperPicture({ id: 'name', text: 'Leon' })?.name, 'Leon')
-assert.equal(resolvePaperPicture({ id: 'photo', photo: 'file:///var/mobile/photo.jpg' })?.kind, 'photo')
-assert.equal(resolvePaperPicture({ id: 'photo', photo: 'https://example.com/a.jpg' }), null, 'only local photos')
-assert.ok(isLocalPhotoUri('ph://ABC') && !isLocalPhotoUri('javascript:alert(1)'))
-assert.equal(pictureLevel({ level: 'detailed' }), 'detailed')
-assert.equal(pictureLevel({ level: 'huge' }), 'simple')
-assert.deepEqual(paperRouteParams({ id: ['happy-crab'], level: 'detailed' }), { id: 'happy-crab', level: 'detailed' })
-assert.deepEqual(paperRouteParams({ id: 'name', text: 'Leon' }), { id: 'name', level: 'simple', text: 'Leon' })
+assert.equal(resolvePaperPicture({ id: 'my-name', text: 'Leon' })?.name, 'Leon')
+assert.notEqual(resolvePaperPicture({ id: 'my-name', text: 'Leon' })?.key, resolvePaperPicture({ id: 'my-name', text: 'Ana' })?.key, 'each word is its own session')
+const photo = resolvePaperPicture({ id: 'my-photo', photo: 'file:///Old/Documents/tracebuddy-uploads/a.jpg', photoWidth: '1200', photoHeight: '800' }, (uri) => uri.replace('/Old/', '/New/'))
+assert.equal(photo?.kind, 'photo')
+assert.equal(photo?.kind === 'photo' && photo.uri, 'file:///New/Documents/tracebuddy-uploads/a.jpg', 'the stored photo path moves with the install')
+assert.equal(photo?.aspect, 1.5, 'a photo keeps its shape on the page')
+assert.equal(resolvePaperPicture({ id: 'my-photo', photo: 'https://example.com/a.jpg' }), null, 'only local photos')
+assert.deepEqual(
+  pictureRouteParams({ id: ['happy-crab'], level: 'detailed', fault: 'camera', photoName: 'My photo' }),
+  { id: 'happy-crab', level: 'detailed', photoName: 'My photo' },
+  'Draw and Stick to paper get the picture params, and nothing else',
+)
+assert.deepEqual(pictureRouteParams({ id: 'my-name', text: 'Leon' }), { id: 'my-name', text: 'Leon' })
 
 console.log('Paper model checks passed.')

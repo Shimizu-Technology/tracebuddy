@@ -17,9 +17,10 @@ import { scheduleOnRN } from 'react-native-worklets'
 import TraceBuddyARView from '../../../modules/tracebuddy-ar/src/TraceBuddyARView'
 import { isTraceBuddyARSupported } from '../../../modules/tracebuddy-ar/src/TraceBuddyARModule'
 import { prepareARGuide } from '../ar/arGuideCapture'
+import { currentDrawingImageUri } from '../../data/drawingPhotos'
 import {
   arDisplayCopy, arGuideGenerationKey, arPagePresets, arTrackingAdvice, canEnterARChildMode, canLockARPlacement,
-  clampARValue, currentARGuide, deriveARDisplayState, initialARNativeState, isCurrentAREvent, normalizeARNativeState,
+  currentARGuide, deriveARDisplayState, initialARNativeState, isCurrentAREvent, normalizeARNativeState,
 } from '../ar/arTraceState'
 import type { ARGuideCapture, ARNativeState, ARPagePreset } from '../ar/arTraceState'
 import { ArrowCounterClockwiseIcon } from '../../ui/icons'
@@ -30,14 +31,14 @@ import { FadeSlider } from './FadeSlider'
 import { accessibilityPose, guideAccessibilityActions } from './guideMotion'
 import { LockBadge } from './LockBadge'
 import { BottomBar, Pill, TopBar } from './PaperControls'
-import { canAdjust, showsControls, stickTransition } from './paperLockModel'
+import { arPoseFor, canAdjust, showsControls, stickTransition } from './paperLockModel'
 import type { StickEvent, StickPhase } from './paperLockModel'
 import { fitPage } from './paperModel'
 import { drawOnScreenInstead } from './paperNavigation'
 import { paperTheme } from './paperTheme'
 import { PermissionCard } from './PermissionCard'
-import { paperRouteParams, resolvePaperPicture } from './pictureSource'
-import type { PaperParams, PaperPicture } from './pictureSource'
+import { pictureRouteParams, resolvePaperPicture } from './paperPicture'
+import type { PaperParams, PaperPicture } from './paperPicture'
 import { useCameraAccess } from './useCameraAccess'
 import { useChildModeGuard } from './useChildModeGuard'
 import { useGuideGesture } from './useGuideGesture'
@@ -81,9 +82,9 @@ function GuideTexture({ target, picture, preset, onReady, onError }: {
 }
 
 export function PaperLockScreen({ params }: { params: PaperParams }) {
-  const picture = useMemo(() => resolvePaperPicture(params), [params])
+  const picture = useMemo(() => resolvePaperPicture(params, currentDrawingImageUri), [params])
   const [supported] = useState(() => Platform.OS === 'ios' && isTraceBuddyARSupported())
-  if (!picture || !supported) return <Redirect href={{ pathname: '/paper/[id]', params: paperRouteParams(params) }} />
+  if (!picture || !supported) return <Redirect href={{ pathname: '/paper/[id]', params: pictureRouteParams(params) }} />
   return <PaperLockSession key={picture.key} picture={picture} params={params} />
 }
 
@@ -149,6 +150,7 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined)
     }
     if (next.effect === 'trackingLost') setToast('The picture may have moved. Check it, then lock again.')
+    if (next.effect === 'notFound') setToast('Couldn’t find the paper. Try again.')
     return next
   }, [])
 
@@ -209,6 +211,13 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
 
   useEffect(() => () => { if (capture) releaseCapture(capture.uri) }, [capture])
 
+  // If the native view never answers a placement, give Lock back instead of waiting forever.
+  useEffect(() => {
+    if (phase !== 'placing') return undefined
+    const giveUp = setTimeout(() => dispatch({ type: 'placementTimeout' }), paperTheme.timing.placementTimeoutMs)
+    return () => clearTimeout(giveUp)
+  }, [dispatch, phase])
+
   const lock = useCallback(() => {
     const next = dispatch({ type: 'lock', placementReady, childModeReady })
     if (next.effect === 'waiting') setToast(status.title)
@@ -258,9 +267,10 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   const faderHeight = Math.min(paperTheme.size.fader.maxHeight, window.height * paperTheme.size.fader.heightFraction)
   const sides = { left: insets.left + theme.space.lg, right: insets.right + theme.space.lg }
   const controls = showsControls(phase)
+  const arPose = arPoseFor(pose, metersPerPoint, arOffsetLimit)
 
   return (
-    <View style={styles.screen}>
+    <View style={styles.screen} accessibilityViewIsModal>
       <StatusBar style="light" hidden={childMode} animated />
       <GuideTexture key={guideKey} target={target} picture={picture} preset={preset} onReady={() => { if (expectedGuide.current.key === guideKey) setReadyKey(guideKey) }} onError={() => setErrorKey(guideKey)} />
       <GestureDetector gesture={gesture}>
@@ -273,10 +283,10 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
               guideImageUri={guideUri}
               placementMode="surface"
               opacity={opacity}
-              scale={pose.scale}
-              rotationDegrees={pose.rotation}
-              offsetXmeters={clampARValue(pose.x * metersPerPoint, -arOffsetLimit, arOffsetLimit)}
-              offsetYmeters={clampARValue(pose.y * metersPerPoint, -arOffsetLimit, arOffsetLimit)}
+              scale={arPose.scale}
+              rotationDegrees={arPose.rotationDegrees}
+              offsetXmeters={arPose.offsetXmeters}
+              offsetYmeters={arPose.offsetYmeters}
               paperWidthMeters={page.widthMeters}
               paperHeightMeters={page.heightMeters}
               placeRevision={placeRevision}
@@ -286,7 +296,7 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
                 // Events from an earlier reset or guide belong to another session; ignore them.
                 if (!isCurrentAREvent(next, expectedReset.current, expectedGuide.current.uri)) return
                 setNativeState(next)
-                dispatch({ type: 'tracking', childModeReady: canEnterARChildMode(next), trackingOk: next.session === 'running' && next.tracking === 'normal' })
+                dispatch({ type: 'tracking', childModeReady: canEnterARChildMode(next), trackingOk: next.session === 'running' && next.tracking === 'normal', placement: next.placement })
               }}
             />
           ) : null}

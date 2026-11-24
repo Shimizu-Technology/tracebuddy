@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { isTraceBuddyARSupported } from '../../../modules/tracebuddy-ar/src/TraceBuddyARModule'
 import { devKitEnabled } from '../../devKit'
+import { keepDrawingImages } from '../../data/drawingImageFiles'
+import { currentDrawingImageUri } from '../../data/drawingPhotos'
 import { parentSetupSeenKey } from '../../data/storageKeys'
 import { parentSetupSeenValue, parseParentSetupSeen } from '../../data/localSettings'
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
@@ -31,8 +33,8 @@ import { paperStore, usePaperOptions } from './paperStore'
 import type { PaperRequest } from './paperStore'
 import { paperTheme } from './paperTheme'
 import { PermissionCard } from './PermissionCard'
-import { resolvePaperPicture } from './pictureSource'
-import type { PaperParams, PaperPicture } from './pictureSource'
+import { resolvePaperPicture } from './paperPicture'
+import type { PaperParams, PaperPicture } from './paperPicture'
 import { TableStandIn } from './TableStandIn'
 import { TipsCard } from './TipsCard'
 import { useCameraAccess } from './useCameraAccess'
@@ -44,7 +46,7 @@ const keepAwakeTag = 'tracebuddy-paper'
 const barHeight = paperTheme.size.lockButton + theme.space.xxl + theme.space.xl
 
 export function PaperScreen({ params }: { params: PaperParams }) {
-  const picture = useMemo(() => resolvePaperPicture(params), [params])
+  const picture = useMemo(() => resolvePaperPicture(params, currentDrawingImageUri), [params])
   if (!picture) return <MissingPicture />
   return <PaperSession key={picture.key} picture={picture} params={params} />
 }
@@ -100,6 +102,14 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const controls = showGuide && !locked && !done
   // Child mode keeps the locked alignment through a turn of the device, and hides it until the device turns back.
   const turnedAway = locked && !setup.hydrated
+
+  // Keep a photo's file while it is being traced, as the Picture sheet and Draw do.
+  const photoUri = picture.kind === 'photo' ? picture.picture.uploadedImage?.uri : undefined
+  useEffect(() => {
+    if (!photoUri) return undefined
+    const release = keepDrawingImages([photoUri])
+    return () => { void release() }
+  }, [photoUri])
 
   useEffect(() => paperStore.startPicture({ canUseLightLines: picture.kind === 'drawing', stickAvailable: arSupported }), [arSupported, picture.kind])
 
@@ -245,7 +255,8 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const cameraShown = camera.cameraOn && !handedOff
 
   return (
-    <View style={styles.screen}>
+    // Full screen over the Picture sheet and Home: VoiceOver stays on this screen too.
+    <View style={styles.screen} accessibilityViewIsModal>
       <StatusBar style="light" hidden={locked} animated />
       <Animated.View style={[StyleSheet.absoluteFill, sceneStyle]}>
         {cameraShown && camera.camera === 'none' ? <TableStandIn stage={stage} page={page} center={center} /> : null}

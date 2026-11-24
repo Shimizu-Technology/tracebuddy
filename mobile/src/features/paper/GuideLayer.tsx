@@ -11,7 +11,7 @@ import { theme } from '../../ui/theme'
 import { accessibilityPose, guideAccessibilityActions } from './guideMotion'
 import { fitArt, lightLinesSvg } from './paperModel'
 import type { Point, Size } from './paperModel'
-import type { PaperPicture } from './pictureSource'
+import type { PaperPicture } from './paperPicture'
 import { paperTheme } from './paperTheme'
 import { useGuideGesture } from './useGuideGesture'
 
@@ -45,7 +45,7 @@ type Props = {
 
 export function GuideLayer({ picture, values, page, center, stage, locked, lightLines, mirror, reduceMotion, layoutKey, gestureActive, onGestureStart, onGestureEnd }: Props) {
   const { x, y, scale, rotation, opacity } = values
-  const art = fitArt(page)
+  const art = fitArt(page, picture.aspect)
   // The picture is laid out at this scale and only transformed in between, so it is redrawn sharp after each gesture.
   const renderScale = useSharedValue(scale.get())
   useEffect(() => { renderScale.set(scale.get()) }, [layoutKey, renderScale, scale])
