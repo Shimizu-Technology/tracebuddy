@@ -116,3 +116,7 @@ Six subjects were reused verbatim from Leon's approved S1 style test (`research/
 8. **`proa` (v1 rejected → v2 approved):** v1 had thinner rigging/double-rim hull lines and crosshatch sail texture closer to the Detailed (S2) style. Resolved in v2 (chunky S1 hull, single outrigger float with 2 thick booms, plain flat triangular crab-claw sail with no weave/grain lines).
 9. **`bougainvillea` (v1 rejected → v2 approved):** Incorrect botanical bract count (bottom-right blossom had 4 bracts, top-right had 2). Resolved in **v2** (two crisp blossoms, each with strictly 3 papery bracts and tiny white center flower buds).
 10. **Transient API errors (retried once each, no art rejected):** `ice-cream` color and `balloons` color each hit a transient `HTTP 503 UNAVAILABLE` server capacity error on first attempt and succeeded on retry.
+
+## Transparent color backgrounds
+
+After processing, each `color.webp` gets a transparent background: flood-fill the white from all four corners at 8% fuzz (`magick color.webp -alpha set -fuzz 8% -fill none -draw "color 0,0 floodfill"` for each corner), with WebP alpha quality 90. The thick outlines stop the fill, so white inside the subject (eyes, bellies) stays white. Without this, the pictures sit on white squares inside the pastel tiles. Every future batch needs this step.
