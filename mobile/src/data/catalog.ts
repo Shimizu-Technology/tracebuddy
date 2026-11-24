@@ -1,5 +1,5 @@
 import { photoDrawingName } from './practiceSource'
-import { createTextDrawing, drawingById, drawings, sanitizeTraceText } from '../../../shared'
+import { createTextDrawing, drawingById, sanitizeTraceText } from '../../../shared'
 import type { Drawing } from '../../../shared'
 import type { PracticeSource, UploadedImage } from '../../practiceStorageModel'
 import { generatedArt } from './art.generated'
@@ -55,8 +55,6 @@ const legacyCategory: Record<Drawing['category'], PictureCategory> = {
   island: 'guam', seasonal: 'fun', letters: 'letters', starters: 'shapes',
 }
 
-const featuredLegacyIds = ['happy-crab', 'island-turtle', 'dream-unicorn', 'curated-rocket-064', 'latte-stone', 'octopus']
-
 function legacyPicture(drawing: Drawing): Picture {
   return { id: drawing.id, name: drawing.name, category: legacyCategory[drawing.category], line: () => drawing.svg }
 }
@@ -65,17 +63,24 @@ export function catalogPictures(level: ArtLevel): readonly Picture[] {
   return picturesByLevel[level]
 }
 
-const fallbackPictures = [
-  ...featuredLegacyIds.flatMap((id) => {
-    const drawing = drawingById(id)
-    return drawing ? [legacyPicture(drawing)] : []
-  }),
-  ...drawings.filter(({ id }) => !featuredLegacyIds.includes(id)).map(legacyPicture),
-]
+// Only curated art appears in 2.0. The legacy drawings stay resolvable by id (resolvePicture) so saved
+// drawings reopen over the guide they were drawn on, but they are never listed. Big artist shows each
+// subject's Detailed version where one exists and its Simple version otherwise.
+function curatedPictures(level: ArtLevel): Picture[] {
+  const simple = generatedArt.simple.map((art): Picture => ({ ...art, level: 'simple' }))
+  if (level === 'simple') return simple
+  const detailed = new Map(generatedArt.detailed.map((art) => [art.id, art]))
+  const listed = simple.map((picture) => {
+    const art = detailed.get(picture.id)
+    return art ? { ...art, level: 'detailed' as const } : picture
+  })
+  const extra = generatedArt.detailed.filter((art) => !simple.some((picture) => picture.id === art.id))
+  return [...listed, ...extra.map((art): Picture => ({ ...art, level: 'detailed' }))]
+}
 
 const picturesByLevel: Record<ArtLevel, readonly Picture[]> = {
-  simple: generatedArt.simple.length ? generatedArt.simple.map((art) => ({ ...art, level: 'simple' })) : fallbackPictures,
-  detailed: generatedArt.detailed.length ? generatedArt.detailed.map((art) => ({ ...art, level: 'detailed' })) : fallbackPictures,
+  simple: curatedPictures('simple'),
+  detailed: curatedPictures('detailed'),
 }
 
 export function pictureLevels(id: string) {
