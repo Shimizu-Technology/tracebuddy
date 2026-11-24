@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, StyleSheet, View } from 'react-native'
+import { Alert, PixelRatio, StyleSheet, View } from 'react-native'
 import { captureRef, releaseCapture } from 'react-native-view-shot'
 
-import { captureImageKeys, createCaptureReadiness, saveTemporaryCapture } from '../../../captureUtils'
+import { captureImageKeys, capturePixelWidth, createCaptureReadiness, saveTemporaryCapture } from '../../../captureUtils'
 import { documentCapture } from '../../../nativeSafetyModel'
 import type { SavedPracticeSession } from '../../../practiceStorageModel'
 import { requestDrawingPhotoExport, saveToLibraryAsync } from '../../data/drawingPhotos'
 import { DrawingDocument } from './DrawingDocument'
-import { inkImageUri } from './inkImageUri'
+import { createInkExport } from './createInkExport'
 
 type Capture = {
   session: SavedPracticeSession
@@ -32,11 +32,13 @@ export function usePhotoExport() {
     if (pending.current) return
     pending.current = true
     setSaving(true)
+    let ink: ReturnType<typeof createInkExport>
     try {
       if (!await requestDrawingPhotoExport() || !active.current) return
       // Capture a second, unzoomed square. The on-screen Metal view is
       // replaced with a decoded transparent ink image for native view-shot.
-      const inkUri = inkImageUri(session.strokes, documentCapture.width)
+      ink = createInkExport(session.strokes, capturePixelWidth(documentCapture.width, PixelRatio.get()))
+      const inkUri = ink?.uri
       const keys = captureImageKeys(session.source.uploadedImage?.uri, false, session.stickers)
       const readiness = createCaptureReadiness(inkUri ? [...keys, 'ink'] : keys)
       cleanup.current = readiness.dispose
@@ -58,6 +60,7 @@ export function usePhotoExport() {
     } finally {
       cleanup.current?.()
       cleanup.current = null
+      ink?.release()
       pending.current = false
       if (active.current) {
         setCapture(null)

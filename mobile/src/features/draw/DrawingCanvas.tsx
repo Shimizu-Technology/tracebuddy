@@ -13,13 +13,17 @@ import type { PracticeStroke, SavedPracticeSession } from '../../../practiceStor
 import { theme } from '../../ui/theme'
 import { DrawingDocument } from './DrawingDocument'
 import type { LiveInk } from './inkTypes'
+import { keepStrokeOnPinch, keepStrokeSample, pointDistance, roundedPoint, strokePath } from './strokeGeometry'
 
 const emptyPath = 'M 0 0'
 const fit: Viewport = { x: 0, y: 0, scale: 1 }
 
 type Finger = GestureTouchEvent['allTouches'][number]
 type Pair = { ids: [number, number]; middle: Point; distance: number; viewport: Viewport }
-type Active = { id: number; serial: number; point: Point; moved: boolean; stroke: PracticeStroke }
+type Active = {
+  id: number; serial: number; points: Point[]; startedAt: number
+  lastFinger: Point; travel: number; stroke: PracticeStroke
+}
 export type CanvasHandle = { fit: () => void; flush: () => Promise<void> }
 
 type Props = {
@@ -30,9 +34,9 @@ type Props = {
   onStroke: (stroke: PracticeStroke) => void
 }
 
-function coordinate(value: number) {
+function touchTime() {
   'worklet'
-  return Math.round(value * 100) / 100
+  return performance.now()
 }
 
 function pairPosition(first: Finger, second: Finger) {
@@ -69,13 +73,17 @@ export function DrawingCanvas({ ref, side, session, disabled, onStroke }: Props)
     onStroke(stroke)
   }
 
-  function finishStroke(allowDot: boolean) {
+  function finishStroke(reason: 'finish' | 'pinch' | 'cancel') {
     'worklet'
     const current = active.get()
     if (!current) return
     active.set(null)
-    if (current.moved || allowDot) {
-      scheduleOnRN(commit, current.stroke, current.serial)
+    const moved = current.points.length > 1
+    const keep = reason === 'pinch'
+      ? keepStrokeOnPinch(touchTime() - current.startedAt, current.travel)
+      : moved || reason === 'finish'
+    if (keep) {
+      scheduleOnRN(commit, { ...current.stroke, path: strokePath(current.points, current.stroke.width) }, current.serial)
     } else {
       livePath.set(emptyPath)
     }
@@ -89,7 +97,7 @@ export function DrawingCanvas({ ref, side, session, disabled, onStroke }: Props)
       scheduleOnUI(() => {
         'worklet'
         if (active.get()) {
-          finishStroke(true)
+          finishStroke('finish')
           blockedUntilLift.set(true)
         }
         scheduleOnRN(resolve)
@@ -130,7 +138,7 @@ export function DrawingCanvas({ ref, side, session, disabled, onStroke }: Props)
       const [first, second] = event.allTouches
       if (!first) return
       if (second) {
-        finishStroke(false)
+        finishStroke('pinch')
         blockedUntilLift.set(true)
         if (!pair.get()) pair.set({ ids: [first.id, second.id], ...pairPosition(first, second), viewport: viewport.get() })
         return
@@ -141,13 +149,15 @@ export function DrawingCanvas({ ref, side, session, disabled, onStroke }: Props)
       const point = documentPoint(first, { width: side, height: side }, viewport.get())
       if (!point) return
       const width = documentStrokeWidth(markerWidth, brush.widthMultiplier, side, viewport.get().scale)
-      const x = coordinate(point.x)
-      const y = coordinate(point.y)
+      const points = [roundedPoint(point)]
       // A tiny segment gives an unmoved finger the same round dot in both renderers.
-      const path = `M ${x} ${y} L ${coordinate(x + 0.01)} ${y}`
+      const path = strokePath(points, width)
       const serial = sequence.get() + 1
       sequence.set(serial)
-      active.set({ id: first.id, serial, point, moved: false, stroke: { ...style, path, width } })
+      active.set({
+        id: first.id, serial, points, startedAt: touchTime(), lastFinger: { x: first.x, y: first.y },
+        travel: 0, stroke: { ...style, path, width },
+      })
       liveWidth.set(width)
       livePath.set(path)
     })
@@ -171,19 +181,28 @@ export function DrawingCanvas({ ref, side, session, disabled, onStroke }: Props)
       if (!finger) return
       const point = documentPoint(finger, { width: side, height: side }, viewport.get())
       if (!point) {
-        finishStroke(true)
+        finishStroke('finish')
         blockedUntilLift.set(true)
         return
       }
-      if (Math.hypot(point.x - current.point.x, point.y - current.point.y) < 0.4) return
-      const path = `${current.stroke.path} L ${coordinate(point.x)} ${coordinate(point.y)}`
-      active.set({ ...current, point, moved: true, stroke: { ...current.stroke, path } })
+      const travel = current.travel + pointDistance(current.lastFinger, finger)
+      const lastFinger = { x: finger.x, y: finger.y }
+      const last = current.points[current.points.length - 1]
+      if (!keepStrokeSample(last, point, current.stroke.width)) {
+        active.set({ ...current, travel, lastFinger })
+        return
+      }
+      const next = roundedPoint(point)
+      const path = current.points.length === 1
+        ? `M ${last.x} ${last.y} L ${next.x} ${next.y}`
+        : `${current.stroke.path} L ${next.x} ${next.y}`
+      active.set({ ...current, points: [...current.points, next], travel, lastFinger, stroke: { ...current.stroke, path } })
       livePath.set(path)
     })
     .onTouchesUp(({ changedTouches, allTouches }, manager) => {
       const left = (id: number) => changedTouches.some((finger) => finger.id === id)
       const current = active.get()
-      if (current && left(current.id)) finishStroke(true)
+      if (current && left(current.id)) finishStroke('finish')
       const multi = pair.get()
       if (multi && multi.ids.some(left)) pair.set(null)
       if (allTouches.every(({ id }) => left(id))) {
@@ -192,13 +211,13 @@ export function DrawingCanvas({ ref, side, session, disabled, onStroke }: Props)
       }
     })
     .onTouchesCancelled((_event, manager) => {
-      finishStroke(false)
+      finishStroke('cancel')
       pair.set(null)
       blockedUntilLift.set(false)
       manager.fail()
     })
     .onFinalize(() => {
-      finishStroke(false)
+      finishStroke('cancel')
       pair.set(null)
       blockedUntilLift.set(false)
     })

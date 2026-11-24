@@ -1,6 +1,6 @@
-import { StyleSheet, View } from 'react-native'
+import { useRef } from 'react'
+import { Alert, Pressable, StyleSheet, View } from 'react-native'
 import Animated, { cancelAnimation, Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
-import { Pressable } from 'react-native'
 
 import { Icon } from './Icon'
 import type { IconGlyph } from './Icon'
@@ -15,28 +15,55 @@ export function HoldButton({ label, glyph, disabled, onConfirm }: { label: strin
   const reduceMotion = useReduceMotion()
   const fill = useAnimatedStyle(() => ({ width: `${progress.get() * 100}%` }))
 
+  const held = useRef(false)
+  const dialogOpen = useRef(false)
+
+  function askToConfirm() {
+    if (disabled || dialogOpen.current) return
+    dialogOpen.current = true
+    Alert.alert(`${label}?`, undefined, [
+      { text: 'Cancel', style: 'cancel', onPress: () => { dialogOpen.current = false } },
+      { text: label, style: 'destructive', onPress: () => {
+        dialogOpen.current = false
+        onConfirm()
+      } },
+    ], { cancelable: false })
+  }
+
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label}
-      accessibilityHint="Press and hold for one and a half seconds to confirm"
+      accessibilityHint="Opens a confirmation. You can also press and hold."
+      accessibilityActions={[{ name: 'activate', label: `Confirm ${label}` }]}
+      onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'activate') askToConfirm() }}
       accessibilityState={{ disabled }}
       disabled={disabled} delayLongPress={holdMs}
+      onPress={() => { if (!held.current) askToConfirm() }}
       onPressIn={() => {
+        held.current = false
         if (!reduceMotion) progress.set(withTiming(1, { duration: holdMs, easing: Easing.linear, reduceMotion: ReduceMotion.Never }))
       }}
       onPressOut={() => {
         cancelAnimation(progress)
         progress.set(0)
       }}
-      onLongPress={onConfirm}
+      onLongPress={() => {
+        if (held.current || dialogOpen.current) return
+        held.current = true
+        onConfirm()
+      }}
       style={({ pressed }) => [styles.button, pressed && styles.pressed, disabled && styles.disabled]}
     >
-      <Animated.View pointerEvents="none" style={[styles.progress, fill]} />
-      <Icon glyph={glyph} />
-      <View style={styles.text}>
-        <Text variant="body" style={styles.label}>{label}</Text>
-        <Text variant="label" tone="muted">Hold to confirm</Text>
-      </View>
+      {({ pressed }) => (
+        <>
+          <Animated.View pointerEvents="none" style={[styles.progress, fill]} />
+          <Icon glyph={glyph} />
+          <View style={styles.text}>
+            <Text variant="body" style={styles.label}>{label}</Text>
+            <Text variant="label" tone="muted">{reduceMotion && pressed ? 'Keep holding…' : 'Hold to confirm'}</Text>
+          </View>
+        </>
+      )}
     </Pressable>
   )
 }

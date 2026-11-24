@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { runInNewContext } from 'node:vm'
+import ts from 'typescript'
+import type { SavedPracticeSession } from '../mobile/practiceStorageModel.ts'
 import { createOperationQueue, followLatestSave, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from '../mobile/practiceOperations.ts'
 import { createPracticePreviewCache } from '../mobile/practicePreviewCache.ts'
 import { normalizeResumeContext, strokePointAction } from '../mobile/practiceModel.ts'
@@ -155,3 +159,157 @@ console.log('Native operation models passed: pending save/clear overlaps, queued
   assert.equal(await followLatestSave(Promise.resolve(true), () => null, () => current), true, 'plain success')
   console.log('followLatestSave: superseded, failed, revoked and plain saves behave as expected')
 }
+
+// Exercise the real 2.0 hook callbacks with storage paused mid-operation.
+// UI state is inert here; refs keep the same lifetimes as a mounted canvas.
+const sessionHookSource = readFileSync(new URL('../mobile/src/features/draw/useDrawSession.ts', import.meta.url), 'utf8')
+const sessionHookJs = ts.transpileModule(sessionHookSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2023 },
+}).outputText
+function mountDrawSession(io: {
+  readDrawing: (id: string) => Promise<SavedPracticeSession | null>
+  saveDrawing: (session: SavedPracticeSession, current: () => boolean) => Promise<boolean>
+  deleteDrawing: (id: string, current: () => boolean) => Promise<boolean>
+}) {
+  const initial = {
+    sessionId: 'before-clear', stamp: undefined, strokes: [], updatedAt: '2026-06-01T09:00:00.000Z',
+  } as unknown as SavedPracticeSession
+  const exports: { useDrawSession?: typeof import('../mobile/src/features/draw/useDrawSession').useDrawSession } = {}
+  const ref = <T,>(current: T) => ({ current })
+  runInNewContext(sessionHookJs, {
+    exports,
+    require(name: string) {
+      if (name === 'react') return {
+        useCallback: (callback: unknown) => callback, useEffect: () => undefined,
+        useRef: ref, useState: (initialState: unknown) => [initialState, () => undefined],
+      }
+      if (name === '../../../practiceOperations') return { operationGuard, followLatestSave }
+      assert.equal(name, '../../data/drawingLibrary')
+      return {
+        ...io, hasDrawingContent: () => true,
+        newDrawing: () => ({ ...initial, sessionId: 'after-clear' }),
+      }
+    },
+  })
+  assert.ok(exports.useDrawSession)
+  return { initial, hook: exports.useDrawSession(initial, true) }
+}
+
+const oldWrite = deferred()
+const stampsWritten: Array<SavedPracticeSession['stamp']> = []
+const stamped = mountDrawSession({
+  readDrawing: async () => externalStamp,
+  saveDrawing: async (session) => {
+    stampsWritten.push(session.stamp)
+    if (stampsWritten.length === 1) await oldWrite.promise
+    return true
+  },
+  deleteDrawing: async () => true,
+})
+const externalStamp: SavedPracticeSession = { ...stamped.initial, stamp: 'heart' }
+stamped.hook.change((session) => ({ ...session, markerWidth: 13 }))
+const savingOldStamp = stamped.hook.save()
+await stamped.hook.refreshStamp(stamped.initial.sessionId)
+assert.ok(await stamped.hook.save(), 'A refreshed stamp can be written while an older revision is still pending')
+oldWrite.resolve()
+await savingOldStamp
+assert.deepEqual(stampsWritten, [undefined, 'heart'], 'An in-flight save cannot mark the new stamp revision as saved')
+
+const waitingDelete = deferred()
+const writesAfterClear: string[] = []
+let deletedId: string | undefined
+const clearingCanvas = mountDrawSession({
+  readDrawing: async () => null,
+  saveDrawing: async (session) => { writesAfterClear.push(session.sessionId); return true },
+  deleteDrawing: async (id) => { deletedId = id; await waitingDelete.promise; return true },
+})
+clearingCanvas.hook.change((session) => ({ ...session, markerWidth: 13 }))
+const clearing = clearingCanvas.hook.clear()
+assert.equal(deletedId, 'before-clear')
+assert.equal(await clearingCanvas.hook.save(), false, 'An autosave during clear cannot reserve the old strokes under the new generation')
+waitingDelete.resolve()
+assert.ok(await clearing)
+assert.ok(await clearingCanvas.hook.save(), 'A clean empty canvas can leave without a write')
+assert.deepEqual(writesAfterClear, [])
+clearingCanvas.hook.change((session) => ({ ...session, markerWidth: 13 }))
+assert.ok(await clearingCanvas.hook.save())
+assert.deepEqual(writesAfterClear, ['after-clear'])
+
+const drawScreenSource = readFileSync(new URL('../mobile/src/features/draw/DrawScreen.tsx', import.meta.url), 'utf8')
+const drawScreenAst = ts.createSourceFile('DrawScreen.tsx', drawScreenSource, ts.ScriptTarget.ES2023, true, ts.ScriptKind.TSX)
+const sourceCalls = new Map<string, ts.CallExpression>()
+function findDrawCallbacks(node: ts.Node) {
+  if (ts.isCallExpression(node) && node.expression.getText() === 'usePreventRemove') sourceCalls.set('remove', node)
+  if (ts.isVariableDeclaration(node) && node.name.getText() === 'flushAndSave' && node.initializer && ts.isCallExpression(node.initializer)) {
+    sourceCalls.set('flushAndSave', node.initializer)
+  }
+  ts.forEachChild(node, findDrawCallbacks)
+}
+findDrawCallbacks(drawScreenAst)
+const remove = sourceCalls.get('remove')
+assert.equal(remove?.arguments[0].kind, ts.SyntaxKind.TrueKeyword, 'Removal is intercepted before ink reaches saved session state')
+const endOfFlush = deferred()
+const departure: string[] = []
+const canvas = { current: { flush: async () => { departure.push('flush'); await endOfFlush.promise } } }
+function evaluateDrawCallback(source: string, bindings: Record<string, unknown>) {
+  return runInNewContext(ts.transpileModule(`const callback = ${source}; callback`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2023 },
+  }).outputText, { ...bindings })
+}
+const flushAndSave = evaluateDrawCallback(sourceCalls.get('flushAndSave')!.arguments[0].getText(), {
+  canvas, save: async () => { departure.push('save'); return true },
+})
+const action = { type: 'GO_BACK' }
+evaluateDrawCallback(remove!.arguments[1].getText(), {
+  running: { current: false }, transact: (task: () => Promise<boolean>) => task(), flushAndSave,
+  navigation: { dispatch: (event: unknown) => { assert.equal(event, action); departure.push('back') } },
+})({ data: { action } })
+assert.deepEqual(departure, ['flush'])
+endOfFlush.resolve()
+await new Promise<void>((resolve) => setImmediate(resolve))
+assert.deepEqual(departure, ['flush', 'save', 'back'])
+console.log('TraceBuddy 2.0: actual draw callbacks guard clear, invalidate old stamp saves, and flush before removal')
+
+const holdButtonSource = readFileSync(new URL('../mobile/src/ui/HoldButton.tsx', import.meta.url), 'utf8')
+const holdButtonAst = ts.createSourceFile('HoldButton.tsx', holdButtonSource, ts.ScriptTarget.ES2023, true, ts.ScriptKind.TSX)
+let confirmBody: string | undefined
+const holdHandlers = new Map<string, string>()
+function findHoldHandlers(node: ts.Node) {
+  if (ts.isFunctionDeclaration(node) && node.name?.text === 'askToConfirm') confirmBody = node.getText()
+  if (ts.isJsxAttribute(node) && node.initializer && ts.isJsxExpression(node.initializer) && node.initializer.expression) {
+    holdHandlers.set(node.name.getText(), node.initializer.expression.getText())
+  }
+  ts.forEachChild(node, findHoldHandlers)
+}
+findHoldHandlers(holdButtonAst)
+assert.ok(confirmBody)
+type AlertButton = { text: string; style: string; onPress: () => void }
+const alerts: AlertButton[][] = []
+let destructiveCalls = 0
+const holdBindings: Record<string, unknown> = {
+  disabled: false, label: 'Delete', held: { current: false }, dialogOpen: { current: false },
+  Alert: { alert: (_title: string, _message: string | undefined, buttons: AlertButton[]) => { alerts.push(buttons) } },
+  onConfirm: () => { destructiveCalls += 1 },
+}
+holdBindings.askToConfirm = evaluateDrawCallback(confirmBody, holdBindings)
+const accessibleActivate = evaluateDrawCallback(holdHandlers.get('onAccessibilityAction')!, holdBindings)
+const press = evaluateDrawCallback(holdHandlers.get('onPress')!, holdBindings)
+const longPress = evaluateDrawCallback(holdHandlers.get('onLongPress')!, holdBindings)
+accessibleActivate({ nativeEvent: { actionName: 'activate' } })
+press()
+longPress()
+assert.equal(alerts.length, 1, 'Accessibility, keyboard or a hold cannot duplicate an open confirmation')
+assert.equal(destructiveCalls, 0)
+assert.equal(alerts[0][0].style, 'cancel')
+alerts[0][0].onPress()
+assert.equal(destructiveCalls, 0)
+press()
+assert.equal(alerts.length, 2)
+assert.equal(alerts[1][1].style, 'destructive')
+alerts[1][1].onPress()
+assert.equal(destructiveCalls, 1)
+longPress()
+press()
+assert.equal(destructiveCalls, 2, 'A completed touch hold confirms without a second dialog')
+assert.equal(alerts.length, 2)
+console.log('TraceBuddy 2.0: actual HoldButton callbacks confirm accessible and keyboard activations once, support cancel, and keep touch hold')

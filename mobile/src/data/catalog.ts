@@ -1,3 +1,4 @@
+import { photoDrawingName } from './practiceSource'
 import { createTextDrawing, drawingById, drawings, sanitizeTraceText } from '../../../shared'
 import type { Drawing } from '../../../shared'
 import type { PracticeSource, UploadedImage } from '../../practiceStorageModel'
@@ -92,7 +93,7 @@ export function resolvePicture(params: IncomingParams): Picture | null {
   const uri = readParam(params.photo)
   if (uri) {
     if (!uri.startsWith('file://')) return null
-    const name = readParam(params.photoName) || 'My photo'
+    const name = photoDrawingName
     return {
       id: 'my-photo', name, category: 'fun', line: () => '',
       uploadedImage: {

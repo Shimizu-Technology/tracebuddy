@@ -11,7 +11,7 @@ const glyphs = { pencil: PencilSimpleIcon, marker: HighlighterIcon, crayon: Penc
 
 export function ColorRail({ selected, vertical, disabled, onPick }: { selected: string; vertical?: boolean; disabled: boolean; onPick: (color: string) => void }) {
   return (
-    <ScrollView horizontal={!vertical} showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}
+    <ScrollView horizontal={!vertical} showsHorizontalScrollIndicator={!vertical} showsVerticalScrollIndicator={false}
       style={vertical ? styles.railVertical : styles.railHorizontal}
       contentContainerStyle={vertical ? styles.colorsVertical : styles.colorsHorizontal}>
       {theme.crayon.colors.map(({ name, value }) => (
@@ -73,10 +73,10 @@ export function DrawTools({ session, lastBrush, busy, compact, vertical, onSize,
 const styles = StyleSheet.create({
   railHorizontal: { flexGrow: 0 },
   railVertical: { flexGrow: 0, height: '100%' },
-  colorsHorizontal: { paddingHorizontal: theme.space.lg },
+  colorsHorizontal: { paddingRight: theme.space.lg },
   colorsVertical: { alignItems: 'center' },
   crayonHit: { width: theme.target.child, height: theme.target.child, alignItems: 'center', justifyContent: 'flex-end' },
-  crayon: { padding: theme.space.xs, borderWidth: theme.border.emphasis, borderColor: 'transparent', borderRadius: theme.space.md, alignItems: 'center', width: theme.crayon.bodyWidth },
+  crayon: { paddingVertical: theme.space.xs, borderWidth: theme.border.emphasis, borderColor: 'transparent', borderRadius: theme.space.md, alignItems: 'center', width: theme.crayon.bodyWidth },
   raisedCrayon: { borderColor: theme.colors.ink, transform: [{ translateY: -theme.space.xs }] },
   crayonCap: { borderTopLeftRadius: theme.space.sm, borderTopRightRadius: theme.space.sm, width: theme.crayon.capWidth, height: theme.space.md, opacity: 0.85 },
   crayonBody: { width: '100%', height: theme.crayon.bodyHeight, borderRadius: theme.space.sm, borderBottomWidth: theme.space.xs, borderBottomColor: theme.crayon.shading },

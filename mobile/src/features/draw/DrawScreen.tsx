@@ -1,3 +1,4 @@
+import { photoDrawingName } from '../../data/practiceSource'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
 import { usePreventRemove } from 'expo-router/react-navigation'
@@ -8,6 +9,8 @@ import { finishAfterSave } from '../../../finishFindModel'
 import type { BrushToolId, PracticeStroke, SavedPracticeSession } from '../../../practiceStorageModel'
 import { paramsForSource, resolvePicture, sourceForPicture } from '../../data/catalog'
 import type { PictureParams } from '../../data/catalog'
+import { keepDrawingImages } from '../../data/drawingImageFiles'
+import { drawingImageUris } from '../../data/practiceImageCleanup'
 import { currentDrawingImageUri } from '../../data/drawingPhotos'
 import { newDrawing, readDrawing } from '../../data/drawingLibrary'
 import { serializeModePreference } from '../../data/localSettings'
@@ -60,7 +63,7 @@ export default function DrawScreen() {
 }
 
 function ActiveDrawing({ initial, wasSaved, params }: { initial: SavedPracticeSession; wasSaved: boolean; params: Params }) {
-  const { session, change, save, clear, refreshStamp, saveFailed, dirty } = useDrawSession(initial, wasSaved)
+  const { session, change, save, clear, refreshStamp, saveFailed } = useDrawSession(initial, wasSaved)
   const { setMore } = useDrawMore()
   const [busy, setBusy] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -77,6 +80,12 @@ function ActiveDrawing({ initial, wasSaved, params }: { initial: SavedPracticeSe
   const sideTools = landscape && !moreOpen
   const portraitRail = tablet && !landscape && !moreOpen
   const side = Math.floor(Math.min(room.width, room.height))
+
+  const { source, stickers } = session
+  useEffect(() => {
+    const release = keepDrawingImages(drawingImageUris({ source, stickers }))
+    return () => { void release() }
+  }, [source, stickers])
 
   useFocusEffect(useCallback(() => {
     setMoreOpen(false)
@@ -114,9 +123,8 @@ function ActiveDrawing({ initial, wasSaved, params }: { initial: SavedPracticeSe
     Alert.alert('Could not save drawing', 'Your drawing is still open. Try saving again.')
   }
 
-  // A clean document can use the native back gesture directly. A dirty one
-  // waits for the same queue as Done before replaying the navigation action.
-  usePreventRemove(dirty || busy, ({ data }) => {
+  // The canvas can hold ink that has not reached the session yet.
+  usePreventRemove(true, ({ data }) => {
     if (running.current) return
     void transact(async () => {
       if (!await flushAndSave()) { showSaveFailure(); return false }
@@ -187,7 +195,7 @@ function ActiveDrawing({ initial, wasSaved, params }: { initial: SavedPracticeSe
 
   return (
     <SafeAreaView style={styles.page}>
-      <PageHeader title={session.source.drawingName} centered
+      <PageHeader title={session.source.kind === 'upload' ? photoDrawingName : session.source.drawingName} centered
         trailing={<CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />} />
       {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
       <View style={styles.workspace}>

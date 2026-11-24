@@ -1,4 +1,4 @@
-import { BlendMode, PaintStyle, Skia, StrokeCap, StrokeJoin } from '@shopify/react-native-skia'
+import { BlendMode, ImageFormat, PaintStyle, Skia, StrokeCap, StrokeJoin } from '@shopify/react-native-skia'
 import type { SkPaint, SkPath } from '@shopify/react-native-skia'
 import type { PracticeStroke } from '../../../practiceStorageModel'
 
@@ -34,21 +34,39 @@ function parseStroke(stroke: PracticeStroke) {
 
 export function recordInk(strokes: readonly PracticeStroke[]) {
   const recorder = Skia.PictureRecorder()
-  const canvas = recorder.beginRecording(Skia.XYWHRect(0, 0, 1000, 1000))
-  for (const stroke of strokes) {
-    const parsed = parseStroke(stroke)
-    if (parsed) canvas.drawPath(parsed.path, parsed.paint)
+  try {
+    const canvas = recorder.beginRecording(Skia.XYWHRect(0, 0, 1000, 1000))
+    for (const stroke of strokes) {
+      const parsed = parseStroke(stroke)
+      if (parsed) canvas.drawPath(parsed.path, parsed.paint)
+    }
+    return recorder.finishRecordingAsPicture()
+  } finally {
+    recorder.dispose()
   }
-  return recorder.finishRecordingAsPicture()
 }
 
-export function renderInkImage(strokes: readonly PracticeStroke[], size: number) {
+export function renderInkPng(strokes: readonly PracticeStroke[], size: number) {
   const surface = Skia.Surface.Make(size, size)
   if (!surface) throw new Error('Could not create ink surface')
-  const canvas = surface.getCanvas()
-  canvas.clear(Skia.Color('transparent'))
-  canvas.scale(size / 1000, size / 1000)
-  canvas.drawPicture(recordInk(strokes))
-  surface.flush()
-  return surface.makeImageSnapshot()
+  try {
+    const canvas = surface.getCanvas()
+    canvas.clear(Skia.Color('transparent'))
+    canvas.scale(size / 1000, size / 1000)
+    const picture = recordInk(strokes)
+    try {
+      canvas.drawPicture(picture)
+      surface.flush()
+      const image = surface.makeImageSnapshot()
+      try {
+        return image.encodeToBytes(ImageFormat.PNG)
+      } finally {
+        image.dispose()
+      }
+    } finally {
+      picture.dispose()
+    }
+  } finally {
+    surface.dispose()
+  }
 }

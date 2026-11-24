@@ -1,3 +1,4 @@
+import { drawingTitle } from '../../data/practiceSource'
 import { useEffect, useRef, useState } from 'react'
 import { router, useLocalSearchParams } from 'expo-router'
 import { usePreventRemove } from 'expo-router/react-navigation'
@@ -53,7 +54,7 @@ export default function DrawingMenu() {
     <View style={styles.page}>
       {captureView}
       <ScrollView contentContainerStyle={styles.content}>
-        <Text variant="heading" accessibilityRole="header">{session.title}</Text>
+        <Text variant="heading" accessibilityRole="header">{drawingTitle(session)}</Text>
         <CanvasButton glyph={CopyIcon} label="Copy" showLabel disabled={busy || saving} style={styles.option}
           onPress={() => void change(() => copyDrawing(session))} />
         <CanvasButton glyph={PencilSimpleIcon} label="Start fresh" showLabel disabled={busy || saving} style={styles.option}

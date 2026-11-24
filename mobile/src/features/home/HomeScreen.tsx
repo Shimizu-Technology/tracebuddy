@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react'
+import { drawingTitle } from '../../data/practiceSource'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, FlatList, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -44,16 +45,23 @@ export default function HomeScreen() {
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
   const photoPending = useRef(false)
+  const homeFocused = useRef(false)
+  const photoLease = useRef<(() => Promise<void>) | null>(null)
   const levelPending = useRef(false)
   const { drawings } = useDrawingLibrary()
   const { favorites, toggle } = useFavorites()
   const recent = continueDrawing(drawings ?? [])
 
+  useEffect(() => () => { void photoLease.current?.() }, [photoLease])
+
   useFocusEffect(useCallback(() => {
+    homeFocused.current = true
+    void photoLease.current?.()
+    photoLease.current = null
     let active = true
     void readArtistLevel().then((value) => { if (active) setLevel(value) })
       .catch(() => { if (active) setLevel(null) })
-    return () => { active = false }
+    return () => { active = false; homeFocused.current = false }
   }, []))
 
   async function chooseArtist(value: ArtLevel) {
@@ -73,13 +81,22 @@ export default function HomeScreen() {
     if (photoPending.current) return
     photoPending.current = true
     try {
-      const photo = await pickDrawingPhoto()
-      if (photo) router.push({ pathname: '/picture/[id]', params: {
-        id: 'my-photo', photo: photo.uri, photoName: photo.name,
+      const selection = await pickDrawingPhoto()
+      if (!selection) return
+      const { photo, release } = selection
+      if (!homeFocused.current) {
+        await release()
+        return
+      }
+      photoLease.current = release
+      router.push({ pathname: '/picture/[id]', params: {
+        id: 'my-photo', photo: photo.uri,
         ...(photo.width ? { photoWidth: String(photo.width) } : {}),
         ...(photo.height ? { photoHeight: String(photo.height) } : {}),
       } })
     } catch {
+      void photoLease.current?.()
+      photoLease.current = null
       Alert.alert('Could not open photo', 'Try choosing your photo again.')
     } finally {
       photoPending.current = false
@@ -119,20 +136,20 @@ export default function HomeScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.header}>
-            <View style={[styles.top, (contentWidth < theme.layout.homeHeaderWidth || fontScale >= theme.layout.stackedHeaderFontScale) && styles.wrap]}>
+            <View style={[styles.top, fontScale >= theme.layout.stackedHeaderFontScale && styles.wrap]}>
               <View style={styles.wordmark}>
                 <View style={styles.logo}><Icon glyph={PencilSimpleIcon} /></View>
-                <Text variant="heading" style={[styles.bold, styles.wordmarkText]}>TraceBuddy</Text>
+                <Text variant="heading" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.bold, styles.wordmarkText]}>TraceBuddy</Text>
               </View>
               <View style={styles.actions}>
-                <CanvasButton glyph={MagnifyingGlassIcon} label="Search pictures" selected={searching} style={styles.searchButton} onPress={() => {
+                <CanvasButton glyph={MagnifyingGlassIcon} label="Search pictures" selected={searching} style={styles.adultButton} onPress={() => {
                   setSearching(!searching)
                   if (searching) setQuery('')
                 }} />
                 <CanvasButton glyph={ImagesSquareIcon} label={`My drawings, ${count} saved`} onPress={() => router.push('/drawings')}>
                   {!!count && <View style={styles.count}><Text variant="label" maxFontSizeMultiplier={1.3} style={styles.bold}>{count}</Text></View>}
                 </CanvasButton>
-                <CanvasButton glyph={UserIcon} label="Grown-ups" onPress={() => router.push('/grown-ups')} />
+                <CanvasButton glyph={UserIcon} label="Grown-ups" style={styles.adultButton} onPress={() => router.push('/grown-ups')} />
               </View>
             </View>
             {searching && (
@@ -145,14 +162,14 @@ export default function HomeScreen() {
             {level === null && <ArtistChoice level={level} onPick={(value) => void chooseArtist(value)} />}
             {recent && (
               <PressTarget
-                accessibilityLabel={`Keep going, ${recent.title}`}
+                accessibilityLabel={`Keep going, ${drawingTitle(recent)}`}
                 onPress={() => router.push({ pathname: '/draw/[id]', params: { id: recent.source.drawingId, sessionId: recent.sessionId } })}
                 style={styles.keepGoing}
               >
                 <View style={styles.thumbnail}><DrawingThumbnail session={recent} side={theme.layout.recentThumbnail} /></View>
                 <View style={styles.keepText}>
                   <Text variant="heading" style={styles.bold}>Keep going</Text>
-                  <Text tone="muted">{recent.title}</Text>
+                  <Text tone="muted">{drawingTitle(recent)}</Text>
                 </View>
                 <View style={styles.play}><Icon glyph={PlayIcon} /></View>
               </PressTarget>
@@ -211,7 +228,7 @@ const styles = StyleSheet.create({
   logo: { padding: theme.space.xs, backgroundColor: theme.pastels.peach, borderRadius: theme.space.md },
   bold: { fontFamily: theme.fontFamily[800] },
   actions: { flexDirection: 'row', gap: theme.space.xs, alignItems: 'center' },
-  searchButton: { minWidth: theme.target.adult, minHeight: theme.target.adult },
+  adultButton: { minWidth: theme.target.adult, minHeight: theme.target.adult },
   phoneTitle: { maxWidth: theme.layout.homeTitleWidth },
   count: {
     position: 'absolute', top: 0, right: 0, borderRadius: theme.radius.full, minWidth: theme.space.xl,

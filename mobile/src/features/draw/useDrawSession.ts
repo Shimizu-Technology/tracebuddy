@@ -15,9 +15,11 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
   const revision = useRef(0)
   const savedRevision = useRef(0)
   const mayExist = useRef(wasSaved)
+  const clearing = useRef(false)
   const pending = useRef<{ revision: number; save: Promise<boolean> } | null>(null)
 
   const change = useCallback((update: (session: SavedPracticeSession) => SavedPracticeSession) => {
+    if (clearing.current) return
     const next = update(current.current)
     if (next === current.current) return
     current.current = { ...next, updatedAt: new Date().toISOString(), guideOnTop: true }
@@ -27,6 +29,7 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
   }, [])
 
   const save = useCallback(async () => {
+    if (clearing.current) return false
     const isCurrent = operationGuard(generation.current, () => generation.current)
     const snapshot = current.current
     const version = revision.current
@@ -62,6 +65,8 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
   }, [])
 
   const clear = useCallback(async () => {
+    if (clearing.current) return false
+    clearing.current = true
     const old = current.current
     const token = ++generation.current
     const isCurrent = operationGuard(token, () => generation.current)
@@ -79,17 +84,24 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
     } catch {
       if (isCurrent()) setSaveFailed(true)
       return false
+    } finally {
+      clearing.current = false
     }
   }, [])
 
   const refreshStamp = useCallback(async (id: string) => {
     const version = revision.current
+    const stamp = current.current.stamp
+    const token = generation.current
     try {
       const saved = await readDrawing(id)
-      if (!saved || current.current.sessionId !== id) return
+      if (!saved || clearing.current || generation.current !== token || current.current.sessionId !== id) return
+      if (current.current.stamp !== stamp || saved.stamp === stamp) return
       const updatedAt = version === revision.current ? saved.updatedAt : current.current.updatedAt
       current.current = { ...current.current, stamp: saved.stamp, updatedAt }
+      revision.current += 1
       setSession(current.current)
+      setDirty(true)
     } catch {
       // A failed refresh can be retried by returning to My drawings.
     }

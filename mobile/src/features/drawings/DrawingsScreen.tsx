@@ -1,3 +1,4 @@
+import { drawingTitle } from '../../data/practiceSource'
 import { router } from 'expo-router'
 import { ActivityIndicator, FlatList, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -55,7 +56,7 @@ export default function DrawingsScreen() {
           </View>
         ) : <ActivityIndicator color={theme.colors.ink} />}
         renderItem={({ item }) => (
-          <PressTarget style={[styles.tile, { width: tileWidth }]} accessibilityLabel={item.title}
+          <PressTarget style={[styles.tile, { width: tileWidth }]} accessibilityLabel={drawingTitle(item)}
             accessibilityHint="Open drawing. Long-press for drawing options."
             accessibilityActions={[{ name: 'options', label: 'Drawing options' }]}
             onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'options') openMenu(item) }}
@@ -63,7 +64,7 @@ export default function DrawingsScreen() {
             onPress={() => router.push({ pathname: '/draw/[id]', params: { id: item.source.drawingId, sessionId: item.sessionId } })}>
             <DrawingThumbnail side={tileWidth - theme.space.sm * 2} session={item} />
             <View style={styles.caption}>
-              <Text variant="body" style={styles.label}>{item.title}</Text>
+              <Text variant="body" style={styles.label}>{drawingTitle(item)}</Text>
               <Text variant="label" tone="muted">{dateLabel(item.updatedAt)}</Text>
             </View>
           </PressTarget>

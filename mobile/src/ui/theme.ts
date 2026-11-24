@@ -54,7 +54,6 @@ export const theme = {
     threeColumns: 690,
     fourColumns: 1050,
     wordmarkMinWidth: 110,
-    homeHeaderWidth: 360,
     homeTitleWidth: 282,
     recentThumbnail: 84,
     picturePreviewMax: 248,

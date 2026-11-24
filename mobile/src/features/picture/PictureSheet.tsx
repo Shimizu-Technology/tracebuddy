@@ -8,17 +8,17 @@ import { parseModePreference, serializeModePreference } from '../../data/localSe
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
 import { modePreferenceKey } from '../../data/storageKeys'
 import { Button } from '../../ui/Button'
-import { Icon } from '../../ui/Icon'
-import { CameraIcon, HandPointingIcon } from '../../ui/icons'
 import { PressTarget } from '../../ui/PressTarget'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
 import { PictureArt } from './PictureArt'
+import { PictureModeIllustration } from './PictureModeIllustration'
+import { keepDrawingImages } from '../../data/drawingImageFiles'
 import { picturePastel } from './picturePastel'
 
 const modes = [
-  { id: 'camera', label: 'On paper', glyph: CameraIcon, pastel: theme.pastels.sky },
-  { id: 'screen', label: 'On the screen', glyph: HandPointingIcon, pastel: theme.pastels.peach },
+  { id: 'camera', label: 'On paper', pastel: theme.pastels.sky },
+  { id: 'screen', label: 'On the screen', pastel: theme.pastels.peach },
 ] as const
 
 export default function PictureSheet() {
@@ -30,6 +30,13 @@ export default function PictureSheet() {
   const { height, fontScale } = useWindowDimensions()
   const picture = resolvePicture({ ...params, level })
   const levels = picture?.level ? pictureLevels(picture.id) : []
+  const photoUri = picture?.uploadedImage?.uri
+
+  useEffect(() => {
+    if (!photoUri) return
+    const release = keepDrawingImages([photoUri])
+    return () => { void release() }
+  }, [photoUri])
 
   useFocusEffect(useCallback(() => {
     focused.current = true
@@ -70,7 +77,7 @@ export default function PictureSheet() {
   const stacked = fontScale >= theme.layout.stackedHeaderFontScale
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={[styles.preview, { width: Math.min(theme.layout.picturePreviewMax, height * 0.285), backgroundColor: theme.pastels[picturePastel[picture.category]] }]}>
+      <View style={[styles.preview, { width: Math.min(theme.layout.picturePreviewMax, height * 0.255), backgroundColor: theme.pastels[picturePastel[picture.category]] }]}>
         <PictureArt picture={picture} />
       </View>
       <Text accessibilityRole="header" variant="title" style={styles.title}>{picture.name}</Text>
@@ -89,12 +96,12 @@ export default function PictureSheet() {
       )}
       <Text tone="muted" style={styles.title}>How do you want to draw?</Text>
       <View style={[styles.choices, stacked && styles.stacked]}>
-        {modes.map(({ id, label, glyph, pastel }) => (
+        {modes.map(({ id, label, pastel }) => (
           <PressTarget key={id} onPress={() => void openMode(id)}
             accessibilityLabel={label} accessibilityHint={lastMode === id ? 'Last used' : undefined}
             style={[styles.choice, lastMode === id && styles.lastMode]}>
-            <View style={[styles.modeIcon, { backgroundColor: pastel }]}><Icon glyph={glyph} size={theme.icon.size + theme.space.lg} /></View>
-            <Text variant="heading" style={styles.title}>{label}</Text>
+            <View style={[styles.modeIcon, { backgroundColor: pastel }]}><PictureModeIllustration mode={id} /></View>
+            <Text variant="body" style={styles.title}>{label}</Text>
           </PressTarget>
         ))}
       </View>
@@ -123,5 +130,5 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.hairline, borderWidth: theme.border.emphasis, backgroundColor: theme.colors.background,
   },
   lastMode: { borderColor: theme.colors.ink, backgroundColor: theme.pastels.peach },
-  modeIcon: { borderRadius: theme.space.lg, padding: theme.space.md },
+  modeIcon: { width: '100%', borderRadius: theme.space.lg, paddingVertical: theme.space.xs },
 })

@@ -5,8 +5,9 @@ import { Alert, Linking } from 'react-native'
 
 import { photoAccessAllowed } from '../../practiceModel'
 import type { UploadedImage } from '../../practiceStorageModel'
+import { keepDrawingImages } from './drawingImageFiles'
 import { previousWorkStorage } from './nativeStorage'
-import { createPracticeSessionId, practiceImageFolder, rebasePracticeImageUri } from './practiceSource'
+import { createPracticeSessionId, photoDrawingName, practiceImageFolder, rebasePracticeImageUri } from './practiceSource'
 
 function showPermissionRecovery(canAskAgain: boolean, message: string) {
   Alert.alert('Photo permission needed', message, [
@@ -29,7 +30,7 @@ export function currentDrawingImageUri(uri: string) {
   return rebasePracticeImageUri(uri, FileSystem.documentDirectory)
 }
 
-export async function pickDrawingPhoto(): Promise<UploadedImage | null> {
+export async function pickDrawingPhoto(): Promise<{ photo: UploadedImage; release: () => Promise<void> } | null> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
   if (!photoAccessAllowed(permission)) {
     showPermissionRecovery(permission.canAskAgain, 'Allow photo access to pick a picture to draw.')
@@ -44,13 +45,19 @@ export async function pickDrawingPhoto(): Promise<UploadedImage | null> {
   const directory = `${FileSystem.documentDirectory}${practiceImageFolder}/`
   const uri = photo.uri.startsWith(directory) ? photo.uri
     : `${directory}${createPracticeSessionId()}.${extension(photo.fileName) ?? extension(photo.uri) ?? 'jpg'}`
-  if (uri !== photo.uri) {
-    await previousWorkStorage.queuePreviousWorkWrite(async () => {
-      await FileSystem.makeDirectoryAsync(directory, { intermediates: true })
-      await FileSystem.copyAsync({ from: photo.uri, to: uri })
-    })
+  const release = keepDrawingImages([uri])
+  try {
+    if (uri !== photo.uri) {
+      await previousWorkStorage.queuePreviousWorkWrite(async () => {
+        await FileSystem.makeDirectoryAsync(directory, { intermediates: true })
+        await FileSystem.copyAsync({ from: photo.uri, to: uri })
+      })
+    }
+    return { photo: { uri, name: photoDrawingName, width: photo.width, height: photo.height }, release }
+  } catch (error) {
+    await release()
+    throw error
   }
-  return { uri, name: photo.fileName ?? 'My photo', width: photo.width, height: photo.height }
 }
 
 export async function requestDrawingPhotoExport() {

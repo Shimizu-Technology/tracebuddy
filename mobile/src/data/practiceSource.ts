@@ -1,8 +1,15 @@
 import { drawingById, drawings } from '../../../shared'
 import type { Drawing } from '../../../shared'
-import type { PracticeSource, UploadedImage } from '../../practiceStorageModel'
+import type { PracticeSource, SavedPracticeSession, UploadedImage } from '../../practiceStorageModel'
 
 export const practiceImageFolder = 'tracebuddy-uploads'
+export const photoDrawingName = 'My photo'
+
+export function drawingTitle({ source, title }: Pick<SavedPracticeSession, 'source' | 'title'>) {
+  if (source.kind !== 'upload') return title
+  const copySuffix = /(?: copy)+$/.exec(title)?.[0] ?? ''
+  return photoDrawingName + copySuffix
+}
 
 export function rebasePracticeImageUri(uri: string, documentDirectory: string | null) {
   if (!documentDirectory || !uri.startsWith('file://')) return uri

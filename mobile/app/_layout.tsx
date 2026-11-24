@@ -57,7 +57,7 @@ export default function RootLayout() {
             <Stack.Protected guard={traceBuddy2Enabled}>
               <Stack.Screen name="grown-ups" />
               <Stack.Screen name="drawings" />
-              <Stack.Screen name="draw/[id]" />
+              <Stack.Screen name="draw/[id]" options={{ gestureEnabled: false }} />
               <Stack.Screen name="picture/[id]" options={{ ...sheet, sheetAllowedDetents: [0.7, 1], sheetLargestUndimmedDetentIndex: 'none' }} />
               <Stack.Screen name="my-name" options={{ ...sheet, sheetAllowedDetents: [0.5, 1], sheetLargestUndimmedDetentIndex: 'none' }} />
               <Stack.Screen name="done" options={{ ...sheet, sheetAllowedDetents: [0.72, 1], sheetInitialDetentIndex: expandedKeepsake ? 1 : 0, sheetLargestUndimmedDetentIndex: 'none' }} />

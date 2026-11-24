@@ -3,12 +3,13 @@ import { useFocusEffect } from 'expo-router'
 import { useCallback, useState } from 'react'
 import { useWindowDimensions } from 'react-native'
 
-import { writeIfCurrent } from '../../practiceOperations'
 import { hasKeepsakeContent } from '../../finishFindModel'
 import type { PracticeSource, SavedPracticeSession } from '../../practiceStorageModel'
 import { defaultMarkerColor, makePracticeSessionTitle } from '../../practiceStorageModel'
+import { cleanupDrawingImagesInQueue, cleanupOrphanedDrawingImages } from './drawingImageFiles'
 import { previousWorkStorage } from './nativeStorage'
-import { createPracticeSessionId } from './practiceSource'
+import { createPracticeSessionId, drawingTitle, photoDrawingName } from './practiceSource'
+import { drawingImageUris } from './practiceImageCleanup'
 import { parsePreviousWorkSession, previousWorkSessionKey, serializePreviousWorkIndex } from './previousWork'
 import { previousWorkIndexKey } from './storageKeys'
 
@@ -29,7 +30,7 @@ export function newDrawing(source: PracticeSource): SavedPracticeSession {
   return {
     version: 2,
     sessionId: createPracticeSessionId(),
-    title: makePracticeSessionTitle(source),
+    title: source.kind === 'upload' ? photoDrawingName : makePracticeSessionTitle(source),
     source,
     createdAt: now,
     updatedAt: now,
@@ -47,17 +48,21 @@ export function newDrawing(source: PracticeSource): SavedPracticeSession {
 
 export function copyDrawing(original: SavedPracticeSession) {
   const copy = newDrawing(original.source)
-  return saveDrawing({ ...original, sessionId: copy.sessionId, title: `${original.title} copy`, createdAt: copy.createdAt, updatedAt: copy.updatedAt })
+  return saveDrawing({ ...original, sessionId: copy.sessionId, title: `${drawingTitle(original)} copy`, createdAt: copy.createdAt, updatedAt: copy.updatedAt })
 }
 
 export function deleteDrawing(id: string, isCurrent = () => true) {
   return previousWorkStorage.queuePreviousWorkWrite(async () => {
     if (!isCurrent()) return false
     const ids = await previousWorkStorage.readPreviousWorkIds()
+    const key = previousWorkSessionKey(id)
+    const deleted = await readDrawing(id).catch(() => null)
     // Hide the item from the index only after removing its session record. A
     // failed index write leaves a dangling key that the existing reader repairs.
-    if (!await writeIfCurrent(isCurrent, () => AsyncStorage.removeItem(previousWorkSessionKey(id)))) return false
+    if (!isCurrent()) return false
+    await AsyncStorage.removeItem(key)
     await AsyncStorage.setItem(previousWorkIndexKey, serializePreviousWorkIndex(ids.filter((candidate) => candidate !== id))).catch(() => undefined)
+    await cleanupDrawingImagesInQueue(drawingImageUris(deleted))
     return isCurrent()
   })
 }
@@ -74,7 +79,11 @@ export function useDrawingLibrary() {
     // Match the legacy migration's dimensions for pre-v2 pixel paths.
     const legacySize = { width: Math.max(1, width - 20), height: Math.max(430, height - 280) }
     void previousWorkStorage.loadPreviousWorkSessionsWithLegacyMigration(legacySize, () => current).then((sessions) => {
-      if (current) { setDrawings(sessions); setFailed(false) }
+      if (current) {
+        setDrawings(sessions)
+        setFailed(false)
+        void cleanupOrphanedDrawingImages()
+      }
     }).catch(() => { if (current) setFailed(true) })
     return () => { current = false }
   }, [width, height, reloadToken]))

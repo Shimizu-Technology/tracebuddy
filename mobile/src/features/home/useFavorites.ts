@@ -1,60 +1,52 @@
 import { useFocusEffect } from 'expo-router'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Alert } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { drawingById, toggleFavoriteDrawing } from '../../../../shared'
-import type { DrawingPreferences } from '../../../../shared'
+import { createFavoritePreference, parseArtFavorites } from '../../data/favoritePreference'
+import type { PreferenceSnapshot } from '../../data/favoritePreference'
 import { parseDrawingPreferences } from '../../data/localSettings'
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
-import { drawingPreferencesKey } from '../../data/storageKeys'
+import { artFavoritesKey, drawingPreferencesKey } from '../../data/storageKeys'
 
-const newArtFavoritesKey = 'tracebuddy.artFavorites.v1'
+const legacyFavorites = createFavoritePreference(
+  () => readLocalSetting(drawingPreferencesKey),
+  (value) => writeLocalSetting(drawingPreferencesKey, () => value, () => true),
+  parseDrawingPreferences,
+  toggleFavoriteDrawing,
+)
+const artFavorites = createFavoritePreference(
+  () => readLocalSetting(artFavoritesKey),
+  (value) => writeLocalSetting(artFavoritesKey, () => value, () => true),
+  parseArtFavorites,
+  (ids, id) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id],
+)
 
-export function useFavorites() {
-  const [legacy, setLegacy] = useState<DrawingPreferences>(() => parseDrawingPreferences(null))
-  const [art, setArt] = useState<string[]>([])
-  const legacyRef = useRef(legacy)
-  const artRef = useRef(art)
-  const revision = useRef(0)
+function usePreference<T>(preference: { read: () => Promise<PreferenceSnapshot<T>>; toggle: (id: string) => Promise<PreferenceSnapshot<T>> }, initial: T) {
+  const [snapshot, setSnapshot] = useState({ value: initial, revision: 0 })
+  const apply = useCallback((next: PreferenceSnapshot<T>) => {
+    setSnapshot((current) => next.revision > current.revision ? next : current)
+  }, [])
 
   useFocusEffect(useCallback(() => {
     let active = true
-    const version = revision.current
-    void Promise.all([readLocalSetting(drawingPreferencesKey), AsyncStorage.getItem(newArtFavoritesKey)])
-      .then(([preferences, ids]) => {
-        if (!active || version !== revision.current) return
-        const rawArt: unknown = ids ? JSON.parse(ids) : []
-        legacyRef.current = parseDrawingPreferences(preferences)
-        artRef.current = Array.isArray(rawArt) ? rawArt.filter((id): id is string => typeof id === 'string') : []
-        setLegacy(legacyRef.current)
-        setArt(artRef.current)
-      }).catch(() => undefined)
+    void preference.read().then((next) => { if (active) apply(next) }).catch(() => undefined)
     return () => { active = false }
-  }, []))
+  }, [apply, preference]))
 
-  function toggle(id: string) {
-    const version = ++revision.current
-    const failure = () => { if (version === revision.current) Alert.alert('Could not save favorites', 'Try again in a moment.') }
-    if (drawingById(id)) {
-      const previous = legacyRef.current
-      const next = toggleFavoriteDrawing(previous, id)
-      legacyRef.current = next
-      setLegacy(next)
-      void writeLocalSetting(drawingPreferencesKey, () => JSON.stringify(next), () => true).catch(() => {
-        if (version === revision.current) { legacyRef.current = previous; setLegacy(previous) }
-        failure()
-      })
-    } else {
-      const previous = artRef.current
-      const next = previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]
-      artRef.current = next
-      setArt(next)
-      void AsyncStorage.setItem(newArtFavoritesKey, JSON.stringify(next)).catch(() => {
-        if (version === revision.current) { artRef.current = previous; setArt(previous) }
-        failure()
-      })
-    }
+  return {
+    value: snapshot.value,
+    toggle: (id: string) => {
+      // Even during hydration, the queued edit starts with the stored record.
+      void preference.toggle(id).then(apply).catch(() => Alert.alert('Could not save favorites', 'Try again in a moment.'))
+    },
   }
+}
 
-  return { favorites: [...legacy.favoriteIds, ...art], toggle }
+export function useFavorites() {
+  const legacy = usePreference(legacyFavorites, parseDrawingPreferences(null))
+  const art = usePreference(artFavorites, [])
+  return {
+    favorites: [...legacy.value.favoriteIds, ...art.value],
+    toggle: (id: string) => (drawingById(id) ? legacy : art).toggle(id),
+  }
 }

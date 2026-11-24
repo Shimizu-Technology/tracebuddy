@@ -47,3 +47,7 @@ export function createCaptureReadiness(keys: readonly string[], timeoutMs = 10_0
     dispose: () => finish(new Error('Capture cancelled')),
   }
 }
+
+export function capturePixelWidth(logicalWidth: number, pixelRatio: number) {
+  return Math.round(logicalWidth * pixelRatio)
+}
