@@ -146,7 +146,7 @@
   {
     "id": "butterfly",
     "name": "Butterfly",
-    "category": "animals",
+    "category": "bugs",
     "level": "simple",
     "line": "butterfly/line.svg",
     "color": "butterfly/color.webp",
@@ -155,7 +155,7 @@
   {
     "id": "snail",
     "name": "Snail",
-    "category": "animals",
+    "category": "bugs",
     "level": "simple",
     "line": "snail/line.svg",
     "color": "snail/color.webp",
@@ -245,7 +245,7 @@
   {
     "id": "rocket",
     "name": "Rocket",
-    "category": "go",
+    "category": "space",
     "level": "simple",
     "line": "rocket/line.svg",
     "color": "rocket/color.webp",
@@ -344,7 +344,7 @@
   {
     "id": "moon-stars",
     "name": "Moon and Stars",
-    "category": "nature",
+    "category": "space",
     "level": "simple",
     "line": "moon-stars/line.svg",
     "color": "moon-stars/color.webp",
@@ -425,7 +425,7 @@
   {
     "id": "ice-cream",
     "name": "Ice Cream",
-    "category": "fun",
+    "category": "food",
     "level": "simple",
     "line": "ice-cream/line.svg",
     "color": "ice-cream/color.webp",
@@ -434,7 +434,7 @@
   {
     "id": "cupcake",
     "name": "Cupcake",
-    "category": "fun",
+    "category": "food",
     "level": "simple",
     "line": "cupcake/line.svg",
     "color": "cupcake/color.webp",
@@ -443,7 +443,7 @@
   {
     "id": "birthday-cake",
     "name": "Birthday Cake",
-    "category": "fun",
+    "category": "food",
     "level": "simple",
     "line": "birthday-cake/line.svg",
     "color": "birthday-cake/color.webp",

@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = resolve(root, 'mobile/src/data/art.generated.ts')
 const levels = ['simple', 'detailed'] as const
-const categories = ['ocean', 'animals', 'dinosaurs', 'magic', 'go', 'nature', 'guam', 'fun', 'letters', 'shapes']
+const categories = ['ocean', 'animals', 'bugs', 'dinosaurs', 'magic', 'go', 'space', 'nature', 'guam', 'food', 'holidays', 'people', 'patterns', 'fun',
+  'letters', 'shapes']
 const lineDigest = createHash('sha256')
 
 function entries(level: typeof levels[number]) {

@@ -8,18 +8,25 @@ import { drawingFromPracticeSource, makePracticeSource } from './practiceSource'
 
 export const artLevels = ['simple', 'detailed'] as const
 export type ArtLevel = typeof artLevels[number]
-export type PictureCategory = 'ocean' | 'animals' | 'dinosaurs' | 'magic' | 'go' | 'nature' | 'guam' | 'fun' | 'letters' | 'shapes'
+export type PictureCategory = 'ocean' | 'animals' | 'bugs' | 'dinosaurs' | 'magic' | 'go' | 'space' | 'nature' | 'guam' | 'food' | 'holidays'
+  | 'people' | 'patterns' | 'fun' | 'letters' | 'shapes'
 
 export const pictureCategories: { id: PictureCategory; label: string }[] = [
   { id: 'animals', label: 'Animals' },
+  { id: 'bugs', label: 'Bugs' },
   { id: 'ocean', label: 'Ocean' },
   { id: 'magic', label: 'Magic' },
   { id: 'go', label: 'Things that go' },
+  { id: 'space', label: 'Space' },
   { id: 'guam', label: 'Guam' },
   { id: 'letters', label: 'Letters and numbers' },
   { id: 'shapes', label: 'Shapes' },
   { id: 'dinosaurs', label: 'Dinosaurs' },
   { id: 'nature', label: 'Nature' },
+  { id: 'food', label: 'Food' },
+  { id: 'holidays', label: 'Holidays' },
+  { id: 'people', label: 'People' },
+  { id: 'patterns', label: 'Patterns' },
   { id: 'fun', label: 'Fun' },
 ]
 
