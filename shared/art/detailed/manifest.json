@@ -1,0 +1,38 @@
+[
+  {
+    "id": "crab",
+    "name": "Crab",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "crab/line.svg",
+    "color": "crab/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "unicorn",
+    "name": "Unicorn",
+    "category": "magic",
+    "level": "detailed",
+    "line": "unicorn/line.svg",
+    "color": "unicorn/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "latte-stone",
+    "name": "Latte Stone",
+    "category": "guam",
+    "level": "detailed",
+    "line": "latte-stone/line.svg",
+    "color": "latte-stone/color.webp",
+    "notes": "WIP: 4 complete subjects so far; full 51-subject manifest will replace this on completion."
+  },
+  {
+    "id": "guam-island",
+    "name": "Guam",
+    "category": "guam",
+    "level": "detailed",
+    "line": "guam-island/line.svg",
+    "color": "guam-island/color.webp",
+    "notes": "Coastline extracted from U.S. Census Bureau cb_2023_us_state_500k (public domain)."
+  }
+]
