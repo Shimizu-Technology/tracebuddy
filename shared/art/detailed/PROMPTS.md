@@ -132,3 +132,53 @@ Every rejected generation was discarded and regenerated until both visual qualit
 ## Post-generation fixes
 
 - `latte-stone` color: the shaft came out terracotta. Real latte stones are gray-beige limestone, so the shaft fill was recolored to `#C4B8A4` (flat replace inside the shaft only; the plumeria and leaves are unchanged).
+
+---
+
+## Batch 1 (expansion)
+
+Added **24 new subjects** across 5 categories (`animals`, `dinosaurs`, `space`, `food`, `holidays`) using the locked revised bold S2 prompts (with the felt-tip marker-weight reinforcement sentence applied to geometric/botanical/vehicle-like subjects including `ufo`, `christmas-tree`, `present`, `ringed-planet`, `strawberry`, `snowman`, `gingerbread`, and the `ankylosaurus` / `christmas-tree` v2 regenerations), bringing the Detailed set from 51 to **75 subjects**.
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch1/raw/detailed/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch1/detailed-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Batch 1 `Disk:4` range:** **min = 17.7% (`horse`), median = 29.3%, max = 47.3% (`ankylosaurus`)** (23/24 ≥ 18.9%; `horse` v1 kept at 17.7% after v2 regeneration came out thinner at 13.8%).
+- **Enclosed exterior pockets cleared transparent:** `pig` (tiny tail-curl loop), `ringed-planet` (both open-space ring gaps), `donut` (center hole), and `strawberry` (two open gaps between stem, leaves, and blossom).
+
+### Per-Subject Catalog & Traceability Metrics (Batch 1 — 24 Subjects)
+
+| # | ID | Name | Category | `Disk:2` | `Disk:3` | `Disk:4` | `Disk:5` | SVG (KB) | WebP (KB) | Description |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| 52 | `hamster` | Hamster | `animals` | 65.1% | 45.4% | **30.5%** | 14.8% | 29.0 | 20.5 | Golden storybook hamster sitting three-quarter right with sculpted cheeks, scalloped belly patch, and paws holding a striped sunflower seed |
+| 53 | `horse` | Horse | `animals` | 55.0% | 33.9% | **17.7%** | 2.6% | 34.1 | 19.5 | Graceful chestnut storybook horse standing in right-facing profile with flowing sculpted mane, muzzle blaze, fetlock tufts, hooves, and sweeping tail |
+| 54 | `pig` | Pig | `animals` | 63.4% | 42.9% | **27.2%** | 10.9% | 25.2 | 17.7 | Friendly spotted farm pig standing right-facing with upturned oval snout, folded ears, terracotta spots, cloven hooves, and curly tail |
+| 55 | `sheep` | Sheep | `animals` | 65.7% | 46.4% | **29.7%** | 11.5% | 26.2 | 18.9 | Wooly storybook sheep standing right-facing with sculpted cloud fleece contours, droopy ears, warm biscuit face/legs, and cloven hooves |
+| 56 | `monkey` | Monkey | `animals` | 72.4% | 56.3% | **42.7%** | 26.0% | 34.6 | 24.8 | Playful seated storybook monkey facing right holding a curved banana, with head tuft, fur wrist/ankle cuffs, and open S-curved tail |
+| 57 | `panda` | Panda | `animals` | 62.2% | 40.8% | **24.8%** | 10.1% | 36.8 | 20.8 | Seated giant panda facing right holding a leafy segmented bamboo stalk, with all dark coat markings drawn as hollow traceable regions and paw pads |
+| 58 | `penguin` | Penguin | `animals` | 65.7% | 46.1% | **30.4%** | 15.0% | 22.6 | 13.8 | Upright storybook emperor penguin facing three-quarter right with hollow traceable dark plumage, golden cheek patch, outstretched flippers, and webbed feet |
+| 59 | `tiger` | Tiger | `animals` | 56.1% | 32.0% | **19.0%** | 6.5% | 49.0 | 25.6 | Friendly right-facing storybook tiger with cheek ruffs, broad paws, long curved tail, and all stripes drawn as hollow colorable outlined wedges |
+| 60 | `stegosaurus` | Stegosaurus | `dinosaurs` | 61.4% | 40.0% | **23.3%** | 7.0% | 30.1 | 17.8 | Walking right-facing storybook Stegosaurus with staggered kite-shaped dorsal plates, hide spots, sturdy legs, and four tail spikes |
+| 61 | `pterodactyl` | Pterodactyl | `dinosaurs` | 59.4% | 36.1% | **19.3%** | 3.0% | 21.9 | 14.2 | Graceful gliding storybook pterodactyl soaring right with swept-back head crest, smiling beak, wide paneled wings with wing claws, and trailing feet |
+| 62 | `ankylosaurus` | Ankylosaurus | `dinosaurs` | 74.5% | 60.0% | **47.3%** | 32.2% | 34.9 | 21.5 | Standing right-facing armored Ankylosaurus with 4 bold banded carapace sections, blunt conical ridge spikes, horned smiling head, and heavy tail club |
+| 63 | `dino-egg` | Dino Egg | `dinosaurs` | 71.9% | 55.6% | **41.4%** | 26.7% | 28.8 | 18.3 | Expressive baby dinosaur hatching from a speckled cracked dinosaur egg, gripping the zigzag rim with clawed paws and wearing the upper shell cap on its head |
+| 64 | `astronaut` | Astronaut | `space` | 61.3% | 39.5% | **23.8%** | 8.0% | 40.1 | 23.8 | Floating friendly kid astronaut waving hello with a clear open helmet visor showing their smiling face, star-emblem chest pack (no text/brands), backpack, and treaded boots |
+| 65 | `ringed-planet` | Ringed Planet | `space` | 66.9% | 46.7% | **30.8%** | 14.2% | 35.1 | 26.6 | Diagonally tilted gas-giant Saturn planet with swirling cloud belts, oval storm swirl, and wide double-banded ring system with transparent open ring gaps |
+| 66 | `alien` | Friendly Alien | `space` | 64.1% | 44.4% | **28.9%** | 11.8% | 27.2 | 18.0 | Cheerful original storybook space alien waving hello with two curved bulb-tipped antennae, ringed collar space tunic, star belt buckle, and cuffed boots |
+| 67 | `ufo` | Flying Saucer | `space` | 69.6% | 52.3% | **37.5%** | 20.7% | 32.5 | 22.1 | Gently tilted retro storybook flying saucer with glass cockpit dome, ball-tipped antenna, segmented hull with 5 porthole lights, belly thruster, and 3 landing struts |
+| 68 | `donut` | Donut | `food` | 66.3% | 45.8% | **28.9%** | 16.1% | 39.1 | 31.0 | Three-quarter top-view frosted sprinkle donut with dripping scalloped strawberry-coral glaze, vanilla drizzle ribbons, sprinkles, and transparent center hole |
+| 69 | `pizza` | Pizza Slice | `food` | 54.1% | 33.7% | **18.9%** | 5.7% | 39.4 | 28.0 | Angled gourmet storybook pizza slice with plump baked crust, dripping melted cheese, 4 pepperoni slices, 2 mushrooms, 2 olive rings, and 2 basil leaves |
+| 70 | `strawberry` | Strawberry | `food` | 68.9% | 50.6% | **35.1%** | 16.0% | 34.9 | 24.0 | Hanging ripe botanical-storybook strawberry on a short stem with layered calyx crown, two veined scalloped leaves, 5-petal blossom, and 11 hollow teardrop seeds |
+| 71 | `watermelon` | Watermelon Slice | `food` | 66.3% | 48.2% | **33.8%** | 19.1% | 27.2 | 17.6 | Thick three-quarter wedge slice of ripe watermelon showing cut flesh with 9 hollow teardrop seeds, cream inner rind, and wavy striped green outer rind |
+| 72 | `christmas-tree` | Christmas Tree | `holidays` | 68.8% | 50.7% | **34.4%** | 14.9% | 31.8 | 18.1 | Festive 4-tier evergreen Christmas tree in a round terracotta planter pot, topped with a 5-point star and decorated with ribbon garlands, striped baubles, and candy canes |
+| 73 | `snowman` | Snowman | `holidays` | 60.7% | 38.9% | **22.5%** | 5.9% | 36.0 | 20.2 | Cheerful 3-tier storybook snowman wearing a holly-sprig top hat, carrot nose, fluttering striped scarf, mittened forked twig arms, and 3 hollow buttons |
+| 74 | `present` | Present | `holidays` | 69.1% | 51.1% | **35.1%** | 17.5% | 44.7 | 28.1 | Three-quarter wrapped holiday present box with diagonal striped paper, crossed satin ribbons, lush 4-loop bow with curling ribbon tail, and blank star-icon gift tag |
+| 75 | `gingerbread` | Gingerbread Friend | `holidays` | 63.1% | 41.3% | **27.2%** | 15.2% | 34.2 | 24.7 | Waving storybook gingerbread cookie friend with piped icing outline border, wavy wrist/ankle cuffs, head icing swirl, striped bowtie, and 3 candy buttons (center heart) |
+
+### Batch 1 Rejection & Regeneration Log (Detailed — 3 Rejections)
+
+1. **`horse` line v2 (REJECTED; v1 retained):** `horse` line v1 measured `Disk:4 = 17.7%` (borderline ~18%), so a single marker-weight regeneration (v2) was attempted; v2 came out thinner at `Disk:4 = 13.8%`, so v2 was rejected and the bolder, cleaner v1 (`17.7%`) was retained as the approved master.
+2. **`ankylosaurus` line v1 (REJECTED → v2 approved):** v1 carapace armor plates and spots rendered too thin (`Disk:4 = 11.9%`, `r5 = 1.1%`). Regenerated once in v2 with bold felt-tip marker weight and 4 wide carapace bands (`Disk:4 = 47.3%`).
+3. **`christmas-tree` line v1 (REJECTED → v2 approved):** v1 contained 13 small patterned ornaments and thin double-line garlands (`Disk:4 = 8.6%`). Regenerated once in v2 with heavy uniform marker weight, simpler round planter pot, and larger bold ornaments (`Disk:4 = 34.4%`).
+
+### Batch 1 Lead Review Fix (Stroke Thickening)
+
+At phone size, `horse` (17.7%), `tiger` (19.0%) and `pterodactyl` (19.3%) read noticeably thinner than the rest of the Detailed set. Instead of spending more image quota, their lines were re-vectorized from the same raw masters with one extra step: after the 1680×1680 threshold, `-morphology Erode Disk:3` (grows the black ink about 3 px per side at 2000 px) before potrace. Same potrace settings and normalization. New `Disk:4` survival measured on a 1024 px render: `horse` 35.4%, `tiger` 32.0%, `pterodactyl` 37.7%. Tiger stripes and the horse mane stay separated. The color previews were left as generated.
