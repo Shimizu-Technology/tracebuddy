@@ -19,12 +19,14 @@ export function goBack(state: NavigationState): NavigationState {
 }
 
 export function documentFrame(size: { width: number; height: number }) {
+  'worklet'
   const side = Math.max(1, Math.min(size.width, size.height))
   return { side, x: (size.width - side) / 2, y: (size.height - side) / 2 }
 }
 
 /** Invert the exact origin-zero transform used by the native document layer. */
 export function documentPoint(point: Point, size: { width: number; height: number }, viewport: Viewport): Point | null {
+  'worklet'
   const frame = documentFrame(size)
   const x = ((point.x - viewport.x) / viewport.scale - frame.x) / frame.side * 1000
   const y = ((point.y - viewport.y) / viewport.scale - frame.y) / frame.side * 1000

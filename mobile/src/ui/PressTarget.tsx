@@ -7,15 +7,16 @@ import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } 
 import { theme } from './theme'
 import { useReduceMotion } from './useReduceMotion'
 
-export type PressTargetProps = Pick<PressableProps, 'accessibilityLabel' | 'accessibilityHint' | 'disabled' | 'onPress' | 'testID'> & {
+export type PressTargetProps = Pick<PressableProps, 'accessibilityLabel' | 'accessibilityHint' | 'disabled' | 'onPress' | 'onLongPress' | 'delayLongPress' | 'onAccessibilityAction' | 'accessibilityActions' | 'testID'> & {
   children: ReactNode
   haptic?: boolean
+  selected?: boolean
   style?: StyleProp<ViewStyle>
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
-export function PressTarget({ disabled, haptic, onPress, style, ...props }: PressTargetProps) {
+export function PressTarget({ disabled, haptic, onPress, selected, style, ...props }: PressTargetProps) {
   const reduceMotion = useReduceMotion()
   const scale = useSharedValue(1)
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }))
@@ -33,7 +34,7 @@ export function PressTarget({ disabled, haptic, onPress, style, ...props }: Pres
     <AnimatedPressable
       {...props}
       accessibilityRole="button"
-      accessibilityState={{ disabled: isDisabled }}
+      accessibilityState={{ disabled: isDisabled, selected }}
       disabled={isDisabled}
       onPress={(event) => {
         if (haptic) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined)

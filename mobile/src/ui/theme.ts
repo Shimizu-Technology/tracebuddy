@@ -1,4 +1,5 @@
 const ink = '#172033'
+const coral = '#FF7A5C'
 const fontWeight = { display: '800', title: '700', body: '600' } as const
 const fontFamily = {
   [fontWeight.display]: 'Nunito_800ExtraBold',
@@ -11,7 +12,7 @@ export const theme = {
     ink,
     background: '#FFFDF8',
     surface: '#FFFFFF',
-    coral: '#FF7A5C',
+    coral,
     muted: '#5B6475',
     hairline: '#ECE7DC',
   },
@@ -47,8 +48,35 @@ export const theme = {
     press: { scale: 0.96, duration: 140 },
   },
   opacity: { disabled: 0.55 },
-  sheet: { smallDetent: 0.32 },
-  layout: { stackedHeaderFontScale: 2 },
+  sheet: { smallDetent: 0.32, drawDetent: 0.39, tabletClearance: 0.075 },
+  layout: {
+    stackedHeaderFontScale: 2,
+    threeColumns: 690,
+    fourColumns: 1050,
+    wordmarkMinWidth: 110,
+    homeHeaderWidth: 360,
+    homeTitleWidth: 282,
+    recentThumbnail: 84,
+    picturePreviewMax: 248,
+    keepsakePreviewMax: 296,
+    emptyGalleryMinHeight: 320,
+  },
+  border: { emphasis: 2 },
+  crayon: {
+    colors: [
+      { name: 'Ink', value: '#18243A' }, { name: 'Red', value: '#D53540' },
+      { name: 'Coral', value: coral }, { name: 'Orange', value: '#F19B23' },
+      { name: 'Yellow', value: '#F6CC38' }, { name: 'Light green', value: '#67BD64' },
+      { name: 'Green', value: '#23854F' }, { name: 'Sky blue', value: '#319CF2' },
+      { name: 'Blue', value: '#2959C4' }, { name: 'Purple', value: '#854DC4' },
+      { name: 'Pink', value: '#ED78A2' }, { name: 'Brown', value: '#926044' },
+    ],
+    capWidth: 27,
+    bodyWidth: 58,
+    bodyHeight: 34,
+    shading: '#17203333',
+    sizeDots: [8, 14, 20],
+  },
   sample: { tileWidth: 136, artSize: 56, ruleWidth: 1, maxContentWidth: 640 },
 } as const
 

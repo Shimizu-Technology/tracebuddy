@@ -4,6 +4,7 @@ import {
   parseModePreference, parseParentSetupSeen, parseResumeContext, parseSavedAlignment,
   serializeModePreference, serializeResumeContext,
 } from '../mobile/src/data/localSettings.ts'
+import { rebasePracticeImageUri } from '../mobile/src/data/practiceSource.ts'
 import { normalizeLegacyPracticeAutosave } from '../mobile/src/data/legacyPractice.ts'
 import { createPreviousWorkStorage, parsePreviousWorkSession, previousWorkSessionKey } from '../mobile/src/data/previousWork.ts'
 import {
@@ -151,4 +152,12 @@ const uploadResume = {
 const storedUploadResume = serializeResumeContext({ ...uploadResume, history: [...uploadResume.history] })
 assert.deepEqual(parseResumeContext(storedUploadResume), JSON.parse(storedUploadResume))
 
-console.log('Native storage: 1.2 Previous Work and current keepsakes round-trip, autosave migration retries safely, revoked writes are ignored, settings keep their wire formats')
+// iOS moves the Documents directory when a build is installed over the app.
+const oldUpload = 'file:///sandbox/old/Documents/tracebuddy-uploads/work-photo.png'
+const currentDocuments = 'file:///sandbox/current/Documents/'
+assert.equal(rebasePracticeImageUri(oldUpload, currentDocuments), currentDocuments + 'tracebuddy-uploads/work-photo.png')
+assert.equal(rebasePracticeImageUri(oldUpload, null), oldUpload)
+const otherImage = 'file:///sandbox/old/Documents/other-folder/work-photo.png'
+assert.equal(rebasePracticeImageUri(otherImage, currentDocuments), otherImage)
+
+console.log('Native storage: 1.2 Previous Work and current keepsakes round-trip, autosave migration retries safely, managed photos follow the iOS sandbox, settings keep their wire formats')

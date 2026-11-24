@@ -104,7 +104,12 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO) {
 
     const validIds = sessions.map((session) => session.sessionId)
     if (isCurrent() && (validIds.length !== ids.length || validIds.some((id, index) => id !== ids[index]))) {
-      await queuePreviousWorkWrite(() => writeIfCurrent(isCurrent, () => storage.setItem(previousWorkIndexKey, serializePreviousWorkIndex(validIds)))).catch(() => undefined)
+      await queuePreviousWorkWrite(async () => {
+        const currentIds = await readPreviousWorkIds()
+        // A save or delete may have changed the index since multiGet started.
+        if (currentIds.length !== ids.length || currentIds.some((id, index) => id !== ids[index])) return
+        await writeIfCurrent(isCurrent, () => storage.setItem(previousWorkIndexKey, serializePreviousWorkIndex(validIds)))
+      }).catch(() => undefined)
     }
 
     return sessions

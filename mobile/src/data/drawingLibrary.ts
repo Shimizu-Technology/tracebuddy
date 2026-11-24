@@ -1,0 +1,83 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useFocusEffect } from 'expo-router'
+import { useCallback, useState } from 'react'
+import { useWindowDimensions } from 'react-native'
+
+import { writeIfCurrent } from '../../practiceOperations'
+import { hasKeepsakeContent } from '../../finishFindModel'
+import type { PracticeSource, SavedPracticeSession } from '../../practiceStorageModel'
+import { defaultMarkerColor, makePracticeSessionTitle } from '../../practiceStorageModel'
+import { previousWorkStorage } from './nativeStorage'
+import { createPracticeSessionId } from './practiceSource'
+import { parsePreviousWorkSession, previousWorkSessionKey, serializePreviousWorkIndex } from './previousWork'
+import { previousWorkIndexKey } from './storageKeys'
+
+export function readDrawing(sessionId: string) {
+  return AsyncStorage.getItem(previousWorkSessionKey(sessionId)).then(parsePreviousWorkSession)
+}
+
+export function saveDrawing(session: SavedPracticeSession, isCurrent = () => true) {
+  return previousWorkStorage.savePreviousWorkSession(session, isCurrent)
+}
+
+export function hasDrawingContent(session: SavedPracticeSession) {
+  return hasKeepsakeContent(session.strokes.length, session.stickers.length, session.stamp, session.finishedAt)
+}
+
+export function newDrawing(source: PracticeSource): SavedPracticeSession {
+  const now = new Date().toISOString()
+  return {
+    version: 2,
+    sessionId: createPracticeSessionId(),
+    title: makePracticeSessionTitle(source),
+    source,
+    createdAt: now,
+    updatedAt: now,
+    strokes: [],
+    stickers: [],
+    canvasWidth: 1000,
+    canvasHeight: 1000,
+    guideOpacity: 0.24,
+    guideOnTop: true,
+    markerColor: defaultMarkerColor,
+    markerWidth: 9,
+    brushToolId: 'marker',
+  }
+}
+
+export function copyDrawing(original: SavedPracticeSession) {
+  const copy = newDrawing(original.source)
+  return saveDrawing({ ...original, sessionId: copy.sessionId, title: `${original.title} copy`, createdAt: copy.createdAt, updatedAt: copy.updatedAt })
+}
+
+export function deleteDrawing(id: string, isCurrent = () => true) {
+  return previousWorkStorage.queuePreviousWorkWrite(async () => {
+    if (!isCurrent()) return false
+    const ids = await previousWorkStorage.readPreviousWorkIds()
+    // Hide the item from the index only after removing its session record. A
+    // failed index write leaves a dangling key that the existing reader repairs.
+    if (!await writeIfCurrent(isCurrent, () => AsyncStorage.removeItem(previousWorkSessionKey(id)))) return false
+    await AsyncStorage.setItem(previousWorkIndexKey, serializePreviousWorkIndex(ids.filter((candidate) => candidate !== id))).catch(() => undefined)
+    return isCurrent()
+  })
+}
+
+export function useDrawingLibrary() {
+  const { width, height } = useWindowDimensions()
+  const [drawings, setDrawings] = useState<SavedPracticeSession[]>()
+  const [failed, setFailed] = useState(false)
+  const [reloadToken, setReloadToken] = useState(0)
+
+  useFocusEffect(useCallback(() => {
+    let current = true
+    if (reloadToken) setFailed(false)
+    // Match the legacy migration's dimensions for pre-v2 pixel paths.
+    const legacySize = { width: Math.max(1, width - 20), height: Math.max(430, height - 280) }
+    void previousWorkStorage.loadPreviousWorkSessionsWithLegacyMigration(legacySize, () => current).then((sessions) => {
+      if (current) { setDrawings(sessions); setFailed(false) }
+    }).catch(() => { if (current) setFailed(true) })
+    return () => { current = false }
+  }, [width, height, reloadToken]))
+
+  return { drawings, failed, reload: () => setReloadToken((token) => token + 1) }
+}

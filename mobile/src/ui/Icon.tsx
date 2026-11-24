@@ -5,10 +5,10 @@ import { theme } from './theme'
 
 export type IconGlyph = PhosphorIcon
 
-export function Icon({ glyph: Glyph, tone = 'ink' }: { glyph: IconGlyph; tone?: 'ink' | 'muted' }) {
+export function Icon({ glyph: Glyph, tone = 'ink', size = theme.icon.size }: { glyph: IconGlyph; tone?: 'ink' | 'muted' | 'surface'; size?: number }) {
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Glyph color={theme.colors[tone]} size={theme.icon.size} weight={theme.icon.weight} />
+      <Glyph color={theme.colors[tone]} size={size} weight={theme.icon.weight} />
     </View>
   )
 }
