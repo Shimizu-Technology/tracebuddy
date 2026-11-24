@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm'
 import { capturePixelWidth, saveTemporaryCapture } from '../mobile/captureUtils.ts'
 import { documentFrame, documentPoint, goBack, navigate, normalizeResumeContext, ownedTouch, photoAccessAllowed } from '../mobile/practiceModel.ts'
 import type { NavigationState } from '../mobile/practiceModel.ts'
-import { keepStrokeOnPinch, keepStrokeSample, strokePath } from '../mobile/src/features/draw/strokeGeometry.ts'
+import { keepStrokeOnPinch, keepStrokeSample, strokePath, withFinalPoint } from '../mobile/src/features/draw/strokeGeometry.ts'
 
 let navigation: NavigationState = { current: 'picker', history: [] }
 navigation = navigate(navigation, 'learn')
@@ -118,6 +118,9 @@ console.log(`Native Previous Work widths passed: ${widthRoundTrips} brush/size/c
 assert.equal(keepStrokeOnPinch(140, 20), false)
 assert.equal(keepStrokeOnPinch(275, 7), false)
 assert.equal(keepStrokeOnPinch(180, 9), true)
+assert.deepEqual(withFinalPoint([{ x: 0, y: 0 }], { x: 4, y: 0 }), [{ x: 0, y: 0 }, { x: 4, y: 0 }], 'A short flick keeps the lift point instead of saving a dot')
+assert.deepEqual(withFinalPoint([{ x: 0, y: 0 }, { x: 9, y: 0 }], { x: 9, y: 0 }), [{ x: 0, y: 0 }, { x: 9, y: 0 }])
+assert.deepEqual(withFinalPoint([{ x: 0, y: 0 }], null), [{ x: 0, y: 0 }], 'A tap with no movement stays a dot')
 assert.equal(keepStrokeSample({ x: 0, y: 0 }, { x: 1, y: 0 }, 2), false)
 assert.equal(keepStrokeSample({ x: 0, y: 0 }, { x: 5, y: 0 }, 40), false)
 assert.equal(keepStrokeSample({ x: 0, y: 0 }, { x: 6, y: 0 }, 40), true)

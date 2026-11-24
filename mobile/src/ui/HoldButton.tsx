@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Alert, Pressable, StyleSheet, View } from 'react-native'
+import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native'
 import Animated, { cancelAnimation, Easing, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 
 import { Icon } from './Icon'
@@ -20,6 +20,12 @@ export function HoldButton({ label, glyph, disabled, onConfirm }: { label: strin
 
   function askToConfirm() {
     if (disabled || dialogOpen.current) return
+    // React Native Web's Alert does nothing, so use the browser's confirm there.
+    if (Platform.OS === 'web') {
+      const confirm = (globalThis as { confirm?: (message: string) => boolean }).confirm
+      if (confirm?.(`${label}?`)) onConfirm()
+      return
+    }
     dialogOpen.current = true
     Alert.alert(`${label}?`, undefined, [
       { text: 'Cancel', style: 'cancel', onPress: () => { dialogOpen.current = false } },
@@ -33,12 +39,14 @@ export function HoldButton({ label, glyph, disabled, onConfirm }: { label: strin
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label}
-      accessibilityHint="Opens a confirmation. You can also press and hold."
+      accessibilityHint="Opens a confirmation."
       accessibilityActions={[{ name: 'activate', label: `Confirm ${label}` }]}
       onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'activate') askToConfirm() }}
       accessibilityState={{ disabled }}
       disabled={disabled} delayLongPress={holdMs}
-      onPress={() => { if (!held.current) askToConfirm() }}
+      // A touch tap never confirms, so a child can't clear work with two taps. VoiceOver, Switch Control and
+      // Full Keyboard Access use the activate action; on web, Enter and clicks use the browser confirm.
+      onPress={() => { if (Platform.OS === 'web' && !held.current) askToConfirm() }}
       onPressIn={() => {
         held.current = false
         if (!reduceMotion) progress.set(withTiming(1, { duration: holdMs, easing: Easing.linear, reduceMotion: ReduceMotion.Never }))

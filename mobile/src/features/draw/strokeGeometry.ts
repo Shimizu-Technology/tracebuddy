@@ -15,6 +15,14 @@ export function keepStrokeOnPinch(elapsedMs: number, travelPt: number) {
   return elapsedMs >= 180 && travelPt >= 9
 }
 
+// Sampling skips small moves, so the finger's final position can be unsaved when it lifts.
+export function withFinalPoint(points: Point[], pending: Point | null) {
+  'worklet'
+  if (!pending) return points
+  const last = points[points.length - 1]
+  return last.x === pending.x && last.y === pending.y ? points : [...points, pending]
+}
+
 export function roundedPoint({ x, y }: Point): Point {
   'worklet'
   return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 }

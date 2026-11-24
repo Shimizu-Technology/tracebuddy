@@ -67,6 +67,8 @@ export function deleteDrawing(id: string, isCurrent = () => true) {
   })
 }
 
+let orphanSweepStarted = false
+
 export function useDrawingLibrary() {
   const { width, height } = useWindowDimensions()
   const [drawings, setDrawings] = useState<SavedPracticeSession[]>()
@@ -82,7 +84,10 @@ export function useDrawingLibrary() {
       if (current) {
         setDrawings(sessions)
         setFailed(false)
-        void cleanupOrphanedDrawingImages()
+        if (!orphanSweepStarted) {
+          orphanSweepStarted = true
+          void cleanupOrphanedDrawingImages()
+        }
       }
     }).catch(() => { if (current) setFailed(true) })
     return () => { current = false }

@@ -284,32 +284,55 @@ function findHoldHandlers(node: ts.Node) {
 findHoldHandlers(holdButtonAst)
 assert.ok(confirmBody)
 type AlertButton = { text: string; style: string; onPress: () => void }
-const alerts: AlertButton[][] = []
-let destructiveCalls = 0
-const holdBindings: Record<string, unknown> = {
-  disabled: false, label: 'Delete', held: { current: false }, dialogOpen: { current: false },
-  Alert: { alert: (_title: string, _message: string | undefined, buttons: AlertButton[]) => { alerts.push(buttons) } },
-  onConfirm: () => { destructiveCalls += 1 },
+function holdButtonHarness(os: 'ios' | 'web', browserConfirm = true) {
+  const alerts: AlertButton[][] = []
+  const state = { destructiveCalls: 0, browserPrompts: 0 }
+  const bindings: Record<string, unknown> = {
+    disabled: false, label: 'Delete', held: { current: false }, dialogOpen: { current: false },
+    Platform: { OS: os },
+    confirm: () => { state.browserPrompts += 1; return browserConfirm },
+    Alert: { alert: (_title: string, _message: string | undefined, buttons: AlertButton[]) => { alerts.push(buttons) } },
+    onConfirm: () => { state.destructiveCalls += 1 },
+  }
+  bindings.globalThis = bindings
+  bindings.askToConfirm = evaluateDrawCallback(confirmBody!, bindings)
+  return {
+    alerts, state,
+    activate: evaluateDrawCallback(holdHandlers.get('onAccessibilityAction')!, bindings),
+    press: evaluateDrawCallback(holdHandlers.get('onPress')!, bindings),
+    longPress: evaluateDrawCallback(holdHandlers.get('onLongPress')!, bindings),
+  }
 }
-holdBindings.askToConfirm = evaluateDrawCallback(confirmBody, holdBindings)
-const accessibleActivate = evaluateDrawCallback(holdHandlers.get('onAccessibilityAction')!, holdBindings)
-const press = evaluateDrawCallback(holdHandlers.get('onPress')!, holdBindings)
-const longPress = evaluateDrawCallback(holdHandlers.get('onLongPress')!, holdBindings)
-accessibleActivate({ nativeEvent: { actionName: 'activate' } })
-press()
-longPress()
-assert.equal(alerts.length, 1, 'Accessibility, keyboard or a hold cannot duplicate an open confirmation')
-assert.equal(destructiveCalls, 0)
-assert.equal(alerts[0][0].style, 'cancel')
-alerts[0][0].onPress()
-assert.equal(destructiveCalls, 0)
-press()
-assert.equal(alerts.length, 2)
-assert.equal(alerts[1][1].style, 'destructive')
-alerts[1][1].onPress()
-assert.equal(destructiveCalls, 1)
-longPress()
-press()
-assert.equal(destructiveCalls, 2, 'A completed touch hold confirms without a second dialog')
-assert.equal(alerts.length, 2)
-console.log('TraceBuddy 2.0: actual HoldButton callbacks confirm accessible and keyboard activations once, support cancel, and keep touch hold')
+
+const ios = holdButtonHarness('ios')
+ios.press()
+assert.equal(ios.alerts.length, 0, 'A touch tap never opens a confirmation, so a child cannot clear work with two taps')
+ios.activate({ nativeEvent: { actionName: 'activate' } })
+ios.activate({ nativeEvent: { actionName: 'activate' } })
+ios.longPress()
+assert.equal(ios.alerts.length, 1, 'Accessibility activation and a hold cannot duplicate an open confirmation')
+assert.equal(ios.state.destructiveCalls, 0)
+assert.equal(ios.alerts[0][0].style, 'cancel')
+ios.alerts[0][0].onPress()
+assert.equal(ios.state.destructiveCalls, 0)
+ios.activate({ nativeEvent: { actionName: 'activate' } })
+assert.equal(ios.alerts.length, 2)
+assert.equal(ios.alerts[1][1].style, 'destructive')
+ios.alerts[1][1].onPress()
+assert.equal(ios.state.destructiveCalls, 1)
+ios.longPress()
+ios.press()
+assert.equal(ios.state.destructiveCalls, 2, 'A completed touch hold confirms without a dialog')
+assert.equal(ios.alerts.length, 2)
+
+const web = holdButtonHarness('web')
+web.press()
+assert.equal(web.state.browserPrompts, 1, 'Web keyboard and clicks use the browser confirm because Alert is a no-op there')
+assert.equal(web.state.destructiveCalls, 1)
+assert.equal(web.alerts.length, 0)
+const webCancel = holdButtonHarness('web', false)
+webCancel.press()
+assert.equal(webCancel.state.destructiveCalls, 0, 'Cancelling the browser confirm keeps the work')
+webCancel.press()
+assert.equal(webCancel.state.browserPrompts, 2, 'A cancelled web confirm does not block later attempts')
+console.log('TraceBuddy 2.0: actual HoldButton callbacks keep touch on hold-only, confirm accessibility activations once, and use the browser confirm on web')
