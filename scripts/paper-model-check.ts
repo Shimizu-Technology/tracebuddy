@@ -140,12 +140,13 @@ assert.equal(childExitHoldMs, 1500, 'unlock is a 1.5-second hold')
 // Picture params from /paper/[id].
 // The same catalog as the Picture sheet and Draw: level, legacy ids, typed words and local photos.
 for (const level of ['simple', 'detailed'] as const) {
-  const fromSheet = resolvePicture({ id: 'happy-crab', level })
+  const fromSheet = resolvePicture({ id: 'crab', level })
   assert.ok(fromSheet)
   const paper = resolvePaperPicture({ ...paramsForPicture(fromSheet), level: fromSheet.level })
   assert.equal(paper?.picture.id, fromSheet.id, `the ${level} pick is the picture the sheet showed`)
   assert.equal(paper?.picture.level, fromSheet.level)
-  assert.equal(paper?.kind === 'drawing' && paper.svg, fromSheet.line(), 'and the same line art')
+  assert.equal(paper?.picture.level, level)
+  assert.equal(paper?.kind === 'drawing' && paper.picture.line, fromSheet.line, 'and the same line art')
 }
 assert.equal(resolvePaperPicture({ id: 'happy-crab', legacy: '1' })?.name, 'Happy Crab', 'legacy ids still open')
 assert.equal(resolvePaperPicture({ id: 'no-such-picture' }), null)

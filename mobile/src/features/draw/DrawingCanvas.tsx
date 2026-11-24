@@ -30,6 +30,7 @@ type Props = {
   ref: Ref<CanvasHandle>
   side: number
   session: SavedPracticeSession
+  guideSvg: string
   disabled: boolean
   onStroke: (stroke: PracticeStroke) => void
 }
@@ -52,7 +53,7 @@ function boundTranslation(value: number, scale: number, side: number) {
   return Math.max(side * (1 - scale), Math.min(0, value))
 }
 
-export function DrawingCanvas({ ref, side, session, disabled, onStroke }: Props) {
+export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke }: Props) {
   const viewport = useSharedValue(fit)
   const livePath = useSharedValue(emptyPath)
   const liveWidth = useSharedValue(1)
@@ -233,7 +234,7 @@ export function DrawingCanvas({ ref, side, session, disabled, onStroke }: Props)
         style={[styles.viewport, { width: side, height: side }]}
       >
         <Animated.View pointerEvents="none" style={[styles.document, transform]}>
-          <DrawingDocument side={side} session={session} live={live} />
+          <DrawingDocument side={side} session={session} guideSvg={guideSvg} live={live} />
         </Animated.View>
       </View>
     </GestureDetector>

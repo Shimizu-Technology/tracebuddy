@@ -2,13 +2,13 @@ import { photoDrawingName } from '../../data/practiceSource'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
 import { usePreventRemove } from 'expo-router/react-navigation'
-import { ActivityIndicator, Alert, AppState, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
+import { Alert, AppState, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { finishAfterSave } from '../../../finishFindModel'
 import type { BrushToolId, PracticeStroke, SavedPracticeSession } from '../../../practiceStorageModel'
-import { paramsForSource, resolvePicture, sourceForPicture } from '../../data/catalog'
-import type { PictureParams } from '../../data/catalog'
+import { lineForSource, paramsForSource, resolvePicture, sourceForPicture } from '../../data/catalog'
+import type { Picture, PictureParams } from '../../data/catalog'
 import { keepDrawingImages } from '../../data/drawingImageFiles'
 import { drawingImageUris } from '../../data/practiceImageCleanup'
 import { currentDrawingImageUri } from '../../data/drawingPhotos'
@@ -16,12 +16,14 @@ import { newDrawing, readDrawing } from '../../data/drawingLibrary'
 import { serializeModePreference } from '../../data/localSettings'
 import { writeLocalSetting } from '../../data/nativeStorage'
 import { modePreferenceKey } from '../../data/storageKeys'
+import { usePictureLine } from '../../data/usePictureLine'
 import { Button } from '../../ui/Button'
 import { CanvasButton } from '../../ui/CanvasButton'
 import { DotsThreeIcon } from '../../ui/icons'
 import { PageHeader } from '../../ui/PageHeader'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
+import { PictureLineFeedback } from '../picture/PictureLineFeedback'
 import { DrawingCanvas } from './DrawingCanvas'
 import type { CanvasHandle } from './DrawingCanvas'
 import { ColorRail, DrawTools } from './DrawTools'
@@ -34,10 +36,8 @@ export default function DrawScreen() {
   const params = useLocalSearchParams<Params>()
   const { sessionId, fresh } = params
   const [loaded, setLoaded] = useState<SavedPracticeSession | null>()
-  const [newSession] = useState(() => {
-    const picture = resolvePicture(params)
-    return picture ? newDrawing(sourceForPicture(picture)) : null
-  })
+  const [picture] = useState(() => sessionId ? null : resolvePicture(params))
+  const line = usePictureLine(sessionId && loaded ? { line: lineForSource(loaded.source) } : picture)
 
   useEffect(() => {
     if (!sessionId) return
@@ -48,13 +48,16 @@ export default function DrawScreen() {
     return () => { active = false }
   }, [fresh, sessionId])
 
-  const initial = sessionId ? loaded : newSession
-  if (initial) return <ActiveDrawing initial={initial} wasSaved={Boolean(sessionId && fresh !== '1')} params={params} />
+  if (line.status === 'ready') {
+    if (sessionId && loaded) return <ActiveDrawing key={loaded.sessionId} initial={loaded} guideSvg={line.xml} wasSaved={fresh !== '1'} params={params} />
+    if (picture) return <NewDrawing picture={picture} guideSvg={line.xml} params={params} />
+  }
 
+  const loading = line.status === 'loading' || Boolean(sessionId && loaded === undefined)
   return <SafeAreaView style={styles.page}>
     <PageHeader title="On the screen" />
     <View style={styles.empty}>
-      {initial === undefined ? <ActivityIndicator color={theme.colors.ink} /> : <>
+      {loading ? <PictureLineFeedback status="loading" /> : <>
         <Text variant="heading">This drawing could not open.</Text>
         <Button label="Go back" onPress={() => router.back()} />
       </>}
@@ -62,7 +65,12 @@ export default function DrawScreen() {
   </SafeAreaView>
 }
 
-function ActiveDrawing({ initial, wasSaved, params }: { initial: SavedPracticeSession; wasSaved: boolean; params: Params }) {
+function NewDrawing({ picture, guideSvg, params }: { picture: Picture; guideSvg: string; params: Params }) {
+  const [initial] = useState(() => newDrawing(sourceForPicture(picture, guideSvg)))
+  return <ActiveDrawing initial={initial} guideSvg={guideSvg} wasSaved={false} params={params} />
+}
+
+function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: SavedPracticeSession; guideSvg: string; wasSaved: boolean; params: Params }) {
   const { session, change, save, clear, refreshStamp, saveFailed } = useDrawSession(initial, wasSaved)
   const { setMore } = useDrawMore()
   const [busy, setBusy] = useState(false)
@@ -200,7 +208,7 @@ function ActiveDrawing({ initial, wasSaved, params }: { initial: SavedPracticeSe
       {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
       <View style={styles.workspace}>
         <View style={styles.canvasArea} onLayout={({ nativeEvent: { layout } }) => setRoom((current) => (current.width === layout.width && current.height === layout.height) ? current : layout)}>
-          {side > 0 && <DrawingCanvas ref={canvas} side={side} session={session} disabled={busy || moreOpen} onStroke={addStroke} />}
+          {side > 0 && <DrawingCanvas ref={canvas} side={side} session={session} guideSvg={guideSvg} disabled={busy || moreOpen} onStroke={addStroke} />}
         </View>
         {(sideTools || portraitRail) && <View style={styles.sideRail}>{rail(true)}</View>}
         {sideTools && <ScrollView style={styles.sideTools} contentContainerStyle={styles.sideToolsContent}>{tools}</ScrollView>}

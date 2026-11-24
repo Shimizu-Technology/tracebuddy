@@ -5,7 +5,7 @@ import type { Picture } from '../../data/catalog'
 export type PaperParams = Record<string, string | string[] | undefined>
 
 export type PaperPicture =
-  | { kind: 'drawing'; key: string; name: string; svg: string; aspect: number; picture: Picture }
+  | { kind: 'drawing'; key: string; name: string; aspect: number; picture: Picture }
   | { kind: 'photo'; key: string; name: string; uri: string; aspect: number; picture: Picture }
 
 // The catalog's picture params. Anything else on the route (like the dev kit's `fault`) stays on this screen.
@@ -28,7 +28,7 @@ export function resolvePaperPicture(params: PaperParams, rebase: (uri: string) =
     const aspect = photo.width && photo.height ? photo.width / photo.height : 1
     return { kind: 'photo', key: `photo:${photo.uri}`, name: picture.name, uri: rebase(photo.uri), aspect, picture }
   }
-  return { kind: 'drawing', key: `drawing:${picture.level ?? 'legacy'}:${picture.id}`, name: picture.name, svg: picture.line(), aspect: 1, picture }
+  return { kind: 'drawing', key: `drawing:${picture.level ?? 'legacy'}:${picture.id}`, name: picture.name, aspect: 1, picture }
 }
 
 /** The same picture's params for another route, such as /draw/[id] or Stick to paper. */

@@ -163,6 +163,8 @@ Opens as a native sheet over Home.
 
 Each version is stored as `shared/art/<simple|detailed>/<id>/line.svg` (the guide, normalized `viewBox="0 0 1000 1000"`, filled ink shapes) plus `color.webp` (512 px), listed in `shared/art/<level>/manifest.json`. New pictures get new IDs. Old drawing IDs keep their old art so saved drawings still line up with their guide.
 
+Run `npm run art:optimize` after adding or replacing line art. It compresses the Potrace paths and regenerates the Metro asset index. Check new optimizer settings by rasterizing the original and optimized guides at 1024 × 1024. Home and the Picture sheet display the color WebP. Drawing and paper tracing read the SVG on demand, and saved drawings retain a snapshot of their guide.
+
 **Pipeline:**
 1. Lock a style guide with a reference sheet.
 2. Generate line art and color.

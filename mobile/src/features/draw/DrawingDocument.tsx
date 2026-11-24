@@ -1,11 +1,10 @@
-import { memo, useMemo } from 'react'
+import { memo } from 'react'
 import { Image, StyleSheet, View } from 'react-native'
 import { SvgXml } from 'react-native-svg'
 
 import { KeepsakeStampBadge } from '../../../KeepsakeStamp'
 import type { SavedPracticeSession } from '../../../practiceStorageModel'
 import { currentDrawingImageUri } from '../../data/drawingPhotos'
-import { drawingFromPracticeSource } from '../../data/practiceSource'
 import { theme } from '../../ui/theme'
 import type { LiveInk } from './inkTypes'
 import { PracticeInk } from './PracticeInk'
@@ -13,21 +12,22 @@ import { PracticeInk } from './PracticeInk'
 type Props = {
   side: number
   session: SavedPracticeSession
+  guideSvg: string
   live?: LiveInk
   inkUri?: string
   onImageLoad?: (key: string) => void
   onImageError?: (key: string) => void
 }
 
-export const DrawingDocument = memo(function DrawingDocument({ side, session, live, inkUri, onImageLoad, onImageError }: Props) {
-  const { drawing, uploadedImage } = useMemo(() => drawingFromPracticeSource(session.source), [session.source])
+export const DrawingDocument = memo(function DrawingDocument({ side, session, guideSvg, live, inkUri, onImageLoad, onImageError }: Props) {
+  const uploadedImage = session.source.kind === 'upload' ? session.source.uploadedImage : undefined
   return (
     <View pointerEvents="none" style={[styles.page, { width: side, height: side }]}>
       <View style={[styles.cover, { opacity: session.guideOpacity }]}>
         {uploadedImage ? (
           <Image source={{ uri: currentDrawingImageUri(uploadedImage.uri) }} resizeMode="contain" style={styles.cover}
             onLoad={() => onImageLoad?.('guide-base')} onError={() => onImageError?.('guide-base')} />
-        ) : <SvgXml xml={drawing.svg} width="100%" height="100%" />}
+        ) : <SvgXml xml={guideSvg} width="100%" height="100%" />}
       </View>
       {session.stickers.map((sticker) => (
         <View key={sticker.stickerId} style={{
@@ -47,7 +47,7 @@ export const DrawingDocument = memo(function DrawingDocument({ side, session, li
       ) : <PracticeInk side={side} strokes={session.strokes} live={live} />}
       {!uploadedImage && (
         <View style={[styles.cover, { opacity: Math.min(0.78, session.guideOpacity * 2) }]}>
-          <SvgXml xml={drawing.svg} width="100%" height="100%" />
+          <SvgXml xml={guideSvg} width="100%" height="100%" />
         </View>
       )}
       <KeepsakeStampBadge stamp={session.stamp} size={side * 0.13} />

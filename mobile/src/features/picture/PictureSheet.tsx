@@ -15,6 +15,7 @@ import { theme } from '../../ui/theme'
 import { PictureArt } from './PictureArt'
 import { PictureModeIllustration } from './PictureModeIllustration'
 import { keepDrawingImages } from '../../data/drawingImageFiles'
+import { readPictureLine } from '../../data/usePictureLine'
 import { photoHandoff } from '../paper/usePhotoLease'
 import { picturePastel } from './picturePastel'
 
@@ -34,6 +35,12 @@ export default function PictureSheet() {
   const picture = resolvePicture({ ...params, level })
   const levels = picture?.level ? pictureLevels(picture.id) : []
   const photoUri = picture?.uploadedImage?.uri
+
+  // Start reading the guide while the sheet is open so Draw and Paper open straight to it.
+  const line = picture?.line
+  useEffect(() => {
+    if (line?.kind === 'asset') void readPictureLine(line)
+  }, [line])
 
   useEffect(() => {
     if (!photoUri) return

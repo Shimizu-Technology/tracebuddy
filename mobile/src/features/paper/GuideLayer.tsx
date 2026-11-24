@@ -28,6 +28,7 @@ export type GuideValues = {
 
 type Props = {
   picture: PaperPicture
+  guideSvg: string
   values: GuideValues
   /** The fitted page at scale 1, and its resting center in stage coordinates. */
   page: Size
@@ -46,7 +47,7 @@ type Props = {
   onGestureEnd: () => void
 }
 
-export function GuideLayer({ picture, values, page, center, stage, locked, lightLines, mirror, reduceMotion, layoutKey, gestureActive, band, onGestureStart, onGestureEnd }: Props) {
+export function GuideLayer({ picture, guideSvg, values, page, center, stage, locked, lightLines, mirror, reduceMotion, layoutKey, gestureActive, band, onGestureStart, onGestureEnd }: Props) {
   const { x, y, scale, rotation, opacity } = values
   const art = fitArt(page, picture.aspect)
   // The picture is laid out at this scale and only transformed in between, so it is redrawn sharp after each gesture.
@@ -98,7 +99,7 @@ export function GuideLayer({ picture, values, page, center, stage, locked, light
     opacity: reduceMotion ? (locked ? 0 : 1) : withTiming(locked ? 0 : 1, { duration: theme.motion.press.duration }),
   }), [locked, reduceMotion])
 
-  const xml = useMemo(() => picture.kind === 'drawing' ? (lightLines ? lightLinesSvg(picture.svg) : picture.svg) : '', [lightLines, picture])
+  const xml = useMemo(() => lightLines ? lightLinesSvg(guideSvg) : guideSvg, [guideSvg, lightLines])
 
   function onAccessibilityAction(event: AccessibilityActionEvent) {
     if (locked) return
