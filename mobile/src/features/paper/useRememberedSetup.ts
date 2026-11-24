@@ -9,6 +9,7 @@ import type { GuideSetup, PageOrientation, RestoreGeometry, ScreenOrientation } 
 import { paperTheme } from './paperTheme'
 import { createSetupPersistence } from './setupPersistence'
 import type { OperationQueue } from './setupPersistence'
+import { createSetupTracker } from './setupTracker'
 
 // writeLocalSetting already runs on the shared settings queue, so this queue only orders this screen's steps.
 function createQueue(): OperationQueue {
@@ -22,78 +23,96 @@ function createQueue(): OperationQueue {
 
 const persistence = createSetupPersistence({
   read: () => readLocalSetting(savedAlignmentKey),
-  write: (raw) => writeLocalSetting(savedAlignmentKey, () => raw, () => true).then(() => undefined),
+  write: async (raw) => {
+    if (!await writeLocalSetting(savedAlignmentKey, () => raw, () => true)) throw new Error('The setup was not saved')
+  },
 }, createQueue())
 
 /**
  * Remembers the last position, size, turn, fade and page for each screen orientation, without Save or Resume
- * buttons. Each change is saved shortly after, and right away when the screen closes, the app goes to the
- * background or the device turns. While `frozen` (child mode) a turn doesn't load another setup: the screen
- * keeps the locked alignment and shows it again when the device turns back.
+ * buttons (rules in setupTracker). Changes save shortly after they happen, and right away when the screen
+ * closes, the app goes to the background or the device turns. While `frozen` (child mode) a turn doesn't load
+ * another setup: the screen keeps the locked alignment and shows it again when the device turns back.
  */
 export function useRememberedSetup(orientation: ScreenOrientation, values: GuideValues, geometry: RestoreGeometry, frozen: boolean) {
   const [page, setPage] = useState<PageOrientation>(defaultGuideSetup.page)
   const [loaded, setLoaded] = useState<ScreenOrientation | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [layoutKey, setLayoutKey] = useState(0)
   const pageRef = useRef(page)
-  const loadedRef = useRef<ScreenOrientation | null>(null)
-  const generation = useRef(0)
-  const dirty = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null)
   const geometryRef = useRef(geometry)
   useEffect(() => { geometryRef.current = geometry }, [geometry])
 
-  const apply = useCallback((setup: GuideSetup) => {
-    values.x.set(setup.x)
-    values.y.set(setup.y)
-    values.scale.set(setup.scale)
-    values.rotation.set(setup.rotation)
-    values.opacity.set(setup.opacity)
-    pageRef.current = setup.page
-    setPage(setup.page)
-    setLayoutKey((key) => key + 1)
+  // Created on first use (never during render), because its callbacks read this hook's refs.
+  const trackerRef = useRef<ReturnType<typeof createSetupTracker> | null>(null)
+  const tracker = useCallback(() => {
+    trackerRef.current ??= createSetupTracker({
+      persistence,
+      read: (): GuideSetup => ({
+        x: values.x.get(),
+        y: values.y.get(),
+        scale: values.scale.get(),
+        rotation: values.rotation.get(),
+        opacity: values.opacity.get(),
+        page: pageRef.current,
+      }),
+      apply: (setup) => {
+        values.x.set(setup.x)
+        values.y.set(setup.y)
+        values.scale.set(setup.scale)
+        values.rotation.set(setup.rotation)
+        values.opacity.set(setup.opacity)
+        pageRef.current = setup.page
+        setPage(setup.page)
+        setLayoutKey((key) => key + 1)
+      },
+      restore: (raw, owner) => restoreSetup(raw, owner, geometryRef.current),
+    })
+    return trackerRef.current
   }, [values])
 
-  // Captures the values now, for the orientation they belong to, before anything else can change them.
   const flush = useCallback(() => {
     if (timer.current) clearTimeout(timer.current)
     timer.current = null
-    const orientationNow = loadedRef.current
-    if (!dirty.current || !orientationNow) return
-    dirty.current = false
-    const setup: GuideSetup = {
-      x: values.x.get(),
-      y: values.y.get(),
-      scale: values.scale.get(),
-      rotation: values.rotation.get(),
-      opacity: values.opacity.get(),
-      page: pageRef.current,
-    }
-    void persistence.save({ orientation: orientationNow, setup }).catch(() => undefined)
-  }, [values])
+    void tracker().flush()
+  }, [tracker])
 
+  const markDirty = useCallback(() => tracker().markDirty(), [tracker])
+
+  /** A change finished: save it shortly. */
   const persist = useCallback(() => {
-    if (!loadedRef.current) return
-    dirty.current = true
+    tracker().markDirty()
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(flush, paperTheme.timing.saveDelayMs)
-  }, [flush])
+  }, [flush, tracker])
 
   useEffect(() => {
-    if (frozen || loadedRef.current === orientation) return undefined
-    flush()
-    generation.current += 1
-    const current = generation.current
-    loadedRef.current = null
-    setLoaded(null)
-    void persistence.load().catch(() => null).then((raw) => {
-      if (current !== generation.current) return
-      apply(restoreSetup(raw, orientation, geometryRef.current))
-      loadedRef.current = orientation
-      setLoaded(orientation)
-    })
-    return undefined
-  }, [apply, flush, frozen, orientation])
+    if (frozen || tracker().owner() === orientation) return undefined
+    let active = true
+    const attempt = () => {
+      setLoaded(null)
+      void tracker().load(orientation).then((ok) => {
+        if (!active) return
+        if (ok) {
+          setLoaded(orientation)
+          setLoadFailed(false)
+          return
+        }
+        if (tracker().owner() === null) {
+          // A failed read: keep the controls gated and try again rather than showing defaults.
+          setLoadFailed(true)
+          retry.current = setTimeout(attempt, paperTheme.timing.loadRetryMs)
+        }
+      })
+    }
+    attempt()
+    return () => {
+      active = false
+      if (retry.current) clearTimeout(retry.current)
+    }
+  }, [frozen, orientation, tracker])
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => { if (state !== 'active') flush() })
@@ -122,5 +141,16 @@ export function useRememberedSetup(orientation: ScreenOrientation, values: Guide
     persist()
   }, [persist, values])
 
-  return { page, loadedOrientation: loaded, hydrated: loaded === orientation, layoutKey, persist, changePage, recenter }
+  return {
+    page,
+    loadedOrientation: loaded,
+    hydrated: loaded === orientation,
+    loadFailed,
+    layoutKey,
+    /** A gesture started: an edit is in progress and a flush now must save it. */
+    markDirty,
+    persist,
+    changePage,
+    recenter,
+  }
 }

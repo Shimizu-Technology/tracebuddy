@@ -431,10 +431,11 @@ final class TraceBuddyARView: ExpoView, ARSessionDelegate, @preconcurrency ARCoa
     let authoritativeTracking = tracking == "normal" && !cameraIsNormal ? cameraStateName : tracking
     let authoritativeReason = tracking == "normal" && !cameraIsNormal ? cameraReasonName : reason
     let fresh = session == "running" && candidateIsFresh
-    let payload = [String(resetRevision), guideImageUri ?? "", session, authoritativeTracking, authoritativeReason, anchor, placement, String(fresh), message ?? ""].joined(separator: "|")
+    let payload = [String(resetRevision), String(placeRevision), guideImageUri ?? "", session, authoritativeTracking, authoritativeReason, anchor, placement, String(fresh), message ?? ""].joined(separator: "|")
     guard payload != lastPayload else { return }
     lastPayload = payload
-    var event: [String: Any] = ["resetRevision": resetRevision, "guideImageUri": guideImageUri ?? "", "session": session, "tracking": authoritativeTracking, "reason": authoritativeReason, "anchor": anchor, "placement": placement, "candidateFresh": fresh]
+    // placeRevision: the latest placement request this view has acted on, so JS can ignore answers to older ones.
+    var event: [String: Any] = ["resetRevision": resetRevision, "placeRevision": placeRevision, "guideImageUri": guideImageUri ?? "", "session": session, "tracking": authoritativeTracking, "reason": authoritativeReason, "anchor": anchor, "placement": placement, "candidateFresh": fresh]
     if let message { event["message"] = message }
     onStateChange(event)
   }

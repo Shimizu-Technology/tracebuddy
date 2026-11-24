@@ -162,13 +162,15 @@ export function toGuideLocal(point: Point, pose: Pose, rest: Point): Point {
   return { x: (unturned.x - center.x) / pose.scale, y: (unturned.y - center.y) / pose.scale }
 }
 
-export type GuideAction = 'bigger' | 'smaller' | 'turnLeft' | 'turnRight'
+export type GuideAction = 'increment' | 'decrement' | 'bigger' | 'smaller' | 'turnLeft' | 'turnRight'
 
 /** VoiceOver's alternatives to pinch and twist: a size step, or a quarter turn from the nearest square angle. */
 export function accessibilityPose(pose: Pose, action: string, limits: ScaleLimits): Pose {
   const sizeStep = 0.1
-  if (action === 'bigger' || action === 'smaller') {
-    return { ...pose, scale: clamp(pose.scale + (action === 'bigger' ? sizeStep : -sizeStep), limits.min, limits.max) }
+  // The adjustable role's own swipe up/down (increment/decrement) changes the size too.
+  const bigger = action === 'bigger' || action === 'increment'
+  if (bigger || action === 'smaller' || action === 'decrement') {
+    return { ...pose, scale: clamp(pose.scale + (bigger ? sizeStep : -sizeStep), limits.min, limits.max) }
   }
   if (action === 'turnLeft' || action === 'turnRight') {
     return { ...pose, rotation: normalizeDegrees(nearestSquareAngle(pose.rotation) + (action === 'turnRight' ? 90 : -90)) }
@@ -176,9 +178,52 @@ export function accessibilityPose(pose: Pose, action: string, limits: ScaleLimit
   return pose
 }
 
-export const guideAccessibilityActions: { name: GuideAction; label: string }[] = [
+export const guideAccessibilityActions: { name: GuideAction; label?: string }[] = [
+  { name: 'increment' },
+  { name: 'decrement' },
   { name: 'bigger', label: 'Make bigger' },
   { name: 'smaller', label: 'Make smaller' },
   { name: 'turnLeft', label: 'Turn left' },
   { name: 'turnRight', label: 'Turn right' },
 ]
+
+/** The part of the stage left visible while More is open, in stage (scene) coordinates. */
+export type Band = { top: number; bottom: number; left: number; right: number }
+
+/** The visible band in scene coordinates, from the screen band and the scene's current lift. */
+export function bandInScene(screenBand: Band, screen: Size, lift: { dx: number; dy: number; scale: number }): Band {
+  'worklet'
+  const toScene = (value: number, middle: number, shift: number) => middle + (value - middle - shift) / lift.scale
+  return {
+    top: toScene(screenBand.top, screen.height / 2, lift.dy),
+    bottom: toScene(screenBand.bottom, screen.height / 2, lift.dy),
+    left: toScene(screenBand.left, screen.width / 2, lift.dx),
+    right: toScene(screenBand.right, screen.width / 2, lift.dx),
+  }
+}
+
+/**
+ * While More is open, a gesture can't push the frame (handles included) out of the visible band: it shrinks
+ * to fit if needed and its center is clamped so the whole frame stays above the sheet or card.
+ */
+export function clampToBand(pose: Pose, page: Size, rest: Point, band: Band): Pose {
+  'worklet'
+  const width = Math.max(1, band.right - band.left)
+  const height = Math.max(1, band.bottom - band.top)
+  // The frame's box grows linearly with scale (the handles and outset don't scale), so the largest scale that
+  // fits is exact: box = scale * (page part) + (handle part).
+  const { outset, handle, handleStroke } = paperTheme.size.frame
+  const extra = (outset + handle / 2 + handleStroke) * 2
+  const radians = (pose.rotation * Math.PI) / 180
+  const cos = Math.abs(Math.cos(radians))
+  const sin = Math.abs(Math.sin(radians))
+  const fitWidth = (width - extra * (cos + sin)) / Math.max(1e-6, page.width * cos + page.height * sin)
+  const fitHeight = (height - extra * (sin + cos)) / Math.max(1e-6, page.width * sin + page.height * cos)
+  const scale = Math.max(0.01, Math.min(pose.scale, fitWidth, fitHeight))
+  const bounds = frameBounds(page, scale, pose.rotation)
+  const halfWidth = Math.min(bounds.width, width) / 2
+  const halfHeight = Math.min(bounds.height, height) / 2
+  const x = clamp(rest.x + pose.x, band.left + halfWidth, band.right - halfWidth)
+  const y = clamp(rest.y + pose.y, band.top + halfHeight, band.bottom - halfHeight)
+  return { ...pose, scale, x: x - rest.x, y: y - rest.y }
+}

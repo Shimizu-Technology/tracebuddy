@@ -46,6 +46,7 @@ export function LockBadge({ onUnlock, style }: { onUnlock: () => void; style?: S
 
   useEffect(() => {
     if (!hint) return undefined
+    AccessibilityInfo.announceForAccessibility('Hold to unlock')
     const hide = setTimeout(() => setHint(false), paperTheme.timing.toastMs)
     return () => clearTimeout(hide)
   }, [hint])

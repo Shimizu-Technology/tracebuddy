@@ -27,6 +27,13 @@ export function useCameraAccess(cameraRef?: RefObject<CameraView | null>) {
 
   const granted = Boolean(permission?.granted)
 
+  // A change of permission means a new preview: Lock waits for its own onCameraReady again.
+  const [grantedBefore, setGrantedBefore] = useState(granted)
+  if (grantedBefore !== granted) {
+    setGrantedBefore(granted)
+    setCamera('starting')
+  }
+
   // With no camera device there are no lenses. Show the table stand-in instead of a black screen.
   useEffect(() => {
     if (!granted || camera !== 'starting') return undefined
@@ -57,7 +64,7 @@ export function useCameraAccess(cameraRef?: RefObject<CameraView | null>) {
     cameraOn: granted && camera !== 'error',
     /** Frames are showing, or this device has no camera and shows the stand-in. Only then can Lock start child mode. */
     cameraReady: granted && (camera === 'live' || camera === 'none'),
-    /** A new preview is about to start (after handing the camera to another screen). */
+    /** A new preview is about to mount (after handing the camera to another screen): wait for it to be ready. */
     restart,
     onCameraReady: () => setCamera('live'),
     onMountError,

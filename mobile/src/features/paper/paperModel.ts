@@ -49,11 +49,15 @@ export function screenOrientation({ width, height }: Size): ScreenOrientation {
   return width > height ? 'landscape' : 'portrait'
 }
 
-/** The page-shaped guide frame, fitted to the screen like a sheet of paper seen from a stand. */
-export function fitPage(screen: Size, page: PageOrientation): Size {
+/**
+ * The page-shaped guide frame, fitted to the screen like a sheet of paper seen from a stand. `maxHeight` keeps
+ * it inside the space between the top buttons and the bottom bar (it only binds on a phone held sideways).
+ */
+export function fitPage(screen: Size, page: PageOrientation, maxHeight?: number): Size {
   const { aspect, widthFraction, heightFraction } = paperTheme.page
   const ratio = page === 'portrait' ? aspect : 1 / aspect
-  const width = Math.max(1, Math.min(screen.width * widthFraction, screen.height * heightFraction * ratio))
+  const height = Math.min(screen.height * heightFraction, maxHeight ?? Number.POSITIVE_INFINITY)
+  const width = Math.max(1, Math.min(screen.width * widthFraction, height * ratio))
   return { width, height: width / ratio }
 }
 

@@ -28,6 +28,11 @@ for (const screen of [phone, phoneLandscape, iPad, iPadLandscape]) {
   }
 }
 assert.ok(fitPage(iPad, 'portrait').width > fitPage(phone, 'portrait').width * 1.5, 'iPad gets a bigger page')
+const roomy = fitPage(phone, 'portrait', 551)
+assert.deepEqual(roomy, fitPage(phone, 'portrait'), 'a phone held upright has room: no change')
+const sideways = fitPage(phoneLandscape, 'portrait', 169)
+close(sideways.height, 169, 'held sideways, the page fits between the top buttons and the bar')
+close(sideways.width / sideways.height, 8.5 / 11)
 assert.equal(screenOrientation(phone), 'portrait')
 assert.equal(screenOrientation(phoneLandscape), 'landscape')
 const art = fitArt({ width: 300, height: 400 })

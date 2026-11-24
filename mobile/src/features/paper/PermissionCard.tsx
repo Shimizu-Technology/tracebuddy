@@ -12,7 +12,8 @@ type Props = {
   reduceMotion: boolean
   onAllow: () => void
   onOpenSettings: () => void
-  onDrawOnScreen: () => void
+  /** Left out where there is no Draw route (the 2.0 flag is off): the option is hidden. */
+  onDrawOnScreen?: () => void
 }
 
 const copy: Record<CameraAccess, { title: string; line: string }> = {
@@ -42,7 +43,7 @@ export function PermissionCard({ access, reduceMotion, onAllow, onOpenSettings, 
           {access === 'ask' ? <Button label="Turn on camera" target="adult" onPress={onAllow} /> : null}
           {access === 'denied' ? <Button label="Open Settings" target="adult" onPress={onOpenSettings} /> : null}
           {access === 'unavailable' ? <Button label="Try again" target="adult" onPress={onAllow} /> : null}
-          <Button label="Draw on the screen instead" variant="quiet" target="adult" onPress={onDrawOnScreen} />
+          {onDrawOnScreen ? <Button label="Draw on the screen instead" variant="quiet" target="adult" onPress={onDrawOnScreen} /> : null}
         </View>
       )}
     >

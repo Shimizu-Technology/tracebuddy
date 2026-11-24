@@ -5,7 +5,7 @@ import type { AccessibilityActionEvent } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import { Image } from 'expo-image'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
-import { Redirect, router, useFocusEffect } from 'expo-router'
+import { Redirect, router, useFocusEffect, useNavigation } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureDetector } from 'react-native-gesture-handler'
 import { useAnimatedReaction, useSharedValue } from 'react-native-reanimated'
@@ -31,17 +31,19 @@ import { FadeSlider } from './FadeSlider'
 import { accessibilityPose, guideAccessibilityActions } from './guideMotion'
 import { LockBadge } from './LockBadge'
 import { BottomBar, Pill, TopBar } from './PaperControls'
-import { arPoseFor, canAdjust, showsControls, stickTransition } from './paperLockModel'
-import type { StickEvent, StickPhase } from './paperLockModel'
+import { arPoseFor, arPoseToSend, canAdjust, initialStickState, screenPoseFrom, showsControls, stickTransition } from './paperLockModel'
+import type { ARPose, ScreenPose, StickEvent, StickState } from './paperLockModel'
 import { fitPage } from './paperModel'
-import { drawOnScreenInstead } from './paperNavigation'
+import { canDrawInstead, drawOnScreenInstead } from './paperNavigation'
 import { paperTheme } from './paperTheme'
 import { PermissionCard } from './PermissionCard'
 import { pictureRouteParams, resolvePaperPicture } from './paperPicture'
 import type { PaperParams, PaperPicture } from './paperPicture'
 import { useCameraAccess } from './useCameraAccess'
+import { childModeState } from './childModeState'
 import { useChildModeGuard } from './useChildModeGuard'
 import { useGuideGesture } from './useGuideGesture'
+import { usePhotoLease } from './usePhotoLease'
 
 const captureWidth = 720
 // The texture page is laid out off screen, out of sight, before capture.
@@ -88,8 +90,6 @@ export function PaperLockScreen({ params }: { params: PaperParams }) {
   return <PaperLockSession key={picture.key} picture={picture} params={params} />
 }
 
-type ARPose = { x: number; y: number; scale: number; rotation: number }
-
 /**
  * On paper with "Stick to paper" on: ARKit keeps the guide on the table even if the phone moves.
  * The same gestures, fade slider and bar as On paper, plus a tracking status that is always honest.
@@ -106,12 +106,18 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   const [capture, setCapture] = useState<ARGuideCapture | null>(null)
   const [readyKey, setReadyKey] = useState<string | null>(null)
   const [errorKey, setErrorKey] = useState<string | null>(null)
-  const [attempt, setAttempt] = useState(0)
-  const [pose, setPose] = useState<ARPose>({ x: 0, y: 0, scale: arStartScale, rotation: 0 })
-  const [placeRevision, setPlaceRevision] = useState(0)
+  const [captureAttempt, setCaptureAttempt] = useState(0)
+  const [pose, setPose] = useState<ScreenPose>({ x: 0, y: 0, scale: arStartScale, rotation: 0 })
   const [resetRevision, setResetRevision] = useState(0)
-  const [phase, setPhase] = useState<StickPhase>('adjusting')
-  const phaseRef = useRef<StickPhase>('adjusting')
+  const [stick, setStick] = useState<StickState>(initialStickState)
+  const stickRef = useRef<StickState>(initialStickState)
+  const phase = stick.phase
+  // From Lock on, the guide is fixed in meters on the paper; see arPoseToSend.
+  const [frozen, setFrozen] = useState<ARPose | null>(null)
+  const frozenRef = useRef<ARPose | null>(null)
+  const livePose = useRef<ARPose | null>(null)
+  const [owner] = useState(() => ({}))
+  const navigation = useNavigation()
   const [toast, setToast] = useState<string | null>(null)
   const [opacity, setOpacity] = useState<number>(paperTheme.fade.initial)
   const fade = useSharedValue<number>(paperTheme.fade.initial)
@@ -123,7 +129,7 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   const expectedReset = useRef(0)
   const target = useRef<View>(null)
   const page = arPagePresets[preset]
-  const guideKey = arGuideGenerationKey({ id: picture.key, svg: picture.kind === 'drawing' ? picture.svg : '' }, picture.kind === 'photo' ? picture.uri : undefined, preset, attempt)
+  const guideKey = arGuideGenerationKey({ id: picture.key, svg: picture.kind === 'drawing' ? picture.svg : '' }, picture.kind === 'photo' ? picture.uri : undefined, preset, captureAttempt)
   const guideUri = currentARGuide(capture, guideKey)
   const expectedGuide = useRef({ key: guideKey, uri: guideUri })
   useLayoutEffect(() => { expectedGuide.current = { key: guideKey, uri: guideUri } }, [guideKey, guideUri])
@@ -139,12 +145,37 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   const rest = useMemo(() => ({ x: window.width / 2, y: window.height / 2 }), [window.height, window.width])
   // Screen points to meters on the paper, roughly, from how big a page looks on this screen.
   const metersPerPoint = page.widthMeters / fitPage(window, preset === 'letterPortrait' ? 'portrait' : 'landscape').width
+  const metersPerPointRef = useRef(metersPerPoint)
+  useLayoutEffect(() => {
+    metersPerPointRef.current = metersPerPoint
+    livePose.current = arPoseFor(pose, metersPerPoint, arOffsetLimit, opacity)
+  }, [metersPerPoint, opacity, pose])
 
   const dispatch = useCallback((event: StickEvent) => {
-    const next = stickTransition(phaseRef.current, event)
-    phaseRef.current = next.phase
-    setPhase(next.phase)
-    if (next.effect === 'place') setPlaceRevision((value) => value + 1)
+    const before = stickRef.current
+    const next = stickTransition(before, event)
+    stickRef.current = next.state
+    // The child-mode flag changes in the same step as the state, before anything re-renders.
+    childModeState.set(owner, next.state.phase === 'child')
+    setStick(next.state)
+    if (before.phase === 'adjusting' && (next.state.phase === 'placing' || next.state.phase === 'child')) {
+      frozenRef.current = livePose.current
+      setFrozen(livePose.current)
+    }
+    const held = frozenRef.current
+    if (before.phase !== 'adjusting' && next.state.phase === 'adjusting' && held) {
+      // Back to adjusting: carry on from where the guide is on the paper, at this screen size.
+      const restored = screenPoseFrom(held, metersPerPointRef.current)
+      x.set(restored.x)
+      y.set(restored.y)
+      scale.set(restored.scale)
+      rotation.set(restored.rotation)
+      fade.set(held.opacity)
+      setPose(restored)
+      setOpacity(held.opacity)
+      frozenRef.current = null
+      setFrozen(null)
+    }
     if (next.effect === 'enterChild') {
       setToast('Locked. Time to trace!')
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined)
@@ -152,12 +183,13 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
     if (next.effect === 'trackingLost') setToast('The picture may have moved. Check it, then lock again.')
     if (next.effect === 'notFound') setToast('Couldn’t find the paper. Try again.')
     return next
-  }, [])
+  }, [fade, owner, rotation, scale, x, y])
 
-  useAnimatedReaction(() => fade.get(), (value, previous) => { if (value !== previous) scheduleOnRN(setOpacity, value) })
-
-  // Gestures write shared values; only changes made while adjusting reach ARKit, so a late frame can't move a placed guide.
-  const applyPose = useCallback((next: ARPose) => { if (canAdjust(phaseRef.current)) setPose(next) }, [])
+  // Gestures and the fade write shared values; only changes made while adjusting reach ARKit, so a late frame
+  // can't move or fade a placed guide.
+  const applyOpacity = useCallback((next: number) => { if (canAdjust(stickRef.current.phase)) setOpacity(next) }, [])
+  useAnimatedReaction(() => fade.get(), (value, previous) => { if (value !== previous) scheduleOnRN(applyOpacity, value) })
+  const applyPose = useCallback((next: ScreenPose) => { if (canAdjust(stickRef.current.phase)) setPose(next) }, [])
   useAnimatedReaction(
     () => ({ x: x.get(), y: y.get(), scale: scale.get(), rotation: rotation.get() }),
     (next, previous) => { if (previous && (next.x !== previous.x || next.y !== previous.y || next.scale !== previous.scale || next.rotation !== previous.rotation)) scheduleOnRN(applyPose, next) },
@@ -168,7 +200,10 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
     return () => { void deactivateKeepAwake(keepAwakeTag).catch(() => undefined) }
   }, [])
 
-  useChildModeGuard(childMode, useCallback(() => setToast('Hold the lock to unlock first'), []))
+  useChildModeGuard(owner, childMode, useCallback(() => setToast('Hold the lock to unlock first'), []))
+  // Keep a photo's file while it is placed on the paper, taking over On paper's hand-off.
+  const photoUri = picture.kind === 'photo' ? picture.picture.uploadedImage?.uri : undefined
+  usePhotoLease(photoUri)
   // Leaving the screen cancels a placement that hasn't finished.
   useFocusEffect(useCallback(() => () => { dispatch({ type: 'blur' }) }, [dispatch]))
 
@@ -211,24 +246,25 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
 
   useEffect(() => () => { if (capture) releaseCapture(capture.uri) }, [capture])
 
-  // If the native view never answers a placement, give Lock back instead of waiting forever.
+  // If the native view never answers this placement attempt, give Lock back instead of waiting forever.
   useEffect(() => {
     if (phase !== 'placing') return undefined
-    const giveUp = setTimeout(() => dispatch({ type: 'placementTimeout' }), paperTheme.timing.placementTimeoutMs)
+    const attempt = stick.attempt
+    const giveUp = setTimeout(() => dispatch({ type: 'placementTimeout', attempt }), paperTheme.timing.placementTimeoutMs)
     return () => clearTimeout(giveUp)
-  }, [dispatch, phase])
+  }, [dispatch, phase, stick.attempt])
 
   const lock = useCallback(() => {
-    const next = dispatch({ type: 'lock', placementReady, childModeReady })
+    const next = dispatch({ type: 'lock', placementReady, childModeReady, nativeAttempt: current.placeRevision })
     if (next.effect === 'waiting') setToast(status.title)
-  }, [childModeReady, dispatch, placementReady, status.title])
+  }, [childModeReady, current.placeRevision, dispatch, placementReady, status.title])
 
   const changePage = useCallback(() => {
     reset()
     setCapture(null)
     setReadyKey(null)
     setErrorKey(null)
-    setAttempt((value) => value + 1)
+    setCaptureAttempt((value) => value + 1)
     expectedGuide.current.uri = null
     setPreset((value) => (value === 'letterPortrait' ? 'letterLandscape' : 'letterPortrait'))
   }, [reset])
@@ -244,13 +280,17 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   })
 
   function onAccessibilityAction(event: AccessibilityActionEvent) {
-    if (!canAdjust(phaseRef.current)) return
+    if (!canAdjust(stickRef.current.phase)) return
     const next = accessibilityPose({ x: x.get(), y: y.get(), scale: scale.get(), rotation: rotation.get() }, event.nativeEvent.actionName, arScaleLimits)
     scale.set(next.scale)
     rotation.set(next.rotation)
   }
 
-  if (!camera.granted && camera.access) {
+  const livePoseNow = arPoseFor(pose, metersPerPoint, arOffsetLimit, opacity)
+  const arPose = arPoseToSend(phase, livePoseNow, frozen)
+
+  // Never in child mode: the permission card leads away from the screen.
+  if (!camera.granted && camera.access && !childMode) {
     return (
       <View style={styles.screen}>
         <PermissionCard
@@ -258,7 +298,7 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
           reduceMotion={reduceMotion}
           onAllow={camera.retry}
           onOpenSettings={camera.openSettings}
-          onDrawOnScreen={() => drawOnScreenInstead(params)}
+          onDrawOnScreen={canDrawInstead ? () => drawOnScreenInstead(navigation, params, photoUri) : undefined}
         />
       </View>
     )
@@ -267,7 +307,6 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
   const faderHeight = Math.min(paperTheme.size.fader.maxHeight, window.height * paperTheme.size.fader.heightFraction)
   const sides = { left: insets.left + theme.space.lg, right: insets.right + theme.space.lg }
   const controls = showsControls(phase)
-  const arPose = arPoseFor(pose, metersPerPoint, arOffsetLimit)
 
   return (
     <View style={styles.screen} accessibilityViewIsModal>
@@ -282,21 +321,27 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
               active
               guideImageUri={guideUri}
               placementMode="surface"
-              opacity={opacity}
+              opacity={arPose.opacity}
               scale={arPose.scale}
               rotationDegrees={arPose.rotationDegrees}
               offsetXmeters={arPose.offsetXmeters}
               offsetYmeters={arPose.offsetYmeters}
               paperWidthMeters={page.widthMeters}
               paperHeightMeters={page.heightMeters}
-              placeRevision={placeRevision}
+              placeRevision={stick.attempt}
               resetRevision={resetRevision}
               onStateChange={(event) => {
                 const next = normalizeARNativeState(event.nativeEvent)
                 // Events from an earlier reset or guide belong to another session; ignore them.
                 if (!isCurrentAREvent(next, expectedReset.current, expectedGuide.current.uri)) return
                 setNativeState(next)
-                dispatch({ type: 'tracking', childModeReady: canEnterARChildMode(next), trackingOk: next.session === 'running' && next.tracking === 'normal', placement: next.placement })
+                dispatch({
+                  type: 'tracking',
+                  childModeReady: canEnterARChildMode(next),
+                  trackingOk: next.session === 'running' && next.tracking === 'normal',
+                  placement: next.placement,
+                  nativeAttempt: next.placeRevision,
+                })
               }}
             />
           ) : null}
@@ -337,7 +382,7 @@ function PaperLockSession({ picture, params }: { picture: PaperPicture; params: 
           onDone={() => dispatch({ type: 'done' })}
         />
       ) : null}
-      {toast ? <Pill text={toast} style={[styles.absolute, { bottom: insets.bottom + barHeight }]} /> : null}
+      {toast ? <Pill text={toast} announce style={[styles.absolute, { bottom: insets.bottom + barHeight }]} /> : null}
       {childMode ? (
         <LockBadge
           onUnlock={() => { dispatch({ type: 'unlock' }); setToast('Unlocked') }}

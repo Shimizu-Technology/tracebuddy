@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
 
@@ -21,6 +21,13 @@ export function TipsCard({ reduceMotion, onClose }: { reduceMotion: boolean; onC
   const [pageWidth, setPageWidth] = useState(0)
   const scroller = useRef<ScrollView>(null)
   const last = index === tips.length - 1
+
+  // When the card changes width (rotation, iPad), keep showing the same tip.
+  const indexRef = useRef(index)
+  useEffect(() => { indexRef.current = index }, [index])
+  useEffect(() => {
+    if (pageWidth > 0) scroller.current?.scrollTo({ x: indexRef.current * pageWidth, animated: false })
+  }, [pageWidth])
 
   function goTo(next: number) {
     setIndex(next)

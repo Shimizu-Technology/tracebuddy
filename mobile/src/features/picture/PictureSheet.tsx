@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
+import { StackActions } from 'expo-router/build/react-navigation/routers'
 
 import { pictureLevels, resolvePicture } from '../../data/catalog'
 import type { ArtLevel, PictureParams } from '../../data/catalog'
@@ -14,6 +15,7 @@ import { theme } from '../../ui/theme'
 import { PictureArt } from './PictureArt'
 import { PictureModeIllustration } from './PictureModeIllustration'
 import { keepDrawingImages } from '../../data/drawingImageFiles'
+import { photoHandoff } from '../paper/usePhotoLease'
 import { picturePastel } from './picturePastel'
 
 const modes = [
@@ -23,6 +25,7 @@ const modes = [
 
 export default function PictureSheet() {
   const params = useLocalSearchParams<PictureParams>()
+  const navigation = useNavigation()
   const [level, setLevel] = useState<ArtLevel | undefined>(params.level)
   const [lastMode, setLastMode] = useState<'camera' | 'screen'>()
   const navigating = useRef(false)
@@ -63,8 +66,11 @@ export default function PictureSheet() {
       Alert.alert('Could not remember this choice', 'You can still open the picture.')
     }
     if (!focused.current) return
-    if (mode === 'camera') router.push({ pathname: '/paper/[id]', params: next })
-    else router.replace({ pathname: '/draw/[id]', params: next })
+    if (mode === 'camera') {
+      // On paper takes the sheet's place, full screen over Home ([Home, Paper]); the photo is handed over.
+      photoHandoff.handOff(photoUri)
+      navigation.dispatch(StackActions.replace('paper', { screen: '[id]', params: next }))
+    } else router.replace({ pathname: '/draw/[id]', params: next })
   }
 
   if (!picture) return (

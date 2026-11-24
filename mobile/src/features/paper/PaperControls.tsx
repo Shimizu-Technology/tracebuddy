@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native'
+import { useEffect } from 'react'
+import { AccessibilityInfo, StyleSheet, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 
@@ -91,10 +92,16 @@ export function BottomBar({ bottom, left, right, page, lockDimmed, onPage, onLoc
   )
 }
 
-/** A short dark pill for hints and confirmations, spoken by VoiceOver. */
-export function Pill({ text, style }: { text: string; style?: StyleProp<ViewStyle> }) {
+/**
+ * A short dark pill for hints, confirmations and status. `announce` also speaks it with VoiceOver: on iOS a
+ * live region does nothing, so the text is announced when it appears or changes.
+ */
+export function Pill({ text, announce = false, style }: { text: string; announce?: boolean; style?: StyleProp<ViewStyle> }) {
+  useEffect(() => {
+    if (announce) AccessibilityInfo.announceForAccessibility(text)
+  }, [announce, text])
   return (
-    <View pointerEvents="none" style={[styles.pill, style]} accessibilityLiveRegion="polite">
+    <View pointerEvents="none" style={[styles.pill, style]} accessibilityLiveRegion={announce ? 'polite' : 'none'}>
       <Text variant="label" style={styles.pillText}>{text}</Text>
     </View>
   )

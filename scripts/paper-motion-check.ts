@@ -4,8 +4,7 @@ import {
   accessibilityPose, dragFrame, frameBounds, handleFrame, liftedPoint, pairFrame, sheetLift, snapStep, startTurn, toGuideLocal,
 } from '../mobile/src/features/paper/guideMotion'
 import type { Pose } from '../mobile/src/features/paper/guideMotion'
-import { arPoseFor, canAdjust, showsControls, stickTransition } from '../mobile/src/features/paper/paperLockModel'
-import type { StickEvent, StickPhase } from '../mobile/src/features/paper/paperLockModel'
+import { arPoseFor, arPoseToSend, canAdjust, initialStickState, screenPoseFrom, showsControls, stickTransition } from '../mobile/src/features/paper/paperLockModel'
 import {
   fitArt, fitPage, legacyOverlayBase, pageCorner, readRememberedSetup, restoreSetup, serializeRememberedSetup,
 } from '../mobile/src/features/paper/paperModel'
@@ -172,45 +171,75 @@ await (async () => {
   assert.deepEqual(readRememberedSetup(await loaded, 'portrait')?.setup, portrait, 'the load saw the save queued before it')
 })()
 
-// 7. Stick to paper: placing, child mode and the celebration exclude each other.
+// 7. Stick to paper: placing, child mode and the celebration exclude each other, and every placement request
+//    has its own attempt; answers to older or cancelled attempts never start child mode.
 {
-  const run = (phase: StickPhase, event: StickEvent) => stickTransition(phase, event)
-  const lockReady = { type: 'lock', placementReady: true, childModeReady: false } as const
-  const tracked = { type: 'tracking', childModeReady: true, trackingOk: true, placement: 'locked' } as const
-  const notYet = { type: 'tracking', childModeReady: false, trackingOk: true, placement: 'preview' } as const
-  const lost = { type: 'tracking', childModeReady: false, trackingOk: false, placement: 'none' } as const
-  const noPaper = { type: 'tracking', childModeReady: false, trackingOk: true, placement: 'none' } as const
+  type Step = Parameters<typeof stickTransition>[1]
+  const run = (steps: Step[], from = initialStickState) => steps.reduce((state, step) => stickTransition(state, step).state, from)
+  const last = (steps: Step[], from = initialStickState) => {
+    const state = run(steps.slice(0, -1), from)
+    return stickTransition(state, steps[steps.length - 1])
+  }
+  const lock = (nativeAttempt = -1, placementReady = true, childModeReady = false): Step => ({ type: 'lock', placementReady, childModeReady, nativeAttempt })
+  const tracked = (nativeAttempt: number): Step => ({ type: 'tracking', childModeReady: true, trackingOk: true, placement: 'locked', nativeAttempt })
+  const preview = (nativeAttempt: number): Step => ({ type: 'tracking', childModeReady: false, trackingOk: true, placement: 'preview', nativeAttempt })
+  const noPaper = (nativeAttempt: number): Step => ({ type: 'tracking', childModeReady: false, trackingOk: true, placement: 'none', nativeAttempt })
+  const lost: Step = { type: 'tracking', childModeReady: false, trackingOk: false, placement: 'none', nativeAttempt: 1 }
 
-  assert.deepEqual(run('adjusting', lockReady), { phase: 'placing', effect: 'place' })
-  assert.deepEqual(run('adjusting', { type: 'lock', placementReady: false, childModeReady: true }), { phase: 'child', effect: 'enterChild' })
-  assert.deepEqual(run('adjusting', { type: 'lock', placementReady: false, childModeReady: false }), { phase: 'adjusting', effect: 'waiting' })
-  assert.deepEqual(run('placing', tracked), { phase: 'child', effect: 'enterChild' })
-  assert.deepEqual(run('placing', notYet), { phase: 'placing', effect: null })
-  assert.deepEqual(run('placing', lost), { phase: 'adjusting', effect: 'cancelled' }, 'tracking loss cancels a pending lock')
-  assert.deepEqual(run('placing', noPaper), { phase: 'adjusting', effect: 'notFound' }, 'no paper found after Lock: back to adjusting, not stuck placing')
-  assert.deepEqual(run(run('placing', noPaper).phase, lockReady), { phase: 'placing', effect: 'place' }, 'and Lock can try again')
-  assert.deepEqual(run('placing', { type: 'placementTimeout' }), { phase: 'adjusting', effect: 'notFound' }, 'no answer at all also gives Lock back')
-  assert.deepEqual(run('child', { type: 'placementTimeout' }), { phase: 'child', effect: null })
-  assert.deepEqual(run('adjusting', noPaper), { phase: 'adjusting', effect: null })
-  assert.deepEqual(run('child', notYet), { phase: 'adjusting', effect: 'trackingLost' })
-  assert.deepEqual(run('child', tracked), { phase: 'child', effect: null })
-  // The reported escape: Lock, then Done before the placement is acknowledged.
-  const afterDone = run('placing', { type: 'done' })
-  assert.deepEqual(afterDone, { phase: 'celebrating', effect: 'cancelled' })
-  assert.deepEqual(run(afterDone.phase, tracked), { phase: 'celebrating', effect: null }, 'a late acknowledgment can\'t start child mode behind Done')
-  assert.deepEqual(run('child', { type: 'done' }), { phase: 'child', effect: null }, 'Done does nothing in child mode')
-  assert.deepEqual(run('celebrating', { type: 'keepTracing' }), { phase: 'adjusting', effect: null })
-  assert.deepEqual(run('placing', { type: 'reset' }), { phase: 'adjusting', effect: 'cancelled' })
-  assert.deepEqual(run('child', { type: 'reset' }), { phase: 'adjusting', effect: null })
-  assert.deepEqual(run('placing', { type: 'blur' }), { phase: 'adjusting', effect: 'cancelled' })
-  assert.deepEqual(run('child', { type: 'blur' }), { phase: 'child', effect: null }, 'leaving focus doesn\'t unlock')
-  assert.deepEqual(run('child', { type: 'unlock' }), { phase: 'adjusting', effect: null })
-  assert.deepEqual(run('celebrating', lockReady), { phase: 'celebrating', effect: null })
-  assert.deepEqual(run('placing', lockReady), { phase: 'placing', effect: null }, 'a second Lock doesn\'t place twice')
+  assert.deepEqual(last([lock()]), { state: { phase: 'placing', attempt: 1, cancelledThrough: 0 }, effect: 'place' })
+  assert.equal(last([lock(), tracked(1)]).effect, 'enterChild')
+  assert.equal(last([lock(), preview(1)]).state.phase, 'placing')
+  assert.equal(last([lock(), tracked(0)]).state.phase, 'placing', 'an answer from before this request doesn\'t count')
+  assert.deepEqual(last([lock(), noPaper(1)]).effect, 'notFound', 'no paper found: back to adjusting')
+  assert.equal(last([lock(), noPaper(0)]).state.phase, 'placing', 'a stale "no paper" from before the request is ignored too')
+  assert.equal(last([lock(), lost]).effect, 'cancelled', 'tracking loss cancels a pending lock')
+  // The reported escape: Lock, time out, Lock again, then the first attempt's late acknowledgment.
+  const retried = run([lock(), { type: 'placementTimeout', attempt: 1 }, lock()])
+  assert.deepEqual(retried, { phase: 'placing', attempt: 2, cancelledThrough: 1 })
+  assert.equal(stickTransition(retried, tracked(1)).state.phase, 'placing', 'the cancelled attempt\'s answer is rejected')
+  assert.equal(stickTransition(retried, { type: 'placementTimeout', attempt: 1 }).state.phase, 'placing', 'the old timeout can\'t cancel the new attempt')
+  assert.equal(stickTransition(retried, tracked(2)).state.phase, 'child', 'only the current attempt finishes placing')
+  // A placement left from a cancelled attempt doesn't let Lock skip placing.
+  const afterTimeout = run([lock(), { type: 'placementTimeout', attempt: 1 }])
+  assert.deepEqual(last([lock(1, false, true)], afterTimeout), { state: { phase: 'placing', attempt: 2, cancelledThrough: 1 }, effect: 'place' })
+  // After an unlock, the same live placement goes straight back to child mode.
+  const unlocked = run([lock(), tracked(1), { type: 'unlock' }])
+  assert.equal(last([lock(1, false, true)], unlocked).state.phase, 'child')
+  // Lock, then Done before the acknowledgment: the late answer can't start child mode behind Done.
+  const celebrating = run([lock(), { type: 'done' }])
+  assert.deepEqual(celebrating, { phase: 'celebrating', attempt: 1, cancelledThrough: 1 })
+  assert.equal(stickTransition(celebrating, tracked(1)).state.phase, 'celebrating')
+  assert.equal(last([lock(), tracked(1), { type: 'done' }]).state.phase, 'child', 'Done does nothing in child mode')
+  assert.equal(last([lock(), tracked(1), preview(1)]).effect, 'trackingLost')
+  assert.equal(last([lock(), { type: 'blur' }]).effect, 'cancelled')
+  assert.equal(last([lock(), tracked(1), { type: 'blur' }]).state.phase, 'child', 'leaving focus doesn\'t unlock')
+  assert.equal(last([lock(), { type: 'reset' }]).state.cancelledThrough, 1, 'reset cancels the attempt')
+  assert.equal(last([lock(-1, false, false)]).effect, 'waiting')
+  assert.equal(last([lock(), lock()]).effect, null, 'a second Lock doesn\'t place twice')
+  assert.equal(last([{ type: 'done' }, { type: 'keepTracing' }]).state.phase, 'adjusting')
   for (const phase of ['adjusting', 'placing', 'child', 'celebrating'] as const) {
     assert.equal(canAdjust(phase), phase === 'adjusting', `gestures only while adjusting (${phase})`)
     assert.equal(showsControls(phase), phase === 'adjusting' || phase === 'placing', `controls (${phase})`)
   }
+}
+
+// 7a. From Lock on, the guide's pose in meters is frozen: a turn of the device (a new points-to-meters factor)
+//     and late gesture or fade frames send exactly the same pose to ARKit.
+{
+  const portraitMpp = 0.2159 / 304
+  const landscapeMpp = 0.2159 / 200
+  const pose = { x: 100, y: 40, scale: 0.9, rotation: 12 }
+  const frozen = arPoseFor(pose, portraitMpp, 0.25, 0.7)
+  for (const phase of ['placing', 'child', 'celebrating'] as const) {
+    const portrait = arPoseToSend(phase, arPoseFor(pose, portraitMpp, 0.25, 0.7), frozen)
+    const landscape = arPoseToSend(phase, arPoseFor({ ...pose, x: 140, rotation: 30 }, landscapeMpp, 0.25, 0.2), frozen)
+    assert.deepEqual(landscape, portrait, `the same pose is sent in portrait and landscape while ${phase}`)
+  }
+  const live = arPoseFor(pose, landscapeMpp, 0.25, 0.7)
+  assert.notDeepEqual(live.offsetXmeters, frozen.offsetXmeters, '(the live conversion would have moved it)')
+  assert.deepEqual(arPoseToSend('adjusting', live, frozen), live, 'adjusting follows the live pose')
+  const back = screenPoseFrom(frozen, landscapeMpp)
+  near(arPoseFor(back, landscapeMpp, 0.25, 0.7).offsetXmeters, frozen.offsetXmeters, 1e-12, 'unlocking after a turn keeps the guide where it was on the paper')
 }
 
 // 7b. What ARKit receives: a twist across ±180° keeps turning smoothly instead of sticking at 180° and jumping.

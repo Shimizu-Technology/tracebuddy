@@ -9,6 +9,7 @@ import { SvgXml } from 'react-native-svg'
 
 import { theme } from '../../ui/theme'
 import { accessibilityPose, guideAccessibilityActions } from './guideMotion'
+import type { Band } from './guideMotion'
 import { fitArt, lightLinesSvg } from './paperModel'
 import type { Point, Size } from './paperModel'
 import type { PaperPicture } from './paperPicture'
@@ -39,11 +40,13 @@ type Props = {
   /** Changes when the setup is replaced from outside a gesture (restored, page flip), so the picture is laid out again. */
   layoutKey: number
   gestureActive: SharedValue<number>
+  /** While More is open: the visible band the frame must stay in. */
+  band: SharedValue<Band | null>
   onGestureStart: () => void
   onGestureEnd: () => void
 }
 
-export function GuideLayer({ picture, values, page, center, stage, locked, lightLines, mirror, reduceMotion, layoutKey, gestureActive, onGestureStart, onGestureEnd }: Props) {
+export function GuideLayer({ picture, values, page, center, stage, locked, lightLines, mirror, reduceMotion, layoutKey, gestureActive, band, onGestureStart, onGestureEnd }: Props) {
   const { x, y, scale, rotation, opacity } = values
   const art = fitArt(page, picture.aspect)
   // The picture is laid out at this scale and only transformed in between, so it is redrawn sharp after each gesture.
@@ -54,7 +57,7 @@ export function GuideLayer({ picture, values, page, center, stage, locked, light
     renderScale.set(scale.get())
     onGestureEnd()
   }, [onGestureEnd, renderScale, scale])
-  const gesture = useGuideGesture({ values, rest: center, stage, handlePage: page, limits: cameraLimits, enabled: !locked, active: gestureActive, onStart: onGestureStart, onEnd })
+  const gesture = useGuideGesture({ values, rest: center, stage, handlePage: page, limits: cameraLimits, enabled: !locked, active: gestureActive, band, onStart: onGestureStart, onEnd })
 
   const artStyle = useAnimatedStyle(() => {
     const laidOut = renderScale.get()
@@ -122,7 +125,7 @@ export function GuideLayer({ picture, values, page, center, stage, locked, light
           accessible
           accessibilityRole="adjustable"
           accessibilityLabel={`${picture.name} picture`}
-          accessibilityHint={locked ? 'Locked.' : 'Drag to move, pinch to resize, twist to turn. Swipe up or down for more actions.'}
+          accessibilityHint={locked ? 'Locked.' : 'Drag to move, pinch to resize, twist to turn. Swipe up or down to change the size; more actions are in the actions rotor.'}
           accessibilityActions={locked ? [] : guideAccessibilityActions}
           onAccessibilityAction={onAccessibilityAction}
           pointerEvents="none"

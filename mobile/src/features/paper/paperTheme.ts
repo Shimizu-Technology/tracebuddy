@@ -28,14 +28,14 @@ export const paperTheme = {
     handleHit: 36,
     // The guide's center stays at least this far inside the screen, so it can't be lost.
     keepVisible: 48,
+    // Larger than any real finger movement between two frames.
+    maxTouchJump: 180,
     switchRow: theme.target.adult,
     ring: 3,
     nudge: theme.target.adult,
     tipArt: 120,
     cardMaxWidth: 560,
     barMaxWidth: 520,
-    // From this width (iPad, phones held sideways) More opens as a bottom card, not a native sheet.
-    cardSheetMinWidth: 700,
     cardMaxHeightFraction: 0.62,
     previewArt: 180,
     confettiPiece: { width: 9, height: 6 },
@@ -48,6 +48,6 @@ export const paperTheme = {
   fade: { min: 0.15, max: 1, step: 0.05, initial: 0.6 },
   scale: { min: 0.35, max: 2.2 },
   page: { aspect: 8.5 / 11, widthFraction: 0.78, heightFraction: 0.62, artInset: 0.86, tableTilt: -2 },
-  timing: { cameraHandoffMs: 350, placementTimeoutMs: 6000, sheetSettleMs: 450, hintMs: 4200, toastMs: 2000, saveDelayMs: 400, cardDismissPx: 80, cardDismissVelocity: 600, confettiMs: 1400 },
+  timing: { loadRetryMs: 1500, cameraHandoffMs: 350, placementTimeoutMs: 6000, sheetSettleMs: 450, hintMs: 4200, toastMs: 2000, saveDelayMs: 400, cardDismissPx: 80, cardDismissVelocity: 600, confettiMs: 1400 },
   moreSheetDetent: 0.4,
 } as const

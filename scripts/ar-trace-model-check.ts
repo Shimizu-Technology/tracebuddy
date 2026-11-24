@@ -54,6 +54,7 @@ assert.equal(canEnterARChildMode({ ...locked, reason: 'relocalizing' }), false)
 assert.deepEqual(normalizeARNativeState(null), initialARNativeState)
 assert.deepEqual(normalizeARNativeState({ session: 'surprise', tracking: 'fast', reason: 'bad', anchor: 'screen', placement: 'floating' }), {
   resetRevision: -1,
+  placeRevision: -1,
   guideImageUri: null,
   session: 'failed',
   tracking: 'unavailable',
@@ -64,6 +65,9 @@ assert.deepEqual(normalizeARNativeState({ session: 'surprise', tracking: 'fast',
   message: undefined,
 })
 assert.equal(normalizeARNativeState({ ...locked, message: 'x'.repeat(300) }).message?.length, 240)
+assert.equal(normalizeARNativeState({ ...locked, placeRevision: 3 }).placeRevision, 3, 'the placement attempt comes through')
+assert.equal(normalizeARNativeState({ ...locked, placeRevision: -2 }).placeRevision, -1)
+assert.equal(normalizeARNativeState({ ...locked, placeRevision: undefined }).placeRevision, -1, 'an older native build reports no attempt')
 assert.equal(clampARValue(Number.NaN, 0.1, 1), 0.1)
 assert.equal(clampARValue(Number.POSITIVE_INFINITY, 0.1, 1), 0.1)
 assert.equal(clampARValue(-4, 0.1, 1), 0.1)
