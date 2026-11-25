@@ -407,3 +407,7 @@ At 420 px, four Detailed outlines still read thin after the batch's own pass. Ea
 - `police-car`: `Disk:4`, 25.4% → 32.3%
 
 Faces, buttons, tutu ruffles and wheel rims stay separated.
+
+### Held for review
+
+`hawaii-islands`, `hibiscus`, `lei` and `ukulele` were generated in this batch but held out of this PR until Leon reviews them, as with the Guam set. They are on branch `gemini/art-batch4-hawaii` (raw masters in `output/tracebuddy-art-v3/batch4/raw/`).

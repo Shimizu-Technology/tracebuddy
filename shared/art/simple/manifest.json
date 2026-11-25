@@ -1170,42 +1170,6 @@
     "notes": ""
   },
   {
-    "id": "ukulele",
-    "name": "Ukulele",
-    "category": "fun",
-    "level": "simple",
-    "line": "ukulele/line.svg",
-    "color": "ukulele/color.webp",
-    "notes": ""
-  },
-  {
-    "id": "hawaii-islands",
-    "name": "Hawaiian Islands",
-    "category": "nature",
-    "level": "simple",
-    "line": "hawaii-islands/line.svg",
-    "color": "hawaii-islands/color.webp",
-    "notes": ""
-  },
-  {
-    "id": "hibiscus",
-    "name": "Hibiscus",
-    "category": "nature",
-    "level": "simple",
-    "line": "hibiscus/line.svg",
-    "color": "hibiscus/color.webp",
-    "notes": ""
-  },
-  {
-    "id": "lei",
-    "name": "Flower Lei",
-    "category": "nature",
-    "level": "simple",
-    "line": "lei/line.svg",
-    "color": "lei/color.webp",
-    "notes": ""
-  },
-  {
     "id": "snowflake",
     "name": "Snowflake",
     "category": "nature",

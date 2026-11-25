@@ -341,3 +341,7 @@ Added **22 new subjects** across 6 categories (`go`, `people`, `holidays`, `fun`
 ### Batch 4 Rejection & Regeneration Log (Simple — 0 Rejections)
 
 - **0 rejections** across all 21 AI-generated Simple subjects (`hawaii-islands` built deterministically from U.S. Census data). Note: `pirate` color hit one transient `HTTP 503 UNAVAILABLE` capacity error on first attempt and succeeded on retry (no art rejected).
+
+### Held for review
+
+`hawaii-islands`, `hibiscus`, `lei` and `ukulele` were generated in this batch but held out of this PR until Leon reviews them, as with the Guam set. They are on branch `gemini/art-batch4-hawaii` (raw masters in `output/tracebuddy-art-v3/batch4/raw/`).
