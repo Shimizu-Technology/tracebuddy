@@ -1,5 +1,5 @@
 import { useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { Ref } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated'
@@ -32,7 +32,9 @@ type Props = {
   area: { width: number; height: number }
   side: number
   session: SavedPracticeSession
-  guideSvg: string
+  guideSvg?: string
+  guideLayer?: ReactNode
+  readOnly?: boolean
   disabled: boolean
   onStroke: (stroke: PracticeStroke) => void
 }
@@ -60,7 +62,7 @@ function boundTranslation(value: number, scale: number, side: number) {
   return Math.max(side * (1 - scale), Math.min(0, value))
 }
 
-export function DrawingCanvas({ ref, area, side, session, guideSvg, disabled, onStroke }: Props) {
+export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, readOnly, disabled, onStroke }: Props) {
   const viewport = useSharedValue(fit)
   // Counts up so every turn spins clockwise; mapping only uses it modulo four. View only: ink stays upright.
   const turns = useSharedValue(0)
@@ -202,7 +204,7 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, disabled, on
         if (!pair.get()) pair.set({ ids: [first.id, second.id], ...pairPosition(squarePoint(first, offset), squarePoint(second, offset)), viewport: viewport.get() })
         return
       }
-      if (blockedUntilLift.get() || active.get()) return
+      if (readOnly || blockedUntilLift.get() || active.get()) return
       // A new touch during the turn animation meets the picture where it is going, not where it is mid-spin.
       rotation.set(turns.get() * 90)
       manager.begin()
@@ -289,14 +291,14 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, disabled, on
         <View
           collapsable={false}
           accessible
-          accessibilityLabel="Drawing canvas"
-          accessibilityHint="Draw with one finger. Pinch and drag with two fingers to zoom and move."
+          accessibilityLabel={readOnly ? 'Lesson picture' : 'Drawing canvas'}
+          accessibilityHint={readOnly ? 'Pinch to zoom.' : 'Draw with one finger. Pinch and drag with two fingers to zoom and move.'}
           style={[styles.area, { width: area.width, height: area.height }]}
         >
           <View style={[styles.viewport, { width: side, height: side }]}>
             <Animated.View pointerEvents="none" style={[styles.document, transform]}>
               <Animated.View style={[{ width: side, height: side }, turned]}>
-                <DrawingDocument side={side} session={session} guideSvg={guideSvg} live={live} />
+                <DrawingDocument side={side} session={session} guideSvg={guideSvg} guideLayer={guideLayer} live={readOnly ? undefined : live} />
               </Animated.View>
             </Animated.View>
           </View>

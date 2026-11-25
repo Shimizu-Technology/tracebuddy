@@ -18,6 +18,7 @@ assert.deepEqual(localSettingKeys, [
   'tracebuddy.resumeContext.v1',
   'tracebuddy.drawingPreferences.v1',
   'tracebuddy.learningProgress.v1',
+  'tracebuddy.lessonMuted.v1',
   'tracebuddy.parentSetupSeen.v1',
   'tracebuddy.savedAlignment.v1',
   'tracebuddy.familyActivity.v1',

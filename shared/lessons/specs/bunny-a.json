@@ -1,0 +1,8 @@
+{"method": "A", "subject": "bunny", "title": "Bunny", "picture": "simple/bunny", "ops": {},
+ "steps": [
+  {"say": "Draw a round head.", "strokes": [6, 1]},
+  {"say": "Add two long ears.", "strokes": [3, 4, 2]},
+  {"say": "Draw a round body and legs.", "strokes": [0, 7, 11, 17, 18, 5, 10, 15, 19]},
+  {"say": "Add a fluffy tail.", "strokes": [12, 8]},
+  {"say": "Draw eyes, a nose and a smile.", "strokes": [13, 14, 9, 16]}
+ ]}

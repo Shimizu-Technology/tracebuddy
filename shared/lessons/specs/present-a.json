@@ -1,0 +1,8 @@
+{"method": "A", "subject": "present", "title": "Present", "picture": "simple/present", "ops": {},
+ "steps": [
+  {"say": "Draw a big box with a lid.", "strokes": [0, 1]},
+  {"say": "Draw a ribbon down the middle.", "strokes": [3, 2]},
+  {"say": "Add a big bow on top.", "strokes": [6, 4, 7, 5, 8]},
+  {"say": "Add stripes and little curls.", "strokes": [12, 19, 14, 17, 13, 20, 15, 18]},
+  {"say": "Add four round polka dots.", "strokes": [10, 11, 16, 9]}
+ ]}

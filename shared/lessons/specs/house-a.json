@@ -1,0 +1,8 @@
+{"method": "A", "subject": "house", "title": "House", "picture": "simple/house", "ops": {},
+ "steps": [
+  {"say": "Draw a big pointy roof.", "strokes": [1, 4]},
+  {"say": "Add a chimney on top.", "strokes": [6, 7]},
+  {"say": "Draw the walls under the roof.", "strokes": [0]},
+  {"say": "Draw a tall round door.", "strokes": [2]},
+  {"say": "Add two little windows.", "strokes": [5, 11, 9, 3, 8, 10]}
+ ]}

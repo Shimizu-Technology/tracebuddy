@@ -12,7 +12,7 @@ Status: approved direction, 24 November 2026. The review behind it is at https:/
 | 1.3 | Not released. The App Store goes from 1.2 to 2.0. `main` already includes the 1.3 safety work, and 2.0 keeps it. |
 | Art | A new picture set made by image generation, converted to vector outlines, and reviewed one by one. After the style test (PR #47), Leon chose **two styles**: every picture comes in **Simple** (Storybook soft, for little kids) and **Detailed** (picture-book ink with heavier, traceable lines, for older kids and adults). |
 | Cuts | Use the "Cut, fold, or gate" table below. |
-| Read-aloud | Yes. On-device speech (`expo-speech`), off by default and switched on in Grown-ups. Offline and private. |
+| Read-aloud | Yes. On-device speech (`expo-speech`), on by default in Learn and off by default elsewhere. Offline and private. |
 | Audience | From toddlers who can hold a phone through to adults. A child who can't read must be able to draw. An adult should get a serious tracing tool without hunting for it. |
 | Store name | Rename. Pick at release from: **TraceBuddy: Trace & Draw** (preferred), TraceBuddy – Trace and Color, TraceBuddy Tracing. Check availability in App Store Connect. |
 
@@ -56,7 +56,7 @@ Every 2.0 screen follows these. A PR that breaks one needs a written reason.
 - A horizontal **Favorites** shelf appears below that row when there are favorites in the current library. Long-press a picture tile to add or remove a favorite.
 - A grid of picture groups, two columns on phones and three to four on iPad. Each tile has a large cover picture on its category pastel with the group name below. Only groups available at the current level appear.
 - Opening a group shows its pictures in the same responsive grid. Picture tiles use **color art** on a pastel background with the name below. Animals and Holidays have named sections. Letters and numbers has ABC and 123 sections, with uppercase and lowercase pairs for A–Z. Pictures without a section go at the end under **More**.
-- Rows below the groups are planned for **Learn to draw** (lessons) and **Play together** (best 4–6 activities).
+- The **Learn to draw** shelf sits above the picture groups. **Play together** is planned below the groups.
 - The search magnifier opens a field. A typed query shows matching pictures across the current library in place of the groups.
 
 ### Picture
@@ -99,7 +99,7 @@ Opens as a native sheet over Home or the current picture group.
 - **Color rail:** a crayon box of 12 colors always on screen (side rail on iPad and landscape, bottom strip on phone portrait). The current color shows as a raised crayon.
 - **Tools:** three size dots, the brush style (crayon, marker, paint, pencil) as a single button that cycles or opens a small sheet, an eraser, Undo (large), and **Done** (main action). Picking a color while erasing switches back to the last brush.
 - Grown-up extras in More (•••): guide strength, stickers and shapes (dragged and pinched directly, not moved with arrow buttons), clear all (gated), save to Photos.
-- Lessons run inside this screen. A small step strip at the top holds the step picture, Back, Next, and Listen. You never leave the canvas.
+- Lessons run inside this screen. The step strip shows the picture, step number, instruction, and Listen. The controls below the canvas switch between watching and drawing.
 
 ### Done (keepsake)
 
@@ -131,7 +131,9 @@ Opens as a native sheet over Home or the current picture group.
 
 ### Learn and Play together
 
-- **Learn:** the 8 lessons as a row of picture cards. Each opens On the screen with the step strip.
+- **Learn:** a row of picture cards on Home and a “Learn to draw this” choice in the picture sheet when the selected level has a lesson. Each opens On the screen. Watch the pencil draw, then Trace or Copy with the same drawing canvas. The app saves progress and one drawing per lesson. Color it opens that drawing with the full guide and crayons.
+- Learn reads each step aloud by default when its pencil starts drawing. The player remembers the sound setting and always offers Listen. With Reduce Motion enabled, Watch shows the full step and its start dots.
+- **TODO:** Add lessons to On paper, including Stick to paper and camera trace. Decide which step controls remain available while the picture is locked.
 - **Play together:** the best 4–6 activities as picture cards. Each opens its canvas with the invitation in the step strip and a "next turn" button that switches between two colors. No timers, scores, or winners.
 
 ## Cut, fold, or gate

@@ -1,0 +1,10 @@
+{"method": "A", "subject": "fish", "title": "Fish", "picture": "simple/fish",
+ "ops": {},
+ "steps": [
+  {"say": "Draw a big round fish body.", "strokes": [0]},
+  {"say": "Add a tail shaped like a heart.", "strokes": [1]},
+  {"say": "Add a wavy top fin and a small bottom fin.", "strokes": [2, 9]},
+  {"say": "Draw curvy stripes down the body.", "strokes": [7, 4, 8, 11, 3]},
+  {"say": "Add a little side fin.", "strokes": [6]},
+  {"say": "Draw a big eye and a happy smile.", "strokes": [5, 10], "dots": [0]}
+ ]}

@@ -2,10 +2,10 @@ import Svg, { Path, Rect } from 'react-native-svg'
 
 import { theme } from '../../ui/theme'
 
-export function PictureModeIllustration({ mode }: { mode: 'camera' | 'screen' }) {
+export function PictureModeIllustration({ mode, height = 76 }: { mode: 'camera' | 'screen'; height?: number }) {
   const { ink, coral, surface } = theme.colors
   return (
-    <Svg accessible={false} width="100%" height={76} viewBox="0 0 120 88">
+    <Svg accessible={false} width="100%" height={height} viewBox="0 0 120 88">
       {mode === 'camera' ? (
         <>
           <Path d="M45 67 81 61 105 75 68 84Z" fill={surface} stroke={ink} strokeWidth={2.5} strokeLinejoin="round" />

@@ -59,4 +59,7 @@ export const IceCreamIcon: Icon = require('phosphor-react-native/src/icons/IceCr
 export const GiftIcon: Icon = require('phosphor-react-native/src/icons/Gift').GiftIcon
 export const UsersThreeIcon: Icon = require('phosphor-react-native/src/icons/UsersThree').UsersThreeIcon
 export const SpiralIcon: Icon = require('phosphor-react-native/src/icons/Spiral').SpiralIcon
+export const EyeIcon: Icon = require('phosphor-react-native/src/icons/Eye').EyeIcon
+export const SpeakerHighIcon: Icon = require('phosphor-react-native/src/icons/SpeakerHigh').SpeakerHighIcon
+export const SpeakerSlashIcon: Icon = require('phosphor-react-native/src/icons/SpeakerSlash').SpeakerSlashIcon
 /* eslint-enable @typescript-eslint/no-require-imports */

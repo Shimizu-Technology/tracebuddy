@@ -1,0 +1,9 @@
+{"method": "A", "subject": "narwhal", "title": "Narwhal", "picture": "simple/narwhal", "ops": {},
+ "steps": [
+  {"say": "Draw a round back and a pointy horn.", "strokes": [0]},
+  {"say": "Add a swishy tail.", "strokes": [2, 5]},
+  {"say": "Draw a round tummy and two flippers.", "strokes": [3, 1]},
+  {"say": "Add stripes on the horn.", "strokes": [15, 14, 12, 11, 10]},
+  {"say": "Add four spots on its back.", "strokes": [9, 6, 7, 8]},
+  {"say": "Draw a happy eye and a long smile.", "strokes": [13, 4], "dots": [0]}
+ ]}

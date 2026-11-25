@@ -1,0 +1,8 @@
+{"method": "A", "subject": "ice-cream", "title": "Ice cream", "picture": "simple/ice-cream", "ops": {},
+ "steps": [
+  {"say": "Draw an ice cream cone.", "strokes": [2, 0]},
+  {"say": "Add crisscross lines.", "strokes": [10, 7, 9, 8]},
+  {"say": "Add a drippy scoop on top.", "strokes": [6, 11, 1]},
+  {"say": "Add another scoop on top.", "strokes": [3, 12, 13, 4]},
+  {"say": "Put a cherry on top!", "strokes": [5, 14]}
+ ]}

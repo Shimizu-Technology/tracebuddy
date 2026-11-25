@@ -1,0 +1,8 @@
+{"method": "A", "subject": "owl", "title": "Owl", "picture": "simple/owl", "ops": {},
+ "steps": [
+  {"say": "Draw a head with ears and two wings.", "strokes": [0]},
+  {"say": "Draw a big round tummy and feet.", "strokes": [7, 1, 8, 17, 14, 15, 16, 11]},
+  {"say": "Add feathers on the wings.", "strokes": [12, 9, 13, 10]},
+  {"say": "Draw two big eyes and a beak.", "strokes": [3, 2, 6]},
+  {"say": "Add circles and dots in the eyes.", "strokes": [4, 18, 5, 19], "dots": [0, 1]}
+ ]}

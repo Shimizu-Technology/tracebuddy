@@ -22,7 +22,7 @@ export function saveDrawing(session: SavedPracticeSession, isCurrent = () => tru
 }
 
 export function hasDrawingContent(session: SavedPracticeSession) {
-  return hasKeepsakeContent(session.strokes.length, session.stickers.length, session.stamp, session.finishedAt)
+  return Boolean(session.lessonFinished) || hasKeepsakeContent(session.strokes.length, session.stickers.length, session.stamp, session.finishedAt)
 }
 
 export function newDrawing(source: PracticeSource): SavedPracticeSession {
@@ -49,7 +49,7 @@ export function newDrawing(source: PracticeSource): SavedPracticeSession {
 
 export function copyDrawing(original: SavedPracticeSession) {
   const copy = newDrawing(original.source)
-  return saveDrawing({ ...original, sessionId: copy.sessionId, title: `${drawingTitle(original)} copy`, createdAt: copy.createdAt, updatedAt: copy.updatedAt })
+  return saveDrawing({ ...original, lessonFinished: undefined, sessionId: copy.sessionId, title: `${drawingTitle(original)} copy`, createdAt: copy.createdAt, updatedAt: copy.updatedAt })
 }
 
 export function deleteDrawing(id: string, isCurrent = () => true) {

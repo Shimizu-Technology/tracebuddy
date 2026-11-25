@@ -1,0 +1,117 @@
+{
+ "method": "A",
+ "subject": "unicorn",
+ "title": "Unicorn",
+ "picture": "detailed/unicorn",
+ "ops": {
+  "split": [
+   [
+    0,
+    268,
+    560
+   ],
+   [
+    1,
+    702,
+    600
+   ]
+  ]
+ },
+ "steps": [
+  {
+   "say": "Draw a long nose and a curl of hair.",
+   "strokes": [
+    12,
+    14,
+    46,
+    22,
+    29,
+    34,
+    51
+   ]
+  },
+  {
+   "say": "Add pointy ears and a swirly horn.",
+   "strokes": [
+    18,
+    23,
+    32,
+    35,
+    17,
+    16,
+    42,
+    44,
+    47,
+    45,
+    48,
+    49,
+    50,
+    52
+   ]
+  },
+  {
+   "say": "Draw a wavy mane, one strand at a time.",
+   "strokes": [
+    15,
+    25,
+    11,
+    8,
+    28,
+    7,
+    9,
+    13,
+    20,
+    26
+   ]
+  },
+  {
+   "say": "Draw the long back, round tummy, and chest.",
+   "strokes": [
+    "0a",
+    19,
+    "1a"
+   ]
+  },
+  {
+   "say": "Add the two back legs with little hooves.",
+   "strokes": [
+    "0b",
+    2,
+    37,
+    39
+   ]
+  },
+  {
+   "say": "Add the two front legs.",
+   "strokes": [
+    "1b",
+    3,
+    31,
+    33,
+    41,
+    38,
+    40
+   ]
+  },
+  {
+   "say": "Add a long flowing tail.",
+   "strokes": [
+    6,
+    5,
+    4,
+    10,
+    30,
+    21,
+    24,
+    27
+   ]
+  },
+  {
+   "say": "Finish with a pretty eye.",
+   "strokes": [
+    36,
+    43
+   ]
+  }
+ ]
+}

@@ -1,0 +1,7 @@
+{"method": "A", "subject": "rainbow", "title": "Rainbow", "picture": "simple/rainbow", "ops": {},
+ "steps": [
+  {"say": "Draw a big arch and a cloud.", "strokes": [0]},
+  {"say": "Draw another arch just inside.", "strokes": [2]},
+  {"say": "Add two more arches.", "strokes": [3, 4]},
+  {"say": "Draw a small arch and a cloud.", "strokes": [1, 5, 6]}
+ ]}

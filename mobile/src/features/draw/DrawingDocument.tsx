@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import type { ReactNode } from 'react'
 import { Image, StyleSheet, View } from 'react-native'
 import { SvgXml } from 'react-native-svg'
 
@@ -12,23 +13,24 @@ import { PracticeInk } from './PracticeInk'
 type Props = {
   side: number
   session: SavedPracticeSession
-  guideSvg: string
+  guideSvg?: string
+  guideLayer?: ReactNode
   live?: LiveInk
   inkUri?: string
   onImageLoad?: (key: string) => void
   onImageError?: (key: string) => void
 }
 
-export const DrawingDocument = memo(function DrawingDocument({ side, session, guideSvg, live, inkUri, onImageLoad, onImageError }: Props) {
+export const DrawingDocument = memo(function DrawingDocument({ side, session, guideSvg, guideLayer, live, inkUri, onImageLoad, onImageError }: Props) {
   const uploadedImage = session.source.kind === 'upload' ? session.source.uploadedImage : undefined
   return (
     <View pointerEvents="none" style={[styles.page, { width: side, height: side }]}>
-      <View style={[styles.cover, { opacity: session.guideOpacity }]}>
+      {guideLayer !== undefined ? <View style={styles.cover}>{guideLayer}</View> : (guideSvg !== undefined && <View style={[styles.cover, { opacity: session.guideOpacity }]}>
         {uploadedImage ? (
           <Image source={{ uri: currentDrawingImageUri(uploadedImage.uri) }} resizeMode="contain" style={styles.cover}
             onLoad={() => onImageLoad?.('guide-base')} onError={() => onImageError?.('guide-base')} />
         ) : <SvgXml xml={guideSvg} width="100%" height="100%" />}
-      </View>
+      </View>)}
       {session.stickers.map((sticker) => (
         <View key={sticker.stickerId} style={{
           position: 'absolute', left: side * sticker.x / 1000, top: side * sticker.y / 1000,
@@ -45,7 +47,7 @@ export const DrawingDocument = memo(function DrawingDocument({ side, session, gu
         <Image source={{ uri: inkUri }} resizeMode="contain" style={styles.cover}
           onLoad={() => onImageLoad?.('ink')} onError={() => onImageError?.('ink')} />
       ) : <PracticeInk side={side} strokes={session.strokes} live={live} />}
-      {!uploadedImage && (
+      {!uploadedImage && guideSvg && (
         <View style={[styles.cover, { opacity: Math.min(0.78, session.guideOpacity * 2) }]}>
           <SvgXml xml={guideSvg} width="100%" height="100%" />
         </View>

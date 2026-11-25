@@ -72,11 +72,14 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
     const isCurrent = operationGuard(token, () => generation.current)
     pending.current = null
     try {
-      if (mayExist.current && !await deleteDrawing(old.sessionId, isCurrent)) return false
-      current.current = newDrawing(old.source)
+      if (!old.lessonFinished && mayExist.current && !await deleteDrawing(old.sessionId, isCurrent)) return false
+      const reset = newDrawing(old.source)
+      const next = old.lessonFinished ? { ...reset, sessionId: old.sessionId, lessonFinished: true as const } : reset
+      if (old.lessonFinished && !await saveDrawing(next, isCurrent)) return false
+      current.current = next
       revision.current += 1
       savedRevision.current = revision.current
-      mayExist.current = false
+      mayExist.current = Boolean(old.lessonFinished)
       setSession(current.current)
       setDirty(false)
       setSaveFailed(false)
