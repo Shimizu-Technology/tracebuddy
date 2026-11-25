@@ -197,6 +197,50 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "superhero", name: "Superhero Kid", category: "people", color: () => require("../../../shared/art/simple/superhero/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/superhero/line.svg") } },
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
     { id: "firefighter", name: "Firefighter", category: "people", color: () => require("../../../shared/art/simple/firefighter/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/firefighter/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "cow", name: "Cow", category: "animals", color: () => require("../../../shared/art/simple/cow/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/cow/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "chicken", name: "Chicken", category: "animals", color: () => require("../../../shared/art/simple/chicken/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/chicken/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "kitten", name: "Kitten with Yarn", category: "animals", color: () => require("../../../shared/art/simple/kitten/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/kitten/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "koala", name: "Koala", category: "animals", color: () => require("../../../shared/art/simple/koala/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/koala/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "sloth", name: "Sloth", category: "animals", color: () => require("../../../shared/art/simple/sloth/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/sloth/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "fox", name: "Fox", category: "animals", color: () => require("../../../shared/art/simple/fox/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/fox/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "frog", name: "Frog", category: "animals", color: () => require("../../../shared/art/simple/frog/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/frog/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "flamingo", name: "Flamingo", category: "animals", color: () => require("../../../shared/art/simple/flamingo/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/flamingo/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "toucan", name: "Toucan", category: "animals", color: () => require("../../../shared/art/simple/toucan/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/toucan/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "seal", name: "Seal", category: "ocean", color: () => require("../../../shared/art/simple/seal/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/seal/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "narwhal", name: "Narwhal", category: "ocean", color: () => require("../../../shared/art/simple/narwhal/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/narwhal/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "pufferfish", name: "Pufferfish", category: "ocean", color: () => require("../../../shared/art/simple/pufferfish/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/pufferfish/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "wizard", name: "Wizard", category: "magic", color: () => require("../../../shared/art/simple/wizard/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/wizard/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "pegasus", name: "Flying Horse", category: "magic", color: () => require("../../../shared/art/simple/pegasus/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/pegasus/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "treasure-chest", name: "Treasure Chest", category: "magic", color: () => require("../../../shared/art/simple/treasure-chest/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/treasure-chest/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "hot-air-balloon", name: "Hot-Air Balloon", category: "go", color: () => require("../../../shared/art/simple/hot-air-balloon/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/hot-air-balloon/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "submarine", name: "Submarine", category: "go", color: () => require("../../../shared/art/simple/submarine/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/submarine/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "pancakes", name: "Pancakes", category: "food", color: () => require("../../../shared/art/simple/pancakes/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/pancakes/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "cookie", name: "Cookie", category: "food", color: () => require("../../../shared/art/simple/cookie/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/cookie/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "jack-o-lantern", name: "Jack-o'-Lantern", category: "holidays", color: () => require("../../../shared/art/simple/jack-o-lantern/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/jack-o-lantern/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "umbrella", name: "Umbrella", category: "fun", color: () => require("../../../shared/art/simple/umbrella/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/umbrella/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "drum", name: "Drum", category: "fun", color: () => require("../../../shared/art/simple/drum/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/drum/line.svg") } },
   ],
   detailed: [
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
@@ -397,6 +441,54 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "flower-mandala", name: "Flower Mandala", category: "patterns", color: () => require("../../../shared/art/detailed/flower-mandala/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/flower-mandala/line.svg") } },
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
     { id: "butterfly-mandala", name: "Butterfly Mandala", category: "patterns", color: () => require("../../../shared/art/detailed/butterfly-mandala/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/butterfly-mandala/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "cow", name: "Cow", category: "animals", color: () => require("../../../shared/art/detailed/cow/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/cow/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "chicken", name: "Chicken", category: "animals", color: () => require("../../../shared/art/detailed/chicken/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/chicken/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "kitten", name: "Kitten with Yarn", category: "animals", color: () => require("../../../shared/art/detailed/kitten/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/kitten/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "koala", name: "Koala", category: "animals", color: () => require("../../../shared/art/detailed/koala/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/koala/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "sloth", name: "Sloth", category: "animals", color: () => require("../../../shared/art/detailed/sloth/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/sloth/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "fox", name: "Fox", category: "animals", color: () => require("../../../shared/art/detailed/fox/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/fox/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "frog", name: "Frog", category: "animals", color: () => require("../../../shared/art/detailed/frog/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/frog/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "flamingo", name: "Flamingo", category: "animals", color: () => require("../../../shared/art/detailed/flamingo/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/flamingo/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "toucan", name: "Toucan", category: "animals", color: () => require("../../../shared/art/detailed/toucan/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/toucan/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "seal", name: "Seal", category: "ocean", color: () => require("../../../shared/art/detailed/seal/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/seal/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "narwhal", name: "Narwhal", category: "ocean", color: () => require("../../../shared/art/detailed/narwhal/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/narwhal/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "pufferfish", name: "Pufferfish", category: "ocean", color: () => require("../../../shared/art/detailed/pufferfish/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/pufferfish/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "wizard", name: "Wizard", category: "magic", color: () => require("../../../shared/art/detailed/wizard/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/wizard/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "pegasus", name: "Flying Horse", category: "magic", color: () => require("../../../shared/art/detailed/pegasus/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/pegasus/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "treasure-chest", name: "Treasure Chest", category: "magic", color: () => require("../../../shared/art/detailed/treasure-chest/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/treasure-chest/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "hot-air-balloon", name: "Hot-Air Balloon", category: "go", color: () => require("../../../shared/art/detailed/hot-air-balloon/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/hot-air-balloon/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "submarine", name: "Submarine", category: "go", color: () => require("../../../shared/art/detailed/submarine/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/submarine/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "pancakes", name: "Pancakes", category: "food", color: () => require("../../../shared/art/detailed/pancakes/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/pancakes/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "cookie", name: "Cookie", category: "food", color: () => require("../../../shared/art/detailed/cookie/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/cookie/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "jack-o-lantern", name: "Jack-o'-Lantern", category: "holidays", color: () => require("../../../shared/art/detailed/jack-o-lantern/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/jack-o-lantern/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "umbrella", name: "Umbrella", category: "fun", color: () => require("../../../shared/art/detailed/umbrella/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/umbrella/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "drum", name: "Drum", category: "fun", color: () => require("../../../shared/art/detailed/drum/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/drum/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "star-mandala", name: "Star Mandala", category: "patterns", color: () => require("../../../shared/art/detailed/star-mandala/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/star-mandala/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "owl-doodle", name: "Doodle Owl", category: "patterns", color: () => require("../../../shared/art/detailed/owl-doodle/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/owl-doodle/line.svg") } },
   ],
 }
-// Line art SHA-256: 258def3cdb820379a06654340357f7c96ee8a1d03ab6f149e9cbb789d8c20a17
+// Line art SHA-256: cf89bfd7d85a965f982db6420c4d47992801815687da3e1b65fd6cb01f43e577

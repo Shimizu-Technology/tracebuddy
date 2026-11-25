@@ -228,3 +228,56 @@ Added **22 new subjects** across 7 categories (`bugs`, `ocean`, `magic`, `go`, `
 ### Batch 2 Rejection & Regeneration Log (Simple)
 
 - **0 rejections** across all 22 Simple line-art and 22 Simple colorization generations (44/44 approved on first attempt, with deterministic post-generation fixes noted above for `caterpillar`, `helicopter`, `teddy-bear`, and `soccer-ball`).
+
+---
+
+## Batch 3 (expansion)
+
+Added **22 new subjects** across 7 categories (`animals`, `ocean`, `magic`, `go`, `food`, `holidays`, `fun`), bringing the Simple set from 97 to **119 subjects** (the 2 `patterns` subjects `star-mandala` and `owl-doodle` are Detailed-only and intentionally omitted from Simple).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch3/raw/simple/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch3/simple-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Line weight (`Disk:4` erosion survival):** min `26.6%` (`treasure-chest`), median `46.4%`, max `65.1%` (`cookie`) — every Simple subject is visibly thicker than its Detailed counterpart.
+- **Enclosed exterior pockets cleared transparent:** `koala` (5 small arm/chin/ear/leg gaps against the branch), `sloth` (3 limb-branch gaps), `flamingo` (triangle between bent and standing legs), `toucan` (2 gaps between feet, tail, and branch), and `hot-air-balloon` (3 open-air rigging gaps between ropes).
+
+### Per-Subject Descriptions (22 Batch 3 Subjects)
+
+#### Animals
+- **`cow` ("Cow"):** Standing right-facing chubby smiling dairy cow with wide rounded snout, stubby horns, floppy ears, 3 hollow body spots, 4 separated hooved legs, and a teardrop-tufted tail (`Disk:4 = 52.3%`). Color: warm ivory-cream coat, charcoal-brown spots/hooves/tuft, blush-pink muzzle and inner ears, butter-cream horns.
+- **`chicken` ("Chicken"):** Standing right-facing chubby smiling farm hen with 3-bump comb, short beak and wattle, smooth folded wing, 3 rounded tail feathers, and 2 three-toed feet (`Disk:4 = 47.8%`). Color: warm cream-ivory body, golden-wheat wing/tail, coral-red comb/wattle, golden-orange beak/legs.
+- **`kitten` ("Kitten with Yarn"):** Sitting right-facing chubby smiling baby kitten (v2) with upright curved tail on the far left, reaching one front paw forward to tap a round ball of yarn with a short curling end (`Disk:4 = 45.1%`). Color: warm peach-apricot fur, blush-pink inner ears/nose, sky-blue yarn ball.
+- **`koala` ("Koala"):** Chubby smiling baby koala facing slightly right hugging a diagonal eucalyptus branch with 3 rounded leaves (`Disk:4 = 41.6%`). Color: warm silver-gray fur, ivory-cream inner ears, charcoal-slate nose, caramel-tan branch, mint-sage leaves.
+- **`sloth` ("Sloth"):** Chubby smiling baby sloth hanging upside-down by 4 three-clawed limbs from a curved horizontal branch with 3 rounded leaves (`Disk:4 = 36.2%`). Color: warm taupe-cocoa fur, creamy ivory face/claws, mocha eye patches/nose, caramel-tan branch, meadow-mint leaves.
+- **`fox` ("Fox"):** Sitting chubby smiling baby red fox in three-quarter view facing right with pointed ears, fluffy cheek contours, rounded chest patch, and a big bushy wavy-tipped tail on the left (`Disk:4 = 48.0%`). Color: tangerine-cinnamon fur, ivory-cream cheeks/chest/tail tip, blush-peach inner ears, charcoal-brown paws/nose.
+- **`frog` ("Frog"):** Forward-facing chubby smiling baby frog with big popped-up eyes, cheek circles, oval belly, and webbed feet sitting on a notched round lily pad (`Disk:4 = 49.4%`). Color: apple-leaf green body, butter-cream belly, rosy-pink cheeks, emerald-sage lily pad.
+- **`flamingo` ("Flamingo"):** Standing right-facing chubby smiling baby flamingo balanced on one sturdy hollow leg with the second leg bent up, S-curved neck, curved beak, and folded wing (`Disk:4 = 47.7%`). Color: rosy flamingo-pink body/neck, coral-pink wing, cream upper beak with charcoal-slate tip, peach-orange legs.
+- **`toucan` ("Toucan"):** Right-facing chubby baby toucan perched on a two-leaf branch with oversized 3-band curved beak, round eye ring, curved throat bib, and hollow outlined plumage (`Disk:4 = 43.5%`). Color: readable medium charcoal-navy plumage, butter-yellow bib, sky-blue eye ring/feet, rainbow-tropical yellow/tangerine/coral/mint beak, caramel branch, meadow-green leaves.
+
+#### Ocean
+- **`seal` ("Seal"):** Right-facing chubby smiling baby seal propped on its front flippers with upturned tail flukes, whiskers, smooth belly curve, and 4 hollow back spots (`Disk:4 = 42.4%`). Color: silver-blue-gray body/flippers, slate-gray spots/nose, pale cream-ivory belly.
+- **`narwhal` ("Narwhal"):** Right-facing chubby smiling baby narwhal with a chunky spiraled forehead tusk, 4 hollow back spots, smooth belly line, flippers, and forked tail (`Disk:4 = 51.0%`). Color: periwinkle-sky blue body/flippers, lavender-blue spots, ice-cream white belly, butter-yellow spiraled tusk.
+- **`pufferfish` ("Pufferfish"):** Right-facing chubby round smiling pufferfish ringed with chunky blunt triangular spines, 4 hollow back spots, small side fin, and fan tail (`Disk:4 = 54.0%`). Color: butter-yellow upper body, golden-apricot spots/spines/tail, warm cream-white belly.
+
+#### Magic
+- **`wizard` ("Wizard"):** Original generic chubby smiling kid wizard waving hello with one hand and holding up a star-tipped wand in the other, wearing a floppy 3-star pointed hat and 2-star sash robe; no glasses/scar/beard (`Disk:4 = 35.9%`). Color: periwinkle-indigo hat/robe, butter-yellow stars/wand star, coral-orange sash/brim trim, chestnut hair, warm tan skin, caramel shoes/wand.
+- **`pegasus` ("Flying Horse"):** Right-facing chubby smiling baby flying horse (no horn) soaring with two rounded feathered wings, wavy mane and tail, and 4 chunky hooved legs (`Disk:4 = 39.8%`). Color: pearl-ivory coat, sky-ice wings, lilac/periwinkle mane and tail, blush-peach muzzle, butter-yellow hooves.
+- **`treasure-chest` ("Treasure Chest"):** Open chubby wooden treasure chest with arched lid, vertical bands, keyhole plate, chunky round coins, diamond/oval/heart gems, and beaded pearl necklace (`Disk:4 = 26.6%`). Color: caramel-chestnut wood, darker cocoa interior, golden-yellow bands/coins, sky-blue/emerald-mint/coral-red gems, pearl-ivory beads.
+
+#### Things That Go
+- **`hot-air-balloon` ("Hot-Air Balloon"):** Upright plump 5-panel hot-air balloon with a circle-patterned middle band, rounded rim, paired suspension ropes, and striped basket (`Disk:4 = 36.4%`). Color: coral-red, butter-yellow, and sky-blue panels, mint-green band with yellow circles, caramel-tan rim/basket.
+- **`submarine` ("Submarine"):** Right-facing chubby retro submarine with 3 round portholes, horizontal hull stripe, conning tower with curved right-facing periscope, tail fins, and left propeller; no text (`Disk:4 = 38.2%`). Color: sunny yellow hull/tower, coral-red stripe/nose/tail fins, sky-ice windows, silver-blue rings/periscope/propeller.
+
+#### Food
+- **`pancakes` ("Pancakes"):** Plump 3-stack of pancakes on a round plate topped with a square butter pat, dripping maple syrup, and 3 blueberries (`Disk:4 = 34.0%`). Color: golden-tan pancakes, amber-caramel syrup, butter-yellow pat, periwinkle-indigo blueberries, pastel sky-blue plate.
+- **`cookie` ("Cookie"):** Big round hand-baked chocolate chip cookie with a scalloped upper-right bite, 8 hollow outlined chips, and 2 floating crumbs (`Disk:4 = 65.1%`). Color: golden-caramel dough/crumbs and warm milk-chocolate chips.
+
+#### Holidays
+- **`jack-o-lantern` ("Jack-o'-Lantern"):** Friendly cheerful smiling carved pumpkin with curved stem, single leaf, and hollow outlined eyes, nose, and toothy smile (`Disk:4 = 57.1%`). Color: tangerine-pumpkin orange body, candlelight butter-yellow carved openings, cocoa stem, meadow-green leaf.
+
+#### Fun
+- **`umbrella` ("Umbrella"):** Straight-on open 5-panel scalloped umbrella with rounded top knob, hollow shaft, and chunky J-hook handle (`Disk:4 = 55.8%`). Color: coral-red, butter-yellow, sky-blue, mint-green, and lilac-lavender panels, yellow tip, silver-blue shaft, caramel-tan handle.
+- **`drum` ("Drum"):** Elevated front-view toy marching drum with crossed round-tipped drumsticks on top and a bold zigzag stripe around the body (`Disk:4 = 54.9%`). Color: coral-red upper shell, butter-yellow zigzag, sky-blue lower triangles, golden-yellow rims, ivory-cream drumhead, caramel drumsticks with coral tips.
+
+### Batch 3 Rejection & Regeneration Log (Simple — 1 Rejection)
+
+1. **`kitten` line v1 (REJECTED → v2 approved):** v1 placed the kitten's curved tail sprouting awkwardly from behind the yarn ball on the right instead of from the kitten's back on the left. Regenerated once in **v2** with the curved tail cleanly on the far left (`Disk:4 = 45.1%`). All 22 colorizations were approved on first attempt.

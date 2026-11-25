@@ -871,5 +871,203 @@
     "line": "firefighter/line.svg",
     "color": "firefighter/color.webp",
     "notes": ""
+  },
+  {
+    "id": "cow",
+    "name": "Cow",
+    "category": "animals",
+    "level": "simple",
+    "line": "cow/line.svg",
+    "color": "cow/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "chicken",
+    "name": "Chicken",
+    "category": "animals",
+    "level": "simple",
+    "line": "chicken/line.svg",
+    "color": "chicken/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "kitten",
+    "name": "Kitten with Yarn",
+    "category": "animals",
+    "level": "simple",
+    "line": "kitten/line.svg",
+    "color": "kitten/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "koala",
+    "name": "Koala",
+    "category": "animals",
+    "level": "simple",
+    "line": "koala/line.svg",
+    "color": "koala/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sloth",
+    "name": "Sloth",
+    "category": "animals",
+    "level": "simple",
+    "line": "sloth/line.svg",
+    "color": "sloth/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "fox",
+    "name": "Fox",
+    "category": "animals",
+    "level": "simple",
+    "line": "fox/line.svg",
+    "color": "fox/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "frog",
+    "name": "Frog",
+    "category": "animals",
+    "level": "simple",
+    "line": "frog/line.svg",
+    "color": "frog/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "flamingo",
+    "name": "Flamingo",
+    "category": "animals",
+    "level": "simple",
+    "line": "flamingo/line.svg",
+    "color": "flamingo/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "toucan",
+    "name": "Toucan",
+    "category": "animals",
+    "level": "simple",
+    "line": "toucan/line.svg",
+    "color": "toucan/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "seal",
+    "name": "Seal",
+    "category": "ocean",
+    "level": "simple",
+    "line": "seal/line.svg",
+    "color": "seal/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "narwhal",
+    "name": "Narwhal",
+    "category": "ocean",
+    "level": "simple",
+    "line": "narwhal/line.svg",
+    "color": "narwhal/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pufferfish",
+    "name": "Pufferfish",
+    "category": "ocean",
+    "level": "simple",
+    "line": "pufferfish/line.svg",
+    "color": "pufferfish/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "wizard",
+    "name": "Wizard",
+    "category": "magic",
+    "level": "simple",
+    "line": "wizard/line.svg",
+    "color": "wizard/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pegasus",
+    "name": "Flying Horse",
+    "category": "magic",
+    "level": "simple",
+    "line": "pegasus/line.svg",
+    "color": "pegasus/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "treasure-chest",
+    "name": "Treasure Chest",
+    "category": "magic",
+    "level": "simple",
+    "line": "treasure-chest/line.svg",
+    "color": "treasure-chest/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "hot-air-balloon",
+    "name": "Hot-Air Balloon",
+    "category": "go",
+    "level": "simple",
+    "line": "hot-air-balloon/line.svg",
+    "color": "hot-air-balloon/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "submarine",
+    "name": "Submarine",
+    "category": "go",
+    "level": "simple",
+    "line": "submarine/line.svg",
+    "color": "submarine/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pancakes",
+    "name": "Pancakes",
+    "category": "food",
+    "level": "simple",
+    "line": "pancakes/line.svg",
+    "color": "pancakes/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "cookie",
+    "name": "Cookie",
+    "category": "food",
+    "level": "simple",
+    "line": "cookie/line.svg",
+    "color": "cookie/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "jack-o-lantern",
+    "name": "Jack-o'-Lantern",
+    "category": "holidays",
+    "level": "simple",
+    "line": "jack-o-lantern/line.svg",
+    "color": "jack-o-lantern/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "umbrella",
+    "name": "Umbrella",
+    "category": "fun",
+    "level": "simple",
+    "line": "umbrella/line.svg",
+    "color": "umbrella/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "drum",
+    "name": "Drum",
+    "category": "fun",
+    "level": "simple",
+    "line": "drum/line.svg",
+    "color": "drum/color.webp",
+    "notes": ""
   }
 ]

@@ -249,3 +249,71 @@ For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px
 ### Batch 2 Lead Review Fix
 
 At phone size the Detailed `teddy-bear` (21.9%) and `fairy` (20.8%) interior lines still read thin next to the rest of the set. Both were re-vectorized from the same raw masters with a gentler thickening step (`-morphology Erode Disk:2` after the 1680×1680 threshold, before potrace). New `Disk:4` survival on a 1024 px render: `teddy-bear` 30.1%, `fairy` 31.4%. Faces, the bow and the flower crown stay separated.
+
+---
+
+## Batch 3 (expansion)
+
+Added **24 new subjects** across 8 categories (`animals`, `ocean`, `magic`, `go`, `food`, `holidays`, `fun`, plus 2 Detailed-only `patterns` designs `star-mandala` and `owl-doodle`), bringing the Detailed set from 99 to **123 subjects**. All subjects used the locked revised bold S2 prompts, with the felt-tip marker-weight reinforcement sentence appended for vehicle, architectural, object, character-accessory, and pattern subjects (`flamingo`, `wizard`, `treasure-chest`, `hot-air-balloon`, `submarine`, `jack-o-lantern`, `umbrella`, `drum`, `star-mandala`, `owl-doodle`).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch3/raw/detailed/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch3/detailed-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Batch 3 final `Disk:4` range:** **min = `22.1%` (`treasure-chest`), median = `30.5%` (after the lead review fix below; `29.2%` before it), max = `36.8%` (`chicken`)** — all 24/24 verified `≥ 22.1%` with zero hairlines, zero merged parallel lines, and every Simple counterpart visibly thicker than Detailed.
+- **Stroke thickening applied (re-vectorized from the same raw master after the 1680×1680 threshold, measured on 1024 px SVG render — 12 subjects):**
+  - `Disk:3` (8 subjects under 20% raw `Disk:4`):
+    - `cow`: raw `11.5%` → thickened **`28.7%`** (collar strap, bell, spots, and cloven hooves stayed cleanly separated)
+    - `koala`: raw `16.2%` → thickened **`35.4%`** (branch bark lines, leaf veins, and toes stayed crisp)
+    - `fox`: raw `18.8%` → thickened **`35.3%`** (ear tufts, cheek fur, and hollow paw bands stayed separated)
+    - `narwhal`: raw `16.0%` → thickened **`29.4%`** (spiraled tusk grooves and back spots stayed separated)
+    - `wizard`: raw `12.2%` → thickened **`31.8%`** (hat/robe stars, moons, buckle, and floating wand stars stayed separated)
+    - `submarine`: raw `17.3%` → thickened **`32.1%`** (bolted porthole rivets and hull rivets stayed crisp and hollow)
+    - `star-mandala`: raw `7.7%` (post-hollowing) → thickened **`23.5%`** (compass-star rays, faceted diamonds, 5-point stars, and scalloped border stayed spacious and separated)
+    - `owl-doodle`: raw `17.9%` → thickened **`30.2%`** (wing spirals, eye petals, belly teardrops, and tail veins stayed cleanly separated)
+  - `Disk:2` (4 subjects for balanced phone-size readability and clean spacing):
+    - `toucan`: raw `20.5%` (visibly thin at 420 px) → thickened **`33.9%`** (leaf veins, wing scallops, and beak band stayed crisp)
+    - `pegasus`: raw `19.6%` → thickened **`29.1%`** (`Disk:2` preserved airy wing-feather spacing and clear Simple-vs-Detailed hierarchy vs. Simple `39.8%`)
+    - `treasure-chest`: raw `14.4%` (post-hollowing) → thickened **`22.1%`** (`Disk:2` kept dense star-coin/gem interiors clean and stayed below Simple `26.6%`)
+    - `pancakes`: raw `17.0%` → thickened **`22.9%`** (`Disk:2` kept strawberry seeds hollow and unmerged)
+- **Enclosed exterior pockets cleared transparent:** `kitten` (small loop inside loose yarn strand), `sloth` (3 limb-branch gaps), `flamingo` (triangle between bent and standing legs), `toucan` (3 gaps between tail, feet, branch, and leaves), `hot-air-balloon` (3 open-air suspension-rope gaps), and `jack-o-lantern` (3 gaps inside curling vine tendrils and leaf-stem junction).
+- **Deterministic post-generation master fixes (0 extra quota spent):**
+  - `treasure-chest` line: raw master filled the dark cavity under the open lid solid black (`24.84%` ink); hollowed deterministically via morphological erosion/dilation (`Disk:14` → `Disk:6`), turning the cavity clean hollow white with uniform crisp outlines around the crown tips, gems, and lid rim before colorization (true raw `Disk:4 = 14.4%`).
+  - `star-mandala` line: raw master filled alternating halves of the central 8-point compass star solid black; hollowed deterministically (`Disk:7` → `Disk:1`) with a clean centered hub ring before colorization (true raw `Disk:4 = 7.7%`).
+
+### Per-Subject Catalog & Traceability Metrics (Batch 3 — 24 Subjects)
+
+For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px SVG render; raw pre-thickening `Disk:4` and disk radius are noted in the Description column. SVG sizes reflect post-`art:optimize` SVGO output.
+
+| # | ID | Name | Category | `Disk:2` | `Disk:3` | `Disk:4` | `Disk:5` | SVG (KB) | WebP (KB) | Description |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| 100 | `cow` | Cow | `animals` | 65.3% | 45.9% | **28.7%** | 12.7% | 31.8 | 21.7 | Friendly storybook dairy cow standing right-facing with hollow coat spots, collar bell, cloven hooves, and tufted tail *(Disk:3 from raw 11.5%)* |
+| 101 | `chicken` | Chicken | `animals` | 69.6% | 51.8% | **36.8%** | 19.9% | 28.9 | 20.7 | Charming storybook farm hen standing right-facing with scalloped comb and collar, layered wing feathers, and curved tail plumes |
+| 102 | `kitten` | Kitten with Yarn | `animals` | 69.4% | 51.7% | **36.2%** (lead Disk:2; Disk:4 was 24.7%) | 18.9% | 47.3 | 34.5 | Playful storybook tabby kitten in bell collar sitting right-facing and batting a round yarn ball with looping trailing strand |
+| 103 | `koala` | Koala | `animals` | 69.0% | 50.4% | **35.4%** | 18.2% | 42.3 | 30.5 | Smiling storybook koala facing right clinging to a sloped leafy eucalyptus branch *(Disk:3 from raw 16.2%)* |
+| 104 | `sloth` | Sloth | `animals` | 66.8% | 48.2% | **32.9%** (lead Disk:2; Disk:4 was 25.3%) | 16.8% | 46.5 | 26.6 | Smiling three-toed storybook sloth hanging upside-down by four three-clawed limbs from a leafy horizontal rainforest branch |
+| 105 | `fox` | Fox | `animals` | 69.0% | 51.0% | **35.3%** | 18.3% | 30.2 | 22.7 | Alert storybook red fox (v2) sitting right-facing with fluffy ruff, bushy wavy-tipped tail, and hollow outlined ear tips and paw socks *(Disk:3 from raw 18.8%)* |
+| 106 | `frog` | Frog | `animals` | 64.4% | 44.0% | **28.3%** | 12.6% | 33.3 | 20.2 | Friendly spotted storybook pond frog sitting three-quarter right on a notched lily pad beside a water-lily blossom |
+| 107 | `flamingo` | Flamingo | `animals` | 66.4% | 46.8% | **30.6%** (lead Disk:2; Disk:4 was 24.1%) | 12.1% | 22.3 | 16.6 | Graceful storybook flamingo standing right-facing on one sturdy hollow leg with the other tucked up, S-curved neck, and scalloped folded wing |
+| 108 | `toucan` | Toucan | `animals` | 67.8% | 49.2% | **33.9%** | 16.7% | 35.8 | 28.1 | Storybook toco toucan perched right-facing on a leafy tropical branch with bold hollow-outlined plumage and banded beak *(Disk:2 from raw 20.5%)* |
+| 109 | `seal` | Seal | `ocean` | 65.2% | 45.5% | **29.6%** (lead Disk:2; Disk:4 was 25.4%) | 16.8% | 26.1 | 15.1 | Smiling storybook harbor seal resting right-facing on its front flippers with hollow back spots, whiskers, and fanned tail flukes |
+| 110 | `narwhal` | Narwhal | `ocean` | 66.4% | 46.2% | **29.4%** | 12.9% | 13.6 | 9.8 | Graceful storybook Arctic narwhal swimming right with spiraled ivory tusk, mottled hollow back spots, and forked tail flukes *(Disk:3 from raw 16.0%)* |
+| 111 | `pufferfish` | Pufferfish | `ocean` | 65.9% | 45.6% | **30.3%** | 16.1% | 34.6 | 23.2 | Friendly puffed storybook pufferfish swimming right with blunt conical spines, hollow flank spots, puckered smile, and ribbed fins |
+| 112 | `wizard` | Wizard | `magic` | 67.3% | 48.5% | **31.8%** | 14.1% | 42.9 | 22.8 | Original friendly storybook kid wizard in star-and-moon buckled hat, flowing cloak, and belted robe raising a star-tipped wand; no licensed-character traits *(Disk:3 from raw 12.2%)* |
+| 113 | `pegasus` | Flying Horse | `magic` | 66.3% | 46.0% | **29.1%** | 10.9% | 40.7 | 28.1 | Graceful storybook winged horse (no horn) soaring right with spread layered feathered wings and flowing mane and tail *(Disk:2 from raw 19.6%)* |
+| 114 | `treasure-chest` | Treasure Chest | `magic` | 60.2% | 38.0% | **22.1%** | 8.7% | 112.2 | 44.4 | Open riveted wooden treasure chest (lid cavity deterministically hollowed) overflowing with star coins, faceted gems, crown, and pearl necklace *(Disk:2 from raw 14.4%)* |
+| 115 | `hot-air-balloon` | Hot-Air Balloon | `go` | 67.4% | 48.1% | **31.3%** | 12.8% | 34.4 | 21.6 | Vintage storybook hot-air balloon with curved gores, scalloped diamond-and-star belt, four suspension ropes, woven wicker basket, and sandbags |
+| 116 | `submarine` | Submarine | `go` | 67.2% | 49.1% | **32.1%** | 15.3% | 30.4 | 19.9 | Retro storybook exploration submarine cruising right with riveted hull bands, three bolted portholes, dome hatch, periscope, and propeller; no text *(Disk:3 from raw 17.3%)* |
+| 117 | `pancakes` | Pancakes | `food` | 60.2% | 38.7% | **22.9%** | 9.6% | 67.0 | 35.6 | Storybook 4-stack of golden pancakes on a rimmed plate with melting butter pat, dripping maple syrup, two strawberries, and five blueberries *(Disk:2 from raw 17.0%)* |
+| 118 | `cookie` | Cookie | `food` | 66.9% | 48.4% | **33.7%** | 18.2% | 39.4 | 26.0 | Bakery-style pair of chunky homemade chocolate chip cookies (front one with scalloped bite) with hollow chocolate chunks, cracks, and crumbs |
+| 119 | `jack-o-lantern` | Jack-o'-Lantern | `holidays` | 64.5% | 44.4% | **28.3%** | 11.2% | 41.8 | 31.0 | Cheerful friendly storybook jack-o'-lantern pumpkin with grooved stem, veined leaf, curling vine tendrils, and hollow beveled smiling carved face |
+| 120 | `umbrella` | Umbrella | `fun` | 66.7% | 46.6% | **30.1%** | 13.7% | 35.5 | 23.3 | Tilted vintage storybook open umbrella with polka-dot scalloped canopy, hem band, rib tips, ferrule, runner collar, and curved J-hook wooden handle |
+| 121 | `drum` | Drum | `fun` | 67.9% | 50.5% | **34.1%** (lead Disk:2; Disk:4 was 24.9%) | 15.0% | 59.6 | 31.9 | Vintage storybook parade marching drum with crossed wooden drumsticks on top, tension studs, hollow V-lacing cords, and diamond/star shell motifs |
+| 122 | `star-mandala` | Star Mandala | `patterns` | 63.6% | 41.8% | **23.5%** | 6.3% | 80.1 | 44.4 | Detailed-only 8-fold radially symmetrical celestial star mandala (central compass star deterministically hollowed) with diamonds, petals, stars, ovals, and scalloped rim *(Disk:3 from raw 7.7%)* |
+| 123 | `owl-doodle` | Doodle Owl | `patterns` | 66.9% | 46.8% | **30.2%** | 15.9% | 77.9 | 44.1 | Detailed-only decorative doodle owl perched on a leafy branch filled with spacious phone-size petals, chevrons, swirls, diamonds, and scalloped teardrop feathers *(Disk:3 from raw 17.9%)* |
+
+### Batch 3 Rejection & Regeneration Log (Detailed — 1 Rejection)
+
+1. **`fox` line v1 (REJECTED → v2 approved):** v1 filled all four lower legs/paws solid black instead of leaving hollow colorable paw socks. Regenerated once in **v2** with crisp hollow wavy paw/ankle bands and ear tips (`raw Disk:4 = 18.8%` → `35.3%` via `Disk:3`). All 24 colorizations were approved on first attempt.
+
+### Batch 3 Lead Review Fix
+
+At 420 px the Detailed `flamingo` (24.1%), `kitten` (24.7%), `seal` (25.4%), `sloth` (25.3%) and `drum` (24.9%) still read thinner than the rest of the set. Each was re-vectorized from its raw master with `-morphology Erode Disk:2` after the 1680×1680 threshold, before potrace. New `Disk:4` survival on a 1024 px render: `flamingo` 30.6%, `kitten` 36.2%, `seal` 29.6%, `sloth` 32.9%, `drum` 34.1%. Whiskers, yarn strands and drum cords stay separated.
