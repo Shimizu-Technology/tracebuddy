@@ -421,7 +421,7 @@ Added **24 new subjects** across 9 categories (`animals`, `ocean`, `magic`, `go`
 - **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch5/raw/detailed/`.
 - **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch5/detailed-sheet.png` and `combined-simple-vs-detailed.png`.
 - **Batch 5 final `Disk:4` range:** **min = `26.9%` (`peacock`), median = `32.0%`, max = `44.2%` (`seashell`)** after the lead review fix below (before it: min `21.5%` `botanical`, median `29.9%`) — all 24/24 verified `≥ 26.9%` with zero hairlines, zero merged parallel lines, and every Simple counterpart visibly thicker than Detailed.
-- **Stroke thickening applied (re-vectorized from the same raw master after the 1680×1680 threshold, measured on 1024 px SVG render — 15 subjects):**
+- **Stroke thickening applied in the initial pass (re-vectorized from the same raw master after the 1680×1680 threshold, measured on 1024 px SVG render — 15 subjects). Values and radii below are initial-pass results; `zebra`, `doctor`, `piano`, `botanical`, `bicycle` and `chef` were thickened again in the Batch 5 Lead Review Fix, whose values are final and match the table:**
   - `Disk:4` (1 subject with ultra-fine raw weight and wide open spacing):
     - `chef`: raw `2.0%` → thickened **`29.3%`** (fingers, buttons, neckerchief knot, and apron bow stayed cleanly separated; well below Simple `38.5%`)
   - `Disk:3` (7 subjects under 20% raw `Disk:4`):

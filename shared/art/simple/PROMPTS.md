@@ -357,7 +357,7 @@ Added **22 new subjects** across 8 categories (`animals`, `ocean`, `magic`, `go`
 - **Line weight (`Disk:4` erosion survival):** min `32.0%` (`zebra`), median `45.3%`, max `70.0%` (`tulip`) — every Simple subject is visibly thicker than its Detailed counterpart.
 - **Stroke thickening applied (2 subjects, to maintain clear Simple-vs-Detailed line-weight hierarchy):**
   - `squirrel`: raw `36.6%` → thickened with `Disk:2` to **`44.2%`** (measured on 1024 px render; cleanly thicker than Detailed `36.2%`, acorn cap grid stayed crisp)
-  - `chef`: raw `33.4%` → thickened with `Disk:2` to **`38.5%`** (measured on 1024 px render; cleanly thicker than Detailed `29.3%`, buttons and fingers stayed separated)
+  - `chef`: raw `33.4%` → thickened with `Disk:2` to `38.5%` in the initial pass; after the lead review thickened Detailed `chef` to `40.3%`, Simple `chef` was re-vectorized with `Disk:4` to **`47.8%`** (1024 px render) so Simple stays visibly thicker, buttons and fingers still separated
 - **Enclosed exterior pockets cleared transparent:** `digger` (2 open-air gaps between hydraulic cylinders and boom arm) and `bicycle` (11 open-air gaps inside the wheel spokes, frame triangle, and basket bracket).
 
 ### Per-Subject Descriptions (22 Batch 5 Subjects)
