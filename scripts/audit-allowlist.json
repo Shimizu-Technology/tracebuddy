@@ -11,5 +11,103 @@
       "node_modules/zod"
     ],
     "range": "<4.6.6"
+  },
+  {
+    "advisory": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "project": ".",
+    "via": "Vite / ESLint local project-file discovery",
+    "reason": "No patched picomatch release exists as of 2026-11-18 (latest 4.0.7). This transitive copy matches trusted repository globs during local builds/linting; application source does not import it or accept user-supplied glob patterns. It is not part of the shipped app runtime. Do not expose development tooling to untrusted requests. Remove this exception when a patched compatible release is available.",
+    "reviewBy": "2027-01-31",
+    "isDirect": false,
+    "nodes": [
+      "node_modules/picomatch"
+    ],
+    "range": "*",
+    "reviewedConsumers": [
+      "@typescript-eslint/eslint-plugin",
+      "@typescript-eslint/parser",
+      "@typescript-eslint/type-utils",
+      "@typescript-eslint/typescript-estree",
+      "@typescript-eslint/utils",
+      "@vitejs/plugin-react",
+      "fdir",
+      "tinyglobby",
+      "typescript-eslint",
+      "vite"
+    ],
+    "devOnly": true,
+    "reviewedConsumerNodes": [
+      "node_modules/@typescript-eslint/eslint-plugin",
+      "node_modules/@typescript-eslint/parser",
+      "node_modules/@typescript-eslint/type-utils",
+      "node_modules/@typescript-eslint/typescript-estree",
+      "node_modules/@typescript-eslint/utils",
+      "node_modules/@vitejs/plugin-react",
+      "node_modules/fdir",
+      "node_modules/tinyglobby",
+      "node_modules/typescript-eslint",
+      "node_modules/vite"
+    ]
+  },
+  {
+    "advisory": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "project": "mobile",
+    "via": "Expo / Metro / Jest local source-file discovery",
+    "reason": "No patched picomatch release exists as of 2026-11-18 (latest 4.0.7). This transitive copy matches trusted repository globs during local builds/linting; application source does not import it or accept user-supplied glob patterns. It is not part of the shipped app runtime. Do not expose development tooling to untrusted requests. Remove this exception when a patched compatible release is available.",
+    "reviewBy": "2027-01-31",
+    "isDirect": false,
+    "nodes": [
+      "node_modules/jest-util/node_modules/picomatch",
+      "node_modules/micromatch/node_modules/picomatch",
+      "node_modules/picomatch"
+    ],
+    "range": "*",
+    "reviewedConsumers": [
+      "@expo/cli",
+      "@expo/metro",
+      "@expo/metro-config",
+      "@expo/metro-file-map",
+      "@react-native/babel-plugin-codegen",
+      "@react-native/codegen",
+      "@react-native/community-cli-plugin",
+      "@react-native/virtualized-lists",
+      "babel-preset-expo",
+      "expo",
+      "fdir",
+      "jest-util",
+      "jest-worker",
+      "metro",
+      "metro-config",
+      "metro-file-map",
+      "metro-transform-worker",
+      "micromatch",
+      "react-native",
+      "tinyglobby"
+    ],
+    "devOnly": false,
+    "reviewedConsumerNodes": [
+      "node_modules/@expo/metro",
+      "node_modules/@expo/metro-config",
+      "node_modules/@expo/metro-file-map",
+      "node_modules/@react-native/babel-plugin-codegen",
+      "node_modules/@react-native/codegen",
+      "node_modules/@react-native/community-cli-plugin",
+      "node_modules/@react-native/virtualized-lists",
+      "node_modules/babel-preset-expo",
+      "node_modules/expo",
+      "node_modules/expo/node_modules/@expo/cli",
+      "node_modules/fdir",
+      "node_modules/jest-util",
+      "node_modules/jest-worker",
+      "node_modules/metro",
+      "node_modules/metro-config",
+      "node_modules/metro-file-map",
+      "node_modules/metro-transform-worker",
+      "node_modules/micromatch",
+      "node_modules/react-native",
+      "node_modules/tinyglobby"
+    ]
   }
 ]
