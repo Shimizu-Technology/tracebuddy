@@ -1105,5 +1105,185 @@
     "line": "owl-doodle/line.svg",
     "color": "owl-doodle/color.webp",
     "notes": ""
+  },
+  {
+    "id": "police-car",
+    "name": "Police Car",
+    "category": "go",
+    "level": "detailed",
+    "line": "police-car/line.svg",
+    "color": "police-car/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "police-officer",
+    "name": "Police Officer",
+    "category": "people",
+    "level": "detailed",
+    "line": "police-officer/line.svg",
+    "color": "police-officer/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "ambulance",
+    "name": "Ambulance",
+    "category": "go",
+    "level": "detailed",
+    "line": "ambulance/line.svg",
+    "color": "ambulance/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "canoe",
+    "name": "Canoe",
+    "category": "go",
+    "level": "detailed",
+    "line": "canoe/line.svg",
+    "color": "canoe/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "santa",
+    "name": "Santa",
+    "category": "holidays",
+    "level": "detailed",
+    "line": "santa/line.svg",
+    "color": "santa/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "turkey",
+    "name": "Turkey",
+    "category": "holidays",
+    "level": "detailed",
+    "line": "turkey/line.svg",
+    "color": "turkey/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "wreath",
+    "name": "Christmas Wreath",
+    "category": "holidays",
+    "level": "detailed",
+    "line": "wreath/line.svg",
+    "color": "wreath/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "reindeer",
+    "name": "Reindeer",
+    "category": "holidays",
+    "level": "detailed",
+    "line": "reindeer/line.svg",
+    "color": "reindeer/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "candy-cane",
+    "name": "Candy Cane",
+    "category": "holidays",
+    "level": "detailed",
+    "line": "candy-cane/line.svg",
+    "color": "candy-cane/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "stocking",
+    "name": "Christmas Stocking",
+    "category": "holidays",
+    "level": "detailed",
+    "line": "stocking/line.svg",
+    "color": "stocking/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "surfboard",
+    "name": "Surfboard",
+    "category": "fun",
+    "level": "detailed",
+    "line": "surfboard/line.svg",
+    "color": "surfboard/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "snowflake",
+    "name": "Snowflake",
+    "category": "nature",
+    "level": "detailed",
+    "line": "snowflake/line.svg",
+    "color": "snowflake/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "kitty-bow",
+    "name": "Kitty with a Bow",
+    "category": "animals",
+    "level": "detailed",
+    "line": "kitty-bow/line.svg",
+    "color": "kitty-bow/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pony",
+    "name": "Pony",
+    "category": "animals",
+    "level": "detailed",
+    "line": "pony/line.svg",
+    "color": "pony/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "polar-bear",
+    "name": "Polar Bear",
+    "category": "animals",
+    "level": "detailed",
+    "line": "polar-bear/line.svg",
+    "color": "polar-bear/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "hedgehog",
+    "name": "Hedgehog",
+    "category": "animals",
+    "level": "detailed",
+    "line": "hedgehog/line.svg",
+    "color": "hedgehog/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "ballerina",
+    "name": "Ballerina",
+    "category": "people",
+    "level": "detailed",
+    "line": "ballerina/line.svg",
+    "color": "ballerina/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pirate",
+    "name": "Pirate",
+    "category": "people",
+    "level": "detailed",
+    "line": "pirate/line.svg",
+    "color": "pirate/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "heart-pattern",
+    "name": "Heart Pattern",
+    "category": "patterns",
+    "level": "detailed",
+    "line": "heart-pattern/line.svg",
+    "color": "heart-pattern/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "cherry-blossom",
+    "name": "Cherry Blossom",
+    "category": "patterns",
+    "level": "detailed",
+    "line": "cherry-blossom/line.svg",
+    "color": "cherry-blossom/color.webp",
+    "notes": ""
   }
 ]

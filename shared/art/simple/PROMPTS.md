@@ -281,3 +281,67 @@ Added **22 new subjects** across 7 categories (`animals`, `ocean`, `magic`, `go`
 ### Batch 3 Rejection & Regeneration Log (Simple — 1 Rejection)
 
 1. **`kitten` line v1 (REJECTED → v2 approved):** v1 placed the kitten's curved tail sprouting awkwardly from behind the yarn ball on the right instead of from the kitten's back on the left. Regenerated once in **v2** with the curved tail cleanly on the far left (`Disk:4 = 45.1%`). All 22 colorizations were approved on first attempt.
+
+
+---
+
+## Batch 4 (expansion)
+
+Added **22 new subjects** across 6 categories (`go`, `people`, `holidays`, `fun`, `nature`, `animals`), bringing the Simple set from 119 to **141 subjects** (the 2 `patterns` subjects `heart-pattern` and `cherry-blossom` are Detailed-only and intentionally omitted from Simple).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch4/raw/simple/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch4/simple-sheet.png`, `combined-simple-vs-detailed.png`, and `hawaii.png` (Hawaii & Pacific cultural review).
+- **Line weight (`Disk:4` erosion survival):** min `28.3%` (`pirate`), median `45.9%`, max `58.6%` (`hedgehog`) — every Simple subject is visibly thicker than its Detailed counterpart.
+- **Stroke thickening applied (1 subject):** `lei` raw `23.5%` → thickened with `Disk:2` to **`30.4%`** (measured on 1024 px render) so Simple stays visibly thicker than Detailed (`23.7%`) with zero merged petals.
+- **Enclosed exterior pockets cleared transparent:** `wreath` (center ring opening), `stocking` (hanging-loop opening), and `lei` (center ring opening).
+
+### Public-Domain Geographic Data Source (`hawaii-islands`)
+
+- **Subject:** `hawaii-islands` ("Hawaiian Islands")
+- **Source:** U.S. Census Bureau, 2023 Cartographic Boundary Files — State/Territory (`cb_2023_us_state_500k.zip`, `STUSPS=HI`, `STATEFP=15`, `GEOID=15`), downloaded from `https://www2.census.gov/geo/tiger/GENZ2023/shp/cb_2023_us_state_500k.zip`.
+- **License:** Public Domain (work of the U.S. Federal Government under 17 U.S.C. § 105; U.S. Census Bureau TIGER/Line & Cartographic Boundary Files are free of copyright restrictions).
+- **Processing:** Extracted the 8 main Hawaiian islands (Hawaiʻi, Maui, Oʻahu, Kauaʻi, Molokaʻi, Lānaʻi, Niʻihau, Kahoʻolawe), projected with equirectangular scaling adjusted by `cos(mean_lat = 20.82°)`, simplified with closed-ring Ramer-Douglas-Peucker (`eps = 4.5` px; `0.55×` gentler on Niʻihau, Kahoʻolawe, and Lānaʻi) and 3 iterations of closed Chaikin smoothing, stroked at `13.0 px` rounded black outlines on `#FFFFFF` (`Disk:4 = 44.7%`) and flat-filled `#8BD68F` soft green for color, then processed through `process_batch4.py` (no AI image generation used).
+
+### Per-Subject Descriptions (22 Batch 4 Subjects)
+
+#### Things That Go
+- **`police-car` ("Police Car"):** Chubby right-facing cartoon police car with dome siren light, wide windows, hollow side stripe with plain hollow 5-point star on the door, and hollow wheels; no text or real department insignia (`Disk:4 = 36.4%`). Color: royal-sky blue body, ivory doors/roof, golden-yellow stripe/star, coral-red siren, sky-ice windows, charcoal tires.
+- **`ambulance` ("Ambulance"):** Chubby right-facing cartoon ambulance van with dome siren light, cab and square rear window, bold hollow plus/cross medical emblem, side stripe, and hollow wheels; no text (`Disk:4 = 49.2%`). Color: warm ivory-cream body, coral-red cross/stripe/siren, sky-ice windows, butter-yellow headlight, charcoal tires.
+- **`canoe` ("Canoe"):** Chubby three-quarter right-facing wooden paddling canoe with upturned bow and stern, two bench seats, side stripe, diagonal paddle, and single wavy water line (`Disk:4 = 32.1%`). Color: golden-caramel koa wood hull/seats, chestnut inner hull, coral-red side stripe, honey-tan paddle.
+
+#### People
+- **`police-officer` ("Police Officer"):** Friendly chubby smiling police officer waving hello in a peaked cap with hollow star, buttoned shirt with hollow star pin, buckled belt, trousers, and chunky shoes; no text, real insignia, or weapons (`Disk:4 = 32.6%`). Color: warm golden-tan skin, chestnut hair, sky-navy shirt/cap, slate-blue trousers, golden-yellow stars/buckle, charcoal visor/belt/shoes.
+- **`ballerina` ("Ballerina"):** Cheerful chubby little ballerina dancing with raised curved arms, smooth hair bun with ribbon, modest short-sleeve bodice, fluffy scalloped tutu, and rounded ballet slippers (`Disk:4 = 40.8%`). Color: warm honey-tan skin, chestnut hair, rosy pink bodice/tutu/ribbon/slippers, ivory-blush tights.
+- **`pirate` ("Pirate"):** Friendly chubby kid pirate waving hello and holding a rolled-up treasure map (no weapons), wearing a curved hat with smiling star patch, bandana tie, striped shirt, vest, buckled belt, rolled trousers, and chunky boots (`Disk:4 = 28.3%`). Color: honey-tan skin, chestnut hair, slate-navy hat with gold trim/star, coral bandana/stripes, caramel vest, sky-slate trousers, cocoa belt/boots, parchment map.
+
+#### Holidays
+- **`santa` ("Santa"):** Original jolly chubby waving Santa Claus in a floppy pom-pom hat, puffy cloud beard and mustache, fur-trimmed coat with wide hollow buckled belt, mittens, and chunky boots (`Disk:4 = 40.8%`). Color: coral-red hat/coat/trousers, snow-ivory beard/trim, peach face with rosy cheeks, pine-mint mittens, charcoal belt/boots, golden buckle.
+- **`turkey` ("Turkey"):** Friendly plump forward-facing Thanksgiving turkey with fanned semicircle of 9 wide rounded tail feathers, folded wings, beak, teardrop wattle, and three-toed feet (`Disk:4 = 49.8%`). Color: cocoa-caramel body, honey-tan wings, alternating golden-yellow, tangerine-orange, and coral-red tail feathers, coral wattle, butter-yellow beak/feet.
+- **`wreath` ("Christmas Wreath"):** Plump scalloped circular evergreen wreath with transparent open center hole, puffy top ribbon bow, 5 round baubles, and 4 three-berry clusters (`Disk:4 = 41.6%`). Color: pine-meadow green foliage, coral-red bow and berries, golden-yellow and sky-blue baubles.
+- **`reindeer` ("Reindeer"):** Plain friendly chubby baby reindeer standing facing right with rounded antlers, cozy scarf, natural brown oval nose (no glowing red Rudolph nose), hollow hooves, and upturned tail (`Disk:4 = 45.8%`). Color: caramel-fawn coat, cream-ivory face/belly/tail tip, dark cocoa-brown nose, oatmeal antlers, pine-mint scarf, charcoal hooves.
+- **`candy-cane` ("Candy Cane"):** Tilted plump J-hook candy cane with wide curved stripes and a puffy two-loop ribbon bow (`Disk:4 = 57.1%`). Color: alternating coral-red and ivory-white stripes with pine-mint green bow.
+- **`stocking` ("Christmas Stocking"):** Plump tilted Christmas stocking with fluffy scalloped cuff, transparent hanging loop, rounded heel and toe patches, and 3 chunky hollow stars; no names or text (`Disk:4 = 58.2%`). Color: coral-red body, snow-ivory cuff, pine-mint heel/toe/loop, golden-yellow stars.
+
+#### Fun
+- **`surfboard` ("Surfboard"):** Plump tilted surfboard with two upper stripes, a central 5-petal hibiscus flower, and a single sand-wave curve at the bottom; no text (`Disk:4 = 50.3%`). Color: butter-cream board, turquoise-aqua and tangerine stripes, coral-pink hibiscus with golden stamen.
+- **`ukulele` ("Ukulele"):** Plump diagonally tilted Hawaiian ukulele with compact figure-eight body, hollow ringed sound hole, rectangular bridge, 4-fret neck, and strictly 4 tuning pegs (`Disk:4 = 49.5%`). Color: honey-koa body, chestnut rim/fretboard/bridge, butter-yellow sound hole ring, espresso sound hole, cream tuning pegs.
+
+#### Nature
+- **`hawaii-islands` ("Hawaiian Islands"):** Public-domain U.S. Census (`cb_2023_us_state_500k`) map of the 8 main Hawaiian islands smoothed for toddler tracing (`Disk:4 = 44.7%`). Color: soft meadow green (`#8BD68F`) matching `guam-island`.
+- **`hibiscus` ("Hibiscus"):** Plump 5-petal Hawaiian hibiscus facing forward with curving stamen tube, 3 round pollen dots, and 3 smooth pointed leaves (`Disk:4 = 50.9%`). Color: coral-pink petals, rose-red center, butter-yellow stamen/pollen, tropical leaf-green leaves.
+- **`lei` ("Flower Lei"):** Circular Hawaiian flower lei ring of 9 plump 5-petal plumeria flowers with tucked leaves and transparent center hole (`Disk:4 = 30.4%`, `Disk:2` from raw `23.5%`). Color: alternating butter-yellow, coral-pink, and lilac-lavender blossoms with tropical green leaves.
+- **`snowflake` ("Snowflake"):** Symmetric chunky 6-pointed hollow snowflake with stubby V-branches, rounded diamond tips, and hollow center hexagon (`Disk:4 = 51.5%`). Color: frosty sky-blue arms with soft ice-white center hexagon.
+
+#### Animals
+- **`kitty-bow` ("Kitty with a Bow"):** Original chubby sitting tabby kitten facing right with normal cat proportions, bare pointy ears (no bow on ear), visible W-shaped smiling mouth, whiskers, hollow tabby stripes, curved tail, and puffy ribbon bow on its collar (`Disk:4 = 46.0%`). Color: warm ginger-apricot fur (not white), cinnamon-caramel stripes, blush inner ears/nose, rosy coral-pink collar and bow.
+- **`pony` ("Pony"):** Plump little meadow pony standing right-facing with fluffy forelock and wavy mane, smiling muzzle, simple saddle blanket (no flank emblem), hollow hooves, and puffy swooping tail (`Disk:4 = 45.2%`). Color: honey-palomino body, cream-ivory muzzle/mane/tail, sky-blue blanket with coral trim, charcoal hooves.
+- **`polar-bear` ("Polar Bear"):** Chubby smiling baby polar bear walking right in a striped winter scarf with hollow nose and rounded paws (`Disk:4 = 47.9%`). Color: warm snow-ivory fur, blush inner ear, charcoal-slate nose, sky-blue and coral-red striped scarf.
+- **`hedgehog` ("Hedgehog"):** Plump smiling baby hedgehog walking right with scalloped spiky coat, 5 chunky hollow teardrop quill accents, rosy cheek circle, and stubby feet (`Disk:4 = 58.6%`). Color: biscuit-cream face/belly/feet, rosy-pink cheek/inner ear, espresso nose, cocoa-chestnut coat with caramel-tan teardrop accents.
+
+### Batch 4 Rejection & Regeneration Log (Simple — 0 Rejections)
+
+- **0 rejections** across all 21 AI-generated Simple subjects (`hawaii-islands` built deterministically from U.S. Census data). Note: `pirate` color hit one transient `HTTP 503 UNAVAILABLE` capacity error on first attempt and succeeded on retry (no art rejected).
+
+### Held for review
+
+`hawaii-islands`, `hibiscus`, `lei` and `ukulele` were generated in this batch but held out of this PR until Leon reviews them, as with the Guam set. They are on branch `gemini/art-batch4-hawaii` (raw masters in `output/tracebuddy-art-v3/batch4/raw/`).

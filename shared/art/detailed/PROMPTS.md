@@ -317,3 +317,97 @@ For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px
 ### Batch 3 Lead Review Fix
 
 At 420 px the Detailed `flamingo` (24.1%), `kitten` (24.7%), `seal` (25.4%), `sloth` (25.3%) and `drum` (24.9%) still read thinner than the rest of the set. Each was re-vectorized from its raw master with `-morphology Erode Disk:2` after the 1680×1680 threshold, before potrace. New `Disk:4` survival on a 1024 px render: `flamingo` 30.6%, `kitten` 36.2%, `seal` 29.6%, `sloth` 32.9%, `drum` 34.1%. Whiskers, yarn strands and drum cords stay separated.
+
+
+---
+
+## Batch 4 (expansion)
+
+Added **24 new subjects** across 7 categories (`go`, `people`, `holidays`, `fun`, `nature`, `animals`, plus 2 Detailed-only `patterns` designs `heart-pattern` and `cherry-blossom`), bringing the Detailed set from 123 to **147 subjects**. All 23 AI-generated subjects used the locked revised bold S2 prompts with the felt-tip marker-weight reinforcement sentence appended; `hawaii-islands` was generated deterministically from U.S. Census Bureau cartographic boundary data.
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch4/raw/detailed/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch4/detailed-sheet.png`, `combined-simple-vs-detailed.png`, and `hawaii.png` (Hawaii & Pacific cultural review).
+- **Batch 4 final `Disk:4` range:** **min = `23.0%` (`police-officer`), median = `29.4%`, max = `41.1%` (`heart-pattern`)** — all 24/24 verified `≥ 23.0%` with zero hairlines, zero merged parallel lines, and every Simple counterpart visibly thicker than Detailed.
+- **Stroke thickening applied (re-vectorized from the same raw master after the 1680×1680 threshold, measured on 1024 px SVG render — 16 subjects):**
+  - `Disk:4` (1 subject with ultra-fine raw weight and wide open spacing):
+    - `ballerina`: raw `0.9%` → thickened **`24.5%`** (eyes, smile, hair ribbon, layered tutu scallops, and ballet slippers stayed cleanly separated; well below Simple `40.8%`)
+  - `Disk:3` (7 subjects under 20% raw `Disk:4`):
+    - `police-car`: raw `16.0%` → thickened **`25.4%`** (rooftop lightbar, window frames, door handles, and hubcaps stayed crisp and separated)
+    - `police-officer`: raw `4.0%` → thickened **`23.0%`** (cap shield, chest star, buttons, pocket flaps, and shoe laces stayed separated)
+    - `turkey`: raw `18.9%` → thickened **`36.9%`** (banded tail feathers, layered wing plumes, and chest scallops stayed separated)
+    - `reindeer`: raw `11.2%` → thickened **`30.6%`** (branched antlers, collar bell, and cloven hooves stayed crisp)
+    - `surfboard`: raw `12.0%` (post-hollowing) → thickened **`31.5%`** (center stringer, hollowed diagonal stripes, hibiscus stamen, and wave crest stayed cleanly separated)
+    - `polar-bear`: raw `14.8%` → thickened **`32.8%`** (paw toes, fur tufts, and ice floe rim stayed crisp)
+    - `pirate`: raw `7.0%` → thickened **`24.8%`** (hat anchor, shirt stripes, spyglass bands, and dotted map trail with compass star stayed cleanly separated)
+  - `Disk:2` (8 subjects in the 20–26% band or with fine parallel lines requiring gentler thickening):
+    - `ambulance`: raw `25.3%` → thickened **`31.8%`** (cab mirror, lightbar dividers, door trim, and wheels stayed crisp)
+    - `santa`: raw `20.8%` → thickened **`31.0%`** (eyes, mustache curls, fur trim scallops, and buckle stayed crisp)
+    - `ukulele`: raw `17.5%` → thickened **`30.5%`** (`Disk:2` kept all 4 strings, frets, and geometric rosette triangles cleanly separated)
+    - `hibiscus`: raw `21.9%` → thickened **`31.0%`** (staminal column anthers, petal veins, and leaf veins stayed separated)
+    - `lei`: raw `12.5%` → thickened **`23.7%`** (`Disk:2` preserved airy plumeria petal spacing and stayed clearly thinner than Simple `30.4%`)
+    - `kitty-bow`: raw `23.2%` → thickened **`34.5%`** (tabby stripes, collar bow folds, and paw toes stayed cleanly separated)
+    - `pony`: raw `19.7%` → thickened **`26.9%`** (`Disk:2` kept mane waves and geometric saddle-blanket border triangles cleanly separated)
+    - `cherry-blossom`: raw `12.3%` → thickened **`26.0%`** (`Disk:2` kept blossom stamens, branch bark curves, and leaf veins crisp and unmerged)
+  - *(Note: `canoe` at raw `25.0%` was left unthickened (`Disk:0`) so the double gunwale rim lines stayed airy and visibly thinner than Simple `32.1%`.)*
+- **Enclosed exterior pockets cleared transparent:** `police-officer` (triangle between right arm and torso), `wreath` (center ring opening), `stocking` (hanging-loop opening), `lei` (center ring opening), `polar-bear` (3 open-air leg-to-ice-floe gaps), and `ballerina` (triangle between bent and standing legs).
+- **Deterministic post-generation master fixes (0 extra quota spent):**
+  - `candy-cane` line: raw master filled alternating diagonal peppermint stripes solid black; hollowed deterministically via `-morphology Erode Disk:10` + gentle `-blur 0x1.2` smoothing so every stripe became a crisp hollow colorable band (`Disk:4 = 40.3%`, post-SVGO `41.0 KB`).
+  - `surfboard` line: raw master filled two diagonal stripes solid black; hollowed deterministically via `-morphology Erode Disk:7` + `-blur 0x0.8` before colorization (true raw `Disk:4 = 12.0%` → `31.5%` via `Disk:3`).
+  - `polar-bear` color: raw color master extended flat charcoal-slate across the muzzle around the eye/mouth; floodfilled cleanly with the bear's sampled cream-ivory fur (`#F6E7C8`) while preserving the dark nose oval and black outlines.
+
+### Public-Domain Geographic Data Source (`hawaii-islands`)
+
+- **Dataset:** U.S. Census Bureau Cartographic Boundary File `cb_2023_us_state_500k` (2023)
+- **URL:** `https://www2.census.gov/geo/tiger/GENZ2023/shp/cb_2023_us_state_500k.zip`
+- **License:** Public Domain (U.S. federal government work, 17 U.S.C. § 105)
+- **Processing:** Extracted feature `STUSPS=HI` (`STATEFP=15`, `GEOID=15`), taking the 8 main Hawaiian islands (Hawaiʻi, Maui, Oʻahu, Kauaʻi, Molokaʻi, Lānaʻi, Niʻihau, Kahoʻolawe), projected with `cos(mean_lat = 20.82°)` equirectangular scaling, simplified with closed-ring Ramer-Douglas-Peucker (`eps = 1.8 px`; `0.55×` gentler on Niʻihau, Kahoʻolawe, and Lānaʻi) and 1 pass of Chaikin smoothing, stroked at uniform `9.8 px` bold traceable weight (`Disk:4 = 26.6%`), and flat-filled in soft sage green (`#8BB88E`) matching `guam-island` (no AI image generation used).
+
+### Per-Subject Catalog & Traceability Metrics (Batch 4 — 24 Subjects)
+
+For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px SVG render; raw pre-thickening `Disk:4` and disk radius are noted in the Description column. SVG sizes reflect post-`art:optimize` SVGO output.
+
+| # | ID | Name | Category | `Disk:2` | `Disk:3` | `Disk:4` | `Disk:5` | SVG (KB) | WebP (KB) | Description |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| 124 | `police-car` | Police Car | `go` | 64.0% | 43.7% | **25.4%** | 12.3% | 18.2 | 12.3 | Classic storybook police sedan facing right with rooftop lightbar, hollow side stripe and plain star, and hollow wheels; no text or department insignia *(Disk:3 from raw 16.0%)* |
+| 125 | `police-officer` | Police Officer | `people` | 62.5% | 41.4% | **23.0%** | 6.3% | 28.1 | 14.9 | Friendly smiling waving police officer in peaked cap with blank shield, buttoned uniform with hollow star pin, and buckled belt; no text or weapons *(Disk:3 from raw 4.0%)* |
+| 126 | `ambulance` | Ambulance | `go` | 66.7% | 48.9% | **31.8%** | 18.3% | 16.6 | 12.3 | Classic storybook box ambulance truck facing right with rooftop lightbar, bold hollow plus emblem, side stripe, and hollow wheels; no text *(Disk:2 from raw 25.3%)* |
+| 127 | `canoe` | Canoe | `go` | 60.2% | 39.0% | **25.0%** | 10.8% | 28.8 | 17.8 | Graceful three-quarter wooden paddling canoe facing right with upturned ends, bench thwarts, geometric hull band, diagonal paddle, and wave lines |
+| 128 | `santa` | Santa | `holidays` | 66.7% | 47.6% | **31.0%** | 12.6% | 38.3 | 22.8 | Original jolly storybook Santa Claus waving hello with a tied toy sack over one shoulder, sculpted beard, fur-trimmed coat, and hollow buckled belt *(Disk:2 from raw 20.8%)* |
+| 129 | `turkey` | Turkey | `holidays` | 70.4% | 52.3% | **36.9%** | 17.0% | 43.3 | 31.2 | Friendly smiling storybook Thanksgiving turkey facing right with fanned 9-feather banded tail, layered wing plumes, scalloped chest, and three-toed feet *(Disk:3 from raw 18.9%)* |
+| 130 | `wreath` | Christmas Wreath | `holidays` | 64.5% | 43.9% | **27.4%** | 9.7% | 75.7 | 38.7 | Festive holiday wreath ring with transparent center hole, bold overlapping holly leaves, berry clusters, 6 striped/dotted baubles, and top bow |
+| 131 | `reindeer` | Reindeer | `holidays` | 66.6% | 47.5% | **30.6%** | 11.2% | 27.2 | 19.3 | Graceful plain friendly storybook reindeer standing right-facing with branched antlers, natural dark brown nose (not Rudolph), jingle-bell collar, and hollow hooves *(Disk:3 from raw 11.2%)* |
+| 132 | `candy-cane` | Candy Cane | `holidays` | 71.5% | 54.9% | **40.3%** | 21.3% | 41.0 | 27.4 | Pair of crossed storybook peppermint candy canes (stripes deterministically hollowed) tied with a golden ribbon bow, two holly leaves, and three berries |
+| 133 | `stocking` | Christmas Stocking | `holidays` | 63.4% | 42.8% | **28.2%** | 13.0% | 37.0 | 20.2 | Festive storybook Christmas stocking with transparent hanging loop, holly-trimmed cuff, candy cane and wrapped gift peeking out, and snowflake/stripe bands; no text |
+| 134 | `surfboard` | Surfboard | `fun` | 67.5% | 48.0% | **31.5%** | 13.9% | 22.0 | 13.7 | Upright Hawaiian longboard surfboard with vertical stringer, deterministically hollowed diagonal stripes, 5-petal hibiscus with leaves, and curling wave crest *(Disk:3 from raw 12.0%)* |
+| 135 | `ukulele` | Ukulele | `fun` | 70.1% | 47.3% | **30.5%** | 13.0% | 29.1 | 19.4 | Diagonally tilted Hawaiian koa soprano ukulele with geometric rosette, strictly 4 strings and 4 tuning pegs, and a 5-petal plumeria blossom tucked at the base *(Disk:2 from raw 17.5%)* |
+| 136 | `hawaii-islands` | Hawaiian Islands | `nature` | 64.8% | 44.2% | **26.6%** | 3.6% | 8.3 | 5.7 | Accurate geographic silhouette of the 8 main Hawaiian islands derived from U.S. Census Bureau Cartographic Boundary data (`cb_2023_us_state_500k`) |
+| 137 | `hibiscus` | Hibiscus | `nature` | 66.2% | 46.6% | **31.0%** | 16.0% | 39.5 | 28.4 | Botanical storybook Hawaiian hibiscus with 5 ruffled overlapping petals, curved staminal column with pollen anthers, closed side bud, and two serrated leaves *(Disk:2 from raw 21.9%)* |
+| 138 | `lei` | Flower Lei | `nature` | 62.3% | 39.6% | **23.7%** | 7.7% | 65.4 | 38.9 | Lush circular Hawaiian plumeria flower lei ring with transparent center hole, 11 overlapping 5-petal blossoms, tropical leaves, and outer buds *(Disk:2 from raw 12.5%)* |
+| 139 | `snowflake` | Snowflake | `nature` | 63.6% | 43.4% | **30.7%** | 14.3% | 62.9 | 33.9 | Ornate symmetric 6-pointed winter snowflake crystal built from bold hollow geometric facets, beveled chevron branches, diamond tips, and floating teardrops |
+| 140 | `kitty-bow` | Kitty with a Bow | `animals` | 68.3% | 50.1% | **34.5%** | 17.6% | 43.7 | 25.2 | Original sitting silver-gray striped tabby kitten facing right with bare ears, visible smiling mouth, hollow tabby stripes, and sculpted neck-collar ribbon bow *(Disk:2 from raw 23.2%)* |
+| 141 | `pony` | Pony | `animals` | 62.3% | 41.0% | **26.9%** | 12.6% | 46.1 | 28.1 | Compact palomino storybook Shetland pony trotting right with feathered legs, hollow hooves, lush wavy mane and tail, and geometric-trimmed saddle blanket *(Disk:2 from raw 19.7%)* |
+| 142 | `polar-bear` | Polar Bear | `animals` | 67.2% | 49.2% | **32.8%** | 14.6% | 20.9 | 15.2 | Friendly storybook polar bear striding right atop an Arctic ice floe with transparent leg gaps and clean cream-ivory muzzle fix *(Disk:3 from raw 14.8%)* |
+| 143 | `hedgehog` | Hedgehog | `animals` | 64.3% | 43.5% | **26.1%** | 6.6% | 38.9 | 24.7 | Charming woodland storybook hedgehog walking right with bold layered leaf-like quill tufts, tucked oak leaf and little mushroom, and four neat paws |
+| 144 | `ballerina` | Ballerina | `people` | 64.1% | 42.9% | **24.5%** | 6.3% | 24.8 | 16.3 | Graceful smiling storybook ballerina girl (v2 with hollow-outlined hair bun) dancing in a flutter-sleeve leotard, layered scalloped tutu, and ballet slippers *(Disk:4 from raw 0.9%)* |
+| 145 | `pirate` | Pirate | `people` | 63.8% | 42.6% | **24.8%** | 8.6% | 45.7 | 25.4 | Cheerful weapon-free storybook kid pirate in hollow anchor-emblem tricorn hat holding a brass spyglass telescope and dotted-trail treasure map *(Disk:3 from raw 7.0%)* |
+| 146 | `heart-pattern` | Heart Pattern | `patterns` | 72.2% | 55.4% | **41.1%** | 22.0% | 51.7 | 34.9 | Detailed-only folk-art decorative heart filled with spacious phone-traceable mini-hearts, flower petals, teardrops, paisley swirls, diamond, and scalloped ribbons |
+| 147 | `cherry-blossom` | Cherry Blossom | `patterns` | 64.3% | 43.0% | **26.0%** | 7.8% | 74.9 | 45.1 | Detailed-only decorative sakura cherry blossom branch curving diagonally with 6 notched 5-petal blossoms, closed buds, veined sage leaves, and drifting petals *(Disk:2 from raw 12.3%)* |
+
+### Batch 4 Rejection & Regeneration Log (Detailed — 1 Rejection)
+
+1. **`ballerina` line v1 (REJECTED → v2 approved):** v1 rendered the ballerina's hair and bun as solid black silhouette fills with white highlight streaks instead of hollow white colorable hair. Regenerated once in **v2** with crisp hollow-outlined hair and bun (`raw Disk:4 = 0.9%` → `24.5%` via `Disk:4`, all details cleanly separated).
+2. **Transient API errors (retried once each, no art rejected):** `lei` color, `ballerina` color, and `pirate` color each hit a transient `HTTP 503 UNAVAILABLE` capacity error on first attempt and succeeded cleanly on retry.
+
+### Batch 4 Lead Review Fix
+
+At 420 px, four Detailed outlines still read thin after the batch's own pass. Each was re-vectorized from its raw master with a stronger erosion after the 1680×1680 threshold. New `Disk:4` survival on a 1024 px render:
+- `police-officer`: `Disk:4`, 23.0% → 31.9%
+- `ballerina`: `Disk:5`, 24.5% → 34.8%
+- `canoe`: `Disk:2`, 25.0% → 30.2%
+- `police-car`: `Disk:4`, 25.4% → 32.3%
+
+Faces, buttons, tutu ruffles and wheel rims stay separated.
+
+### Held for review
+
+`hawaii-islands`, `hibiscus`, `lei` and `ukulele` were generated in this batch but held out of this PR until Leon reviews them, as with the Guam set. They are on branch `gemini/art-batch4-hawaii` (raw masters in `output/tracebuddy-art-v3/batch4/raw/`).
