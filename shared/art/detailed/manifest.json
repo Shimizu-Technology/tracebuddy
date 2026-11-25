@@ -1285,5 +1285,221 @@
     "line": "cherry-blossom/line.svg",
     "color": "cherry-blossom/color.webp",
     "notes": ""
+  },
+  {
+    "id": "zebra",
+    "name": "Zebra",
+    "category": "animals",
+    "level": "detailed",
+    "line": "zebra/line.svg",
+    "color": "zebra/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "bear",
+    "name": "Bear",
+    "category": "animals",
+    "level": "detailed",
+    "line": "bear/line.svg",
+    "color": "bear/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "deer",
+    "name": "Deer",
+    "category": "animals",
+    "level": "detailed",
+    "line": "deer/line.svg",
+    "color": "deer/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "raccoon",
+    "name": "Raccoon",
+    "category": "animals",
+    "level": "detailed",
+    "line": "raccoon/line.svg",
+    "color": "raccoon/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "squirrel",
+    "name": "Squirrel",
+    "category": "animals",
+    "level": "detailed",
+    "line": "squirrel/line.svg",
+    "color": "squirrel/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "hippo",
+    "name": "Hippo",
+    "category": "animals",
+    "level": "detailed",
+    "line": "hippo/line.svg",
+    "color": "hippo/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "peacock",
+    "name": "Peacock",
+    "category": "animals",
+    "level": "detailed",
+    "line": "peacock/line.svg",
+    "color": "peacock/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "seashell",
+    "name": "Seashell",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "seashell/line.svg",
+    "color": "seashell/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "lobster",
+    "name": "Lobster",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "lobster/line.svg",
+    "color": "lobster/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "magic-wand",
+    "name": "Magic Wand",
+    "category": "magic",
+    "level": "detailed",
+    "line": "magic-wand/line.svg",
+    "color": "magic-wand/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "gnome",
+    "name": "Garden Gnome",
+    "category": "magic",
+    "level": "detailed",
+    "line": "gnome/line.svg",
+    "color": "gnome/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "dump-truck",
+    "name": "Dump Truck",
+    "category": "go",
+    "level": "detailed",
+    "line": "dump-truck/line.svg",
+    "color": "dump-truck/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "digger",
+    "name": "Digger",
+    "category": "go",
+    "level": "detailed",
+    "line": "digger/line.svg",
+    "color": "digger/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "bicycle",
+    "name": "Bicycle",
+    "category": "go",
+    "level": "detailed",
+    "line": "bicycle/line.svg",
+    "color": "bicycle/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "banana",
+    "name": "Banana",
+    "category": "food",
+    "level": "detailed",
+    "line": "banana/line.svg",
+    "color": "banana/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "apple",
+    "name": "Apple",
+    "category": "food",
+    "level": "detailed",
+    "line": "apple/line.svg",
+    "color": "apple/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "lollipop",
+    "name": "Lollipop",
+    "category": "food",
+    "level": "detailed",
+    "line": "lollipop/line.svg",
+    "color": "lollipop/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "rubber-duck",
+    "name": "Rubber Duck",
+    "category": "fun",
+    "level": "detailed",
+    "line": "rubber-duck/line.svg",
+    "color": "rubber-duck/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "piano",
+    "name": "Piano",
+    "category": "fun",
+    "level": "detailed",
+    "line": "piano/line.svg",
+    "color": "piano/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "chef",
+    "name": "Chef",
+    "category": "people",
+    "level": "detailed",
+    "line": "chef/line.svg",
+    "color": "chef/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "doctor",
+    "name": "Doctor",
+    "category": "people",
+    "level": "detailed",
+    "line": "doctor/line.svg",
+    "color": "doctor/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "tulip",
+    "name": "Tulip",
+    "category": "nature",
+    "level": "detailed",
+    "line": "tulip/line.svg",
+    "color": "tulip/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "botanical",
+    "name": "Leaves and Ferns",
+    "category": "patterns",
+    "level": "detailed",
+    "line": "botanical/line.svg",
+    "color": "botanical/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "mountain-landscape",
+    "name": "Mountain View",
+    "category": "patterns",
+    "level": "detailed",
+    "line": "mountain-landscape/line.svg",
+    "color": "mountain-landscape/color.webp",
+    "notes": ""
   }
 ]
