@@ -5,6 +5,7 @@ const groupOrder: readonly { id: PictureCategory; coverId?: string }[] = [
   { id: 'animals', coverId: 'puppy' },
   { id: 'dinosaurs', coverId: 't-rex' },
   { id: 'ocean', coverId: 'sea-turtle' },
+  { id: 'letters', coverId: 'letter-a' },
   { id: 'magic', coverId: 'unicorn' },
   { id: 'go', coverId: 'fire-truck' },
   { id: 'space', coverId: 'rocket' },
@@ -16,7 +17,6 @@ const groupOrder: readonly { id: PictureCategory; coverId?: string }[] = [
   { id: 'people', coverId: 'superhero' },
   { id: 'fun', coverId: 'teddy-bear' },
   { id: 'patterns', coverId: 'flower-mandala' },
-  { id: 'letters' },
   { id: 'shapes' },
 ]
 

@@ -32,7 +32,7 @@ type GridTile = { kind: 'group'; group: PictureGroup } | { kind: 'picture'; pict
 
 const makeYourOwn = [
   { id: 'photo', label: 'My photo', icon: ImageIcon, pastel: theme.pastels.sky },
-  { id: 'name', label: 'My name', icon: TextAaIcon, pastel: theme.pastels.butter },
+  { id: 'words', label: 'My words', icon: TextAaIcon, pastel: theme.pastels.butter },
 ] as const
 
 export default function HomeScreen() {
@@ -164,7 +164,7 @@ export default function HomeScreen() {
                 <View style={styles.row}>
                   {makeYourOwn.map(({ id, label, icon, pastel }) => (
                     <PressTarget key={id} style={styles.special} accessibilityLabel={label}
-                      onPress={id === 'photo' ? () => void choosePhoto() : () => router.push('/my-name')}>
+                      onPress={id === 'photo' ? () => void choosePhoto() : () => router.push({ pathname: '/my-name', params: { level: level ?? 'simple' } })}>
                       <View style={[styles.specialBadge, { backgroundColor: pastel }]}><Icon glyph={icon} /></View>
                       <Text style={[styles.bold, styles.center]}>{label}</Text>
                     </PressTarget>

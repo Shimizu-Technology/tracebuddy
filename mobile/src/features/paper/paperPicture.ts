@@ -28,7 +28,8 @@ export function resolvePaperPicture(params: PaperParams, rebase: (uri: string) =
     const aspect = photo.width && photo.height ? photo.width / photo.height : 1
     return { kind: 'photo', key: `photo:${photo.uri}`, name: picture.name, uri: rebase(photo.uri), aspect, picture }
   }
-  return { kind: 'drawing', key: `drawing:${picture.level ?? 'legacy'}:${picture.id}`, name: picture.name, aspect: 1, picture }
+  const identity = picture.text ? `${picture.id}:${picture.text}` : picture.id
+  return { kind: 'drawing', key: `drawing:${picture.level ?? 'legacy'}:${identity}`, name: picture.name, aspect: 1, picture }
 }
 
 /** The same picture's params for another route, such as /draw/[id] or Stick to paper. */

@@ -60,7 +60,7 @@ export default function RootLayout() {
               <Stack.Screen name="group/[id]" />
               <Stack.Screen name="draw/[id]" options={{ gestureEnabled: false }} />
               <Stack.Screen name="picture/[id]" options={{ ...sheet, sheetAllowedDetents: [0.7, 1], sheetLargestUndimmedDetentIndex: 'none' }} />
-              <Stack.Screen name="my-name" options={{ ...sheet, sheetAllowedDetents: [0.5, 1], sheetLargestUndimmedDetentIndex: 'none' }} />
+              <Stack.Screen name="my-name" options={{ ...sheet, sheetAllowedDetents: [0.82, 1], sheetLargestUndimmedDetentIndex: 'none' }} />
               <Stack.Screen name="done" options={{ ...sheet, sheetAllowedDetents: [0.72, 1], sheetInitialDetentIndex: expandedKeepsake ? 1 : 0, sheetLargestUndimmedDetentIndex: 'none' }} />
               <Stack.Screen name="draw-more" options={{ ...sheet, sheetAllowedDetents: [theme.sheet.drawDetent] }} />
               <Stack.Screen name="drawing-menu" options={{ ...sheet, sheetAllowedDetents: [0.45, 1], sheetLargestUndimmedDetentIndex: 'none' }} />
