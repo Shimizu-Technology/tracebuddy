@@ -411,3 +411,82 @@ Faces, buttons, tutu ruffles and wheel rims stay separated.
 ### Held for review
 
 `hawaii-islands`, `hibiscus`, `lei` and `ukulele` were generated in this batch but held out of this PR until Leon reviews them, as with the Guam set. They are on branch `gemini/art-batch4-hawaii` (raw masters in `output/tracebuddy-art-v3/batch4/raw/`).
+
+---
+
+## Batch 5 (expansion)
+
+Added **24 new subjects** across 9 categories (`animals`, `ocean`, `magic`, `go`, `food`, `fun`, `people`, `nature`, plus 2 Detailed-only `patterns` designs `botanical` and `mountain-landscape`), bringing the published Detailed manifest from 143 to **167 subjects**. All 24 subjects used the locked revised bold S2 prompts with the felt-tip marker-weight reinforcement sentence appended.
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch5/raw/detailed/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch5/detailed-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Batch 5 final `Disk:4` range:** **min = `26.9%` (`peacock`), median = `32.0%`, max = `44.2%` (`seashell`)** after the lead review fix below (before it: min `21.5%` `botanical`, median `29.9%`) — all 24/24 verified `≥ 26.9%` with zero hairlines, zero merged parallel lines, and every Simple counterpart visibly thicker than Detailed.
+- **Stroke thickening applied in the initial pass (re-vectorized from the same raw master after the 1680×1680 threshold, measured on 1024 px SVG render — 15 subjects). Values and radii below are initial-pass results; `zebra`, `doctor`, `piano`, `botanical`, `bicycle` and `chef` were thickened again in the Batch 5 Lead Review Fix, whose values are final and match the table:**
+  - `Disk:4` (1 subject with ultra-fine raw weight and wide open spacing):
+    - `chef`: raw `2.0%` → thickened **`29.3%`** (fingers, buttons, neckerchief knot, and apron bow stayed cleanly separated; well below Simple `38.5%`)
+  - `Disk:3` (7 subjects under 20% raw `Disk:4`):
+    - `deer`: raw `12.9%` → thickened **`28.5%`** (antler tines, flank spots, and cloven hooves stayed crisp)
+    - `magic-wand`: raw `9.5%` → thickened **`29.8%`** (faceted star lines, central gem, spiral handle, and floating sparkles stayed cleanly separated)
+    - `gnome`: raw `17.0%` (post-hollowing) → thickened **`33.7%`** (beard locks, hollowed belt/buckle, and watering-can rose dots stayed separated)
+    - `dump-truck`: raw `15.4%` → thickened **`32.1%`** (bed ribs, grille slots, door mirror, and wheel hubs stayed crisp)
+    - `digger`: raw `9.6%` → thickened **`27.1%`** (hydraulic cylinders, cab steering wheel, and track rollers stayed separated)
+    - `bicycle`: raw `10.6%` → thickened **`28.5%`** (wheel spokes, chain guard, and woven flower basket stayed separated)
+    - `doctor`: raw `7.5%` → thickened **`25.1%`** (stethoscope tubing, buttons, satchel plus emblem, and hair waves stayed crisp)
+  - `Disk:2` (7 subjects in the 20–26% band or with close parallel details requiring gentler thickening):
+    - `zebra`: raw `14.5%` → thickened **`21.6%`** (`Disk:2` preserved airy stripe separation on face, mane, and legs and stayed well below Simple `32.0%`)
+    - `bear`: raw `23.1%` → thickened **`31.9%`** (sculpted fur tufts and rounded toes stayed crisp)
+    - `hippo`: raw `25.2%` → thickened **`31.1%`** (nostrils, teeth, and toenails stayed crisp)
+    - `lobster`: raw `21.5%` → thickened **`28.7%`** (hollow antennae, serrated claws, and jointed legs stayed separated)
+    - `piano`: raw `16.2%` → thickened **`25.2%`** (`Disk:2` kept keyboard keys, harp ribs, and sheet music notes cleanly separated and below Simple `32.6%`)
+    - `tulip`: raw `21.1%` → thickened **`30.6%`** (layered petals, leaf veins, and ribbon bow stayed separated)
+    - `botanical`: raw `3.7%` → thickened **`21.5%`** (`Disk:2` kept all fern frond leaflets and leaf veins airy and unmerged)
+- **Enclosed exterior pockets cleared transparent:** `magic-wand` (2 ribbon bow-loop openings), `gnome` (3 gaps between right arm/leg and watering-can handle/spout), `digger` (4 open-air hydraulic-piston/linkage gaps), `bicycle` (33 verified interior white open-air wheel-spoke, frame, fender, and rear-rack gaps), `piano` (3 gaps between pedal-lyre posts), `chef` (1 gap between bent elbow and mixing bowl), `tulip` (4 stem-leaf and bow-loop gaps), and `botanical` (14 interior stem-and-frond background gaps).
+- **Deterministic post-generation master fixes (0 extra quota spent):**
+  - `gnome` line: raw master filled the belt strap, inner buckle, and watering-can top opening solid black (`25.8%` raw `Disk:4`); hollowed deterministically via `-negate -morphology Erode Disk:7 -blur 0x0.8` composited with `-compose Lighten` before colorization so the belt and buckle became clean hollow colorable regions (true raw `Disk:4 = 17.0%` → `33.7%` via `Disk:3`).
+
+### Per-Subject Catalog & Traceability Metrics (Batch 5 — 24 Subjects)
+
+For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px SVG render; raw pre-thickening `Disk:4` and disk radius are noted in the Description column. SVG sizes reflect post-`art:optimize` SVGO output.
+
+| # | ID | Name | Category | `Disk:2` | `Disk:3` | `Disk:4` | `Disk:5` | SVG (KB) | WebP (KB) | Description |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| 148 | `zebra` | Zebra | `animals` | 66.0% | 46.3% | **29.0%** (lead fix; Disk:4 was 21.6%) | 16.6% | 53.4 | 28.6 | Graceful standing storybook zebra in right-facing profile with spacious hollow white stripes, upright tufted mane, and hollow hooves *(Disk:2 from raw 14.5%)* |
+| 149 | `bear` | Bear | `animals` | 66.4% | 47.4% | **31.9%** | 14.7% | 24.4 | 15.2 | Friendly storybook brown bear striding right with sculpted shoulder/neck fur tufts, hollow nose, and rounded toes *(Disk:2 from raw 23.1%)* |
+| 150 | `deer` | Deer | `animals` | 65.3% | 45.7% | **28.5%** | 11.5% | 28.4 | 21.0 | Graceful woodland storybook deer standing right-facing with bold hollow branched antlers, flank spots, chest ruff, and cloven hooves *(Disk:3 from raw 12.9%)* |
+| 151 | `raccoon` | Raccoon | `animals` | 65.9% | 46.1% | **30.0%** | 15.5% | 35.0 | 22.8 | Charming woodland storybook raccoon sitting three-quarter right with hollow bandit eye mask, nimble paws, and banded bushy tail on the left |
+| 152 | `squirrel` | Squirrel | `animals` | 68.6% | 50.7% | **36.2%** | 20.8% | 38.3 | 24.8 | Woodland storybook red squirrel sitting upright facing right with grand S-curved bushy tail, tufted ears, and paws holding a diamond-cap acorn |
+| 153 | `hippo` | Hippo | `animals` | 66.0% | 46.9% | **31.1%** | 14.8% | 25.2 | 13.7 | Friendly storybook hippopotamus walking right with sculpted smiling snout, hollow nostrils, two rounded teeth, and tufted tail *(Disk:2 from raw 25.2%)* |
+| 154 | `peacock` | Peacock | `animals` | 64.9% | 44.2% | **26.9%** | 10.8% | 60.1 | 35.1 | Regal storybook peacock standing proud (head turned right) with crest plumes, layered wing, and fanned tail feathers with nested eye-spot medallions |
+| 155 | `seashell` | Seashell | `ocean` | 73.5% | 57.6% | **44.2%** | 27.8% | 35.2 | 26.5 | Classic fluted beach scallop seashell upright with 9 curved ribs, two crisp double growth-ring bands, and sculpted winged hinge ears |
+| 156 | `lobster` | Lobster | `ocean` | 65.6% | 45.9% | **28.7%** | 10.2% | 38.5 | 26.1 | Symmetrical upright storybook lobster with raised serrated pincer claws, hollow curving antennae, segmented body, jointed walking legs, and 5-lobe tail *(Disk:2 from raw 21.5%)* |
+| 157 | `magic-wand` | Magic Wand | `magic` | 67.0% | 46.7% | **29.8%** | 13.2% | 35.1 | 26.0 | Diagonal ornate storybook magic wand with faceted star, central gem medallion, curling ribbon bow, spiral handle, and floating sparkles *(Disk:3 from raw 9.5%)* |
+| 158 | `gnome` | Garden Gnome | `magic` | 68.2% | 49.8% | **33.7%** | 16.7% | 37.3 | 22.8 | Cheerful waving storybook garden gnome in flower-trimmed pointed hat with sculpted beard, deterministically hollowed belt, boots, and watering can *(Disk:3 from raw 17.0%)* |
+| 159 | `dump-truck` | Dump Truck | `go` | 66.9% | 48.7% | **32.1%** | 15.9% | 33.1 | 21.4 | Classic heavy storybook dump truck facing right with detailed cab, exhaust stack, ribbed dump bed filled with boulders, and hollow lugged wheels; no text *(Disk:3 from raw 15.4%)* |
+| 160 | `digger` | Digger | `go` | 64.0% | 44.2% | **27.1%** | 11.4% | 35.4 | 21.9 | Classic storybook construction excavator facing right with operator cab, hollow crawler track and rollers, articulated hydraulic boom, and toothed bucket; no text *(Disk:3 from raw 9.6%)* |
+| 161 | `bicycle` | Bicycle | `go` | 70.1% | 52.1% | **36.1%** (lead fix; Disk:4 was 28.5%) | 17.1% | 49.1 | 31.2 | Vintage storybook step-through cruiser bicycle facing right with fenders, flower-filled woven front basket, chain guard, and rear rack *(Disk:3 from raw 10.6%)* |
+| 162 | `banana` | Banana | `food` | 65.9% | 47.1% | **32.8%** | 19.5% | 34.3 | 28.6 | Classic storybook bunch of three ripe curved bananas joined at a woody crown stem with hollow tips and two tropical banana leaves behind |
+| 163 | `apple` | Apple | `food` | 66.3% | 47.5% | **32.6%** | 16.6% | 27.7 | 18.4 | Botanical orchard apple with woody stem, two serrated veined leaves, and a 5-petal blossom paired with a cut half-apple showing core and two hollow seeds |
+| 164 | `lollipop` | Lollipop | `food` | 64.5% | 44.3% | **28.0%** | 12.7% | 43.4 | 26.5 | Carnival storybook giant rainbow-swirl lollipop with curling ribbon bow paired with a companion striped heart lollipop |
+| 165 | `rubber-duck` | Rubber Duck | `fun` | 65.7% | 47.0% | **32.5%** | 16.6% | 28.0 | 28.0 | Charming bathtime toy rubber ducky floating right with frothy bubble-suds cap, scalloped wing, glossy highlights, scalloped water wave, and floating soap bubbles |
+| 166 | `piano` | Piano | `fun` | 68.0% | 49.9% | **33.0%** (lead fix; Disk:4 was 25.2%) | 17.5% | 57.9 | 35.3 | Three-quarter concert grand piano with propped open lid, harp ribs, open music book with two notes, keyboard, turned legs, and two-pedal lyre; no text *(Disk:2 from raw 16.2%)* |
+| 167 | `chef` | Chef | `people` | 71.4% | 55.1% | **40.3%** (lead fix; Disk:4 was 29.3%) | 23.0% | 27.9 | 17.5 | Cheerful storybook chef in pleated toque hat, neckerchief, double-breasted coat, and waist apron holding a raised wooden spoon and mixing bowl; no text *(Disk:4 from raw 2.0%)* |
+| 168 | `doctor` | Doctor | `people` | 67.7% | 49.6% | **33.0%** (lead fix; Disk:4 was 25.1%) | 15.7% | 30.1 | 19.0 | Kid-friendly waving storybook doctor in collared lab coat with hollow stethoscope and classic satchel bag with plain hollow plus emblem; no needles or text *(Disk:3 from raw 7.5%)* |
+| 169 | `tulip` | Tulip | `nature` | 65.9% | 45.6% | **30.6%** | 13.0% | 45.1 | 28.9 | Graceful spring bouquet of three tulips (two open cupped blossoms and one left bud) framed by arched veined leaves and tied with a ribbon bow *(Disk:2 from raw 21.1%)* |
+| 170 | `botanical` | Leaves and Ferns | `patterns` | 68.1% | 49.1% | **33.5%** (lead fix; Disk:4 was 21.5%) | 15.1% | 82.4 | 51.8 | Detailed-only decorative botanical arrangement of four arching fern fronds, veined woodland leaves, round-leafed eucalyptus sprigs, and hollow berries with medium-size closed regions *(Disk:2 from raw 3.7%)* |
+| 171 | `mountain-landscape` | Mountain View | `patterns` | 66.9% | 47.4% | **30.6%** | 11.2% | 50.5 | 29.1 | Detailed-only decorative circular medallion landscape with three snow-capped mountain peaks, rising sun with wide sky rays, two clouds, five tiered pine trees, rolling hills, and winding river |
+
+### Batch 5 Rejection & Regeneration Log (Detailed — 0 Rejections)
+
+- **0 rejections** across all 24 Detailed line-art and 24 Detailed colorization generations (48/48 approved on first attempt, with deterministic belt hollowing on `gnome` noted above).
+
+### Batch 5 Lead Review Fix
+
+At 420 px, six Detailed outlines still read thin after the batch's own pass. Each was re-vectorized from its raw master with one step more erosion after the 1680×1680 threshold. New `Disk:4` survival on a 1024 px render:
+- `zebra`: `Disk:3`, 21.6% → 29.0%
+- `doctor`: `Disk:4`, 25.1% → 33.0%
+- `piano`: `Disk:3`, 25.2% → 33.0%
+- `botanical`: `Disk:3`, 21.5% → 33.5%
+- `bicycle`: `Disk:4`, 28.5% → 36.1%
+- `chef`: `Disk:5`, 29.3% → 40.3%
+
+Zebra stripes, the stethoscope and the spokes stay separated. Piano keys and fern leaflets are denser but remain distinct at phone size.

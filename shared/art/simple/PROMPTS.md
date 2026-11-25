@@ -345,3 +345,61 @@ Added **22 new subjects** across 6 categories (`go`, `people`, `holidays`, `fun`
 ### Held for review
 
 `hawaii-islands`, `hibiscus`, `lei` and `ukulele` were generated in this batch but held out of this PR until Leon reviews them, as with the Guam set. They are on branch `gemini/art-batch4-hawaii` (raw masters in `output/tracebuddy-art-v3/batch4/raw/`).
+
+---
+
+## Batch 5 (expansion)
+
+Added **22 new subjects** across 8 categories (`animals`, `ocean`, `magic`, `go`, `food`, `fun`, `people`, `nature`), bringing the published Simple manifest from 137 to **159 subjects** (the 2 `patterns` subjects `botanical` and `mountain-landscape` are Detailed-only and intentionally omitted from Simple).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch5/raw/simple/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch5/simple-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Line weight (`Disk:4` erosion survival):** min `32.0%` (`zebra`), median `45.3%`, max `70.0%` (`tulip`) — every Simple subject is visibly thicker than its Detailed counterpart.
+- **Stroke thickening applied (2 subjects, to maintain clear Simple-vs-Detailed line-weight hierarchy):**
+  - `squirrel`: raw `36.6%` → thickened with `Disk:2` to **`44.2%`** (measured on 1024 px render; cleanly thicker than Detailed `36.2%`, acorn cap grid stayed crisp)
+  - `chef`: raw `33.4%` → thickened with `Disk:2` to `38.5%` in the initial pass; after the lead review thickened Detailed `chef` to `40.3%`, Simple `chef` was re-vectorized with `Disk:4` to **`47.8%`** (1024 px render) so Simple stays visibly thicker, buttons and fingers still separated
+- **Enclosed exterior pockets cleared transparent:** `digger` (2 open-air gaps between hydraulic cylinders and boom arm) and `bicycle` (11 open-air gaps inside the wheel spokes, frame triangle, and basket bracket).
+
+### Per-Subject Descriptions (22 Batch 5 Subjects)
+
+#### Animals
+- **`zebra` ("Zebra"):** Standing right-facing chubby smiling baby zebra with hollow outlined stripes across body, neck, legs, and scalloped mane, hollow hooves, and teardrop tail tuft (`Disk:4 = 32.0%`). Color: ivory-cream coat, charcoal-slate stripes/hooves/tail tuft, dove-gray muzzle, blush inner ear.
+- **`bear` ("Bear"):** Walking right-facing chubby smiling brown bear with rounded ears, oval muzzle with hollow nose, and four separated rounded paws (`Disk:4 = 43.4%`). Color: caramel-cocoa fur, biscuit-cream muzzle and inner ears, chocolate-brown nose.
+- **`deer` ("Deer"):** Standing right-facing chubby woodland baby deer with chunky hollow forked antlers, rounded ears, 4 hollow back spots, chest patch, fluffy tail, and hollow hooves; plain woodland deer with no scarf or collar (`Disk:4 = 46.1%`). Color: golden-fawn coat, ivory-cream face/chest/spots/tail underside, oatmeal antlers, cocoa nose, charcoal-brown hooves.
+- **`raccoon` ("Raccoon"):** Sitting chubby smiling baby raccoon facing right with hollow outlined bandit eye mask, hollow nose, oval belly patch, and big bushy tail on the left with hollow rings (`Disk:4 = 48.9%`). Color: warm silver-gray fur, charcoal-slate mask and tail rings, ivory-cream cheeks/belly/inner ears, dark espresso-slate nose.
+- **`squirrel` ("Squirrel"):** Sitting right-facing chubby smiling baby squirrel with big curled fluffy tail on the left and front paws holding a chunky acorn (`Disk:4 = 44.2%`, `Disk:2` from raw `36.6%`). Color: cinnamon-russet fur, butter-cream cheek/belly/inner tail, golden-caramel acorn with chestnut cap.
+- **`hippo` ("Hippo"):** Standing right-facing chubby smiling baby hippo with big rounded snout, hollow nostrils, two rounded bottom teeth, small round ears, and rounded toenail arcs (`Disk:4 = 43.2%`). Color: periwinkle-lilac slate-gray body, lavender-blush snout, blush inner ear, ivory teeth and toenails.
+- **`peacock` ("Peacock"):** Forward-facing chubby smiling baby peacock (head turned slightly right) with 3 ball-tipped crest plumes, folded side wing, and fanned semicircle of wide rounded tail feathers with bold nested teardrop eye spots (`Disk:4 = 40.2%`). Color: royal-sky blue body/crest, turquoise wing, emerald-green tail feathers with butter-yellow and cobalt-indigo eye spots, golden-orange beak and feet.
+
+#### Ocean
+- **`seashell` ("Seashell"):** Upright symmetrical plump scalloped beach seashell with 7 wide rounded ribs radiating from an oval hinge base with side wings (`Disk:4 = 62.6%`). Color: alternating coral-peach and apricot-cream ribs, butter-yellow hinge oval, salmon-pink base wings.
+- **`lobster` ("Lobster"):** Symmetrical upright smiling baby lobster with two big raised pincer claws, thick hollow curved antennae, 4 smooth body bands, 6 separated stubby walking legs, and a 3-lobe tail fan (`Disk:4 = 52.9%`). Color: warm coral-red body/claws/legs/tail with soft salmon-peach accents.
+
+#### Magic
+- **`magic-wand` ("Magic Wand"):** Diagonally tilted chunky fairy magic wand with a nested plump 5-point star, puffy two-loop ribbon bow, striped rounded handle with round knob, and 3 floating hollow stars (`Disk:4 = 46.4%`). Color: butter-yellow and golden-apricot star, coral-pink bow, lilac-and-cream handle, golden knob, butter-yellow floating stars.
+- **`gnome` ("Garden Gnome"):** Forward-facing chubby smiling waving garden gnome with tall curved pointed hat, cloud-shaped beard, belted tunic with hollow buckle, and chunky boots (`Disk:4 = 44.5%`). Color: coral-red hat, peach skin, snow-ivory beard, sky-blue tunic/trousers, caramel belt with golden buckle, mint mitten, cocoa boots.
+
+#### Things That Go
+- **`dump-truck` ("Dump Truck"):** Right-facing chubby cartoon construction dump truck with rounded cab, side window, dump bed carrying 3 rounded rocks, and hollow wheels; no text (`Disk:4 = 38.0%`). Color: sunny butter-yellow cab/rim, tangerine bed panels, sky-ice window, silver-gray chassis/bumper, charcoal-slate tires with yellow hubcaps, sand-taupe rocks.
+- **`digger` ("Digger"):** Right-facing chubby cartoon construction excavator digger with rounded cab, dome roof light, hollow crawler track with 3 round roller wheels, jointed boom arm (open-air piston gaps cleared), and 3-toothed scoop bucket; no text (`Disk:4 = 47.0%`). Color: sunny yellow cab/boom/hubs, coral-orange dome light and rear panel, sky-ice window, silver-blue pistons/bucket, charcoal-slate track.
+- **`bicycle` ("Bicycle"):** Right-facing chubby cartoon kids' bicycle with hollow 4-spoke tires, double-outlined tubular frame, rounded saddle, curved handlebars with bell, front basket, and chain guard with pedal; all 11 wheel/frame open-air gaps cleared (`Disk:4 = 37.7%`). Color: coral-red frame/chain guard, butter-yellow basket/bell, sky-blue seat/grips, silver-gray spokes/crank, charcoal-slate tires.
+
+#### Food
+- **`banana` ("Banana"):** Plump upright half-peeled banana with smooth inner fruit rising from 3 wide downward-curling peel petals and small bottom stem tip (`Disk:4 = 55.9%`). Color: vanilla-cream fruit, sunny butter-yellow peel, cocoa-brown stem tip.
+- **`apple` ("Apple"):** Plump classic whole upright apple with chunky woody stem, one big rounded leaf with center vein, and hollow bean-shaped cheek highlight (`Disk:4 = 65.9%`). Color: coral-crimson apple, blush-ivory highlight, caramel stem, meadow-green leaf.
+- **`lollipop` ("Lollipop"):** Gently tilted plump classic swirl lollipop with wide spiral bands, puffy two-loop ribbon bow, and chunky rounded candy stick (`Disk:4 = 51.1%`). Color: pastel coral-pink, butter-yellow, mint-green, sky-blue, and vanilla-cream swirls, strawberry-pink bow with yellow knot, ivory stick.
+
+#### Fun
+- **`rubber-duck` ("Rubber Duck"):** Right-facing chubby bathtime toy rubber ducky floating on a single wavy water line with head tuft, smooth wing, smiling bill, and 4 floating hollow soap bubbles (`Disk:4 = 49.6%`). Color: sunny butter-yellow body/wing, tangerine-orange bill, pale ice-aqua bubbles.
+- **`piano` ("Piano"):** Straight-on chubby upright toy piano with 7 wide lower keys, 5 hollow raised upper keys (grouped 2 + 3), 2 bottom pedals, and 2 big floating hollow musical notes above; no text (`Disk:4 = 32.6%`). Color: warm coral-red cabinet, ivory lower keys, charcoal-slate upper keys, golden pedals, sky-blue and butter-yellow notes.
+
+#### People
+- **`chef` ("Chef"):** Forward-facing chubby smiling kid chef waving hello with one hand and holding a wooden spoon in the other, wearing a puffy toque hat, knotted neckerchief, 4-button double-breasted jacket, pants, and chunky shoes; no text (`Disk:4 = 38.5%`, `Disk:2` from raw `33.4%`). Color: warm cream-ivory toque/jacket, coral-red neckerchief, honey-tan skin, chestnut hair, golden-caramel spoon, butter-yellow buttons, sky-blue pants, charcoal-slate shoes.
+- **`doctor` ("Doctor"):** Forward-facing chubby smiling kid-friendly doctor waving hello in a lab coat with hollow stethoscope and carrying a classic doctor's bag with plain hollow plus emblem; no needles, text, or real logos (`Disk:4 = 37.4%`). Color: warm cream-ivory lab coat, sky-mint shirt/trousers, warm peach skin, chestnut hair, teal-blue stethoscope, caramel bag with coral-red plus, slate-blue shoes.
+
+#### Nature
+- **`tulip` ("Tulip"):** Upright plump spring tulip with 3 wide overlapping cupped petals, sturdy stem, and 2 broad curved leaves (`Disk:4 = 70.0%`). Color: rosy coral-pink front petals, soft magenta-pink center petal, fresh meadow-green stem and leaves.
+
+### Batch 5 Rejection & Regeneration Log (Simple — 0 Rejections)
+
+- **0 rejections** across all 22 Simple line-art and 22 Simple colorization generations (44/44 approved on first attempt).

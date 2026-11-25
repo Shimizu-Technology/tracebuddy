@@ -7,8 +7,8 @@ export const pictureSections: Partial<Record<PictureCategory, readonly PictureSe
   letters: letterPictureSections,
   animals: [
     { title: 'Pets and farm', ids: ['puppy', 'cat', 'kitten', 'bunny', 'hamster', 'horse', 'pig', 'sheep', 'cow', 'chicken', 'duck', 'kitty-bow', 'pony'] },
-    { title: 'Wild animals', ids: ['lion', 'tiger', 'elephant', 'giraffe', 'monkey', 'panda', 'koala', 'sloth', 'fox', 'frog', 'penguin', 'polar-bear', 'hedgehog', 'zebra'] },
-    { title: 'Birds', ids: ['owl', 'flamingo', 'toucan'] },
+    { title: 'Wild animals', ids: ['lion', 'tiger', 'elephant', 'giraffe', 'monkey', 'panda', 'koala', 'sloth', 'fox', 'frog', 'penguin', 'polar-bear', 'hedgehog', 'zebra', 'bear', 'deer', 'raccoon', 'squirrel', 'hippo'] },
+    { title: 'Birds', ids: ['owl', 'flamingo', 'toucan', 'peacock'] },
   ],
   holidays: [
     { title: 'Christmas', ids: ['christmas-tree', 'snowman', 'present', 'gingerbread', 'santa', 'wreath', 'reindeer', 'candy-cane', 'stocking'] },
