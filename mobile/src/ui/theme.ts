@@ -55,6 +55,7 @@ export const theme = {
     fourColumns: 1050,
     wordmarkMinWidth: 110,
     homeTitleWidth: 282,
+    favoriteTileWidth: 136,
     recentThumbnail: 84,
     picturePreviewMax: 248,
     keepsakePreviewMax: 296,

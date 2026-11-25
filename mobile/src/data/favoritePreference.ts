@@ -1,6 +1,14 @@
+import { drawings } from '../../../shared'
 import { createOperationQueue } from '../../practiceOperations'
 
 export type PreferenceSnapshot<T> = { value: T; revision: number }
+
+const legacyFavoriteIds = new Set(drawings.map(({ id }) => id))
+
+export function isLegacyFavoriteId(id: string) {
+  // Retired guides can still reopen saved drawings, but the legacy favorites store rejects their IDs.
+  return legacyFavoriteIds.has(id)
+}
 
 export function createFavoritePreference<T>(
   read: () => Promise<string | null>,

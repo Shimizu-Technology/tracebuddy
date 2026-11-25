@@ -51,22 +51,22 @@ Every 2.0 screen follows these. A PR that breaks one needs a written reason.
 - Header: TraceBuddy wordmark, My drawings button (icon plus count badge), and a quiet Grown-ups button.
 - **Who's drawing?** asked once on first launch with two big picture choices: **Little artist** (Home shows Simple pictures) and **Big artist** (Home shows Detailed pictures). The grid always shows one style so it stays consistent. The choice can be changed in Grown-ups.
 - **Keep going** card when there's recent work: a big thumbnail and one play button that reopens the last drawing exactly where it was.
-- Category chips in one swipeable row, each with an icon: All, Animals, Ocean, Magic, Things that go, Guam, Letters and numbers, Shapes.
-- A grid of picture tiles, two columns on phones and three to four on iPad. Each tile is the **color art** on a pastel background with the name under it. No per-tile Print, PDF, SVG, level, or "On paper" labels.
-- Special tiles at the start of the grid: **My photo** (pick from Photos) and **My name** (type a name or word in a keyboard sheet). Both are ungated. Handwriting setup options live in Grown-ups.
-- Rows below the grid: **Learn to draw** (lessons) and **Play together** (best 4–6 activities).
-- Search is a magnifier in the header, mostly for adults.
-- Favorites: long-press a tile to favorite it. A Favorites chip appears once there's at least one.
+- **My photo** (pick from Photos) and **My name** (type a name or word in a keyboard sheet) share one row. Both are ungated. Handwriting setup options live in Grown-ups.
+- A horizontal **Favorites** shelf appears below that row when there are favorites in the current library. Long-press a picture tile to add or remove a favorite.
+- A grid of picture groups, two columns on phones and three to four on iPad. Each tile has a large cover picture on its category pastel with the group name below. Only groups available at the current level appear.
+- Opening a group shows its pictures in the same responsive grid. Picture tiles use **color art** on a pastel background with the name below. Animals and Holidays have named sections. Pictures without a section go at the end under **More**.
+- Rows below the groups are planned for **Learn to draw** (lessons) and **Play together** (best 4–6 activities).
+- The search magnifier opens a field. A typed query shows matching pictures across the current library in place of the groups.
 
 ### Picture
 
-Opens as a native sheet over Home.
+Opens as a native sheet over Home or the current picture group.
 
 - A large color preview, the name, and a **Simple / Detailed** switch. It starts on the household choice and only changes this picture.
 - Two large illustrated choices: **On paper** (camera over paper) and **On the screen** (draw with a finger).
 - The last choice is remembered. A returning user sees it highlighted and can tap straight through.
 - Paper Lock ("Stick to paper") is **off in 2.0** until it passes the physical accuracy test (see "Paper Lock before enabling" below). When it is turned on (`EXPO_PUBLIC_PAPER_LOCK=1`), it is a manual option inside On paper's More menu on AR-capable iPhones and iPads, not a third mode and not automatic. Choosing it automatically will be revisited after that test.
-- Choosing On paper closes the sheet and opens On paper full screen over Home (Close returns to Home).
+- Choosing On paper closes the sheet and opens On paper full screen (Close returns to the screen the picture was picked from).
 
 ### On paper (camera trace)
 

@@ -5,7 +5,7 @@ import {
   serializeModePreference, serializeResumeContext,
 } from '../mobile/src/data/localSettings.ts'
 import { toggleFavoriteDrawing } from '../shared/index.ts'
-import { createFavoritePreference, parseArtFavorites } from '../mobile/src/data/favoritePreference.ts'
+import { createFavoritePreference, isLegacyFavoriteId, parseArtFavorites } from '../mobile/src/data/favoritePreference.ts'
 import { createPracticeImageCleanup, drawingImageUris } from '../mobile/src/data/practiceImageCleanup.ts'
 import { drawingTitle, rebasePracticeImageUri } from '../mobile/src/data/practiceSource.ts'
 import { normalizeLegacyPracticeAutosave } from '../mobile/src/data/legacyPractice.ts'
@@ -270,5 +270,10 @@ await Promise.all([
 ])
 assert.deepEqual((await legacy.read()).value, confirmed.value, 'A failed edit cannot resurrect unconfirmed state')
 assert.deepEqual((await art.read()).value, ['crab', 'cat'], 'A legacy failure does not affect art favorites')
+
+assert(isLegacyFavoriteId('butterfly'), 'Existing favorites still use the legacy store')
+for (const id of ['puppy', 'bunny', 'panda', 'seahorse']) {
+  assert(!isLegacyFavoriteId(id), `Curated ${id} must use the art store because the legacy guide is retired`)
+}
 
 console.log('Native storage: legacy/current formats, serialized index repair, photo references and independent confirmed favorites')

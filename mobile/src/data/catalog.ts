@@ -27,7 +27,7 @@ export const pictureCategories: { id: PictureCategory; label: string }[] = [
   { id: 'holidays', label: 'Holidays' },
   { id: 'people', label: 'People' },
   { id: 'patterns', label: 'Patterns' },
-  { id: 'fun', label: 'Fun' },
+  { id: 'fun', label: 'Toys and fun' },
 ]
 
 export type GeneratedArt = {
