@@ -9,10 +9,8 @@ const letters = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ', (letter) => ({
   id: `letter-${letter.toLowerCase()}`, name: letter, text: letter + letter.toLowerCase(),
 }))
 const numbers = Array.from('0123456789', (digit) => ({ id: `number-${digit}`, name: digit, text: digit }))
-const fills = [
-  theme.pastels.sky, theme.pastels.peach, theme.pastels.lilac,
-  theme.pastels.butter, theme.pastels.mint, theme.pastels.rose,
-]
+// Letter tiles sit on the butter pastel, so butter is left out or those letters would look unfilled.
+const fills = [theme.pastels.sky, theme.pastels.peach, theme.pastels.lilac, theme.pastels.mint, theme.pastels.rose]
 export const letterPictureSections = [
   { title: 'ABC', ids: letters.map(({ id }) => id) },
   { title: '123', ids: numbers.map(({ id }) => id) },

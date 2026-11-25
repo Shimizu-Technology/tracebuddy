@@ -30,7 +30,8 @@ export function newDrawing(source: PracticeSource): SavedPracticeSession {
   return {
     version: 2,
     sessionId: createPracticeSessionId(),
-    title: source.kind === 'upload' ? photoDrawingName : makePracticeSessionTitle(source),
+    // 2.0 uses "Practice" for a letter style, so typed words keep their own name instead of the 1.x "… practice" title.
+    title: source.kind === 'upload' ? photoDrawingName : source.kind === 'custom' ? source.drawingName : makePracticeSessionTitle(source),
     source,
     createdAt: now,
     updatedAt: now,
