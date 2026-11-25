@@ -41,6 +41,10 @@ for (const style of styles) {
   const tenLetter = layoutTextGuide('Alexandria', style)!
   assert(tenLetter.scale * guideFonts[style].capHeight * 320 / 1000 > 30, 'a ten-letter name reaches a 30pt capital on a 320pt guide')
   assert.equal(textGuideSvg('Ha\u030afa Adai', style), textGuideSvg('Håfa Adai', style), 'normalize pasted accents')
+  const stacked = layoutTextGuide('pppppp ÅÅÅÅÅÅ', style)!
+  assert.equal(stacked.lines.length, 2)
+  assert(stacked.lines[1].baseline - stacked.lines[1].top >= stacked.lines[0].baseline - stacked.lines[0].bottom,
+    'a row of tall accents stays clear of the descenders above it')
   for (const character of "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?'-&åÅñÑáÁéÉíÍóÓúÚüÜʼ’") {
     assert(layoutTextGuide(character, style), `${style} renders ${character} as a path`)
   }

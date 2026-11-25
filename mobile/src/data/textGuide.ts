@@ -52,7 +52,7 @@ function measureTextGuide(text: string, style: TextGuideStyle, stroke: number) {
   const practice = style === 'practice'
   const ruleStroke = font.unitsPerEm * 0.01
   const lineStep = font.unitsPerEm * 1.22
-  const lines = breakLines(text).map((text, row) => {
+  const measured = breakLines(text).map((text) => {
     let cursor = 0
     let left = Infinity
     let right = -Infinity
@@ -72,7 +72,15 @@ function measureTextGuide(text: string, style: TextGuideStyle, stroke: number) {
       bottom = Math.min(bottom, yMin - stroke / 2)
       return [{ path, x }]
     })
-    return { text, glyphs, center: (left + right) / 2, width: right - left, top, bottom, baseline: row * lineStep }
+    return { text, glyphs, center: (left + right) / 2, width: right - left, top, bottom }
+  })
+  // Rows usually sit one step apart, but a row with tall accents (Å) under a row with descenders (p)
+  // needs more room, or the outlines touch.
+  const rowGap = font.unitsPerEm * 0.06
+  let baseline = 0
+  const lines = measured.map((line, row) => {
+    if (row) baseline = Math.max(baseline + lineStep, baseline - measured[row - 1].bottom + line.top + rowGap)
+    return { ...line, baseline }
   })
 
   const lineWidth = Math.max(...lines.map(({ width }) => width))
