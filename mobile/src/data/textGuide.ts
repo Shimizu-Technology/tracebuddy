@@ -32,13 +32,24 @@ function breakLines(text: string): string[] {
   return [...lines, remaining]
 }
 
+// Outline width on the 1000-unit page, so big letters don't get clumsy and small ones stay traceable.
+const pageStroke = { bubble: 16, practice: 14 }
+// Cap as a share of the letter size, so the holes in a, e, o and the ring on å stay open on long words.
+const maxStrokeEm = { bubble: 0.06, practice: 0.06 }
+
 export function layoutTextGuide(value: string, style: TextGuideStyle) {
   const text = sanitizeTraceText(value).normalize('NFC')
   const font = guideFonts[style]
   if (!text || Array.from(text).some((character) => !font.glyphs[character])) return null
+  const cap = font.unitsPerEm * maxStrokeEm[style]
+  // The stroke changes the measured size, so measure once at the cap and again at the final width.
+  const first = measureTextGuide(text, style, cap)
+  return measureTextGuide(text, style, Math.min(cap, pageStroke[style] / first.scale))
+}
 
+function measureTextGuide(text: string, style: TextGuideStyle, stroke: number) {
+  const font = guideFonts[style]
   const practice = style === 'practice'
-  const stroke = font.unitsPerEm * (practice ? 0.076 : 0.088)
   const ruleStroke = font.unitsPerEm * 0.01
   const lineStep = font.unitsPerEm * 1.22
   const lines = breakLines(text).map((text, row) => {
