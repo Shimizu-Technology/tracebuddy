@@ -182,3 +182,70 @@ Added **24 new subjects** across 5 categories (`animals`, `dinosaurs`, `space`, 
 ### Batch 1 Lead Review Fix (Stroke Thickening)
 
 At phone size, `horse` (17.7%), `tiger` (19.0%) and `pterodactyl` (19.3%) read noticeably thinner than the rest of the Detailed set. Instead of spending more image quota, their lines were re-vectorized from the same raw masters with one extra step: after the 1680×1680 threshold, `-morphology Erode Disk:3` (grows the black ink about 3 px per side at 2000 px) before potrace. Same potrace settings and normalization. New `Disk:4` survival measured on a 1024 px render: `horse` 35.4%, `tiger` 32.0%, `pterodactyl` 37.7%. Tiger stripes and the horse mane stay separated. The color previews were left as generated.
+
+---
+
+## Batch 2 (expansion)
+
+Added **24 new subjects** across 8 categories (`bugs`, `ocean`, `magic`, `go`, `nature`, `fun`, `people`, plus 2 Detailed-only `patterns` mandalas), bringing the Detailed set from 75 to **99 subjects**. All subjects used the locked revised bold S2 prompts, with the felt-tip marker-weight reinforcement sentence appended for architectural/vehicle/botanical/geometric/pattern subjects (`sea-star` v2, `knight`, `fairy`, `school-bus`, `helicopter`, `tractor`, `sunflower`, `cactus`, `soccer-ball`, `guitar`, `kite`, `superhero`, `firefighter`, `flower-mandala`, `butterfly-mandala`).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch2/raw/detailed/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch2/detailed-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Batch 2 final `Disk:4` range:** **min = `20.0%` (`firefighter`), median = `29.6%`, max = `42.6%` (`sea-star`)** — all 24/24 verified `≥ 20.0%` with zero hairlines and zero merged parallel lines.
+- **Stroke thickening applied (`-morphology Erode Disk:3` after 1680×1680 threshold, measured on 1024 px SVG render — 12 subjects):**
+  - `caterpillar`: raw `18.7%` → thickened **`37.1%`** (stripes, spots, and leaf veins stayed cleanly separated)
+  - `shark`: raw `19.5%` → thickened **`30.4%`** (gill slits and fins stayed crisp)
+  - `princess`: raw `5.0%` → thickened **`21.1%`** (hair waves, bodice trim, waist bow, and hem scallops stayed cleanly separated)
+  - `knight`: raw `8.1%` → thickened **`27.3%`** (helmet visor slots, sun-emblem rays, and armor joints stayed separated)
+  - `school-bus`: raw `12.3%` → thickened **`20.2%`** (window frames, accordion door, rub-rails, and wheel lugs stayed separated)
+  - `cactus`: raw `14.9%` → thickened **`29.9%`** (vertical ribs, blossoms, and pot zigzag stayed crisp)
+  - `volcano`: raw `15.9%` → thickened **`35.9%`** (lava ribbons and slope contours stayed separated)
+  - `guitar`: raw `8.5%` → thickened **`25.7%`** (3 spaced strings, frets, and double-ring rosette stayed cleanly separated)
+  - `superhero`: raw `14.4%` → thickened **`30.9%`** (cape folds and tunic seams stayed crisp)
+  - `firefighter`: raw `5.2%` → thickened **`20.0%`** (reflective coat stripes and coiled hose rings stayed separated)
+  - `flower-mandala`: raw `18.1%` → thickened **`38.5%`** (all concentric petal/bud/arch regions stayed spacious and cleanly separated)
+  - `butterfly-mandala`: raw `5.5%` → thickened **`23.0%`** (butterfly wing stained-glass panels, leaf veins, and scalloped border stayed separated)
+- **Enclosed exterior pockets cleared transparent:** `ladybug` (front leg-leaf gap), `caterpillar` (belly arch above twig + left leaf-twig gap), `ant` (leaf-thorax gap), `princess` (4 arm/skirt gaps), `school-bus` (side-mirror bracket gap), `helicopter` (3 landing-skid strut gaps), `tractor` (bottom ladder-rung gap), `teddy-bear` (right arm-foot gap), and `superhero` (right arm-hip gap).
+- **Post-generation master fixes (0 extra quota spent):**
+  - `caterpillar` line and `helicopter` line: generated facing left; horizontally mirrored (`-flop`) before colorization so all side-profile subjects face right consistently.
+  - `sunflower` line: stem originally touched the bottom edge (`y=1023`); trimmed cleanly at `y=974` and closed with a matching rounded black bottom cap before colorization.
+  - `flower-mandala` color: raw color master rendered ~5% larger (`990×989`) than its line master (`939×939`), so `color.webp` was cropped to its own trimmed bounding box (`994×993+15+16`) before normalizing to the 8% margin (`430×430` in `512×512`) to prevent clipping the outer scalloped arches.
+
+### Per-Subject Catalog & Traceability Metrics (Batch 2 — 24 Subjects)
+
+For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px SVG render; raw pre-thickening `Disk:4` is noted in the Description column.
+
+| # | ID | Name | Category | `Disk:2` | `Disk:3` | `Disk:4` | `Disk:5` | SVG (KB) | WebP (KB) | Description |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| 76 | `ladybug` | Ladybug | `bugs` | 72.2% | 56.0% | **42.0%** | 24.4% | 28.9 | 19.7 | Smiling storybook ladybug perched right-facing on a curved green leaf with domed shell, hollow spots, and 6 jointed legs |
+| 77 | `bee` | Bumblebee | `bugs` | 72.2% | 55.7% | **41.5%** | 25.8% | 33.8 | 22.8 | Hovering storybook bumblebee facing right with fuzzy scalloped collar, hollow abdomen stripes, veined wings, curved antennae, and tucked legs |
+| 78 | `caterpillar` | Caterpillar | `bugs` | 69.9% | 52.3% | **37.1%** | 19.8% | 32.0 | 27.2 | Arched storybook caterpillar inching right (mirrored) along a leafy branch with hollow stripes and spots *(thickened from raw 18.7%)* |
+| 79 | `ant` | Ant | `bugs` | 68.2% | 50.1% | **34.1%** | 15.3% | 37.6 | 27.0 | Cheerful storybook worker ant marching right carrying a large veined leaf over its back, with 6 hollow jointed legs and banded abdomen |
+| 80 | `shark` | Friendly Shark | `ocean` | 65.2% | 45.1% | **30.4%** | 14.8% | 16.5 | 11.4 | Friendly smiling storybook shark swimming gracefully right with 3 gill slits, counter-shaded belly seam, and sweeping fins *(thickened from raw 19.5%)* |
+| 81 | `clownfish` | Clownfish | `ocean` | 65.9% | 46.0% | **33.1%** | 18.4% | 33.0 | 21.4 | Graceful reef clownfish swimming right in side profile with three curved body bands and bold ribbed dorsal, pectoral, ventral, and tail fins |
+| 82 | `sea-star` | Sea Star | `ocean` | 73.0% | 56.6% | **42.6%** | 23.5% | 34.2 | 24.7 | Naturalistic five-armed storybook sea star (v2) with central 5-point ridge star, 3 hollow circles per arm, and scalloped edge ridges |
+| 83 | `princess` | Princess | `magic` | 60.8% | 37.9% | **21.1%** | 6.0% | 43.6 | 24.6 | Original generic fairytale storybook princess holding out her scalloped ballgown skirt, with 3-peak tiara, wavy hair, and waist bow *(thickened from raw 5.0%)* |
+| 84 | `knight` | Knight | `magic` | 65.1% | 45.0% | **27.3%** | 10.7% | 37.6 | 21.9 | Smiling medieval storybook knight in plumed open-visor helmet and plate armor holding a sun-emblem shield and storybook sword *(thickened from raw 8.1%)* |
+| 85 | `fairy` | Fairy | `magic` | 59.3% | 35.5% | **20.8%** | 6.0% | 61.8 | 37.1 | Original woodland storybook fairy hovering facing right in flower-wreath headband, leaf-petal dress, scalloped butterfly wings, and star wand |
+| 86 | `school-bus` | School Bus | `go` | 59.8% | 38.5% | **20.2%** | 10.5% | 23.6 | 16.0 | Classic conventional-hood school bus facing right with 4 passenger windows, folding door, mirror, rub-rails, and wheels; no text *(thickened from raw 12.3%)* |
+| 87 | `helicopter` | Helicopter | `go` | 63.6% | 44.3% | **27.1%** | 12.5% | 30.9 | 18.6 | Classic utility helicopter flying right (mirrored) with bubble cockpit, cabin doors/windows, main and circular tail rotors, and landing skids; no text |
+| 88 | `tractor` | Tractor | `go` | 63.2% | 43.0% | **29.3%** | 19.4% | 40.3 | 24.7 | Classic farm tractor facing right with enclosed cab and steering wheel, huge lugged rear wheel, smaller front wheel, exhaust stack, and step ladder; no text |
+| 89 | `sunflower` | Sunflower | `nature` | 62.3% | 40.5% | **24.5%** | 7.2% | 55.0 | 35.0 | Tall botanical sunflower with wide crisscross diamond seed center, double petal rings, side bud, two large veined leaves, and cleanly capped stem |
+| 90 | `cactus` | Cactus | `nature` | 66.2% | 47.4% | **29.9%** | 14.6% | 29.1 | 18.9 | Fluted saguaro cactus with two upward arms, sparse blunt spines, and two blooming flowers in a zigzag-banded terracotta pot *(thickened from raw 14.9%)* |
+| 91 | `volcano` | Volcano | `nature` | 69.1% | 51.3% | **35.9%** | 16.7% | 25.2 | 19.0 | Friendly volcanic mountain with sculpted ridges, flowing lava ribbons, billowing smoke cloud with two small puffs, and base bushes *(thickened from raw 15.9%)* |
+| 92 | `soccer-ball` | Soccer Ball | `fun` | 64.1% | 46.6% | **32.0%** | 13.7% | 30.8 | 18.7 | Classic stitched spherical soccer ball with hollow pentagon and hexagon panels and bold dashed seam stitching; no logos |
+| 93 | `teddy-bear` | Teddy Bear | `fun` | 58.0% | 35.5% | **21.9%** | 8.4% | 38.3 | 25.8 | Heirloom storybook teddy bear seated facing slightly right with neck ribbon bow, stitched snout seam, heart belly patch, and oval paw pads |
+| 94 | `guitar` | Guitar | `fun` | 66.6% | 42.3% | **25.7%** | 10.3% | 30.9 | 20.5 | Classic wooden acoustic guitar tilted diagonally with double-ring rosette, teardrop pickguard, bridge, fretted neck, 3 spaced strings, and 6 tuning pegs *(thickened from raw 8.5%)* |
+| 95 | `kite` | Kite | `fun` | 63.3% | 42.0% | **25.5%** | 7.5% | 49.1 | 28.6 | Storybook diamond kite tilted right with double-bordered frame, 4 star/stripe/dot panels, wooden spar tips, and S-curved ribbon tail with 4 bows |
+| 96 | `superhero` | Superhero Kid | `people` | 66.8% | 46.7% | **30.9%** | 13.2% | 29.4 | 20.0 | Original storybook superhero kid in windblown hair, domino eye mask, flowing cape, plain paneled tunic (no logo/emblem), belt, and cuffed boots *(thickened from raw 14.4%)* |
+| 97 | `firefighter` | Firefighter | `people` | 59.7% | 37.3% | **20.0%** | 6.9% | 35.9 | 19.3 | Friendly storybook firefighter in blank-shield helmet (no text), buckled turnout jacket and pants with reflective bands, boots, and coiled fire hose *(thickened from raw 5.2%)* |
+| 98 | `flower-mandala` | Flower Mandala | `patterns` | 71.2% | 53.8% | **38.5%** | 19.7% | 68.9 | 49.7 | Detailed-only 8-fold radially symmetrical botanical flower mandala with spacious medium-sized petals, lotus buds, leaves, and outer circles *(thickened from raw 18.1%)* |
+| 99 | `butterfly-mandala` | Butterfly Mandala | `patterns` | 63.7% | 41.9% | **23.0%** | 6.8% | 93.3 | 54.0 | Detailed-only 4-fold radially symmetrical butterfly mandala with central flower medallion, 4 ornate stained-glass butterflies, leafy sprigs, and scalloped border *(thickened from raw 5.5%)* |
+
+### Batch 2 Rejection & Regeneration Log (Detailed — 1 Rejection)
+
+1. **`sea-star` line v1 (REJECTED → v2 approved):** v1 rendered an eerie mouth with no eyes inside the center star and filled every arm bead with fine stipple-shading dots (`Disk:4 = 16.4%`). Regenerated once in v2 as a clean naturalistic five-armed sea star with bold marker-weight outlines, zero stippling, central 5-point star, 3 hollow circles per arm, and scalloped edge ridges (`Disk:4 = 42.6%`).
+
+### Batch 2 Lead Review Fix
+
+At phone size the Detailed `teddy-bear` (21.9%) and `fairy` (20.8%) interior lines still read thin next to the rest of the set. Both were re-vectorized from the same raw masters with a gentler thickening step (`-morphology Erode Disk:2` after the 1680×1680 threshold, before potrace). New `Disk:4` survival on a 1024 px render: `teddy-bear` 30.1%, `fairy` 31.4%. Faces, the bow and the flower crown stay separated.

@@ -673,5 +673,203 @@
     "line": "gingerbread/line.svg",
     "color": "gingerbread/color.webp",
     "notes": ""
+  },
+  {
+    "id": "ladybug",
+    "name": "Ladybug",
+    "category": "bugs",
+    "level": "simple",
+    "line": "ladybug/line.svg",
+    "color": "ladybug/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "bee",
+    "name": "Bumblebee",
+    "category": "bugs",
+    "level": "simple",
+    "line": "bee/line.svg",
+    "color": "bee/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "caterpillar",
+    "name": "Caterpillar",
+    "category": "bugs",
+    "level": "simple",
+    "line": "caterpillar/line.svg",
+    "color": "caterpillar/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "ant",
+    "name": "Ant",
+    "category": "bugs",
+    "level": "simple",
+    "line": "ant/line.svg",
+    "color": "ant/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "shark",
+    "name": "Friendly Shark",
+    "category": "ocean",
+    "level": "simple",
+    "line": "shark/line.svg",
+    "color": "shark/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "clownfish",
+    "name": "Clownfish",
+    "category": "ocean",
+    "level": "simple",
+    "line": "clownfish/line.svg",
+    "color": "clownfish/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sea-star",
+    "name": "Sea Star",
+    "category": "ocean",
+    "level": "simple",
+    "line": "sea-star/line.svg",
+    "color": "sea-star/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "princess",
+    "name": "Princess",
+    "category": "magic",
+    "level": "simple",
+    "line": "princess/line.svg",
+    "color": "princess/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "knight",
+    "name": "Knight",
+    "category": "magic",
+    "level": "simple",
+    "line": "knight/line.svg",
+    "color": "knight/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "fairy",
+    "name": "Fairy",
+    "category": "magic",
+    "level": "simple",
+    "line": "fairy/line.svg",
+    "color": "fairy/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "school-bus",
+    "name": "School Bus",
+    "category": "go",
+    "level": "simple",
+    "line": "school-bus/line.svg",
+    "color": "school-bus/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "helicopter",
+    "name": "Helicopter",
+    "category": "go",
+    "level": "simple",
+    "line": "helicopter/line.svg",
+    "color": "helicopter/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "tractor",
+    "name": "Tractor",
+    "category": "go",
+    "level": "simple",
+    "line": "tractor/line.svg",
+    "color": "tractor/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sunflower",
+    "name": "Sunflower",
+    "category": "nature",
+    "level": "simple",
+    "line": "sunflower/line.svg",
+    "color": "sunflower/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "cactus",
+    "name": "Cactus",
+    "category": "nature",
+    "level": "simple",
+    "line": "cactus/line.svg",
+    "color": "cactus/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "volcano",
+    "name": "Volcano",
+    "category": "nature",
+    "level": "simple",
+    "line": "volcano/line.svg",
+    "color": "volcano/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "soccer-ball",
+    "name": "Soccer Ball",
+    "category": "fun",
+    "level": "simple",
+    "line": "soccer-ball/line.svg",
+    "color": "soccer-ball/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "teddy-bear",
+    "name": "Teddy Bear",
+    "category": "fun",
+    "level": "simple",
+    "line": "teddy-bear/line.svg",
+    "color": "teddy-bear/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "guitar",
+    "name": "Guitar",
+    "category": "fun",
+    "level": "simple",
+    "line": "guitar/line.svg",
+    "color": "guitar/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "kite",
+    "name": "Kite",
+    "category": "fun",
+    "level": "simple",
+    "line": "kite/line.svg",
+    "color": "kite/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "superhero",
+    "name": "Superhero Kid",
+    "category": "people",
+    "level": "simple",
+    "line": "superhero/line.svg",
+    "color": "superhero/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "firefighter",
+    "name": "Firefighter",
+    "category": "people",
+    "level": "simple",
+    "line": "firefighter/line.svg",
+    "color": "firefighter/color.webp",
+    "notes": ""
   }
 ]

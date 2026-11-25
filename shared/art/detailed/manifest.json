@@ -673,5 +673,221 @@
     "line": "gingerbread/line.svg",
     "color": "gingerbread/color.webp",
     "notes": ""
+  },
+  {
+    "id": "ladybug",
+    "name": "Ladybug",
+    "category": "bugs",
+    "level": "detailed",
+    "line": "ladybug/line.svg",
+    "color": "ladybug/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "bee",
+    "name": "Bumblebee",
+    "category": "bugs",
+    "level": "detailed",
+    "line": "bee/line.svg",
+    "color": "bee/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "caterpillar",
+    "name": "Caterpillar",
+    "category": "bugs",
+    "level": "detailed",
+    "line": "caterpillar/line.svg",
+    "color": "caterpillar/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "ant",
+    "name": "Ant",
+    "category": "bugs",
+    "level": "detailed",
+    "line": "ant/line.svg",
+    "color": "ant/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "shark",
+    "name": "Friendly Shark",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "shark/line.svg",
+    "color": "shark/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "clownfish",
+    "name": "Clownfish",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "clownfish/line.svg",
+    "color": "clownfish/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sea-star",
+    "name": "Sea Star",
+    "category": "ocean",
+    "level": "detailed",
+    "line": "sea-star/line.svg",
+    "color": "sea-star/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "princess",
+    "name": "Princess",
+    "category": "magic",
+    "level": "detailed",
+    "line": "princess/line.svg",
+    "color": "princess/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "knight",
+    "name": "Knight",
+    "category": "magic",
+    "level": "detailed",
+    "line": "knight/line.svg",
+    "color": "knight/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "fairy",
+    "name": "Fairy",
+    "category": "magic",
+    "level": "detailed",
+    "line": "fairy/line.svg",
+    "color": "fairy/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "school-bus",
+    "name": "School Bus",
+    "category": "go",
+    "level": "detailed",
+    "line": "school-bus/line.svg",
+    "color": "school-bus/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "helicopter",
+    "name": "Helicopter",
+    "category": "go",
+    "level": "detailed",
+    "line": "helicopter/line.svg",
+    "color": "helicopter/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "tractor",
+    "name": "Tractor",
+    "category": "go",
+    "level": "detailed",
+    "line": "tractor/line.svg",
+    "color": "tractor/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sunflower",
+    "name": "Sunflower",
+    "category": "nature",
+    "level": "detailed",
+    "line": "sunflower/line.svg",
+    "color": "sunflower/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "cactus",
+    "name": "Cactus",
+    "category": "nature",
+    "level": "detailed",
+    "line": "cactus/line.svg",
+    "color": "cactus/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "volcano",
+    "name": "Volcano",
+    "category": "nature",
+    "level": "detailed",
+    "line": "volcano/line.svg",
+    "color": "volcano/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "soccer-ball",
+    "name": "Soccer Ball",
+    "category": "fun",
+    "level": "detailed",
+    "line": "soccer-ball/line.svg",
+    "color": "soccer-ball/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "teddy-bear",
+    "name": "Teddy Bear",
+    "category": "fun",
+    "level": "detailed",
+    "line": "teddy-bear/line.svg",
+    "color": "teddy-bear/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "guitar",
+    "name": "Guitar",
+    "category": "fun",
+    "level": "detailed",
+    "line": "guitar/line.svg",
+    "color": "guitar/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "kite",
+    "name": "Kite",
+    "category": "fun",
+    "level": "detailed",
+    "line": "kite/line.svg",
+    "color": "kite/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "superhero",
+    "name": "Superhero Kid",
+    "category": "people",
+    "level": "detailed",
+    "line": "superhero/line.svg",
+    "color": "superhero/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "firefighter",
+    "name": "Firefighter",
+    "category": "people",
+    "level": "detailed",
+    "line": "firefighter/line.svg",
+    "color": "firefighter/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "flower-mandala",
+    "name": "Flower Mandala",
+    "category": "patterns",
+    "level": "detailed",
+    "line": "flower-mandala/line.svg",
+    "color": "flower-mandala/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "butterfly-mandala",
+    "name": "Butterfly Mandala",
+    "category": "patterns",
+    "level": "detailed",
+    "line": "butterfly-mandala/line.svg",
+    "color": "butterfly-mandala/color.webp",
+    "notes": ""
   }
 ]
