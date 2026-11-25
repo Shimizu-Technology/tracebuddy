@@ -478,3 +478,15 @@ For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px
 ### Batch 5 Rejection & Regeneration Log (Detailed — 0 Rejections)
 
 - **0 rejections** across all 24 Detailed line-art and 24 Detailed colorization generations (48/48 approved on first attempt, with deterministic belt hollowing on `gnome` noted above).
+
+### Batch 5 Lead Review Fix
+
+At 420 px, six Detailed outlines still read thin after the batch's own pass. Each was re-vectorized from its raw master with one step more erosion after the 1680×1680 threshold. New `Disk:4` survival on a 1024 px render:
+- `zebra`: `Disk:3`, 21.6% → 29.0%
+- `doctor`: `Disk:4`, 25.1% → 33.0%
+- `piano`: `Disk:3`, 25.2% → 33.0%
+- `botanical`: `Disk:3`, 21.5% → 33.5%
+- `bicycle`: `Disk:4`, 28.5% → 36.1%
+- `chef`: `Disk:5`, 29.3% → 40.3%
+
+Zebra stripes, the stethoscope and the spokes stay separated. Piano keys and fern leaflets are denser but remain distinct at phone size.

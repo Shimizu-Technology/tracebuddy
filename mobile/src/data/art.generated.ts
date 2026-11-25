@@ -659,4 +659,4 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "mountain-landscape", name: "Mountain View", category: "patterns", color: () => require("../../../shared/art/detailed/mountain-landscape/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/mountain-landscape/line.svg") } },
   ],
 }
-// Line art SHA-256: 5114e43e23e50e78bab4f6e7fafe33ab30987b7dedebcdb8458b04691fe39ac5
+// Line art SHA-256: f6774ffb217855a0e47afcfd0b82969678936d79f3168e228934416defc3db7f
