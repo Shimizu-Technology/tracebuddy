@@ -399,4 +399,4 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "butterfly-mandala", name: "Butterfly Mandala", category: "patterns", color: () => require("../../../shared/art/detailed/butterfly-mandala/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/butterfly-mandala/line.svg") } },
   ],
 }
-// Line art SHA-256: bd60decee651d3d7b3b3884a7acc4b3a429b3b9281b7a061e7743656ab97e690
+// Line art SHA-256: 258def3cdb820379a06654340357f7c96ee8a1d03ab6f149e9cbb789d8c20a17

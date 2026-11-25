@@ -245,3 +245,7 @@ For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px
 ### Batch 2 Rejection & Regeneration Log (Detailed — 1 Rejection)
 
 1. **`sea-star` line v1 (REJECTED → v2 approved):** v1 rendered an eerie mouth with no eyes inside the center star and filled every arm bead with fine stipple-shading dots (`Disk:4 = 16.4%`). Regenerated once in v2 as a clean naturalistic five-armed sea star with bold marker-weight outlines, zero stippling, central 5-point star, 3 hollow circles per arm, and scalloped edge ridges (`Disk:4 = 42.6%`).
+
+### Batch 2 Lead Review Fix
+
+At phone size the Detailed `teddy-bear` (21.9%) and `fairy` (20.8%) interior lines still read thin next to the rest of the set. Both were re-vectorized from the same raw masters with a gentler thickening step (`-morphology Erode Disk:2` after the 1680×1680 threshold, before potrace). New `Disk:4` survival on a 1024 px render: `teddy-bear` 30.1%, `fairy` 31.4%. Faces, the bow and the flower crown stay separated.
