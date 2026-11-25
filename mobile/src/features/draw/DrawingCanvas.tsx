@@ -2,32 +2,34 @@ import { useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 
 import type { Ref } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import type { GestureTouchEvent } from 'react-native-gesture-handler'
-import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
+import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated'
 import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets'
 
 import { documentPoint } from '../../../practiceModel'
 import type { Point, Viewport } from '../../../practiceModel'
 import { brushTools, documentStrokeWidth } from '../../../practiceStorageModel'
 import type { PracticeStroke, SavedPracticeSession } from '../../../practiceStorageModel'
+import { CanvasButton } from '../../ui/CanvasButton'
+import { MagnifyingGlassMinusIcon } from '../../ui/icons'
 import { theme } from '../../ui/theme'
 import { DrawingDocument } from './DrawingDocument'
 import type { LiveInk } from './inkTypes'
-import { keepStrokeOnPinch, keepStrokeSample, pointDistance, roundedPoint, strokePath, withFinalPoint } from './strokeGeometry'
+import { keepStrokeOnPinch, keepStrokeSample, pointDistance, roundedPoint, strokePath, unturnPoint, withFinalPoint } from './strokeGeometry'
 
 const emptyPath = 'M 0 0'
 const fit: Viewport = { x: 0, y: 0, scale: 1 }
 
-type Finger = GestureTouchEvent['allTouches'][number]
 type Pair = { ids: [number, number]; middle: Point; distance: number; viewport: Viewport }
 type Active = {
   id: number; serial: number; points: Point[]; startedAt: number
   lastFinger: Point; travel: number; stroke: PracticeStroke; pending: Point | null
 }
-export type CanvasHandle = { fit: () => void; flush: () => Promise<void> }
+export type CanvasHandle = { fit: () => void; flush: () => Promise<void>; turn: () => void }
 
 type Props = {
   ref: Ref<CanvasHandle>
+  /** The whole space around the square. Pinch and pan work anywhere in it, so a finger just outside the picture still counts. */
+  area: { width: number; height: number }
   side: number
   session: SavedPracticeSession
   guideSvg: string
@@ -40,7 +42,7 @@ function touchTime() {
   return performance.now()
 }
 
-function pairPosition(first: Finger, second: Finger) {
+function pairPosition(first: Point, second: Point) {
   'worklet'
   return {
     middle: { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 },
@@ -48,13 +50,23 @@ function pairPosition(first: Finger, second: Finger) {
   }
 }
 
+function squarePoint(finger: Point, offset: Point) {
+  'worklet'
+  return { x: finger.x - offset.x, y: finger.y - offset.y }
+}
+
 function boundTranslation(value: number, scale: number, side: number) {
   'worklet'
   return Math.max(side * (1 - scale), Math.min(0, value))
 }
 
-export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke }: Props) {
+export function DrawingCanvas({ ref, area, side, session, guideSvg, disabled, onStroke }: Props) {
   const viewport = useSharedValue(fit)
+  // Counts up so every turn spins clockwise; mapping only uses it modulo four. View only: ink stays upright.
+  const turns = useSharedValue(0)
+  const rotation = useSharedValue(0)
+  const [zoomed, setZoomed] = useState(false)
+  const offset = { x: (area.width - side) / 2, y: (area.height - side) / 2 }
   const livePath = useSharedValue(emptyPath)
   const liveWidth = useSharedValue(1)
   const active = useSharedValue<Active | null>(null)
@@ -68,6 +80,17 @@ export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke
     color: session.markerColor, opacity: brush.opacity, mode: brush.mode, dasharray: brush.dasharray,
   }), [brush, session.markerColor])
   const live = useMemo(() => ({ path: livePath, width: liveWidth, style }), [livePath, liveWidth, style])
+
+  function pictureFinger(finger: Point) {
+    'worklet'
+    const square = squarePoint(finger, offset)
+    // The margin around the picture takes pinches, but only the visible picture takes ink.
+    // Without this, a touch in the margin while zoomed lands on a part of the picture that is scrolled out of view.
+    if (square.x < 0 || square.x > side || square.y < 0 || square.y > side) return null
+    const value = viewport.get()
+    const unzoomed = { x: (square.x - value.x) / value.scale, y: (square.y - value.y) / value.scale }
+    return documentPoint(unturnPoint(unzoomed, side, turns.get()), { width: side, height: side }, fit)
+  }
 
   function commit(stroke: PracticeStroke, serial: number) {
     setLastCommit(serial)
@@ -93,6 +116,13 @@ export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke
 
   useImperativeHandle(ref, () => ({
     fit: () => viewport.set(fit),
+    turn: () => scheduleOnUI(() => {
+      'worklet'
+      settleFingers()
+      const next = turns.get() + 1
+      turns.set(next)
+      rotation.set(withSpring(next * 90, theme.motion.spring))
+    }),
     flush: () => new Promise<void>((resolve) => {
       // The completion runs on the JS queue after every commit already sent
       // by the UI recognizer, including one finalized by this flush.
@@ -128,6 +158,30 @@ export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke
     })
   }, [side, viewport])
 
+  // Turn and Zoom out live outside the gesture area, so a second hand can press them mid-stroke or mid-pinch.
+  // End the stroke and ignore the fingers still down, so the view change can't bend a line across the picture.
+  function settleFingers() {
+    'worklet'
+    if (!active.get() && !pair.get()) return
+    finishStroke('finish')
+    pair.set(null)
+    blockedUntilLift.set(true)
+  }
+
+  function zoomOut() {
+    scheduleOnUI(() => {
+      'worklet'
+      settleFingers()
+      viewport.set(fit)
+    })
+  }
+
+  useAnimatedReaction(() => viewport.get().scale > 1.01, (now, before) => {
+    if (now !== before) scheduleOnRN(setZoomed, now)
+  })
+
+  const turned = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.get()}deg` }] }))
+
   const transform = useAnimatedStyle(() => {
     const value = viewport.get()
     return { transform: [{ translateX: value.x }, { translateY: value.y }, { scale: value.scale }] }
@@ -140,15 +194,20 @@ export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke
       const [first, second] = event.allTouches
       if (!first) return
       if (second) {
+        // Two fingers can land in the same event; claim the gesture so other recognizers can't take the pinch.
+        manager.begin()
+        manager.activate()
         finishStroke('pinch')
         blockedUntilLift.set(true)
-        if (!pair.get()) pair.set({ ids: [first.id, second.id], ...pairPosition(first, second), viewport: viewport.get() })
+        if (!pair.get()) pair.set({ ids: [first.id, second.id], ...pairPosition(squarePoint(first, offset), squarePoint(second, offset)), viewport: viewport.get() })
         return
       }
       if (blockedUntilLift.get() || active.get()) return
+      // A new touch during the turn animation meets the picture where it is going, not where it is mid-spin.
+      rotation.set(turns.get() * 90)
       manager.begin()
       manager.activate()
-      const point = documentPoint(first, { width: side, height: side }, viewport.get())
+      const point = pictureFinger(first)
       if (!point) return
       const width = documentStrokeWidth(markerWidth, brush.widthMultiplier, side, viewport.get().scale)
       const points = [roundedPoint(point)]
@@ -169,7 +228,7 @@ export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke
         const first = allTouches.find(({ id }) => id === multi.ids[0])
         const second = allTouches.find(({ id }) => id === multi.ids[1])
         if (!first || !second) return
-        const next = pairPosition(first, second)
+        const next = pairPosition(squarePoint(first, offset), squarePoint(second, offset))
         const scale = Math.min(5, Math.max(1, multi.viewport.scale * next.distance / multi.distance))
         const ratio = scale / multi.viewport.scale
         const x = next.middle.x - (multi.middle.x - multi.viewport.x) * ratio
@@ -181,7 +240,7 @@ export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke
       if (!current || blockedUntilLift.get()) return
       const finger = allTouches.find(({ id }) => id === current.id)
       if (!finger) return
-      const point = documentPoint(finger, { width: side, height: side }, viewport.get())
+      const point = pictureFinger(finger)
       if (!point) {
         finishStroke('finish')
         blockedUntilLift.set(true)
@@ -225,23 +284,36 @@ export function DrawingCanvas({ ref, side, session, guideSvg, disabled, onStroke
     })
 
   return (
-    <GestureDetector gesture={gesture}>
-      <View
-        collapsable={false}
-        accessible
-        accessibilityLabel="Drawing canvas"
-        accessibilityHint="Draw with one finger. Pinch and drag with two fingers to zoom and move."
-        style={[styles.viewport, { width: side, height: side }]}
-      >
-        <Animated.View pointerEvents="none" style={[styles.document, transform]}>
-          <DrawingDocument side={side} session={session} guideSvg={guideSvg} live={live} />
-        </Animated.View>
-      </View>
-    </GestureDetector>
+    <View style={{ width: area.width, height: area.height }}>
+      <GestureDetector gesture={gesture}>
+        <View
+          collapsable={false}
+          accessible
+          accessibilityLabel="Drawing canvas"
+          accessibilityHint="Draw with one finger. Pinch and drag with two fingers to zoom and move."
+          style={[styles.area, { width: area.width, height: area.height }]}
+        >
+          <View style={[styles.viewport, { width: side, height: side }]}>
+            <Animated.View pointerEvents="none" style={[styles.document, transform]}>
+              <Animated.View style={[{ width: side, height: side }, turned]}>
+                <DrawingDocument side={side} session={session} guideSvg={guideSvg} live={live} />
+              </Animated.View>
+            </Animated.View>
+          </View>
+        </View>
+      </GestureDetector>
+      {/* A sibling of the gesture area, so tapping it never leaves a dot on the picture. */}
+      {zoomed && !disabled && (
+        <CanvasButton glyph={MagnifyingGlassMinusIcon} label="Zoom out" haptic onPress={zoomOut}
+          style={[styles.zoomOut, { top: offset.y + theme.space.sm, right: offset.x + theme.space.sm }]} />
+      )}
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
+  area: { alignItems: 'center', justifyContent: 'center' },
   viewport: { overflow: 'hidden', backgroundColor: theme.colors.surface, borderRadius: theme.radius.tile },
+  zoomOut: { position: 'absolute', ...theme.floatingShadow },
   document: { transformOrigin: 'top left' },
 })

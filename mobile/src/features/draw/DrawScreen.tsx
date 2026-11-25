@@ -19,7 +19,7 @@ import { modePreferenceKey } from '../../data/storageKeys'
 import { usePictureLine } from '../../data/usePictureLine'
 import { Button } from '../../ui/Button'
 import { CanvasButton } from '../../ui/CanvasButton'
-import { DotsThreeIcon } from '../../ui/icons'
+import { ArrowClockwiseIcon, DotsThreeIcon } from '../../ui/icons'
 import { PageHeader } from '../../ui/PageHeader'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
@@ -204,11 +204,14 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
   return (
     <SafeAreaView style={styles.page}>
       <PageHeader title={session.source.kind === 'upload' ? photoDrawingName : session.source.drawingName} centered
-        trailing={<CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />} />
+        trailing={<View style={styles.headerActions}>
+          <CanvasButton glyph={ArrowClockwiseIcon} label="Turn picture" haptic onPress={() => canvas.current?.turn()} disabled={busy || moreOpen} />
+          <CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />
+        </View>} />
       {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
       <View style={styles.workspace}>
         <View style={styles.canvasArea} onLayout={({ nativeEvent: { layout } }) => setRoom((current) => (current.width === layout.width && current.height === layout.height) ? current : layout)}>
-          {side > 0 && <DrawingCanvas ref={canvas} side={side} session={session} guideSvg={guideSvg} disabled={busy || moreOpen} onStroke={addStroke} />}
+          {side > 0 && <DrawingCanvas ref={canvas} area={room} side={side} session={session} guideSvg={guideSvg} disabled={busy || moreOpen} onStroke={addStroke} />}
         </View>
         {(sideTools || portraitRail) && <View style={styles.sideRail}>{rail(true)}</View>}
         {sideTools && <ScrollView style={styles.sideTools} contentContainerStyle={styles.sideToolsContent}>{tools}</ScrollView>}
@@ -223,6 +226,7 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: theme.colors.background },
   workspace: { flex: 1, flexDirection: 'row', justifyContent: 'center' },
   canvasArea: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 1 },
+  headerActions: { flexDirection: 'row', gap: theme.space.sm },
   status: { textAlign: 'center', paddingHorizontal: theme.space.lg },
   sideRail: { width: theme.target.child + theme.space.sm, marginRight: theme.space.sm },
   sideTools: { width: theme.target.child * 4 + theme.space.lg, flexGrow: 0 },

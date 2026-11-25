@@ -46,3 +46,18 @@ export function strokePath(points: Point[], width: number) {
   }
   return path
 }
+
+// The canvas can show the picture turned in quarter turns (clockwise, about its center).
+// Undo that turn so a finger on the turned view lands on the right spot in the picture.
+export function unturnPoint(point: Point, side: number, quarterTurns: number): Point {
+  'worklet'
+  const center = side / 2
+  const dx = point.x - center
+  const dy = point.y - center
+  switch (((quarterTurns % 4) + 4) % 4) {
+    case 1: return { x: center + dy, y: center - dx }
+    case 2: return { x: center - dx, y: center - dy }
+    case 3: return { x: center - dy, y: center + dx }
+    default: return point
+  }
+}

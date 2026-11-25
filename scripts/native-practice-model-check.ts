@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm'
 import { capturePixelWidth, saveTemporaryCapture } from '../mobile/captureUtils.ts'
 import { documentFrame, documentPoint, goBack, navigate, normalizeResumeContext, ownedTouch, photoAccessAllowed } from '../mobile/practiceModel.ts'
 import type { NavigationState } from '../mobile/practiceModel.ts'
-import { keepStrokeOnPinch, keepStrokeSample, strokePath, withFinalPoint } from '../mobile/src/features/draw/strokeGeometry.ts'
+import { keepStrokeOnPinch, keepStrokeSample, strokePath, unturnPoint, withFinalPoint } from '../mobile/src/features/draw/strokeGeometry.ts'
 
 let navigation: NavigationState = { current: 'picker', history: [] }
 navigation = navigate(navigation, 'learn')
@@ -33,6 +33,20 @@ for (const size of [{ width: 390, height: 560 }, { width: 740, height: 170 }, { 
   }
 }
 assert.equal(documentPoint({ x: 0, y: 0 }, { width: 800, height: 200 }, { x: 0, y: 0, scale: 1 }), null)
+// A clockwise quarter turn on screen (y down) moves the top edge to the right edge.
+// unturnPoint must undo any number of turns, including counts past one full circle.
+const turnSide = 390
+const turnCenter = turnSide / 2
+const turnClockwise = ({ x, y }: { x: number; y: number }) => ({ x: turnCenter - (y - turnCenter), y: turnCenter + (x - turnCenter) })
+for (const quarterTurns of [0, 1, 2, 3, 4, 5, -1]) {
+  for (const point of [{ x: 40, y: 60 }, { x: 195, y: 195 }, { x: 350, y: 120 }]) {
+    let shown = point
+    for (let turn = 0; turn < ((quarterTurns % 4) + 4) % 4; turn++) shown = turnClockwise(shown)
+    const back = unturnPoint(shown, turnSide, quarterTurns)
+    assert.ok(Math.abs(back.x - point.x) < 1e-9 && Math.abs(back.y - point.y) < 1e-9, `unturn ${quarterTurns}`)
+  }
+}
+assert.deepEqual(unturnPoint({ x: turnSide, y: turnCenter }, turnSide, 1), { x: turnCenter, y: 0 })
 const primary = { identifier: 7, locationX: 120, locationY: 140 }
 const palm = { identifier: 9, locationX: 800, locationY: 700 }
 assert.equal(ownedTouch([palm, primary], 7), primary)
