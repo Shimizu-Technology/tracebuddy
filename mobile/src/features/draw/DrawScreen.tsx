@@ -76,8 +76,6 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
   const [busy, setBusy] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [room, setRoom] = useState({ width: 0, height: 0 })
-  // Counts up so every tap turns clockwise; the canvas only uses it modulo four.
-  const [quarterTurns, setQuarterTurns] = useState(0)
   const running = useRef(false)
   const canvas = useRef<CanvasHandle>(null)
   const [lastBrush, setLastBrush] = useState<BrushToolId>(session.brushToolId === 'eraser' ? 'marker' : session.brushToolId)
@@ -207,13 +205,13 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
     <SafeAreaView style={styles.page}>
       <PageHeader title={session.source.kind === 'upload' ? photoDrawingName : session.source.drawingName} centered
         trailing={<View style={styles.headerActions}>
-          <CanvasButton glyph={ArrowClockwiseIcon} label="Turn picture" haptic onPress={() => setQuarterTurns((turns) => turns + 1)} disabled={busy || moreOpen} />
+          <CanvasButton glyph={ArrowClockwiseIcon} label="Turn picture" haptic onPress={() => canvas.current?.turn()} disabled={busy || moreOpen} />
           <CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />
         </View>} />
       {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
       <View style={styles.workspace}>
         <View style={styles.canvasArea} onLayout={({ nativeEvent: { layout } }) => setRoom((current) => (current.width === layout.width && current.height === layout.height) ? current : layout)}>
-          {side > 0 && <DrawingCanvas ref={canvas} area={room} side={side} quarterTurns={quarterTurns} session={session} guideSvg={guideSvg} disabled={busy || moreOpen} onStroke={addStroke} />}
+          {side > 0 && <DrawingCanvas ref={canvas} area={room} side={side} session={session} guideSvg={guideSvg} disabled={busy || moreOpen} onStroke={addStroke} />}
         </View>
         {(sideTools || portraitRail) && <View style={styles.sideRail}>{rail(true)}</View>}
         {sideTools && <ScrollView style={styles.sideTools} contentContainerStyle={styles.sideToolsContent}>{tools}</ScrollView>}
