@@ -397,3 +397,13 @@ For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px
 
 1. **`ballerina` line v1 (REJECTED → v2 approved):** v1 rendered the ballerina's hair and bun as solid black silhouette fills with white highlight streaks instead of hollow white colorable hair. Regenerated once in **v2** with crisp hollow-outlined hair and bun (`raw Disk:4 = 0.9%` → `24.5%` via `Disk:4`, all details cleanly separated).
 2. **Transient API errors (retried once each, no art rejected):** `lei` color, `ballerina` color, and `pirate` color each hit a transient `HTTP 503 UNAVAILABLE` capacity error on first attempt and succeeded cleanly on retry.
+
+### Batch 4 Lead Review Fix
+
+At 420 px, four Detailed outlines still read thin after the batch's own pass. Each was re-vectorized from its raw master with a stronger erosion after the 1680×1680 threshold. New `Disk:4` survival on a 1024 px render:
+- `police-officer`: `Disk:4`, 23.0% → 31.9%
+- `ballerina`: `Disk:5`, 24.5% → 34.8%
+- `canoe`: `Disk:2`, 25.0% → 30.2%
+- `police-car`: `Disk:4`, 25.4% → 32.3%
+
+Faces, buttons, tutu ruffles and wheel rims stay separated.

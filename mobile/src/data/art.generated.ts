@@ -583,4 +583,4 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "cherry-blossom", name: "Cherry Blossom", category: "patterns", color: () => require("../../../shared/art/detailed/cherry-blossom/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/cherry-blossom/line.svg") } },
   ],
 }
-// Line art SHA-256: fc7d017cda7ee6073cc2ba9c13a04c1b0fe85ac3640c24646fe77754e9ca1c4c
+// Line art SHA-256: c60ffb16e39fc4962785ad98a16c748316ec7952afec868c6249831c858070ba
