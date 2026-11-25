@@ -171,3 +171,60 @@ Added **24 new subjects** across 5 categories (`animals`, `dinosaurs`, `space`, 
 ### Batch 1 Rejection & Regeneration Log (Simple)
 
 - **0 rejections** across all 24 Simple line-art and 24 Simple colorization generations (48/48 approved on first attempt). Note: `dino-egg` color added a tiny green tail peeking at the left rim of the shell that is not in `line.svg`; kept cleanly to stay within image-generation quota.
+
+---
+
+## Batch 2 (expansion)
+
+Added **22 new subjects** across 7 categories (`bugs`, `ocean`, `magic`, `go`, `nature`, `fun`, `people`), bringing the Simple set from 75 to **97 subjects** (the 2 `patterns` mandalas `flower-mandala` and `butterfly-mandala` are Detailed-only and intentionally omitted from Simple).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch2/raw/simple/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch2/simple-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Line weight (`Disk:4` erosion survival):** min `35.5%`, median `51.0%`, max `66.9%` (every Simple subject is visibly thicker than its Detailed counterpart).
+- **Enclosed exterior pockets cleared:** `princess` (gap between waving arm and hair/shoulder) and `helicopter` (3 open gaps between landing skids and struts).
+- **Post-generation master fixes (0 extra quota spent):**
+  - `caterpillar` line and `helicopter` line: generated facing left; horizontally mirrored (`-flop`) before colorization so all side-profile characters and vehicles face right consistently.
+  - `teddy-bear` line: generated without eyes; added two symmetric S1 black button eyes with white shine dots matching the Simple set eye style before colorization.
+  - `soccer-ball` color: replaced stray pastel panel fills on the top-left hexagon and edge panels with flat floodfills sampled from the ball's own charcoal-slate (`#50545F`) and ivory-cream (`#F8F5E4`) panels for classic black-and-white soccer ball symmetry.
+
+### Per-Subject Descriptions (22 Batch 2 Subjects)
+
+#### Bugs
+- **`ladybug` ("Ladybug"):** Chubby smiling ladybug in three-quarter view facing right with domed shell, 7 hollow outlined spots, smiling head, two ball-tipped antennae, and stubby rounded legs (`Disk:4 = 55.3%`). Color: coral-red shell, charcoal-slate spots/legs/antennae, cream-peach face with rosy cheeks.
+- **`bee` ("Bumblebee"):** Chubby smiling bumblebee flying right with plump oval body, 3 hollow vertical stripes, two smooth rounded top wings, curled antennae, and tiny rounded stinger tip (`Disk:4 = 61.3%`). Color: butter-yellow face/body, soft charcoal-brown stripes/stinger, pale sky-ice wings.
+- **`caterpillar` ("Caterpillar"):** Chubby smiling caterpillar crawling right (horizontally mirrored from left-facing raw line) with round smiling head, two ball-tipped antennae, 5 overlapping circular segments in a gentle wave, and stubby feet (`Disk:4 = 58.3%`). Color: alternating meadow-mint and apple-lime body segments, coral-peach head, butter-yellow antenna balls, tangerine feet.
+- **`ant` ("Ant"):** Chubby smiling ant walking right in side profile with 3 plump oval body segments, two curved antennae, and 6 thick hollow rounded legs clearly separated (`Disk:4 = 60.3%`). Color: cinnamon-terracotta body segments, soft caramel-tan legs and antennae.
+
+#### Ocean
+- **`shark` ("Friendly Shark"):** Chubby smiling baby shark swimming right with rounded body, happy grin, curved belly line, rounded dorsal fin, pectoral flippers, 2 gill arcs, and crescent tail fin (`Disk:4 = 54.4%`). Color: sky-blue-gray upper body/fins, warm cream-white belly/snout underside.
+- **`clownfish` ("Clownfish"):** Chubby smiling clownfish swimming right in side profile with plump oval body crossed by 3 curved vertical bands, rounded dorsal/pectoral/ventral fins, and fan tail (`Disk:4 = 51.5%`). Color: warm tangerine-orange body/fins, ivory-white vertical bands, charcoal-slate fin edge trim.
+- **`sea-star` ("Sea Star"):** Straight-on five-armed chubby smiling sea star with 5 plump rounded arms, happy eyes and open smile, and 2 hollow circles on each arm (`Disk:4 = 59.7%`). Color: coral-peach body, sunny butter-yellow spots, rosy pink smile.
+
+#### Magic
+- **`princess` ("Princess"):** Generic original storybook little princess waving hello with a 3-point crown, smooth rounded chin-length hair silhouette, modest puffed-sleeve bell-skirt dress, waist sash, and rounded shoes (`Disk:4 = 44.7%`). Color: chestnut-brown hair, golden-yellow crown, golden-tan skin, lilac-lavender dress with coral-pink sash/cuffs/shoes.
+- **`knight` ("Knight"):** Friendly chubby storybook knight facing forward with an open-visor plumed helmet, smiling face, rounded armor/tunic, chunky boots, waving mittened hand, and a 5-point star kite shield (`Disk:4 = 35.5%`). Color: periwinkle blue-gray armor/helmet, coral-red plume, royal sky-blue tunic/shield interior, golden-yellow star/rim, slate-blue boots.
+- **`fairy` ("Fairy"):** Original generic storybook little fairy hovering facing slightly right with smooth hair bun, butterfly wings, modest petal-hem dress, chunky shoes, and a star-tipped wand (`Disk:4 = 50.0%`). Color: honey-caramel hair, pastel aqua wings, mint-green dress, butter-yellow star wand, coral-pink shoes.
+
+#### Things That Go
+- **`school-bus` ("School Bus"):** Chubby rounded school bus facing right in side profile with rounded hood, windshield, passenger windows, side door, hollow side stripe, rooftop dome light, and 2 round wheels; no lettering (`Disk:4 = 35.9%`). Color: sunny school-bus yellow body, pale sky-ice windows, coral-orange stripe/roof light, charcoal-slate tires/bumpers.
+- **`helicopter` ("Helicopter"):** Chubby rounded helicopter flying right (horizontally mirrored from left-facing raw line) with teardrop cabin, cockpit and side window, horizontal stripe, top rotor blades, 4-blade tail rotor, and landing skids (`Disk:4 = 47.7%`). Color: coral-red cabin/tail fin, butter-yellow stripe/tail boom/hub, sky-ice windows, cool slate-gray rotors/skids.
+- **`tractor` ("Tractor"):** Chubby rounded farm tractor facing right with rounded cab/window, hood, exhaust pipe with puff, headlight, huge bumpy rear wheel, and smaller front wheel; no text (`Disk:4 = 47.2%`). Color: leaf-meadow green body/cab/fender, butter-yellow rims/roof cap/headlight, sky-ice window/puff, charcoal-slate tires/exhaust.
+
+#### Nature
+- **`sunflower` ("Sunflower"):** Tall smiling sunflower with round face center, layered plump pointed petals, gently curved stem, and 2 heart-shaped leaves (`Disk:4 = 50.4%`). Color: butter-yellow front petals, golden-apricot back petals, caramel-cocoa center, meadow-leaf green stem/leaves.
+- **`cactus` ("Cactus"):** Chubby smiling potted saguaro cactus in a rounded clay pot with two smooth curved arms and a 5-petal blossom on top (`Disk:4 = 49.0%`). Color: spring-mint sage green cactus, coral-pink blossom with yellow center, terracotta-apricot pot, cocoa-brown soil.
+- **`volcano` ("Volcano"):** Friendly rounded volcano mountain over curved hill arcs with wavy lava dripping over the rim and a big puffy smoke cloud with small surrounding puffs (`Disk:4 = 51.8%`). Color: warm cocoa-brown slope, tangerine-coral lava, powder-blue-gray smoke puffs.
+
+#### Fun
+- **`soccer-ball` ("Soccer Ball"):** Classic round soccer ball drawn with thick hollow outlines showing a central pentagon surrounded by 5 hexagons and 5 outer edge pentagons (`Disk:4 = 66.9%`). Color: classic charcoal-slate pentagons and warm ivory-cream hexagons.
+- **`teddy-bear` ("Teddy Bear"):** Chubby sitting plush teddy bear facing forward with round ears, button eyes (added cleanly to raw line master), smiling muzzle, bowtie, oval tummy patch, outstretched arms, and oval foot pads (`Disk:4 = 54.3%`). Color: honey-caramel fur, cream-biscuit muzzle/inner ears/tummy/foot pads, cocoa nose, coral-red bowtie.
+- **`guitar` ("Guitar"):** Chubby diagonally tilted acoustic guitar with round sound hole, rectangular bridge, wide-spaced frets, and chunky headstock with 4 tuning pegs (`Disk:4 = 56.6%`). Color: honey-apricot body, caramel-cocoa fretboard/bridge, espresso-slate sound hole, butter-yellow headstock/pegs.
+- **`kite` ("Kite"):** Classic diamond kite tilted right with 4 clean panels, crossed spine bars, and a curving ribbon tail decorated with 3 chunky bows (`Disk:4 = 49.7%`). Color: coral-red, butter-yellow, sky-blue, and mint-green panels, caramel spine, warm cream tail, pastel bows.
+
+#### People
+- **`superhero` ("Superhero Kid"):** Smiling original superhero kid standing with hands on hips wearing a domino eye mask, billowing cape, blank-chest jumpsuit with utility belt (no real-hero emblem or logo), gloves, and chunky boots (`Disk:4 = 40.3%`). Color: chestnut hair, golden-tan skin, plain royal sky-blue suit, coral-red cape/mask/gloves/boots, golden-yellow belt/cuffs.
+- **`firefighter` ("Firefighter"):** Chubby smiling kid-friendly firefighter waving hello in a classic helmet with blank plain shield (no text/numbers), striped turnout coat with pockets, and chunky boots (`Disk:4 = 35.7%`). Color: coral-red helmet with golden-yellow blank shield, honey-tan skin, tan-khaki coat with yellow reflective stripes, charcoal-slate boots.
+
+### Batch 2 Rejection & Regeneration Log (Simple)
+
+- **0 rejections** across all 22 Simple line-art and 22 Simple colorization generations (44/44 approved on first attempt, with deterministic post-generation fixes noted above for `caterpillar`, `helicopter`, `teddy-bear`, and `soccer-ball`).
