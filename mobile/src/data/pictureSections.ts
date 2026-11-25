@@ -1,8 +1,10 @@
 import type { Picture, PictureCategory } from './catalog'
+import { letterPictureSections } from './letterPictures'
 
 type PictureSection = { title: string; ids: readonly string[] }
 
 export const pictureSections: Partial<Record<PictureCategory, readonly PictureSection[]>> = {
+  letters: letterPictureSections,
   animals: [
     { title: 'Pets and farm', ids: ['puppy', 'cat', 'kitten', 'bunny', 'hamster', 'horse', 'pig', 'sheep', 'cow', 'chicken', 'duck', 'kitty-bow', 'pony'] },
     { title: 'Wild animals', ids: ['lion', 'tiger', 'elephant', 'giraffe', 'monkey', 'panda', 'koala', 'sloth', 'fox', 'frog', 'penguin', 'polar-bear', 'hedgehog', 'zebra'] },

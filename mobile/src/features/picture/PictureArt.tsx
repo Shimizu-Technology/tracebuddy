@@ -10,10 +10,11 @@ import { theme } from '../../ui/theme'
 
 export function PictureArt({ picture }: { picture: Picture }) {
   const image = picture.uploadedImage ? { uri: currentDrawingImageUri(picture.uploadedImage.uri) } : picture.color?.()
+  const colorXml = picture.colorXml?.()
   return (
     <View style={styles.art} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {image ? <Image source={image} style={StyleSheet.absoluteFill} contentFit="contain" />
-        : <LineArt picture={picture} />}
+        : colorXml ? <SvgXml xml={colorXml} width="100%" height="100%" /> : <LineArt picture={picture} />}
     </View>
   )
 }

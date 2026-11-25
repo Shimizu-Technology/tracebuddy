@@ -51,10 +51,11 @@ Every 2.0 screen follows these. A PR that breaks one needs a written reason.
 - Header: TraceBuddy wordmark, My drawings button (icon plus count badge), and a quiet Grown-ups button.
 - **Who's drawing?** asked once on first launch with two big picture choices: **Little artist** (Home shows Simple pictures) and **Big artist** (Home shows Detailed pictures). The grid always shows one style so it stays consistent. The choice can be changed in Grown-ups.
 - **Keep going** card when there's recent work: a big thumbnail and one play button that reopens the last drawing exactly where it was.
-- **My photo** (pick from Photos) and **My name** (type a name or word in a keyboard sheet) share one row. Both are ungated. Handwriting setup options live in Grown-ups.
+- **My photo** (pick from Photos) and **My words** (type a name or phrase, then preview Bubble or Practice letters) share one row. Both are ungated. Handwriting setup options live in Grown-ups.
+- My words opens before drawing begins. It uses a taller detent so the input, both style choices, live preview, and main action have room on a phone.
 - A horizontal **Favorites** shelf appears below that row when there are favorites in the current library. Long-press a picture tile to add or remove a favorite.
 - A grid of picture groups, two columns on phones and three to four on iPad. Each tile has a large cover picture on its category pastel with the group name below. Only groups available at the current level appear.
-- Opening a group shows its pictures in the same responsive grid. Picture tiles use **color art** on a pastel background with the name below. Animals and Holidays have named sections. Pictures without a section go at the end under **More**.
+- Opening a group shows its pictures in the same responsive grid. Picture tiles use **color art** on a pastel background with the name below. Animals and Holidays have named sections. Letters and numbers has ABC and 123 sections, with uppercase and lowercase pairs for A–Z. Pictures without a section go at the end under **More**.
 - Rows below the groups are planned for **Learn to draw** (lessons) and **Play together** (best 4–6 activities).
 - The search magnifier opens a field. A typed query shows matching pictures across the current library in place of the groups.
 
@@ -62,7 +63,7 @@ Every 2.0 screen follows these. A PR that breaks one needs a written reason.
 
 Opens as a native sheet over Home or the current picture group.
 
-- A large color preview, the name, and a **Simple / Detailed** switch. It starts on the household choice and only changes this picture.
+- A large color preview, the name, and a **Simple / Detailed** switch. It starts on the household choice, or the style picked in My words, and only changes this picture. For letters and numbers, Simple uses rounded Fredoka Bubble outlines. Detailed uses Andika Practice outlines with top, middle and baseline guides.
 - Two large illustrated choices: **On paper** (camera over paper) and **On the screen** (draw with a finger).
 - The last choice is remembered. A returning user sees it highlighted and can tap straight through.
 - Paper Lock ("Stick to paper") is **off in 2.0** until it passes the physical accuracy test (see "Paper Lock before enabling" below). When it is turned on (`EXPO_PUBLIC_PAPER_LOCK=1`), it is a manual option inside On paper's More menu on AR-capable iPhones and iPads, not a third mode and not automatic. Choosing it automatically will be revisited after that test.
@@ -148,7 +149,7 @@ Opens as a native sheet over Home or the current picture group.
 | Per-card Print / PDF / SVG / heart | Print in Grown-ups and More. Favorite by long-press. No SVG |
 | Sticker arrow buttons | Direct drag, pinch, and twist |
 | 12 Together activities | Best 4–6 |
-| Words, photo upload, lessons, Together as separate destinations | My name and My photo tiles, plus Learn and Play rows on Home |
+| Words, photo upload, lessons, Together as separate destinations | My words and My photo tiles, plus Learn and Play rows on Home |
 | Clear local work, Delete | Gated |
 | Web paper detection (experimental) | Dropped from 2.0 web |
 
@@ -212,7 +213,7 @@ Each phase ships as one or more reviewed PRs into `main` through the normal Shim
 1. **Foundation.** Router shell, gesture, animation, and sheet libraries, the theme and base components, data and logic pulled out of `mobile/App.tsx` into tested modules, and the canvas spike. No visible behavior changes yet.
 2. **Core loop.** Home, Picture, On paper, On the screen, Done, and My drawings, to this spec.
 3. **Art.** The full set in Simple and Detailed (51 subjects, including the Guam set), color previews, and wiring the art manifests into the app.
-4. **Everything else.** Learn in the canvas, Play together, My name, My photo with cleanup, Grown-ups and the gate, and read-aloud.
+4. **Everything else.** Learn in the canvas, Play together, My words, My photo with cleanup, Grown-ups and the gate, and read-aloud.
 5. **Prove and ship.** Real iPhone and iPad testing over real paper (including the Paper Lock accuracy gate), a family playtest with a young child and an older adult, accessibility (VoiceOver, Dynamic Type, Reduce Motion), new App Store screenshots and name, and release 2.0.
 6. **Web.** Bring 2.0 to the web. Preferred: the same code through Expo web, replacing `src/`, with camera tracing via `getUserMedia`.
 

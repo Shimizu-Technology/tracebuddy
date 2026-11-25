@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "check": "npm run art:check && npm run check:picture-line-model && npm run check:picture-sections && npm run lint && npm run build && npm run check:finish-find-model && npm run check:practice-model && npm run check:discovery-model && npm run check:learning-model && npm run check:setup-model && npm run check:family-model && npm run check:mobile-print && npm run check:ar-model && npm run check:paper-model && npm run check:native-practice-model && npm run check:native-practice-operations && npm run check:native-safety-model && npm run check:native-finish-find-model && npm run check:native-storage-model && npm run check:audit-model && npm run check:contrast && npm run mobile:typecheck && npm run mobile:doctor",
+    "check": "npm run art:check && npm run glyphs:check && npm run check:text-guide && npm run check:picture-line-model && npm run check:picture-sections && npm run lint && npm run build && npm run check:finish-find-model && npm run check:practice-model && npm run check:discovery-model && npm run check:learning-model && npm run check:setup-model && npm run check:family-model && npm run check:mobile-print && npm run check:ar-model && npm run check:paper-model && npm run check:native-practice-model && npm run check:native-practice-operations && npm run check:native-safety-model && npm run check:native-finish-find-model && npm run check:native-storage-model && npm run check:audit-model && npm run check:contrast && npm run mobile:typecheck && npm run mobile:doctor",
     "check:viewports": "node scripts/viewport-check.mjs",
     "check:storage": "node scripts/storage-check.mjs",
     "check:offline": "node scripts/offline-check.mjs",
@@ -51,7 +51,10 @@
     "art:check": "tsx scripts/generate-art-index.ts --check",
     "art:optimize": "tsx scripts/optimize-line-art.ts && npm run art:generate",
     "check:picture-line-model": "tsx scripts/picture-line-model-check.ts",
-    "check:picture-sections": "tsx scripts/picture-sections-check.ts"
+    "check:picture-sections": "tsx scripts/picture-sections-check.ts",
+    "glyphs:generate": "tsx scripts/generate-glyphs.ts",
+    "glyphs:check": "tsx scripts/generate-glyphs.ts --check",
+    "check:text-guide": "tsx scripts/text-guide-check.ts"
   },
   "dependencies": {
     "react": "^19.2.6",
@@ -60,6 +63,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.3",
+    "@types/opentype.js": "1.3.10",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -67,6 +71,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "opentype.js": "2.0.0",
     "playwright": "^1.64.1",
     "puppeteer-core": "^25.1.0",
     "svgo": "4.1.0",

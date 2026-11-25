@@ -3,8 +3,10 @@ import { createTextDrawing, drawingById, sanitizeTraceText } from '../../../shar
 import type { Drawing } from '../../../shared'
 import type { PracticeSource, UploadedImage } from '../../practiceStorageModel'
 import { generatedArt } from './art.generated'
+import { letterPictures, textStyleForLevel } from './letterPictures'
 import type { PictureLine } from './pictureLineModel'
 import { drawingFromPracticeSource, makePracticeSource } from './practiceSource'
+import { textGuideSvg } from './textGuide'
 
 export const artLevels = ['simple', 'detailed'] as const
 export type ArtLevel = typeof artLevels[number]
@@ -42,6 +44,8 @@ export type Picture = Pick<GeneratedArt, 'id' | 'name' | 'category'> & {
   line: PictureLine
   level?: ArtLevel
   color?: () => number
+  colorXml?: () => string
+  text?: string
   uploadedImage?: UploadedImage
 }
 
@@ -72,8 +76,7 @@ export function catalogPictures(level: ArtLevel): readonly Picture[] {
   return picturesByLevel[level]
 }
 
-// Only curated art appears in 2.0. The legacy drawings stay resolvable by id (resolvePicture) so saved
-// drawings reopen over the guide they were drawn on, but they are never listed. Big artist shows each
+// Legacy drawings stay resolvable by id for saved work. Big artist shows each curated
 // subject's Detailed version where one exists and its Simple version otherwise.
 function curatedPictures(level: ArtLevel): Picture[] {
   const simple = generatedArt.simple.map((art): Picture => ({ ...art, level: 'simple' }))
@@ -88,12 +91,13 @@ function curatedPictures(level: ArtLevel): Picture[] {
 }
 
 const picturesByLevel: Record<ArtLevel, readonly Picture[]> = {
-  simple: curatedPictures('simple'),
-  detailed: curatedPictures('detailed'),
+  simple: [...curatedPictures('simple'), ...letterPictures('simple')],
+  detailed: [...curatedPictures('detailed'), ...letterPictures('detailed')],
 }
 
 export function pictureLevels(id: string) {
-  return artLevels.filter((level) => generatedArt[level].some((art) => art.id === id))
+  return id === 'my-name' ? artLevels : artLevels.filter((level) => picturesByLevel[level]
+    .some((picture) => picture.id === id && picture.level === level))
 }
 
 function readParam(value: string | string[] | undefined) {
@@ -101,8 +105,16 @@ function readParam(value: string | string[] | undefined) {
 }
 
 export function resolvePicture(params: IncomingParams): Picture | null {
-  const word = readParam(params.text)
-  if (word && sanitizeTraceText(word)) return legacyPicture(createTextDrawing(word))
+  const level = readParam(params.level) === 'detailed' ? 'detailed' : 'simple'
+  const legacy = readParam(params.legacy) === '1'
+  const text = sanitizeTraceText(readParam(params.text) ?? '')
+  if (text) {
+    if (legacy) return legacyPicture(createTextDrawing(text))
+    return {
+      id: 'my-name', name: text, category: 'letters', level, text,
+      line: { kind: 'inline', xml: textGuideSvg(text, textStyleForLevel[level]) },
+    }
+  }
 
   const uri = readParam(params.photo)
   if (uri) {
@@ -120,13 +132,12 @@ export function resolvePicture(params: IncomingParams): Picture | null {
 
   const id = readParam(params.id)
   if (!id) return null
-  const level = readParam(params.level) === 'detailed' ? 'detailed' : 'simple'
-  if (readParam(params.legacy) !== '1') {
-    const selected = generatedArt[level].find((art) => art.id === id)
-    if (selected) return { ...selected, level }
+  if (!legacy) {
+    const selected = picturesByLevel[level].find((picture) => picture.id === id)
+    if (selected) return selected
     const otherLevel = level === 'simple' ? 'detailed' : 'simple'
-    const other = generatedArt[otherLevel].find((art) => art.id === id)
-    if (other) return { ...other, level: otherLevel }
+    const other = picturesByLevel[otherLevel].find((picture) => picture.id === id)
+    if (other) return other
   }
   const drawing = drawingById(id)
   return drawing ? legacyPicture(drawing) : null
@@ -138,15 +149,17 @@ export function paramsForPicture(picture: Picture): PictureParams {
     id: picture.id, photo: photo.uri, photoName: photo.name,
     ...(photo.width ? { photoWidth: String(photo.width) } : {}),
     ...(photo.height ? { photoHeight: String(photo.height) } : {}),
-  } : picture.level ? { id: picture.id, level: picture.level } : { id: picture.id, legacy: '1' }
+  } : picture.level ? { id: picture.id, level: picture.level, ...(picture.text && { text: picture.text }) }
+    : { id: picture.id, legacy: '1' }
 }
 
 export function sourceForPicture(picture: Picture, guideSvg: string): PracticeSource {
-  // Legacy IDs must continue finding the original guide, including reused subject names.
-  const drawingId = picture.level ? `tb2-${picture.level}-${picture.id}` : picture.id
+  // A typed guide keeps the full text for cross-mode navigation. Legacy slugs never contain colons.
+  const drawingId = picture.text ? `custom-text-tb2:${picture.level}:${picture.text}`
+    : picture.level ? `tb2-${picture.level}-${picture.id}` : picture.id
   const legacy = drawingById(drawingId)
   return makePracticeSource(legacy ?? {
-    id: drawingId, name: picture.name, theme: picture.uploadedImage ? 'Local image' : picture.name,
+    id: drawingId, name: picture.name, theme: picture.uploadedImage ? 'Local image' : picture.text ? 'Custom words' : picture.name,
     category: picture.category === 'letters' ? 'letters' : 'starters',
     difficulty: picture.level === 'detailed' ? 'Detailed' : 'Starter',
     // Saved work keeps a snapshot so future catalog changes and older app
@@ -155,17 +168,19 @@ export function sourceForPicture(picture: Picture, guideSvg: string): PracticeSo
   }, picture.uploadedImage ?? null)
 }
 
-function curatedDrawingParams(drawingId: string): { id: string; level: ArtLevel } | undefined {
+function catalogDrawingParams(drawingId: string): PictureParams | undefined {
+  const typed = /^custom-text-tb2:(simple|detailed):(.+)$/.exec(drawingId)
+  if (typed) return { id: 'my-name', level: typed[1] as ArtLevel, text: typed[2] }
   const match = /^tb2-(simple|detailed)-(.+)$/.exec(drawingId)
-  if (match) return { id: match[2], level: match[1] === 'detailed' ? 'detailed' : 'simple' }
+  if (match) return { id: match[2], level: match[1] as ArtLevel }
 }
 
 export function lineForSource(source: PracticeSource): PictureLine {
   if (source.kind === 'upload' && source.uploadedImage) return { kind: 'inline', xml: '' }
   if (source.drawingSvg === undefined) {
-    const params = curatedDrawingParams(source.drawingId)
-    const art = params && generatedArt[params.level].find((picture) => picture.id === params.id)
-    if (art) return art.line
+    const params = catalogDrawingParams(source.drawingId)
+    const picture = params && resolvePicture(params)
+    if (picture) return picture.line
   }
   return { kind: 'inline', xml: drawingFromPracticeSource(source).drawing.svg }
 }
@@ -173,14 +188,14 @@ export function lineForSource(source: PracticeSource): PictureLine {
 export function paramsForSource(source: PracticeSource): PictureParams {
   const { drawing, uploadedImage } = drawingFromPracticeSource(source)
   if (uploadedImage) return paramsForPicture({ ...legacyPicture(drawing), uploadedImage })
-  const curated = curatedDrawingParams(source.drawingId)
-  if (curated) return curated
+  const params = catalogDrawingParams(source.drawingId)
+  if (params) return params
   if (source.kind === 'custom' && source.drawingId.startsWith('custom-text-')) {
     const svgText = [...(source.drawingSvg ?? '').matchAll(/<text\b[^>]*>([^<]*)<\/text>/g)]
       .map(([, line]) => line.replace(/&(?:lt|gt|quot|apos|amp);/g, (entity) =>
         ({ '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&amp;': '&' })[entity] ?? entity))
       .join(' ')
-    return { id: 'my-name', text: svgText || source.drawingName }
+    return { id: 'my-name', text: svgText || source.drawingName, legacy: '1' }
   }
   return { id: source.drawingId, legacy: '1' }
 }
