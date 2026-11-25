@@ -1,48 +1,43 @@
 import { drawingTitle } from '../../data/practiceSource'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, FlatList, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native'
+import { Alert, FlatList, StyleSheet, TextInput, View } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { continueDrawing } from '../../../finishFindModel'
 import { readArtistLevel, writeArtistLevel } from '../../data/artistLevel'
-import { catalogPictures, paramsForPicture, pictureCategories } from '../../data/catalog'
-import type { ArtLevel, Picture, PictureCategory } from '../../data/catalog'
+import { catalogPictures } from '../../data/catalog'
+import type { ArtLevel, Picture } from '../../data/catalog'
 import { useDrawingLibrary } from '../../data/drawingLibrary'
 import { pickDrawingPhoto } from '../../data/drawingPhotos'
+import { groupsForPictures } from '../../data/pictureGroups'
 import { CanvasButton } from '../../ui/CanvasButton'
 import { Icon } from '../../ui/Icon'
-import type { IconGlyph } from '../../ui/Icon'
 import {
-  BugIcon, FishSimpleIcon, GiftIcon, HeartIcon, IceCreamIcon, ImageIcon, ImagesSquareIcon, IslandIcon, LeafIcon,
-  MagnifyingGlassIcon, PawPrintIcon, PencilSimpleIcon, PlanetIcon, PlayIcon, RocketLaunchIcon, ShapesIcon, SmileyIcon,
-  SparkleIcon, SpiralIcon, SquaresFourIcon, TextAaIcon, TipiIcon, UserIcon, UsersThreeIcon,
+  ImageIcon, ImagesSquareIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlayIcon, TextAaIcon, UserIcon,
 } from '../../ui/icons'
 import { PressTarget } from '../../ui/PressTarget'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
 import { DrawingThumbnail } from '../drawings/DrawingThumbnail'
 import { PictureArt } from '../picture/PictureArt'
+import { PictureTile } from '../picture/PictureTile'
 import { picturePastel } from '../picture/picturePastel'
+import { usePictureGrid } from '../picture/usePictureGrid'
 import { ArtistChoice } from './ArtistChoice'
 import { useFavorites } from './useFavorites'
 
-const categoryIcons: Record<PictureCategory, IconGlyph> = {
-  animals: PawPrintIcon, ocean: FishSimpleIcon, magic: SparkleIcon, go: RocketLaunchIcon, guam: IslandIcon,
-  letters: TextAaIcon, shapes: ShapesIcon, dinosaurs: TipiIcon, nature: LeafIcon, fun: SmileyIcon, bugs: BugIcon,
-  space: PlanetIcon, food: IceCreamIcon, holidays: GiftIcon, people: UsersThreeIcon, patterns: SpiralIcon,
-}
+type PictureGroup = ReturnType<typeof groupsForPictures>[number]
+type GridTile = { kind: 'group'; group: PictureGroup } | { kind: 'picture'; picture: Picture }
 
-type Category = PictureCategory | 'all' | 'favorites'
-type GridTile = { kind: 'photo' | 'name'; id: string } | { kind: 'picture'; id: string; picture: Picture }
+const makeYourOwn = [
+  { id: 'photo', label: 'My photo', icon: ImageIcon, pastel: theme.pastels.sky },
+  { id: 'name', label: 'My name', icon: TextAaIcon, pastel: theme.pastels.butter },
+] as const
 
 export default function HomeScreen() {
-  const { width, fontScale } = useWindowDimensions()
-  const insets = useSafeAreaInsets()
-  const contentWidth = width - insets.left - insets.right
-  const columns = contentWidth >= theme.layout.fourColumns ? 4 : contentWidth >= theme.layout.threeColumns ? 3 : 2
+  const { contentWidth, fontScale, columns, tileWidth } = usePictureGrid()
   const [level, setLevel] = useState<ArtLevel | null>()
-  const [category, setCategory] = useState<Category>('all')
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
   const photoPending = useRef(false)
@@ -106,24 +101,12 @@ export default function HomeScreen() {
 
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const pictures = catalogPictures(level ?? 'simple')
-  const chips = [
-    { id: 'all' as const, label: 'All', icon: SquaresFourIcon },
-    ...(favorites.length ? [{ id: 'favorites' as const, label: 'Favorites', icon: HeartIcon }] : []),
-    ...pictureCategories.filter(({ id }) => pictures.some((picture) => picture.category === id))
-      .map((item) => ({ ...item, icon: categoryIcons[item.id] })),
-  ]
-  const activeCategory = chips.some(({ id }) => id === category) ? category : 'all'
-  const tiles: GridTile[] = [
-    ...(activeCategory === 'all' && !normalizedQuery ? [
-      { kind: 'photo' as const, id: 'my-photo' }, { kind: 'name' as const, id: 'my-name' },
-    ] : []),
-    ...pictures.filter((picture) => {
-      const matchesCategory = activeCategory === 'all' || picture.category === activeCategory
-        || (activeCategory === 'favorites' && favorites.includes(picture.id))
-      return matchesCategory && picture.name.toLocaleLowerCase().includes(normalizedQuery)
-    }).map((picture) => ({ kind: 'picture' as const, id: picture.id, picture })),
-  ]
-  const tileWidth = Math.floor((contentWidth - theme.space.lg * 2 - theme.space.md * (columns - 1)) / columns)
+  const favoriteIds = new Set(favorites)
+  const favoritePictures = pictures.filter((picture) => favoriteIds.has(picture.id))
+  const tiles: GridTile[] = normalizedQuery
+    ? pictures.filter((picture) => picture.name.toLocaleLowerCase().includes(normalizedQuery))
+      .map((picture) => ({ kind: 'picture', picture }))
+    : groupsForPictures(pictures).map((group) => ({ kind: 'group', group }))
   const count = drawings?.length ?? 0
 
   return (
@@ -131,6 +114,7 @@ export default function HomeScreen() {
       <FlatList
         key={columns}
         data={tiles}
+        keyExtractor={(item) => item.kind === 'group' ? `group-${item.group.id}` : `picture-${item.picture.id}`}
         numColumns={columns}
         keyboardShouldPersistTaps="handled"
         columnWrapperStyle={styles.row}
@@ -175,42 +159,52 @@ export default function HomeScreen() {
                 <View style={styles.play}><Icon glyph={PlayIcon} /></View>
               </PressTarget>
             )}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              {chips.map(({ id, icon, label }) => (
-                <PressTarget key={id} accessibilityLabel={label} selected={activeCategory === id}
-                  onPress={() => setCategory(id)} style={[styles.chip, activeCategory === id && styles.activeChip]}>
-                  <Icon glyph={icon} tone={activeCategory === id ? 'surface' : 'ink'} />
-                  <Text variant="label" style={[styles.bold, activeCategory === id && styles.activeText]}>{label}</Text>
-                </PressTarget>
-              ))}
-            </ScrollView>
+            {!normalizedQuery && (
+              <>
+                <View style={styles.row}>
+                  {makeYourOwn.map(({ id, label, icon, pastel }) => (
+                    <PressTarget key={id} style={styles.special} accessibilityLabel={label}
+                      onPress={id === 'photo' ? () => void choosePhoto() : () => router.push('/my-name')}>
+                      <View style={[styles.specialBadge, { backgroundColor: pastel }]}><Icon glyph={icon} /></View>
+                      <Text style={[styles.bold, styles.center]}>{label}</Text>
+                    </PressTarget>
+                  ))}
+                </View>
+                {favoritePictures.length > 0 && (
+                  <View style={styles.shelf}>
+                    <Text variant="heading" accessibilityRole="header" style={styles.bold}>Favorites</Text>
+                    <FlatList
+                      horizontal
+                      alwaysBounceHorizontal={false}
+                      showsHorizontalScrollIndicator={false}
+                      data={favoritePictures}
+                      keyExtractor={(picture) => picture.id}
+                      contentContainerStyle={styles.row}
+                      keyboardShouldPersistTaps="handled"
+                      renderItem={({ item }) => (
+                        <PictureTile picture={item} width={Math.min(tileWidth, theme.layout.favoriteTileWidth)} favorite toggleFavorite={toggle} />
+                      )}
+                    />
+                  </View>
+                )}
+              </>
+            )}
           </View>
         }
-        ListEmptyComponent={<Text tone="muted">No pictures match.</Text>}
-        renderItem={({ item }) => item.kind !== 'picture' ? (
-          <PressTarget style={[styles.tile, styles.special, { width: tileWidth }]}
-            accessibilityLabel={item.kind === 'photo' ? 'My photo' : 'My name'}
-            onPress={item.kind === 'photo' ? () => void choosePhoto() : () => router.push('/my-name')}>
-            <View style={styles.specialArt}>
-              <View style={[styles.specialBadge, item.kind === 'photo' ? styles.photoBadge : styles.nameBadge]}>
-                <Icon glyph={item.kind === 'photo' ? ImageIcon : TextAaIcon} />
-              </View>
-            </View>
-            <Text variant="body" style={styles.bold}>{item.kind === 'photo' ? 'My photo' : 'My name'}</Text>
-          </PressTarget>
+        ListEmptyComponent={normalizedQuery ? <Text tone="muted">No pictures match.</Text> : null}
+        renderItem={({ item }) => item.kind === 'picture' ? (
+          <PictureTile picture={item.picture} width={tileWidth} favorite={favoriteIds.has(item.picture.id)} toggleFavorite={toggle} />
         ) : (
           <PressTarget
-            style={[styles.tile, { width: tileWidth, backgroundColor: theme.pastels[picturePastel[item.picture.category]] }]}
-            accessibilityLabel={item.picture.name}
-            accessibilityHint="Long-press to change favorite"
-            accessibilityActions={[{ name: 'favorite', label: favorites.includes(item.id) ? 'Remove favorite' : 'Add favorite' }]}
-            onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'favorite') toggle(item.id) }}
-            onLongPress={() => toggle(item.id)}
-            onPress={() => router.push({ pathname: '/picture/[id]', params: paramsForPicture(item.picture) })}
+            style={[styles.group, {
+              width: tileWidth, minHeight: tileWidth + theme.space.xl,
+              backgroundColor: theme.pastels[picturePastel[item.group.id]],
+            }]}
+            accessibilityLabel={item.group.label}
+            onPress={() => router.push({ pathname: '/group/[id]', params: { id: item.group.id } })}
           >
-            <PictureArt picture={item.picture} />
-            {favorites.includes(item.id) && <View style={styles.favoriteMark}><Icon glyph={HeartIcon} /></View>}
-            <Text variant="body" style={styles.bold}>{item.picture.name}</Text>
+            <PictureArt picture={item.group.cover} />
+            <Text variant="heading" style={[styles.bold, styles.center]}>{item.group.label}</Text>
           </PressTarget>
         )}
       />
@@ -247,21 +241,17 @@ const styles = StyleSheet.create({
   keepText: { flex: 1, gap: theme.space.xs },
   play: { minHeight: theme.target.child, minWidth: theme.target.child, borderRadius: theme.radius.full,
     alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.coral },
-  chips: { gap: theme.space.sm },
-  chip: {
-    minHeight: theme.target.child, minWidth: theme.target.child, paddingHorizontal: theme.space.lg, paddingVertical: theme.space.sm,
-    borderRadius: theme.radius.full, backgroundColor: theme.colors.surface,
-    flexDirection: 'row', alignItems: 'center', gap: theme.space.sm,
+  row: { flexDirection: 'row', gap: theme.space.md },
+  shelf: { gap: theme.space.sm },
+  center: { textAlign: 'center' },
+  group: {
+    borderRadius: theme.radius.tile, paddingHorizontal: theme.space.sm, paddingTop: theme.space.sm,
+    paddingBottom: theme.space.md, gap: theme.space.sm, justifyContent: 'space-between',
   },
-  activeChip: { backgroundColor: theme.colors.ink },
-  activeText: { color: theme.colors.surface },
-  row: { gap: theme.space.md },
-  tile: { position: 'relative', borderRadius: theme.radius.tile, padding: theme.space.md, gap: theme.space.sm, minHeight: theme.target.child },
-  favoriteMark: { position: 'absolute', top: theme.space.md, right: theme.space.md, backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.full, padding: theme.space.xs },
-  special: { backgroundColor: theme.colors.surface, borderColor: theme.colors.hairline, borderWidth: theme.border.emphasis },
-  specialArt: { width: '100%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
+  special: {
+    flex: 1, minHeight: theme.target.child, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: theme.colors.surface, borderColor: theme.colors.hairline, borderWidth: theme.border.emphasis,
+    borderRadius: theme.radius.tile, padding: theme.space.md, gap: theme.space.sm,
+  },
   specialBadge: { width: theme.target.child, height: theme.target.child, alignItems: 'center', justifyContent: 'center', borderRadius: theme.radius.tile },
-  photoBadge: { backgroundColor: theme.pastels.sky },
-  nameBadge: { backgroundColor: theme.pastels.butter },
 })

@@ -1,8 +1,8 @@
 import { useFocusEffect } from 'expo-router'
 import { useCallback, useState } from 'react'
 import { Alert } from 'react-native'
-import { drawingById, toggleFavoriteDrawing } from '../../../../shared'
-import { createFavoritePreference, parseArtFavorites } from '../../data/favoritePreference'
+import { toggleFavoriteDrawing } from '../../../../shared'
+import { createFavoritePreference, isLegacyFavoriteId, parseArtFavorites } from '../../data/favoritePreference'
 import type { PreferenceSnapshot } from '../../data/favoritePreference'
 import { parseDrawingPreferences } from '../../data/localSettings'
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
@@ -47,6 +47,6 @@ export function useFavorites() {
   const art = usePreference(artFavorites, [])
   return {
     favorites: [...legacy.value.favoriteIds, ...art.value],
-    toggle: (id: string) => (drawingById(id) ? legacy : art).toggle(id),
+    toggle: (id: string) => (isLegacyFavoriteId(id) ? legacy : art).toggle(id),
   }
 }

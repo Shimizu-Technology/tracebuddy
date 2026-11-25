@@ -74,7 +74,7 @@ export default function PictureSheet() {
     }
     if (!focused.current) return
     if (mode === 'camera') {
-      // On paper takes the sheet's place, full screen over Home ([Home, Paper]); the photo is handed over.
+      // On paper takes the sheet's place so closing it returns to the picture picker.
       photoHandoff.handOff(photoUri)
       navigation.dispatch(StackActions.replace('paper', { screen: '[id]', params: next }))
     } else router.replace({ pathname: '/draw/[id]', params: next })
