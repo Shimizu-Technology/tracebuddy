@@ -2,10 +2,10 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import opentype from 'opentype.js'
-import type { Font, Glyph } from 'opentype.js'
+import type { Font, Glyph, Path } from 'opentype.js'
 
 type Variation = { wght: number; wdth: number }
-// The published declarations predate the variation and Latin GPOS APIs in 2.0.
+// The published declarations predate these APIs in 2.0.
 type GuideFont = Font & {
   variation?: { getTransform: (glyph: Glyph, coordinates: Variation) => Glyph }
   position: {
@@ -13,6 +13,7 @@ type GuideFont = Font & {
     getKerningValue: (tables: unknown[], left: number, right: number) => number
   }
 }
+type GuidePath = Path & { toPathData(options: { decimalPlaces: number; flipY: boolean }): string }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const output = resolve(root, 'mobile/src/data/glyphs.generated.ts')
@@ -37,7 +38,7 @@ function glyphData(filename: string, variation?: Variation) {
     }
     if (advance === undefined) throw new Error(`${filename} is missing an advance for ${character}.`)
     const { x1, y1, x2, y2 } = path.getBoundingBox()
-    const d = (path.toPathData as (options: { decimalPlaces: number; flipY: boolean }) => string)({ decimalPlaces: 1, flipY: false })
+    const d = (path as GuidePath).toPathData({ decimalPlaces: 1, flipY: false })
     if (!d && character !== ' ') throw new Error(`${filename} is missing the outline for ${character}.`)
     return { character, glyph, values: [d, advance, Math.floor(x1), Math.floor(y1), Math.ceil(x2), Math.ceil(y2)] }
   })
