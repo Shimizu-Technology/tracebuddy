@@ -313,3 +313,7 @@ For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px
 ### Batch 3 Rejection & Regeneration Log (Detailed — 1 Rejection)
 
 1. **`fox` line v1 (REJECTED → v2 approved):** v1 filled all four lower legs/paws solid black instead of leaving hollow colorable paw socks. Regenerated once in **v2** with crisp hollow wavy paw/ankle bands and ear tips (`raw Disk:4 = 18.8%` → `35.3%` via `Disk:3`). All 24 colorizations were approved on first attempt.
+
+### Batch 3 Lead Review Fix
+
+At 420 px the Detailed `flamingo` (24.1%), `kitten` (24.7%), `seal` (25.4%), `sloth` (25.3%) and `drum` (24.9%) still read thinner than the rest of the set. Each was re-vectorized from its raw master with `-morphology Erode Disk:2` after the 1680×1680 threshold, before potrace. New `Disk:4` survival on a 1024 px render: `flamingo` 30.6%, `kitten` 36.2%, `seal` 29.6%, `sloth` 32.9%, `drum` 34.1%. Whiskers, yarn strands and drum cords stay separated.

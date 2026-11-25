@@ -491,4 +491,4 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "owl-doodle", name: "Doodle Owl", category: "patterns", color: () => require("../../../shared/art/detailed/owl-doodle/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/owl-doodle/line.svg") } },
   ],
 }
-// Line art SHA-256: 8dadc325c7ce0b51c97e53683d883e8c98bb743556e2428115236cc3f43380b2
+// Line art SHA-256: cf89bfd7d85a965f982db6420c4d47992801815687da3e1b65fd6cb01f43e577
