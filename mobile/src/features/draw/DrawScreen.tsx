@@ -2,7 +2,7 @@ import { photoDrawingName } from '../../data/practiceSource'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Redirect, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
 import { usePreventRemove } from 'expo-router/react-navigation'
-import { Alert, AppState, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
+import { Alert, AppState, BackHandler, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { scheduleOnRN } from 'react-native-worklets'
@@ -116,6 +116,15 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
     .onEnd(({ translationY }) => {
       if (translationY >= theme.space.xl) scheduleOnRN(dismissPicker)
     })
+  // Android Back closes an open tray or shade fan before it can leave the drawing.
+  useEffect(() => {
+    if (!picker) return
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      dismissPicker()
+      return true
+    })
+    return () => subscription.remove()
+  }, [dismissPicker, picker])
   useEffect(() => {
     const release = keepDrawingImages(drawingImageUris({ source, stickers }))
     return () => { void release() }
