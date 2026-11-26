@@ -460,3 +460,69 @@ Added **22 new subjects** across 6 categories (`fun`, `go`, `holidays`, `food`, 
 ### Batch 6 Rejection & Regeneration Log (Simple — 0 Rejections)
 
 - **0 art rejections** across all 22 Simple subjects (44/44 generated images approved on first visual output). Note: `basketball` Simple line initially returned two transient empty tool responses (`no image generated in response`) when the subject text followed the style block, and succeeded cleanly once the subject description was placed before the verbatim S1 style block (used for all subsequent subjects).
+
+---
+
+## Batch 7 (expansion)
+
+Added **19 new subjects** across 7 categories (`animals`, `ocean`, `magic`, `go`, `food`, `nature`, `people`), bringing the published Simple manifest from 185 to **204 subjects** (the remaining 5 planned Batch 7 subjects — `builder`, `trophy`, `microphone`, and Detailed-only `flower-wreath` and `butterfly-garden` — were deferred after hitting an HTTP 429 image-generation quota limit starting Subject 20).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch7/raw/simple/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch7/simple-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Line weight (`Disk:4` erosion survival):** min `32.4%` (`otter`), median `43.7%`, max `55.0%` (`popsicle`) — every Simple subject is visibly thicker than its Detailed counterpart.
+- **Stroke thickening applied (10 subjects, to keep bold toddler-traceable S1 weight and clear Simple-vs-Detailed line-weight hierarchy):**
+  - `wolf`: raw `29.1%` → thickened with `Disk:2` to **`38.9%`** (1024 px render; cleanly thicker than Detailed `30.8%`)
+  - `otter`: raw `21.2%` → thickened with `Disk:3` to **`32.4%`** (1024 px render; cleanly thicker than Detailed `27.6%`)
+  - `stingray`: raw `29.2%` → thickened with `Disk:2` to **`43.7%`** (1024 px render; cleanly thicker than Detailed `31.7%`)
+  - `phoenix`: raw `24.4%` → thickened with `Disk:3` to **`37.1%`** (1024 px render; cleanly thicker than Detailed `26.9%`)
+  - `monster-truck`: raw `19.3%` → thickened with `Disk:4` to **`42.3%`** (1024 px render; cleanly thicker than Detailed `32.7%`)
+  - `motorcycle`: raw `32.3%` → thickened with `Disk:3` to **`43.3%`** (1024 px render; cleanly thicker than Detailed `35.4%`)
+  - `avocado`: raw `39.4%` → thickened with `Disk:2` to **`44.5%`** (1024 px render; cleanly thicker than Detailed `38.5%`)
+  - `tree-house`: raw `23.2%` → thickened with `Disk:3` to **`35.6%`** (1024 px render; cleanly thicker than Detailed `27.9%`)
+  - `camping-tent`: raw `27.6%` → thickened with `Disk:4` to **`43.3%`** (1024 px render; cleanly thicker than Detailed `35.3%`)
+  - `farmer`: raw `32.7%` → thickened with `Disk:2` to **`39.8%`** (1024 px render; cleanly thicker than Detailed `32.0%`)
+- **Deterministic post-generation master fixes (0 extra quota spent):**
+  - `hummingbird` line: generated facing left with a detached floating leaf in the bottom corner; horizontally mirrored (`-flop`) to face right and erased the detached leaf cleanly before colorization (`Disk:4 = 48.4%`).
+  - `stingray` line: generated facing downward-left; horizontally mirrored (`-flop`) before colorization so it glides forward-right consistently.
+  - `rose` line: small sepal leaves under the bloom rendered tinted green due to color mention in prompt; extracted the green channel with `-level 0%,70%` before vectorization to keep smooth anti-aliased pure black-and-white outlines (`Disk:4 = 46.7%`).
+- **Enclosed exterior pockets cleared transparent:** `phoenix` (2 gaps between curving tail ribbons), `monster-truck` (4 lifted suspension/wheel-arch gaps), `motorcycle` (3 open-air frame/engine gaps), `tree-house` (4 ladder-rung and trunk-ladder gaps), and `farmer` (2 tiny basket-handle openings).
+
+### Per-Subject Descriptions (19 Batch 7 Subjects)
+
+#### Animals
+- **`rhino` ("Rhino"):** Standing right-facing chubby smiling baby rhinoceros with two curved snout horns, rounded ears, simple body fold lines, four sturdy legs with toenail arcs, and a tufted tail (`Disk:4 = 38.2%`). Color: warm dove-lavender gray coat, blush inner ears, warm ivory-cream horns and toenails, slate-gray tail tuft.
+- **`camel` ("Camel"):** Standing right-facing chubby smiling baby two-humped camel with smooth rounded humps, gentle curved neck, four separated padded legs, and a tufted tail (`Disk:4 = 46.6%`). Color: warm golden-sand caramel coat, cream-blush inner ear, biscuit-tan feet pads, cocoa-brown tail tuft.
+- **`wolf` ("Wolf"):** Sitting three-quarter friendly smiling baby wolf facing right with pointed ears, cheek tufts, hollow nose, fluffy chest patch, and big bushy wavy-tipped tail on the left (`Disk:4 = 38.9%`, `Disk:2` from raw `29.1%`). Color: soft silver-slate wolf-gray coat, ivory-cream mask/chest/tail tip, pale blush inner ears, charcoal-slate nose.
+- **`otter` ("Otter"):** Sitting upright chubby smiling baby otter facing right hugging a scalloped seashell against its tummy with small round ears, whiskers, webbed hind feet, and curved tail (`Disk:4 = 32.4%`, `Disk:3` from raw `21.2%`). Color: warm caramel-cocoa fur, biscuit-ivory cheeks/muzzle/belly, chocolate-brown nose, coral-peach seashell.
+- **`eagle` ("Eagle"):** Gliding right-facing chubby smiling baby bald eagle with wide outstretched 5-tip wings, scalloped neck collar, hooked beak, 5-feather fanned tail, and tucked three-toed feet (`Disk:4 = 43.9%`). Color: warm cocoa-brown body and wings, snow-ivory head and tail, sunny golden-yellow beak and feet.
+- **`hummingbird` ("Hummingbird"):** Hovering right-facing chubby baby hummingbird (mirrored, detached leaf removed) with hollow long beak, raised swept-back wings, and 3-feather tail hovering beside a plump trumpet flower (`Disk:4 = 48.4%`). Color: emerald-mint green body and wings, sky-aqua tail, ruby-pink throat, cream chest band, charcoal beak, coral-pink/yellow flower with leaf-green calyx.
+
+#### Ocean
+- **`stingray` ("Stingray"):** Gliding forward-right chubby smiling baby stingray (mirrored) with smooth diamond wings, 6 hollow circle back spots, small pelvic fins, and gently curving tail (`Disk:4 = 43.7%`, `Disk:2` from raw `29.2%`). Color: soft periwinkle ocean-blue upper wings/tail, cream-white curled undersides/tabs, pale aqua-blue spots.
+- **`shrimp` ("Shrimp"):** Swimming right-facing chubby smiling baby shrimp with C-curved segmented shell, two thick hollow curving antennae, 4 separated stubby legs, and a 2-lobe fanned tail (`Disk:4 = 52.1%`). Color: alternating coral-peach and apricot-pink shell segments/antennae, pale peach-cream legs, bright coral-pink tail.
+
+#### Magic
+- **`fairy-house` ("Mushroom Fairy House"):** Cozy chubby toadstool fairy cottage on a smooth grass mound with spotted cap roof, tilted chimney with smoke puff, arched door, 4-pane round window, and a plump flower (`Disk:4 = 44.1%`). Color: coral-red cap with ivory spots, biscuit-cream walls, caramel door, sky-blue window, terracotta chimney with powder-blue smoke, meadow-green mound, yellow flower.
+- **`phoenix` ("Fire Bird"):** Flying right-facing chubby smiling baby fire bird with 3-plume flame crest, outstretched flame-curved wings, oval belly patch, and 3 flowing ribbon tail plumes with teardrop tips (`Disk:4 = 37.1%`, `Disk:3` from raw `24.4%`). Color: fiery coral-red and tangerine-orange body/wings/tail ribbons with sunny golden-yellow belly, inner wings, crest, beak, feet, and teardrop centers.
+
+#### Things That Go
+- **`monster-truck` ("Monster Truck"):** Right-facing chubby cartoon monster truck with lifted cab and bed, plain hollow door star (no text/logos), lifted suspension struts (4 gaps cleared), and two huge scalloped monster tires (`Disk:4 = 42.3%`, `Disk:4` from raw `19.3%`). Color: royal sky-blue body, butter-yellow star/headlight/rims, coral-red springs/taillight, sky-ice windows, silver-gray bumpers/hubcaps, charcoal-slate tires.
+- **`motorcycle` ("Motorcycle"):** Right-facing chubby cartoon motorcycle with teardrop tank and plain stripe (no logos), padded seat, mirror, round headlight, chunky exhaust, closed engine block, and hollow tires (`Disk:4 = 43.3%`, `Disk:3` from raw `32.3%`). Color: coral-red tank/fenders/side panel, butter-yellow stripe/headlight, caramel seat, silver-gray metal parts, charcoal-slate tires.
+
+#### Food
+- **`taco` ("Taco"):** Upright chubby crunchy taco with 5 hollow oval shell spots overflowing with wavy lettuce, 4 tomato slices, melted cheese wave, and rounded filling mounds (`Disk:4 = 44.6%`). Color: golden-tan tortilla shell with amber spots, meadow-green lettuce, tomato-coral slices, cheddar-yellow cheese, cocoa-brown filling.
+- **`popsicle` ("Popsicle"):** Gently tilted plump arch-topped rainbow ice pop with 3 wavy horizontal stripes, twin vertical grooves, side melty drop, and rounded wooden stick (`Disk:4 = 55.0%`). Color: strawberry-coral pink top, butter-yellow middle, sky-aqua bottom and drop, honey-tan wooden stick.
+- **`avocado` ("Avocado"):** Upright plump halved avocado with wide outer skin rim, smooth round pit with bean highlight, short stem nub, and single veined leaf (`Disk:4 = 44.5%`, `Disk:2` from raw `39.4%`). Color: deep avocado-forest green skin, creamy pistachio-yellow flesh, caramel-chestnut pit with cream highlight, cocoa stem, meadow-green leaf.
+
+#### Nature
+- **`rose` ("Rose"):** Upright chubby storybook rose with smooth cupped spiraling petals, small pointed sepals, smooth curved hollow stem (no thorns), and two single-veined leaves (`Disk:4 = 46.7%`). Color: crimson-rose outer petals, coral-rose inner petals, meadow-leaf green sepals, stem, and leaves.
+- **`tree-house` ("Tree House"):** Cozy chubby wooden tree house nestled in a puffy cloud-bumped leafy tree on a grass curve with pitched roof, arched door, round window, and 4-rung wooden ladder (`Disk:4 = 35.6%`, `Disk:3` from raw `23.2%`). Color: meadow-green canopy/grass, cocoa trunk/ladder, honey-caramel cabin walls, coral-red roof, sky-blue window.
+- **`camping-tent` ("Tent and Campfire"):** Chubby A-frame camping tent with tied-back door flaps and side stripe resting beside a plump campfire of crossed logs, stones, and two-layer flame on a grass hill (`Disk:4 = 43.3%`, `Disk:4` from raw `27.6%`). Color: coral-orange tent with butter-yellow stripe, cream flaps, slate-navy interior, meadow-green hill, caramel logs, pebble-gray stones, tangerine/yellow flame.
+
+#### People
+- **`farmer` ("Farmer"):** Forward-facing chubby smiling kid farmer waving hello in a wide-brimmed ribbon straw hat, shirt, buttoned denim overalls, and farm boots carrying a basket of two apples and a carrot (`Disk:4 = 39.8%`, `Disk:2` from raw `32.7%`). Color: straw-gold hat with coral ribbon, chestnut hair, honey-tan skin, ivory shirt, sky-blue overalls, cocoa boots, caramel basket with coral apples and tangerine carrot.
+
+### Batch 7 Rejection & Regeneration Log (Simple — 0 Rejections)
+
+- **0 art rejections** across all 19 completed Simple subjects (38/38 generated images approved on first visual output, with deterministic cleanups on `hummingbird`, `stingray`, and `rose` noted above).
+- **Deferred due to HTTP 429 quota exhaustion (3 Simple subjects remaining):** `builder` ("Builder", `people`), `trophy` ("Trophy", `fun`), and `microphone` ("Microphone", `fun`) hit `HTTP 429 RESOURCE_EXHAUSTED` starting Subject 20 (`builder`, quota resets after ~3h04m). Generation stopped immediately per batch rules so all 19 fully completed subjects could be committed cleanly.

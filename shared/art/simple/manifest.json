@@ -1663,5 +1663,176 @@
     "line": "swan/line.svg",
     "color": "swan/color.webp",
     "notes": ""
+  },
+  {
+    "id": "rhino",
+    "name": "Rhino",
+    "category": "animals",
+    "level": "simple",
+    "line": "rhino/line.svg",
+    "color": "rhino/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "camel",
+    "name": "Camel",
+    "category": "animals",
+    "level": "simple",
+    "line": "camel/line.svg",
+    "color": "camel/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "wolf",
+    "name": "Wolf",
+    "category": "animals",
+    "level": "simple",
+    "line": "wolf/line.svg",
+    "color": "wolf/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "otter",
+    "name": "Otter",
+    "category": "animals",
+    "level": "simple",
+    "line": "otter/line.svg",
+    "color": "otter/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "eagle",
+    "name": "Eagle",
+    "category": "animals",
+    "level": "simple",
+    "line": "eagle/line.svg",
+    "color": "eagle/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "hummingbird",
+    "name": "Hummingbird",
+    "category": "animals",
+    "level": "simple",
+    "line": "hummingbird/line.svg",
+    "color": "hummingbird/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "stingray",
+    "name": "Stingray",
+    "category": "ocean",
+    "level": "simple",
+    "line": "stingray/line.svg",
+    "color": "stingray/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "shrimp",
+    "name": "Shrimp",
+    "category": "ocean",
+    "level": "simple",
+    "line": "shrimp/line.svg",
+    "color": "shrimp/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "fairy-house",
+    "name": "Mushroom Fairy House",
+    "category": "magic",
+    "level": "simple",
+    "line": "fairy-house/line.svg",
+    "color": "fairy-house/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "phoenix",
+    "name": "Fire Bird",
+    "category": "magic",
+    "level": "simple",
+    "line": "phoenix/line.svg",
+    "color": "phoenix/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "monster-truck",
+    "name": "Monster Truck",
+    "category": "go",
+    "level": "simple",
+    "line": "monster-truck/line.svg",
+    "color": "monster-truck/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "motorcycle",
+    "name": "Motorcycle",
+    "category": "go",
+    "level": "simple",
+    "line": "motorcycle/line.svg",
+    "color": "motorcycle/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "taco",
+    "name": "Taco",
+    "category": "food",
+    "level": "simple",
+    "line": "taco/line.svg",
+    "color": "taco/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "popsicle",
+    "name": "Popsicle",
+    "category": "food",
+    "level": "simple",
+    "line": "popsicle/line.svg",
+    "color": "popsicle/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "avocado",
+    "name": "Avocado",
+    "category": "food",
+    "level": "simple",
+    "line": "avocado/line.svg",
+    "color": "avocado/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "rose",
+    "name": "Rose",
+    "category": "nature",
+    "level": "simple",
+    "line": "rose/line.svg",
+    "color": "rose/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "tree-house",
+    "name": "Tree House",
+    "category": "nature",
+    "level": "simple",
+    "line": "tree-house/line.svg",
+    "color": "tree-house/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "camping-tent",
+    "name": "Tent and Campfire",
+    "category": "nature",
+    "level": "simple",
+    "line": "camping-tent/line.svg",
+    "color": "camping-tent/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "farmer",
+    "name": "Farmer",
+    "category": "people",
+    "level": "simple",
+    "line": "farmer/line.svg",
+    "color": "farmer/color.webp",
+    "notes": ""
   }
 ]
