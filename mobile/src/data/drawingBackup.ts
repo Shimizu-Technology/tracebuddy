@@ -15,7 +15,7 @@ import {
   previousWorkStorage, queueDrawingPreferencesOperation, readLocalSetting, writeLocalSettingInQueue,
 } from './nativeStorage'
 import { drawingImageUris } from './practiceImageCleanup'
-import { createPracticeSessionId, practiceImageFolder, rebasePracticeImageUri } from './practiceSource'
+import { createPracticeSessionId, keepsakeImageFolder, practiceImageFolder, rebasePracticeImageUri } from './practiceSource'
 import { artFavoritesKey, drawingPreferencesKey, learningProgressKey } from './storageKeys'
 
 async function readBackupSettings() {
@@ -97,7 +97,7 @@ export async function pickAndRestoreDrawingBackup() {
 
   const root = FileSystem.documentDirectory
   if (!root) throw new Error('App storage is unavailable')
-  const directory = `${root}${practiceImageFolder}/`
+  const directories = { drawing: `${root}${practiceImageFolder}/`, keepsake: `${root}${keepsakeImageFolder}/` }
   return previousWorkStorage.queuePreviousWorkWrite(() => queueDrawingPreferencesOperation(async () => {
     const imageCandidates = new Set<string>()
     try {
@@ -108,7 +108,8 @@ export async function pickAndRestoreDrawingBackup() {
           return drawing
         },
         writeDrawing: previousWorkStorage.writeSessionInQueue,
-        async writeImage(image) {
+        async writeImage(image, kind) {
+          const directory = directories[kind]
           const destination = `${directory}${createPracticeSessionId()}.${image.extension}`
           if (image.base64 === null) return destination
           imageCandidates.add(destination)

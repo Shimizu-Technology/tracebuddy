@@ -6,7 +6,7 @@ import { captureImageKeys, capturePixelWidth, createCaptureReadiness, saveTempor
 import { documentCapture } from '../../../nativeSafetyModel'
 import type { SavedPracticeSession } from '../../../practiceStorageModel'
 import { lineForSource } from '../../data/catalog'
-import { requestDrawingPhotoExport, saveToLibraryAsync } from '../../data/drawingPhotos'
+import { currentDrawingImageUri, requestDrawingPhotoExport, saveToLibraryAsync } from '../../data/drawingPhotos'
 import { readPictureLine } from '../../data/usePictureLine'
 import { DrawingDocument } from './DrawingDocument'
 import { createInkExport } from './createInkExport'
@@ -38,6 +38,12 @@ export function usePhotoExport() {
     let ink: ReturnType<typeof createInkExport>
     try {
       if (!await requestDrawingPhotoExport() || !active.current) return
+      // A paper keepsake is already a photo: save it as it is.
+      if (session.paperPhoto) {
+        await saveToLibraryAsync(currentDrawingImageUri(session.paperPhoto.uri))
+        if (active.current) Alert.alert('Saved to Photos', 'Your drawing is ready in Photos.')
+        return
+      }
       const guide = await readPictureLine(lineForSource(session.source))
       if (guide.status === 'error') throw guide.error
       if (!active.current) return

@@ -49,7 +49,8 @@ export default function HomeScreen() {
   const levelPending = useRef(false)
   const { drawings } = useDrawingLibrary()
   const { favorites, toggle } = useFavorites()
-  const recent = continueDrawing(drawings ?? [])
+  // A photo of a paper drawing is finished work, not something to keep going on.
+  const recent = continueDrawing((drawings ?? []).filter((drawing) => !drawing.paperPhoto))
 
   useEffect(() => () => { void photoLease.current?.() }, [photoLease])
 

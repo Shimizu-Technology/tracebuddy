@@ -33,6 +33,12 @@ export default function DrawingsScreen() {
     router.push({ pathname: '/drawing-menu', params: { sessionId: session.sessionId } })
   }
 
+  // A photo of a paper drawing opens as a photo; everything else opens in Draw.
+  function open(session: SavedPracticeSession) {
+    if (session.paperPhoto) router.push({ pathname: '/keepsake/[sessionId]', params: { sessionId: session.sessionId } })
+    else router.push({ pathname: '/draw/[id]', params: { id: session.source.drawingId, sessionId: session.sessionId } })
+  }
+
   return (
     <SafeAreaView style={styles.page}>
       <PageHeader title="My drawings" />
@@ -63,11 +69,11 @@ export default function DrawingsScreen() {
         ) : <ActivityIndicator color={theme.colors.ink} />}
         renderItem={({ item }) => (
           <PressTarget style={[styles.tile, { width: tileWidth }]} accessibilityLabel={drawingTitle(item)}
-            accessibilityHint="Open drawing. Long-press for drawing options."
+            accessibilityHint={item.paperPhoto ? 'Open photo. Long-press for drawing options.' : 'Open drawing. Long-press for drawing options.'}
             accessibilityActions={[{ name: 'options', label: 'Drawing options' }]}
             onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'options') openMenu(item) }}
             onLongPress={() => openMenu(item)}
-            onPress={() => router.push({ pathname: '/draw/[id]', params: { id: item.source.drawingId, sessionId: item.sessionId } })}>
+            onPress={() => open(item)}>
             <DrawingThumbnail side={tileWidth - theme.space.sm * 2} session={item} />
             <View style={styles.caption}>
               <Text variant="body" style={styles.label}>{drawingTitle(item)}</Text>

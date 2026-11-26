@@ -56,6 +56,9 @@ export default function DrawScreen() {
     return () => { active = false }
   }, [fresh, sessionId])
 
+  // A paper keepsake has no ink to continue: show its photo.
+  if (sessionId && loaded?.paperPhoto && fresh !== '1') return <Redirect href={{ pathname: '/keepsake/[sessionId]', params: { sessionId } }} />
+
   const lesson = sessionId && lessonForSession(sessionId)
   if (lesson && loaded && fresh !== '1' && !loaded.lessonFinished) {
     return <Redirect href={lessonDestination(lesson)} />

@@ -14,7 +14,7 @@ import { paperTheme } from './paperTheme'
 
 const { size, colors } = paperTheme
 
-function GlassButton({ glyph, label, onPress, style }: { glyph: IconGlyph; label: string; onPress: () => void; style?: StyleProp<ViewStyle> }) {
+export function GlassButton({ glyph, label, onPress, style }: { glyph: IconGlyph; label: string; onPress: () => void; style?: StyleProp<ViewStyle> }) {
   return (
     <PressTarget accessibilityLabel={label} onPress={onPress} style={[styles.glassButton, style]}>
       <Icon glyph={glyph} />

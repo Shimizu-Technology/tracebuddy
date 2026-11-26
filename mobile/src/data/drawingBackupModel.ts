@@ -4,8 +4,9 @@ import type { SavedPracticeSession } from '../../practiceStorageModel'
 import { canUseDrawingRecordFile } from './drawingRecords'
 import { parseArtFavorites } from './favoritePreference'
 import { isHistoricalLegacyPracticeSessionId } from './legacyPractice'
-import { mapDrawingImageUris, drawingImageUris } from './practiceImageCleanup'
-import { practiceImageFolder } from './practiceSource'
+import { drawingImageRefs, mapDrawingImageUris, drawingImageUris } from './practiceImageCleanup'
+import type { DrawingImageKind } from './practiceImageCleanup'
+import { drawingImageFolders } from './practiceSource'
 import { isUnreadableDrawingRecordError, normalizePreviousWorkSession } from './previousWork'
 
 export const maxDrawingBackupMiB = 32
@@ -67,9 +68,10 @@ type BackupImageFileIO = {
 }
 
 export async function readDrawingBackupImage(uri: string, documentDirectory: string | null, maxBytes: number, io: BackupImageFileIO): Promise<BackupImage> {
-  const root = documentDirectory && `${documentDirectory}${practiceImageFolder}/`
+  // Uploads and paper photos (tracebuddy-keepsakes) are the drawing image folders.
+  const root = documentDirectory ? drawingImageFolders.map((folder) => `${documentDirectory}${folder}/`).find((folder) => uri.startsWith(folder)) : undefined
   const extension = /\.([a-z0-9]{1,8})$/i.exec(uri)?.[1].toLowerCase() ?? 'jpg'
-  if (!root || !uri.startsWith(root) || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(uri.slice(root.length))) {
+  if (!root || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(uri.slice(root.length))) {
     return { extension, base64: null }
   }
   const info = await io.getInfo(uri)
@@ -155,6 +157,7 @@ function decodeDrawing(value: unknown, imageCount: number) {
   const source = object(candidate.source)
   // In particular, do not accept an upload that the normalizer removed.
   if (source.uploadedImage !== undefined && !drawing.source.uploadedImage) return invalid()
+  if (candidate.paperPhoto !== undefined && !drawing.paperPhoto) return invalid()
   for (const uri of drawingImageUris(drawing)) referenceIndex(uri, imageCount)
   return drawing
 }
@@ -247,7 +250,8 @@ export class DrawingRestoreWriteError extends Error {
 type DrawingRestoreIO = {
   readDrawing: (id: string) => Promise<SavedPracticeSession | null>
   writeDrawing: (drawing: SavedPracticeSession) => Promise<unknown>
-  writeImage: (image: BackupImage) => Promise<string>
+  /** `keepsake` is a photo of a paper drawing, which has its own folder. */
+  writeImage: (image: BackupImage, kind: DrawingImageKind) => Promise<string>
   writeSettings: (contents: DrawingBackupSettings) => Promise<void>
 }
 
@@ -267,12 +271,14 @@ export async function mergeDrawingBackup(backup: DrawingBackup, io: DrawingResto
         continue
       }
       const refs = drawingImageUris(drawing)
-      for (const ref of new Set(refs)) {
-        if (restoredImages.has(ref)) continue
+      // Each folder gets its own file: one image used as both a picture and a paper photo is written to both.
+      for (const { uri: ref, kind } of drawingImageRefs(drawing)) {
+        const key = `${kind}:${ref}`
+        if (restoredImages.has(key)) continue
         const image = backup.images[referenceIndex(ref, backup.images.length)]
-        restoredImages.set(ref, await io.writeImage(image))
+        restoredImages.set(key, await io.writeImage(image, kind))
       }
-      await io.writeDrawing(mapDrawingImageUris(drawing, (ref) => restoredImages.get(ref)!))
+      await io.writeDrawing(mapDrawingImageUris(drawing, (ref, kind) => restoredImages.get(`${kind}:${ref}`)!))
       for (const ref of refs) {
         if (backup.images[referenceIndex(ref, backup.images.length)].base64 === null) missing.add(ref)
       }

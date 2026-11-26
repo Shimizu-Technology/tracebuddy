@@ -57,6 +57,7 @@ export default function RootLayout() {
             <Stack.Protected guard={traceBuddy2Enabled}>
               <Stack.Screen name="grown-ups" />
               <Stack.Screen name="drawings" />
+              <Stack.Screen name="keepsake/[sessionId]" />
               <Stack.Screen name="group/[id]" />
               <Stack.Screen name="draw/[id]" options={{ gestureEnabled: false }} />
               <Stack.Screen name="learn/[level]/[id]" options={{ gestureEnabled: false }} />

@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native'
+import { Alert, BackHandler, Image, Platform, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { CameraView } from 'expo-camera'
 import * as Haptics from 'expo-haptics'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import { router, useNavigation } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import Animated, { useSharedValue } from 'react-native-reanimated'
+import { captureRef } from 'react-native-view-shot'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { isTraceBuddyARSupported } from '../../../modules/tracebuddy-ar/src/TraceBuddyARModule'
 import { devKitEnabled } from '../../devKit'
 import { currentDrawingImageUri } from '../../data/drawingPhotos'
+import { discardPaperShot, savePaperKeepsake } from '../../data/paperKeepsake'
+import type { PaperShot } from '../../data/paperKeepsake'
 import { parentSetupSeenKey } from '../../data/storageKeys'
 import { parentSetupSeenValue, parseParentSetupSeen } from '../../data/localSettings'
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
@@ -36,6 +39,8 @@ import { paperTheme } from './paperTheme'
 import { PermissionCard } from './PermissionCard'
 import { resolvePaperPicture } from './paperPicture'
 import type { PaperParams, PaperPicture } from './paperPicture'
+import { SnapAim, SnapReview } from './SnapPhoto'
+import { createSnapShots } from './snapShots'
 import { TableStandIn } from './TableStandIn'
 import { TipsCard } from './TipsCard'
 import { useCameraAccess } from './useCameraAccess'
@@ -47,6 +52,13 @@ import { useStickHandoff } from './useStickHandoff'
 
 const keepAwakeTag = 'tracebuddy-paper'
 const barHeight = paperTheme.size.lockButton + theme.space.xxl + theme.space.xl
+
+/** Snap your drawing: aiming with the live camera, then the photo just taken. */
+type Snap = { step: 'aim' } | { step: 'review'; shot: PaperShot }
+
+function imageSize(uri: string) {
+  return new Promise<{ width: number; height: number }>((resolve, reject) => Image.getSize(uri, (width, height) => resolve({ width, height }), reject))
+}
 
 export function PaperScreen({ params }: { params: PaperParams }) {
   const picture = useMemo(() => resolvePaperPicture(params, currentDrawingImageUri), [params])
@@ -79,6 +91,16 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const [locked, setLocked] = useState(false)
   const [tips, setTips] = useState(false)
   const [done, setDone] = useState(false)
+  const [snap, setSnap] = useState<Snap | null>(null)
+  const [snapBusy, setSnapBusy] = useState(false)
+  // A photo was kept this visit, and the well-done card has been shown once already.
+  const [kept, setKept] = useState(false)
+  const [celebrated, setCelebrated] = useState(false)
+  const standInRef = useRef<View>(null)
+  // Temporary photo files and capture attempts (see snapShots.ts). A capture or save is running: set
+  // synchronously, so a second tap can't start another.
+  const [shots] = useState(() => createSnapShots((uri) => { void discardPaperShot({ uri }) }))
+  const snapWorking = useRef(false)
   const [hint, setHint] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   // More as a bottom card. Any turn of the device closes it for good (it doesn't come back on turning back).
@@ -111,7 +133,8 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const stick = useStickHandoff(params, photoUri, restartCamera)
   const { handedOff } = stick
 
-  const showGuide = camera.cameraOn && !handedOff && setup.hydrated
+  // The guide is hidden while snapping, so the photo is just the child's drawing.
+  const showGuide = camera.cameraOn && !handedOff && setup.hydrated && !snap
   const controls = showGuide && line.status === 'ready' && !locked && !done
   // Child mode keeps the locked alignment through a turn of the device, and hides it until the device turns back.
   const turnedAway = locked && !setup.hydrated
@@ -260,6 +283,92 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
     setToast('Unlocked')
   }, [setChildMode])
 
+  const finishCelebration = useCallback((next: () => void) => {
+    setDone(false)
+    setCelebrated(false)
+    setKept(false)
+    next()
+  }, [])
+
+  // A photo that wasn't kept is deleted from the cache when it's retaken or the screen closes.
+  const dropShot = useCallback(() => shots.drop(), [shots])
+  useEffect(() => () => shots.close(), [shots])
+
+  const cameraLost = !camera.cameraOn || Boolean(camera.access)
+  useEffect(() => {
+    if (cameraLost) shots.invalidate()
+  }, [cameraLost, shots])
+
+  const leaveSnap = useCallback(() => {
+    shots.invalidate()
+    dropShot()
+    setCelebrated(true)
+    setSnap(null)
+  }, [dropShot, shots])
+
+  // Android Back steps out of snapping instead of leaving On paper, like a picker in Draw.
+  useEffect(() => {
+    if (!snap) return undefined
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (snap.step === 'review' && !snapBusy) {
+        dropShot()
+        setSnap({ step: 'aim' })
+      } else if (snap.step === 'aim') leaveSnap()
+      return true
+    })
+    return () => subscription.remove()
+  }, [dropShot, leaveSnap, snap, snapBusy])
+
+  const shoot = useCallback(async () => {
+    if (snapWorking.current || !camera.cameraReady) return
+    snapWorking.current = true
+    const capture = shots.begin()
+    setSnapBusy(true)
+    try {
+      let shot: PaperShot
+      if (camera.camera === 'none') {
+        // The Simulator has no camera: the photo is of the table stand-in, so the whole flow can be tried.
+        const uri = await captureRef(standInRef, { format: 'jpg', quality: 0.9, result: 'tmpfile' })
+        capture.own(uri)
+        shot = { uri, ...await imageSize(uri) }
+      } else {
+        const photo = await cameraRef.current?.takePictureAsync({ quality: 0.85, exif: false })
+        if (!photo) throw new Error('The camera is not ready')
+        capture.own(photo.uri)
+        shot = { uri: photo.uri, width: photo.width, height: photo.height }
+      }
+      if (capture.settle(true)) setSnap({ step: 'review', shot })
+    } catch {
+      const current = capture.current()
+      capture.settle(false)
+      if (current) setToast('That photo didn’t work. Try again.')
+    } finally {
+      snapWorking.current = false
+      if (shots.isOpen()) setSnapBusy(false)
+    }
+  }, [camera.camera, camera.cameraReady, shots])
+
+  const keepShot = useCallback(async (shot: PaperShot) => {
+    if (snapWorking.current || line.status !== 'ready') return
+    snapWorking.current = true
+    // The save owns the temporary file until its copy settles, even if the screen closes meanwhile.
+    const release = shots.hold(shot.uri)
+    setSnapBusy(true)
+    try {
+      await savePaperKeepsake(picture.picture, line.xml, shot)
+      if (!shots.isOpen()) return
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined)
+      setKept(true)
+      leaveSnap()
+    } catch {
+      if (shots.isOpen()) Alert.alert('Couldn’t keep the photo', 'Try again in a moment.')
+    } finally {
+      release()
+      snapWorking.current = false
+      if (shots.isOpen()) setSnapBusy(false)
+    }
+  }, [leaveSnap, line, picture.picture, shots])
+
   const sides = { left: insets.left + theme.space.lg, right: insets.right + theme.space.lg }
   const faderHeight = Math.min(paperTheme.size.fader.maxHeight, window.height * paperTheme.size.fader.heightFraction)
   const cameraShown = camera.cameraOn && !handedOff
@@ -269,7 +378,11 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
     <View style={styles.screen} accessibilityViewIsModal>
       <StatusBar style="light" hidden={locked} animated />
       <Animated.View style={[StyleSheet.absoluteFill, sceneStyle]}>
-        {cameraShown && camera.camera === 'none' ? <TableStandIn stage={stage} page={page} center={center} /> : null}
+        {cameraShown && camera.camera === 'none' ? (
+          <View ref={standInRef} collapsable={false} pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <TableStandIn stage={stage} page={page} center={center} />
+          </View>
+        ) : null}
         {cameraShown && camera.camera !== 'none' ? (
           <CameraView
             ref={cameraRef}
@@ -357,13 +470,25 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
         </BottomCard>
       ) : null}
       {tips && controls && !moreCardOpen ? <TipsCard reduceMotion={reduceMotion} onClose={closeTips} /> : null}
-      {done ? (
+      {done && !snap ? (
         <Celebration
           picture={picture}
           reduceMotion={reduceMotion}
-          onKeepTracing={() => setDone(false)}
-          onNewPicture={() => router.dismissTo('/')}
+          kept={kept}
+          returning={celebrated}
+          onSnap={() => setSnap({ step: 'aim' })}
+          onKeepTracing={() => finishCelebration(() => undefined)}
+          onNewPicture={() => finishCelebration(() => router.dismissTo('/'))}
         />
+      ) : null}
+      {snap?.step === 'aim' && camera.cameraOn && !camera.access ? (
+        <SnapAim page={page} center={center} ready={camera.cameraReady} busy={snapBusy}
+          onShoot={() => void shoot()} onBack={leaveSnap} />
+      ) : null}
+      {snap?.step === 'review' ? (
+        <SnapReview shot={snap.shot} saving={snapBusy}
+          onRetake={() => { dropShot(); setSnap({ step: 'aim' }) }}
+          onKeep={() => void keepShot(snap.shot)} />
       ) : null}
     </View>
   )
