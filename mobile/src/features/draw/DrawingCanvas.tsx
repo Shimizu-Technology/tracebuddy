@@ -41,6 +41,7 @@ type Props = {
   disabled: boolean
   onStroke: (stroke: PracticeStroke) => void
   onFillHint?: (hint: string | null) => void
+  onImageError?: (key: string) => void
 }
 
 function touchTime() {
@@ -66,7 +67,7 @@ function boundTranslation(value: number, scale: number, side: number) {
   return Math.max(side * (1 - scale), Math.min(0, value))
 }
 
-export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, readOnly, disabled, onStroke, onFillHint }: Props) {
+export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, readOnly, disabled, onStroke, onFillHint, onImageError }: Props) {
   const viewport = useSharedValue(fit)
   // Counts up so every turn spins clockwise; mapping only uses it modulo four. View only: ink stays upright.
   const turns = useSharedValue(0)
@@ -375,7 +376,8 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
           <View style={[styles.viewport, { width: side, height: side }]}>
             <Animated.View pointerEvents="none" style={[styles.document, transform]}>
               <Animated.View style={[{ width: side, height: side }, turned]}>
-                <DrawingDocument side={side} session={session} guideSvg={guideSvg} guideLayer={guideLayer} live={readOnly || filling ? undefined : live} />
+                <DrawingDocument side={side} session={session} guideSvg={guideSvg} guideLayer={guideLayer}
+                  live={readOnly || filling ? undefined : live} onImageError={onImageError} />
               </Animated.View>
             </Animated.View>
           </View>

@@ -15,8 +15,8 @@ export function createFavoritePreference<T>(
   write: (value: string) => Promise<unknown>,
   parse: (value: string | null) => T,
   toggle: (value: T, id: string) => T,
+  queue = createOperationQueue(),
 ) {
-  const queue = createOperationQueue()
   let revision = 0
 
   return {

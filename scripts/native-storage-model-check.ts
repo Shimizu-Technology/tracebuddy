@@ -72,19 +72,17 @@ function deferred() {
 }
 
 let allowWrite = true
-let afterMultiGetSnapshot: (() => Promise<void>) | undefined
+let afterRead: ((key: string) => Promise<void>) | undefined
 const storage = createPreviousWorkStorage({
   getAllKeys: async () => [...records.keys()],
-  getItem: async (key) => records.get(key) ?? null,
-  setItem: async (key, value) => { records.set(key, value) },
-  multiGet: async (keys) => {
-    const snapshot = keys.map((key): [string, string | null] => [key, records.get(key) ?? null])
-    await afterMultiGetSnapshot?.()
+  getItem: async (key) => {
+    const snapshot = records.get(key) ?? null
+    await afterRead?.(key)
     return snapshot
   },
-  multiSet: async (entries) => {
+  setItem: async (key, value) => {
     if (!allowWrite) throw new Error('fixture storage write failed')
-    entries.forEach(([key, value]) => records.set(key, value))
+    records.set(key, value)
   },
   removeItem: async (key) => { records.delete(key) },
 })
@@ -103,7 +101,14 @@ assert.deepEqual((await storage.loadPreviousWorkSessions())[0], keepsake)
 allowWrite = false
 await storage.loadPreviousWorkSessionsWithLegacyMigration({ width: 200, height: 400 })
 assert.ok(records.has(legacyKey), 'A failed migration keeps the original autosave')
+const migrateForBackup = () => storage.queuePreviousWorkWrite(() =>
+  storage.migrateLegacyPracticeAutosavesInQueue({ width: 200, height: 400 }, () => true, true))
+await assert.rejects(migrateForBackup(), /fixture storage write failed/, 'An actual storage failure blocks an incomplete backup')
+afterRead = async (key) => { if (key === legacyKey) throw new SyntaxError('simulated native read failure') }
+await assert.rejects(migrateForBackup(), /simulated native read failure/, 'Legacy parse recovery does not swallow a native read error')
+afterRead = undefined
 allowWrite = true
+await migrateForBackup()
 const sessions = await storage.loadPreviousWorkSessionsWithLegacyMigration({ width: 200, height: 400 })
 assert.deepEqual(sessions.map((session) => session.sessionId), [savedIn12.sessionId, 'legacy-line-paths'])
 assert.equal(sessions[1].strokes[0].path, 'M 100 100 L 300 200')
@@ -117,25 +122,33 @@ assert.deepEqual(await storage.loadPreviousWorkSessions(() => false), sessions)
 assert.equal(records.get(previousWorkIndexKey), '{broken', 'A revoked read cannot rewrite the index')
 assert.deepEqual(await storage.loadPreviousWorkSessions(), sessions)
 assert.deepEqual(JSON.parse(records.get(previousWorkIndexKey)!), { version: 1, ids: sessions.map((session) => session.sessionId) })
-// This load is also used by the flag-off app. Start a read against a dangling
-// ID, then save that ID again at the front, leaving the serialized index equal.
+// Both app interfaces use this reader. A snapshot and its cache repair
+// hold the same queue as a new save, even if the old index was dangling.
 const readStarted = deferred()
 const resumeRead = deferred()
-afterMultiGetSnapshot = async () => { readStarted.resolve(); await resumeRead.promise }
+afterRead = async (key) => {
+  if (key !== previousWorkSessionKey('legacy-line-paths')) return
+  readStarted.resolve()
+  await resumeRead.promise
+}
 records.delete(historicalSessionKey)
-const indexBeforeRace = records.get(previousWorkIndexKey)
 const repairing = storage.loadPreviousWorkSessions()
 await readStarted.promise
-await storage.savePreviousWorkSession(keepsake, () => true)
-assert.equal(records.get(previousWorkIndexKey), indexBeforeRace, 'Restoring the first record leaves the IDs identical')
-afterMultiGetSnapshot = undefined
+const simultaneousSave = storage.savePreviousWorkSession(keepsake, () => true)
+afterRead = undefined
 resumeRead.resolve()
-assert.deepEqual(await repairing, sessions, 'Repair must reread rows and keep the restored session')
-assert.equal(records.get(previousWorkIndexKey), indexBeforeRace)
-records.delete(historicalSessionKey)
-assert.deepEqual(await storage.loadPreviousWorkSessions(), [sessions[1]])
-assert.deepEqual(JSON.parse(records.get(previousWorkIndexKey)!).ids, [sessions[1].sessionId])
-await storage.savePreviousWorkSession(keepsake, () => true)
+assert.deepEqual(await repairing, [sessions[1]])
+await simultaneousSave
+assert.deepEqual(await storage.loadPreviousWorkSessions(), sessions, 'Repair cannot hide a concurrent save')
+assert.deepEqual(JSON.parse(records.get(previousWorkIndexKey)!).ids, sessions.map(({ sessionId }) => sessionId))
+records.set(previousWorkIndexKey, '{"version":1,"ids":[]}')
+assert.deepEqual(await storage.loadPreviousWorkSessions(), sessions, 'Even a valid but empty index cannot hide records')
+records.set(historicalSessionKey, '{broken drawing')
+let unreadable = 0
+assert.deepEqual(await storage.loadPreviousWorkSessionsWithLegacyMigration({ width: 200, height: 400 }, () => true, () => { unreadable += 1 }), [sessions[1]])
+assert.equal(unreadable, 1, 'The gallery can show the healthy drawing and report the unreadable one')
+assert.equal(records.get(historicalSessionKey), '{broken drawing', 'Loading does not delete the original bytes')
+records.set(historicalSessionKey, JSON.stringify(keepsake))
 
 await storage.savePreviousWorkSession({ ...saved, sessionId: 'revoked' }, () => false)
 assert.ok(!records.has(previousWorkSessionKey('revoked')), 'A revoked save cannot write a new session')

@@ -8,9 +8,14 @@ import { Text } from './Text'
 import { theme } from './theme'
 import { useReduceMotion } from './useReduceMotion'
 
-const holdMs = 1500
-
-export function HoldButton({ label, glyph, disabled, onConfirm }: { label: string; glyph: IconGlyph; disabled?: boolean; onConfirm: () => void }) {
+export function HoldButton({ label, glyph, disabled, onConfirm, parentGate = false }: {
+  label: string
+  glyph: IconGlyph
+  disabled?: boolean
+  onConfirm: () => void
+  parentGate?: boolean
+}) {
+  const holdMs = parentGate ? 2000 : 1500
   const progress = useSharedValue(0)
   const reduceMotion = useReduceMotion()
   const fill = useAnimatedStyle(() => ({ width: `${progress.get() * 100}%` }))
@@ -27,6 +32,17 @@ export function HoldButton({ label, glyph, disabled, onConfirm }: { label: strin
       return
     }
     dialogOpen.current = true
+    if (parentGate) {
+      Alert.alert('Grown-ups only', 'What is 4 + 5?', [
+        { text: '7', onPress: () => { dialogOpen.current = false } },
+        { text: '9', onPress: () => {
+          dialogOpen.current = false
+          onConfirm()
+        } },
+        { text: '11', onPress: () => { dialogOpen.current = false } },
+      ], { cancelable: false })
+      return
+    }
     Alert.alert(`${label}?`, undefined, [
       { text: 'Cancel', style: 'cancel', onPress: () => { dialogOpen.current = false } },
       { text: label, style: 'destructive', onPress: () => {

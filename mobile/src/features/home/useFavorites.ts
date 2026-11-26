@@ -5,20 +5,22 @@ import { toggleFavoriteDrawing } from '../../../../shared'
 import { createFavoritePreference, isLegacyFavoriteId, parseArtFavorites } from '../../data/favoritePreference'
 import type { PreferenceSnapshot } from '../../data/favoritePreference'
 import { parseDrawingPreferences } from '../../data/localSettings'
-import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
+import { queueDrawingPreferencesOperation, readLocalSetting, writeLocalSettingInQueue } from '../../data/nativeStorage'
 import { artFavoritesKey, drawingPreferencesKey } from '../../data/storageKeys'
 
 const legacyFavorites = createFavoritePreference(
   () => readLocalSetting(drawingPreferencesKey),
-  (value) => writeLocalSetting(drawingPreferencesKey, () => value, () => true),
+  (value) => writeLocalSettingInQueue(drawingPreferencesKey, value),
   parseDrawingPreferences,
   toggleFavoriteDrawing,
+  queueDrawingPreferencesOperation,
 )
 const artFavorites = createFavoritePreference(
   () => readLocalSetting(artFavoritesKey),
-  (value) => writeLocalSetting(artFavoritesKey, () => value, () => true),
+  (value) => writeLocalSettingInQueue(artFavoritesKey, value),
   parseArtFavorites,
   (ids, id) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id],
+  queueDrawingPreferencesOperation,
 )
 
 function usePreference<T>(preference: { read: () => Promise<PreferenceSnapshot<T>>; toggle: (id: string) => Promise<PreferenceSnapshot<T>> }, initial: T) {

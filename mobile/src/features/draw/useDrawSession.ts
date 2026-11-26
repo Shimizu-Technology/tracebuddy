@@ -5,7 +5,7 @@ import type { OperationGuard } from '../../../practiceOperations'
 import type { SavedPracticeSession } from '../../../practiceStorageModel'
 import { deleteDrawing, hasDrawingContent, newDrawing, readDrawing, saveDrawing } from '../../data/drawingLibrary'
 
-const autosaveMs = 450
+const autosaveMs = 120
 
 export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean) {
   const [session, setSession] = useState(initial)
@@ -18,6 +18,7 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
   const mayExist = useRef(wasSaved)
   const clearing = useRef(false)
   const pending = useRef<{ revision: number; save: Promise<boolean> } | null>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const change = useCallback((update: (session: SavedPracticeSession) => SavedPracticeSession) => {
     if (clearing.current) return
@@ -41,11 +42,11 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
 
     const write = async () => {
       try {
-        if (hasDrawingContent(snapshot)) {
+        if (hasDrawingContent(snapshot) || mayExist.current) {
+          // A write may finish on disk just as Clear revokes this attempt.
+          // Clear must still remove that session if the first save was pending.
           mayExist.current = true
           if (!await saveDrawing(snapshot, isCurrent)) return false
-        } else if (mayExist.current) {
-          if (!await deleteDrawing(snapshot.sessionId, isCurrent)) return false
         }
         if (!isCurrent()) return false
         if (version !== revision.current) return false
@@ -95,12 +96,6 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
     } catch {
       if (isCurrent()) {
         setSaveFailed(true)
-        if (restartLesson) {
-          // If storage could not roll back the failed batch, autosave may
-          // retry the original drawing. The reset was never published.
-          revision.current += 1
-          setDirty(true)
-        }
       }
       return false
     } finally {
@@ -127,10 +122,21 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
   }, [])
 
   useEffect(() => {
-    if (!dirty) return
-    const timer = setTimeout(() => { void save() }, autosaveMs)
-    return () => clearTimeout(timer)
+    if (!dirty || saveTimer.current !== null) return
+    // Keep the first timer when strokes arrive quickly. Coalesce edits during
+    // a slow write, then save the latest ink without waiting for a pause.
+    const run = () => {
+      saveTimer.current = null
+      if (pending.current) saveTimer.current = setTimeout(run, autosaveMs)
+      else void save()
+    }
+    saveTimer.current = setTimeout(run, autosaveMs)
   }, [dirty, save, session])
+
+  useEffect(() => () => {
+    if (saveTimer.current !== null) clearTimeout(saveTimer.current)
+    saveTimer.current = null
+  }, [])
 
   return { session, change, save, clear, refreshStamp, saveFailed, dirty }
 }

@@ -32,3 +32,30 @@ export function undoLessonStroke(strokes: PracticeStroke[], step: number) {
   const last = strokes.findLastIndex((stroke) => stroke.lessonStep === step)
   return last === -1 ? strokes : [...strokes.slice(0, last), ...strokes.slice(last + 1)]
 }
+
+type LessonDrawingRecords = {
+  readSessionInQueue: (id: string) => Promise<SavedPracticeSession | null>
+  writeSessionInQueue: (drawing: SavedPracticeSession) => Promise<unknown>
+  deleteSessionInQueue: (id: string) => Promise<void>
+}
+
+export async function preserveLessonDrawing(
+  records: LessonDrawingRecords,
+  drawing: SavedPracticeSession,
+  isCurrent: () => boolean,
+  resetProgress: () => Promise<void>,
+) {
+  if (!isCurrent()) return false
+  const latest = await records.readSessionInQueue(drawing.sessionId)
+  const original = latest && Date.parse(latest.updatedAt) > Date.parse(drawing.updatedAt) ? latest : drawing
+  const archiveId = `keepsake-${original.sessionId}-${original.createdAt}-${original.updatedAt}`
+  if (!await records.readSessionInQueue(archiveId)) {
+    if (!isCurrent()) return false
+    await records.writeSessionInQueue({ ...original, sessionId: archiveId })
+  }
+  if (!isCurrent()) return false
+  await resetProgress()
+  if (!isCurrent()) return false
+  await records.deleteSessionInQueue(drawing.sessionId)
+  return isCurrent()
+}

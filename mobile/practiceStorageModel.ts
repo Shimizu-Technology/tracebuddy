@@ -138,7 +138,7 @@ export function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | n
     width: practiceStrokeWidth(stroke.width),
     opacity: typeof stroke.opacity === 'number' && Number.isFinite(stroke.opacity) ? clamp(stroke.opacity, 0.05, 1) : 0.9,
     mode: stroke.mode === 'erase' ? 'erase' : 'draw',
-    dasharray: Array.isArray(stroke.dasharray) && stroke.dasharray.every((item) => typeof item === 'number') ? stroke.dasharray : undefined,
+    dasharray: Array.isArray(stroke.dasharray) && stroke.dasharray.every((item) => typeof item === 'number' && Number.isFinite(item)) ? stroke.dasharray : undefined,
   }
 }
 
@@ -161,7 +161,7 @@ function normalizeSavedPracticeSticker(value: unknown): PracticeSticker | null {
     width: clamp(sticker.width, 24, 1000),
     height: clamp(sticker.height, 24, 1000),
     rotation: typeof sticker.rotation === 'number' && Number.isFinite(sticker.rotation) ? sticker.rotation : 0,
-    opacity: typeof sticker.opacity === 'number' ? clamp(sticker.opacity, 0.08, 1) : 0.88,
+    opacity: typeof sticker.opacity === 'number' && Number.isFinite(sticker.opacity) ? clamp(sticker.opacity, 0.08, 1) : 0.88,
     svg: sticker.kind === 'shape' ? sticker.svg : undefined,
     uri: sticker.kind === 'image' ? sticker.uri : undefined,
   }
@@ -187,8 +187,8 @@ export function normalizePracticeSource(value: unknown): PracticeSource | null {
       ? {
           uri: source.uploadedImage.uri,
           name: typeof source.uploadedImage.name === 'string' ? source.uploadedImage.name : source.drawingName,
-          width: typeof source.uploadedImage.width === 'number' ? source.uploadedImage.width : undefined,
-          height: typeof source.uploadedImage.height === 'number' ? source.uploadedImage.height : undefined,
+          width: typeof source.uploadedImage.width === 'number' && Number.isFinite(source.uploadedImage.width) ? source.uploadedImage.width : undefined,
+          height: typeof source.uploadedImage.height === 'number' && Number.isFinite(source.uploadedImage.height) ? source.uploadedImage.height : undefined,
         }
       : undefined,
   }
@@ -221,10 +221,10 @@ export function normalizeSavedPracticeSession(value: unknown): SavedPracticeSess
     stickers,
     canvasWidth: typeof session.canvasWidth === 'number' && Number.isFinite(session.canvasWidth) ? Math.max(1, session.canvasWidth) : 1000,
     canvasHeight: typeof session.canvasHeight === 'number' && Number.isFinite(session.canvasHeight) ? Math.max(1, session.canvasHeight) : 1000,
-    guideOpacity: typeof session.guideOpacity === 'number' ? clamp(session.guideOpacity, 0.08, 0.66) : 0.24,
+    guideOpacity: typeof session.guideOpacity === 'number' && Number.isFinite(session.guideOpacity) ? clamp(session.guideOpacity, 0.08, 0.66) : 0.24,
     guideOnTop: typeof session.guideOnTop === 'boolean' ? session.guideOnTop : true,
     markerColor: typeof session.markerColor === 'string' ? session.markerColor : defaultMarkerColor,
-    markerWidth: typeof session.markerWidth === 'number' ? session.markerWidth : 9,
+    markerWidth: typeof session.markerWidth === 'number' && Number.isFinite(session.markerWidth) ? session.markerWidth : 9,
     brushToolId: session.brushToolId && coloringBrushTools.some((tool) => tool.id === session.brushToolId) ? session.brushToolId : 'marker',
   }
 }

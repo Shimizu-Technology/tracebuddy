@@ -91,6 +91,7 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
   const [picker, setPicker] = useState<Picker | null>(null)
   const [toolbarHeight, setToolbarHeight] = useState(0)
   const [fillHint, setFillHint] = useState<string | null>(null)
+  const [missingPhoto, setMissingPhoto] = useState(false)
   const [colorChoices, setColorChoices] = useState<Record<number, string>>(() => ({
     [selectedCrayon(initial.markerColor)]: initial.markerColor,
   }))
@@ -110,6 +111,7 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
   const side = Math.floor(Math.min(room.width, room.height))
 
   const { source, stickers } = session
+  const showMissingPhoto = useCallback(() => setMissingPhoto(true), [])
   const fillAvailable = supportsFill(guideSvg, source.kind === 'upload')
   const dismissPicker = useCallback(() => setPicker(null), [])
   const swipePicker = Gesture.Pan().activeOffsetY(theme.space.lg).failOffsetX([-theme.space.xl, theme.space.xl])
@@ -257,11 +259,12 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
             <CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />
           </View>} />
         {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
+        {missingPhoto && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>A photo could not open. You can still keep drawing.</Text>}
         {fillHint && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>{fillHint}</Text>}
         <View style={styles.workspace}>
           <View style={styles.canvasArea} onLayout={({ nativeEvent: { layout } }) => setRoom((current) => (current.width === layout.width && current.height === layout.height) ? current : layout)}>
             {side > 0 && <DrawingCanvas ref={canvas} area={room} side={side} session={session} guideSvg={guideSvg}
-              disabled={busy || moreOpen || Boolean(picker)} onStroke={addStroke} onFillHint={setFillHint} />}
+              disabled={busy || moreOpen || Boolean(picker)} onStroke={addStroke} onFillHint={setFillHint} onImageError={showMissingPhoto} />}
           </View>
           {(sideTools || portraitRail) && <View style={styles.sideRail}>{rail(true)}</View>}
           {sideTools && <ScrollView style={styles.sideTools} contentContainerStyle={styles.sideToolsContent}>{tools}</ScrollView>}
