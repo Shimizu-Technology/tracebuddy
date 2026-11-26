@@ -86,6 +86,14 @@ export type SavedPracticeSession = {
   stamp?: KeepsakeStamp
   finishedAt?: string
   lessonFinished?: true
+  /** A photo of the child's own drawing, traced On paper. The session has no ink; `source` is the picture traced. */
+  paperPhoto?: PaperPhoto
+}
+
+export type PaperPhoto = {
+  uri: string
+  width?: number
+  height?: number
 }
 
 export type UploadedImage = {
@@ -194,6 +202,19 @@ export function normalizePracticeSource(value: unknown): PracticeSource | null {
   }
 }
 
+function positiveSize(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+export function normalizePaperPhoto(value: unknown): PaperPhoto | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const photo = value as Partial<PaperPhoto>
+  if (typeof photo.uri !== 'string' || !photo.uri) return undefined
+  const width = positiveSize(photo.width)
+  const height = positiveSize(photo.height)
+  return { uri: photo.uri, ...(width ? { width } : {}), ...(height ? { height } : {}) }
+}
+
 export function normalizeSavedPracticeSession(value: unknown): SavedPracticeSession | null {
   if (!value || typeof value !== 'object') return null
   const session = value as Partial<SavedPracticeSession>
@@ -206,10 +227,12 @@ export function normalizeSavedPracticeSession(value: unknown): SavedPracticeSess
   const stickers = Array.isArray(session.stickers)
     ? session.stickers.map(normalizeSavedPracticeSticker).filter((sticker): sticker is PracticeSticker => Boolean(sticker))
     : []
+  const paperPhoto = normalizePaperPhoto(session.paperPhoto)
 
   return {
     version: 2,
     ...(session.lessonFinished === true ? { lessonFinished: true } : {}),
+    ...(paperPhoto ? { paperPhoto } : {}),
     stamp: normalizeStamp(session.stamp),
     finishedAt: typeof session.finishedAt === 'string' && Number.isFinite(Date.parse(session.finishedAt)) ? session.finishedAt : undefined,
     sessionId: session.sessionId,

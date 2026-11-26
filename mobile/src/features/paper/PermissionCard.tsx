@@ -19,7 +19,7 @@ type Props = {
 const copy: Record<CameraAccess, { title: string; line: string }> = {
   ask: {
     title: 'Use the camera',
-    line: 'TraceBuddy shows your paper through the camera so you can trace on it, and nothing is recorded or sent anywhere.',
+    line: 'TraceBuddy shows your paper through the camera so you can trace on it, takes a photo only when you snap one, and never sends anything anywhere.',
   },
   denied: {
     title: 'The camera is off',

@@ -22,6 +22,8 @@ export const paperTheme = {
     barButton: theme.target.child,
     lockButton: theme.target.child + 16,
     lockIcon: 32,
+    shutterRing: 5,
+    snapFrameOutset: 6,
     badge: theme.target.child,
     fader: { width: theme.target.adult + 4, knob: 32, track: 8, maxHeight: 360, heightFraction: 0.4 },
     frame: { stroke: 2.5, dash: 9, gap: 7, outset: 10, radius: 12, handle: 16, handleStroke: 3 },
@@ -35,6 +37,8 @@ export const paperTheme = {
     nudge: theme.target.adult,
     tipArt: 120,
     cardMaxWidth: 560,
+    // Buttons beside a photo when the device is held sideways.
+    sideColumn: 240,
     barMaxWidth: 520,
     cardMaxHeightFraction: 0.62,
     previewArt: 180,

@@ -1,8 +1,8 @@
 import type { SavedPracticeSession } from '../../practiceStorageModel'
 import { practiceImageFolder, rebasePracticeImageUri } from './practiceSource'
 
-export function drawingImageUris(session: Pick<SavedPracticeSession, 'source' | 'stickers'> | null) {
-  return [session?.source.uploadedImage?.uri, ...(
+export function drawingImageUris(session: Pick<SavedPracticeSession, 'source' | 'stickers' | 'paperPhoto'> | null) {
+  return [session?.source.uploadedImage?.uri, session?.paperPhoto?.uri, ...(
     session?.stickers.filter((sticker) => sticker.kind === 'image').map((sticker) => sticker.uri) ?? []
   )].filter((uri): uri is string => Boolean(uri))
 }

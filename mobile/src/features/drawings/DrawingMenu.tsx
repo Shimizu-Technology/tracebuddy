@@ -5,10 +5,11 @@ import { usePreventRemove } from 'expo-router/react-navigation'
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native'
 
 import type { SavedPracticeSession } from '../../../practiceStorageModel'
+import { paramsForSource } from '../../data/catalog'
 import { copyDrawing, deleteDrawing, readDrawing } from '../../data/drawingLibrary'
 import { CanvasButton } from '../../ui/CanvasButton'
 import { HoldButton } from '../../ui/HoldButton'
-import { CopyIcon, DownloadSimpleIcon, PencilSimpleIcon, TrashIcon } from '../../ui/icons'
+import { CameraIcon, CopyIcon, DownloadSimpleIcon, PencilSimpleIcon, TrashIcon } from '../../ui/icons'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
 import { usePhotoExport } from '../draw/usePhotoExport'
@@ -55,10 +56,16 @@ export default function DrawingMenu() {
       {captureView}
       <ScrollView contentContainerStyle={styles.content}>
         <Text variant="heading" accessibilityRole="header">{drawingTitle(session)}</Text>
-        <CanvasButton glyph={CopyIcon} label="Copy" showLabel disabled={busy || saving} style={styles.option}
-          onPress={() => void change(() => copyDrawing(session))} />
-        <CanvasButton glyph={PencilSimpleIcon} label="Start fresh" showLabel disabled={busy || saving} style={styles.option}
-          onPress={() => router.replace({ pathname: '/draw/[id]', params: { id: session.source.drawingId, sessionId, fresh: '1' } })} />
+        {/* A paper keepsake is a photo: it can be traced again, not copied or redrawn. */}
+        {session.paperPhoto ? (
+          <CanvasButton glyph={CameraIcon} label="Trace again" showLabel disabled={busy || saving} style={styles.option}
+            onPress={() => router.replace({ pathname: '/paper/[id]', params: paramsForSource(session.source) })} />
+        ) : <>
+          <CanvasButton glyph={CopyIcon} label="Copy" showLabel disabled={busy || saving} style={styles.option}
+            onPress={() => void change(() => copyDrawing(session))} />
+          <CanvasButton glyph={PencilSimpleIcon} label="Start fresh" showLabel disabled={busy || saving} style={styles.option}
+            onPress={() => router.replace({ pathname: '/draw/[id]', params: { id: session.source.drawingId, sessionId, fresh: '1' } })} />
+        </>}
         <CanvasButton glyph={DownloadSimpleIcon} label={saving ? 'Saving…' : 'Save to Photos'} showLabel disabled={busy || saving} style={styles.option}
           onPress={() => void saveToPhotos(session)} />
         <HoldButton glyph={TrashIcon} label="Delete" disabled={busy || saving} onConfirm={() => void change(() => deleteDrawing(sessionId))} />

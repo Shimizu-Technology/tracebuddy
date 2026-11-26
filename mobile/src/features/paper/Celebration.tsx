@@ -5,6 +5,9 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import type { SharedValue } from 'react-native-reanimated'
 
 import { Button } from '../../ui/Button'
+import { CanvasButton } from '../../ui/CanvasButton'
+import { Icon } from '../../ui/Icon'
+import { CameraIcon, CheckIcon } from '../../ui/icons'
 import { PictureArt } from '../picture/PictureArt'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
@@ -66,15 +69,22 @@ function Confetti({ reduceMotion }: { reduceMotion: boolean }) {
 type Props = {
   picture: PaperPicture
   reduceMotion: boolean
+  /** A photo of this drawing was kept in My drawings. */
+  kept?: boolean
+  /** Coming back from the camera to this card isn't a new well done: no burst and no haptic. */
+  returning?: boolean
+  /** Left out where there's no camera to snap with (Stick to paper): Keep tracing and New picture only. */
+  onSnap?: () => void
   onKeepTracing: () => void
   onNewPicture: () => void
 }
 
-/** A short, gentle well-done moment after tracing on paper. */
-export function Celebration({ picture, reduceMotion, onKeepTracing, onNewPicture }: Props) {
+/** A short, gentle well-done moment after tracing on paper. Snapping a photo keeps the drawing in My drawings. */
+export function Celebration({ picture, reduceMotion, kept = false, returning = false, onSnap, onKeepTracing, onNewPicture }: Props) {
+  const snapMain = Boolean(onSnap) && !kept
   useEffect(() => {
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined)
-  }, [])
+    if (!returning) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined)
+  }, [returning])
 
   return (
     <>
@@ -83,9 +93,15 @@ export function Celebration({ picture, reduceMotion, onKeepTracing, onNewPicture
         onDismiss={onKeepTracing}
         accessibilityLabel="Great tracing!"
         footer={(
-          <View style={styles.actions}>
-            <Button label="Keep tracing" variant="secondary" onPress={onKeepTracing} style={styles.action} />
-            <Button label="New picture" haptic onPress={onNewPicture} style={styles.action} />
+          <View style={styles.footer}>
+            {onSnap && snapMain ? (
+              <CanvasButton glyph={CameraIcon} label="Snap your drawing" primary showLabel haptic onPress={onSnap} style={styles.snap} />
+            ) : null}
+            <View style={styles.actions}>
+              <Button label="Keep tracing" variant="secondary" onPress={onKeepTracing} style={styles.action} />
+              <Button label="New picture" variant={snapMain ? 'quiet' : 'primary'} haptic={!snapMain} onPress={onNewPicture}
+                style={[styles.action, snapMain && styles.quiet]} />
+            </View>
           </View>
         )}
       >
@@ -93,8 +109,14 @@ export function Celebration({ picture, reduceMotion, onKeepTracing, onNewPicture
         <View style={styles.preview}>
           <PictureArt picture={picture.picture} />
         </View>
+        {kept ? (
+          <View style={styles.kept} accessible accessibilityLabel="Your photo is in My drawings">
+            <Icon glyph={CheckIcon} />
+            <Text variant="body">In My drawings</Text>
+          </View>
+        ) : null}
       </BottomCard>
-      <Confetti reduceMotion={reduceMotion} />
+      {returning ? null : <Confetti reduceMotion={reduceMotion} />}
     </>
   )
 }
@@ -109,7 +131,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.tile,
     backgroundColor: theme.colors.background,
   },
+  footer: { gap: theme.space.md },
+  snap: { minHeight: theme.target.child + theme.space.md },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.md },
+  quiet: { borderColor: theme.colors.hairline, borderWidth: theme.border.emphasis },
+  kept: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.space.sm },
   // Natural width, so the buttons stack instead of breaking words at large text sizes.
   action: { flexGrow: 1 },
   piece: { position: 'absolute', left: 0, top: 0, width: paperTheme.size.confettiPiece.width, height: paperTheme.size.confettiPiece.height, borderRadius: 1 },

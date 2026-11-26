@@ -46,7 +46,7 @@
     "check:finish-find-model": "tsx scripts/finish-find-model-check.ts && tsx scripts/finish-find-save-model-check.ts",
     "check:finish-find": "node scripts/finish-find-check.mjs",
     "check:native-finish-find-model": "tsx scripts/native-finish-find-model-check.ts",
-    "check:native-storage-model": "tsx scripts/native-storage-model-check.ts",
+    "check:native-storage-model": "tsx scripts/native-storage-model-check.ts && tsx scripts/paper-keepsake-check.ts",
     "check:drawing-backup": "tsx scripts/drawing-backup-check.ts",
     "art:generate": "tsx scripts/generate-art-index.ts",
     "art:check": "tsx scripts/generate-art-index.ts --check",

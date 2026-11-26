@@ -5,8 +5,9 @@ import type { PracticeSource, SavedPracticeSession, UploadedImage } from '../../
 export const practiceImageFolder = 'tracebuddy-uploads'
 export const photoDrawingName = 'My photo'
 
-export function drawingTitle({ source, title }: Pick<SavedPracticeSession, 'source' | 'title'>) {
-  if (source.kind !== 'upload') return title
+export function drawingTitle({ source, title, paperPhoto }: Pick<SavedPracticeSession, 'source' | 'title' | 'paperPhoto'>) {
+  // A paper keepsake of a photo is titled "My photo (on paper)" when it is made.
+  if (source.kind !== 'upload' || paperPhoto) return title
   const copySuffix = /(?: copy)+$/.exec(title)?.[0] ?? ''
   return photoDrawingName + copySuffix
 }
