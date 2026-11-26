@@ -1,29 +1,64 @@
+import { useRef } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
-import { brushSizes, brushTools } from '../../../practiceStorageModel'
+import { brushSizes } from '../../../practiceStorageModel'
 import type { BrushToolId, SavedPracticeSession } from '../../../practiceStorageModel'
 import { CanvasButton } from '../../ui/CanvasButton'
-import { ArrowUUpLeftIcon, CheckIcon, EraserIcon, HighlighterIcon, PaintBrushIcon, PencilSimpleIcon } from '../../ui/icons'
+import { Icon } from '../../ui/Icon'
+import { ArrowUUpLeftIcon, CheckIcon, DotsThreeIcon, EraserIcon } from '../../ui/icons'
 import { PressTarget } from '../../ui/PressTarget'
 import { theme } from '../../ui/theme'
 
-const drawingBrushes = brushTools.filter(({ id }) => id !== 'eraser')
-const glyphs = { pencil: PencilSimpleIcon, marker: HighlighterIcon, crayon: PencilSimpleIcon, paint: PaintBrushIcon, eraser: EraserIcon }
+import { brushGlyphs, drawingBrushes } from './brushPresentation'
+import { crayons, selectedCrayon } from './crayonShades'
 
-export function ColorRail({ selected, vertical, disabled, onPick }: { selected: string; vertical?: boolean; disabled: boolean; onPick: (color: string) => void }) {
+export function ColorRail({ selected, choices, vertical, disabled, erasing, onPick, onShades }: {
+  selected: string
+  choices: Record<number, string>
+  vertical?: boolean
+  disabled: boolean
+  erasing: boolean
+  onPick: (color: string) => void
+  onShades: (index: number, x: number) => void
+}) {
+  const active = selectedCrayon(selected)
   return (
     <ScrollView horizontal={!vertical} showsHorizontalScrollIndicator={!vertical} showsVerticalScrollIndicator={false}
       style={vertical ? styles.railVertical : styles.railHorizontal}
       contentContainerStyle={vertical ? styles.colorsVertical : styles.colorsHorizontal}>
-      {theme.crayon.colors.map(({ name, value }) => (
-        <PressTarget key={name} accessibilityLabel={name} selected={selected.toUpperCase() === value.toUpperCase()}
-          onPress={() => onPick(value)} disabled={disabled} style={styles.crayonHit}>
-          <View style={[styles.crayon, selected.toUpperCase() === value.toUpperCase() && styles.raisedCrayon]}>
-            <View style={[styles.crayonCap, { backgroundColor: value }]} />
-            <View style={[styles.crayonBody, { backgroundColor: value }]} />
-          </View>
-        </PressTarget>
+      {crayons.map((crayon, index) => (
+        <Crayon key={crayon.name} crayon={crayon} disabled={disabled} active={active === index}
+          value={active === index ? selected : choices[index] ?? crayon.value}
+          shadesOnTap={active === index && !erasing}
+          onPick={onPick} onShades={(x) => onShades(index, x)} />
       ))}
     </ScrollView>
+  )
+}
+
+function Crayon({ crayon, value, active, disabled, shadesOnTap, onPick, onShades }: {
+  crayon: (typeof crayons)[number]
+  value: string
+  active: boolean
+  disabled: boolean
+  shadesOnTap: boolean
+  onPick: (color: string) => void
+  onShades: (x: number) => void
+}) {
+  const anchor = useRef<View>(null)
+  const shade = crayon.shades.find((candidate) => candidate.value.toUpperCase() === value.toUpperCase())
+  const showShades = () => anchor.current?.measureInWindow((x, _y, width) => onShades(x + width / 2))
+  return (
+    <View ref={anchor} collapsable={false}>
+      <PressTarget accessibilityLabel={shade?.name ?? crayon.name} selected={active}
+        accessibilityHint={shadesOnTap ? 'Opens more shades.' : undefined}
+        onPress={() => shadesOnTap ? showShades() : onPick(value)} onLongPress={showShades} disabled={disabled} style={styles.crayonHit}>
+        <View style={[styles.crayon, active && styles.raisedCrayon]}>
+          <View style={[styles.crayonCap, { backgroundColor: value }]} />
+          <View style={[styles.crayonBody, { backgroundColor: value }]} />
+          {shadesOnTap && <View style={styles.shadesHint}><Icon glyph={DotsThreeIcon} size={theme.space.lg} /></View>}
+        </View>
+      </PressTarget>
+    </View>
   )
 }
 
@@ -33,16 +68,15 @@ type ToolsProps = {
   busy: boolean
   compact: boolean
   vertical?: boolean
+  onBrushTray: () => void
   onSize: (size: number) => void
   onTool: (id: BrushToolId) => void
   onUndo: () => void
   onDone: () => void
 }
 
-export function DrawTools({ session, lastBrush, busy, compact, vertical, onSize, onTool, onUndo, onDone }: ToolsProps) {
-  const brushIndex = Math.max(0, drawingBrushes.findIndex(({ id }) => id === lastBrush))
-  const currentBrush = drawingBrushes[brushIndex]
-  const nextBrush = drawingBrushes[(brushIndex + 1) % drawingBrushes.length]
+export function DrawTools({ session, lastBrush, busy, compact, vertical, onBrushTray, onSize, onTool, onUndo, onDone }: ToolsProps) {
+  const currentBrush = drawingBrushes.find(({ id }) => id === lastBrush) ?? drawingBrushes[0]
   const eraser = session.brushToolId === 'eraser'
 
   return (
@@ -58,8 +92,8 @@ export function DrawTools({ session, lastBrush, busy, compact, vertical, onSize,
             </PressTarget>
           ))}
         </View>
-        <CanvasButton glyph={glyphs[currentBrush.id]} label={`Brush: ${currentBrush.label}. Switch to ${nextBrush.label}`}
-          onPress={() => onTool(nextBrush.id)} disabled={busy} />
+        <CanvasButton glyph={brushGlyphs[currentBrush.id]} label={`Brush tools, ${currentBrush.label}`}
+          onPress={onBrushTray} disabled={busy} />
       </View>
       <View style={styles.group}>
         <CanvasButton glyph={EraserIcon} label="Eraser" onPress={() => onTool(eraser ? lastBrush : 'eraser')} selected={eraser} disabled={busy} />
@@ -78,8 +112,9 @@ const styles = StyleSheet.create({
   crayonHit: { width: theme.target.child, height: theme.target.child, alignItems: 'center', justifyContent: 'flex-end' },
   crayon: { paddingVertical: theme.space.xs, borderWidth: theme.border.emphasis, borderColor: 'transparent', borderRadius: theme.space.md, alignItems: 'center', width: theme.crayon.bodyWidth },
   raisedCrayon: { borderColor: theme.colors.ink, transform: [{ translateY: -theme.space.xs }] },
-  crayonCap: { borderTopLeftRadius: theme.space.sm, borderTopRightRadius: theme.space.sm, width: theme.crayon.capWidth, height: theme.space.md, opacity: 0.85 },
-  crayonBody: { width: '100%', height: theme.crayon.bodyHeight, borderRadius: theme.space.sm, borderBottomWidth: theme.space.xs, borderBottomColor: theme.crayon.shading },
+  shadesHint: { position: 'absolute', top: -theme.space.xs, right: 0, borderRadius: theme.radius.full, backgroundColor: theme.colors.surface },
+  crayonCap: { borderTopLeftRadius: theme.space.sm, borderTopRightRadius: theme.space.sm, width: theme.crayon.capWidth, height: theme.space.md, opacity: 0.85, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.crayon.shading },
+  crayonBody: { width: '100%', height: theme.crayon.bodyHeight, borderRadius: theme.space.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.crayon.shading, borderBottomWidth: theme.space.xs, borderBottomColor: theme.crayon.shading },
   tools: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: theme.space.sm, paddingHorizontal: theme.space.md },
   compactTools: { flexDirection: 'column', alignItems: 'stretch' },
   verticalTools: { flexDirection: 'column', alignItems: 'center', paddingHorizontal: 0 },

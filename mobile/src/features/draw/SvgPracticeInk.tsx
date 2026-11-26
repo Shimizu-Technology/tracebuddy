@@ -1,11 +1,17 @@
-import { memo, useId, useMemo } from 'react'
+import { Fragment, memo, useId, useMemo } from 'react'
+import type { ComponentProps, ComponentType } from 'react'
+import type { ViewStyle } from 'react-native'
 import Animated, { useAnimatedProps } from 'react-native-reanimated'
 import { Defs, G, Mask, Path, Rect, Svg } from 'react-native-svg'
 
 import type { PracticeStroke } from '../../../practiceStorageModel'
 import type { InkProps, LiveInk } from './inkTypes'
 
-const AnimatedPath = Animated.createAnimatedComponent(Path)
+// react-native-svg forwards CSS on web, but Path's props only describe its SVG attributes.
+const StyledPath = Path as ComponentType<ComponentProps<typeof Path> & { style?: ViewStyle }>
+const AnimatedPath = Animated.createAnimatedComponent(StyledPath)
+const multiply = { mixBlendMode: 'multiply' } as const
+const isolate = { isolation: 'isolate' } as const
 
 const History = memo(function History({ strokes, prefix }: { strokes: InkProps['strokes']; prefix: string }) {
   return useMemo(() => {
@@ -26,18 +32,20 @@ const History = memo(function History({ strokes, prefix }: { strokes: InkProps['
       const remove = erasers.filter(({ index }) => index > end)
       const mask = `${prefix}-${batchIndex}`
       return (
-        <G key={mask}>
+        <Fragment key={mask}>
           {remove.length > 0 && (
             <Defs><Mask id={mask} x={0} y={0} width={1000} height={1000} maskUnits="userSpaceOnUse">
               <Rect width={1000} height={1000} fill="white" />
               {remove.map(({ stroke, index }) => <Path key={index} d={stroke.path} fill="none" stroke="black" strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" />)}
             </Mask></Defs>
           )}
-          <G mask={remove.length ? `url(#${mask})` : undefined}>
-            {paths.map((stroke, index) => <Path key={index} d={stroke.path} fill="none" stroke={stroke.color} strokeWidth={stroke.width}
-              strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" />)}
-          </G>
-        </G>
+          {/* Apply any committed erase mask to each stroke before it blends with earlier ink. */}
+          {paths.map((stroke, index) => <StyledPath key={index} d={stroke.path}
+            mask={remove.length ? `url(#${mask})` : undefined} style={stroke.blend === 'multiply' ? multiply : undefined}
+            fill={stroke.kind === 'fill' ? stroke.color : 'none'} fillOpacity={stroke.opacity}
+            stroke={stroke.kind === 'fill' ? 'none' : stroke.color} strokeWidth={stroke.width}
+            strokeOpacity={stroke.opacity} strokeDasharray={stroke.dasharray} strokeLinecap="round" strokeLinejoin="round" />)}
+        </Fragment>
       )
     })
   }, [prefix, strokes])
@@ -46,6 +54,7 @@ const History = memo(function History({ strokes, prefix }: { strokes: InkProps['
 function LivePath({ live, erase }: { live: LiveInk; erase?: boolean }) {
   const props = useAnimatedProps(() => ({ d: live.path.get(), strokeWidth: live.width.get() }))
   return <AnimatedPath animatedProps={props} fill="none" stroke={erase ? 'black' : live.style.color}
+    style={live.style.blend === 'multiply' ? multiply : undefined}
     strokeOpacity={live.style.opacity} strokeDasharray={live.style.dasharray} strokeLinecap="round" strokeLinejoin="round" />
 }
 
@@ -53,13 +62,15 @@ export const SvgPracticeInk = memo(function SvgPracticeInk({ side, strokes, live
   const prefix = useId().replaceAll(':', '')
   const erase = live?.style.mode === 'erase'
   return (
-    <Svg pointerEvents="none" width={side} height={side} viewBox="0 0 1000 1000">
+    <Svg pointerEvents="none" width={side} height={side} viewBox="0 0 1000 1000" style={isolate}>
       {live && erase && (
         <Defs><Mask id={`${prefix}-active`} x={0} y={0} width={1000} height={1000} maskUnits="userSpaceOnUse">
           <Rect width={1000} height={1000} fill="white" /><LivePath live={live} erase />
         </Mask></Defs>
       )}
-      <G mask={erase ? `url(#${prefix}-active)` : undefined}><History strokes={strokes} prefix={prefix} /></G>
+      {erase
+        ? <G mask={`url(#${prefix}-active)`}><History strokes={strokes} prefix={prefix} /></G>
+        : <History strokes={strokes} prefix={prefix} />}
       {live && !erase && <LivePath live={live} />}
     </Svg>
   )

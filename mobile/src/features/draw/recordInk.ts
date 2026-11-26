@@ -13,7 +13,7 @@ function parseStroke(stroke: PracticeStroke) {
   }
   const paint = Skia.Paint()
   paint.setAntiAlias(true)
-  paint.setStyle(PaintStyle.Stroke)
+  paint.setStyle(stroke.kind === 'fill' ? PaintStyle.Fill : PaintStyle.Stroke)
   paint.setStrokeCap(StrokeCap.Round)
   paint.setStrokeJoin(StrokeJoin.Round)
   paint.setStrokeWidth(stroke.width)
@@ -22,6 +22,7 @@ function parseStroke(stroke: PracticeStroke) {
   } else {
     try { paint.setColor(Skia.Color(stroke.color)) } catch { paint.setColor(Skia.Color('#18243A')) }
     paint.setAlphaf(stroke.opacity)
+    if (stroke.blend === 'multiply') paint.setBlendMode(BlendMode.Multiply)
     const dash = stroke.dasharray
     if (dash?.length && dash.every((size) => Number.isFinite(size) && size >= 0) && dash.some((size) => size > 0)) {
       paint.setPathEffect(Skia.PathEffect.MakeDash(dash.length % 2 === 0 ? dash : [...dash, ...dash], 0))

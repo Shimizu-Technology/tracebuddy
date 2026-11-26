@@ -63,3 +63,9 @@ export const EyeIcon: Icon = require('phosphor-react-native/src/icons/Eye').EyeI
 export const SpeakerHighIcon: Icon = require('phosphor-react-native/src/icons/SpeakerHigh').SpeakerHighIcon
 export const SpeakerSlashIcon: Icon = require('phosphor-react-native/src/icons/SpeakerSlash').SpeakerSlashIcon
 /* eslint-enable @typescript-eslint/no-require-imports */
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+export const DropIcon: Icon = require('phosphor-react-native/src/icons/Drop').DropIcon
+export const PaintBucketIcon: Icon = require('phosphor-react-native/src/icons/PaintBucket').PaintBucketIcon
+export const PencilLineIcon: Icon = require('phosphor-react-native/src/icons/PencilLine').PencilLineIcon
+/* eslint-enable @typescript-eslint/no-require-imports */

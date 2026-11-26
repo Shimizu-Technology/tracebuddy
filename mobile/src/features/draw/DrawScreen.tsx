@@ -2,8 +2,10 @@ import { photoDrawingName } from '../../data/practiceSource'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Redirect, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
 import { usePreventRemove } from 'expo-router/react-navigation'
-import { Alert, AppState, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { Alert, AppState, BackHandler, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { scheduleOnRN } from 'react-native-worklets'
 
 import { finishAfterSave } from '../../../finishFindModel'
 import type { BrushToolId, PracticeStroke, SavedPracticeSession } from '../../../practiceStorageModel'
@@ -25,13 +27,18 @@ import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
 import { lessonDestination, lessonForSession } from '../learn/lessonPractice'
 import { PictureLineFeedback } from '../picture/PictureLineFeedback'
+import { selectedCrayon } from './crayonShades'
 import { DrawingCanvas } from './DrawingCanvas'
 import type { CanvasHandle } from './DrawingCanvas'
+import { BrushTray, ShadeFan } from './DrawingPickers'
 import { ColorRail, DrawTools } from './DrawTools'
 import { useDrawMore } from './drawMoreState'
+import { supportsFill } from './fillGuide'
 import { useDrawSession } from './useDrawSession'
 
 type Params = PictureParams & { fresh?: '1' }
+type Picker = { kind: 'brushes' } | { kind: 'shades'; index: number; x: number }
+const sideToolsWidth = theme.target.child * 4 + theme.space.lg
 
 export default function DrawScreen() {
   const params = useLocalSearchParams<Params>()
@@ -81,6 +88,12 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
   const { setMore } = useDrawMore()
   const [busy, setBusy] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [picker, setPicker] = useState<Picker | null>(null)
+  const [toolbarHeight, setToolbarHeight] = useState(0)
+  const [fillHint, setFillHint] = useState<string | null>(null)
+  const [colorChoices, setColorChoices] = useState<Record<number, string>>(() => ({
+    [selectedCrayon(initial.markerColor)]: initial.markerColor,
+  }))
   const [room, setRoom] = useState({ width: 0, height: 0 })
   const running = useRef(false)
   const canvas = useRef<CanvasHandle>(null)
@@ -88,6 +101,7 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
   const navigation = useNavigation()
   const returningFromDone = useRef<string | null>(null)
   const { width, height, fontScale } = useWindowDimensions()
+  const insets = useSafeAreaInsets()
   const tablet = Math.min(width, height) >= theme.layout.threeColumns
   const landscape = width > height
   const floatingSheet = Platform.OS === 'ios' && Platform.isPad
@@ -96,6 +110,21 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
   const side = Math.floor(Math.min(room.width, room.height))
 
   const { source, stickers } = session
+  const fillAvailable = supportsFill(guideSvg, source.kind === 'upload')
+  const dismissPicker = useCallback(() => setPicker(null), [])
+  const swipePicker = Gesture.Pan().activeOffsetY(theme.space.lg).failOffsetX([-theme.space.xl, theme.space.xl])
+    .onEnd(({ translationY }) => {
+      if (translationY >= theme.space.xl) scheduleOnRN(dismissPicker)
+    })
+  // Android Back closes an open tray or shade fan before it can leave the drawing.
+  useEffect(() => {
+    if (!picker) return
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      dismissPicker()
+      return true
+    })
+    return () => subscription.remove()
+  }, [dismissPicker, picker])
   useEffect(() => {
     const release = keepDrawingImages(drawingImageUris({ source, stickers }))
     return () => { void release() }
@@ -166,6 +195,7 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
         await canvas.current?.flush()
         if (!await clear()) { showSaveFailure(); return false }
         setLastBrush('marker')
+        setFillHint(null)
         canvas.current?.fit()
         return true
       }),
@@ -191,52 +221,92 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
     })
   }
 
+  function pickTool(brushToolId: BrushToolId) {
+    setPicker(null)
+    setFillHint(null)
+    if (brushToolId !== 'eraser') setLastBrush(brushToolId)
+    change((value) => ({ ...value, brushToolId }))
+  }
+
+  function pickColor(markerColor: string) {
+    setPicker(null)
+    change((value) => ({ ...value, markerColor, brushToolId: lastBrush }))
+  }
+
   const tools = (
     <DrawTools session={session} lastBrush={lastBrush} busy={busy}
       compact={!tablet || fontScale >= theme.layout.stackedHeaderFontScale} vertical={sideTools}
+      onBrushTray={() => setPicker({ kind: 'brushes' })}
       onSize={(markerWidth) => change((value) => ({ ...value, markerWidth }))}
-      onTool={(brushToolId) => {
-        if (brushToolId !== 'eraser') setLastBrush(brushToolId)
-        change((value) => ({ ...value, brushToolId }))
-      }}
+      onTool={pickTool}
       onUndo={() => change((value) => value.strokes.length ? { ...value, strokes: value.strokes.slice(0, -1) } : value)}
       onDone={finish}
     />
   )
-  const rail = (vertical = false) => <ColorRail selected={session.markerColor} vertical={vertical} disabled={busy} onPick={(markerColor) => {
-    change((value) => ({ ...value, markerColor, brushToolId: lastBrush }))
-  }} />
+  const rail = (vertical = false) => <ColorRail selected={session.markerColor} choices={colorChoices} vertical={vertical} disabled={busy}
+    erasing={session.brushToolId === 'eraser'} onPick={pickColor} onShades={(index, x) => setPicker({ kind: 'shades', index, x })} />
+  const pickerWidth = width - insets.left - insets.right - (sideTools ? sideToolsWidth + theme.space.xs : 0)
 
   return (
     <SafeAreaView style={styles.page}>
-      <PageHeader title={session.source.kind === 'upload' ? photoDrawingName : session.source.drawingName} centered
-        trailing={<View style={styles.headerActions}>
-          <CanvasButton glyph={ArrowClockwiseIcon} label="Turn picture" haptic onPress={() => canvas.current?.turn()} disabled={busy || moreOpen} />
-          <CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />
-        </View>} />
-      {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
-      <View style={styles.workspace}>
-        <View style={styles.canvasArea} onLayout={({ nativeEvent: { layout } }) => setRoom((current) => (current.width === layout.width && current.height === layout.height) ? current : layout)}>
-          {side > 0 && <DrawingCanvas ref={canvas} area={room} side={side} session={session} guideSvg={guideSvg} disabled={busy || moreOpen} onStroke={addStroke} />}
+      <View style={styles.content} accessibilityElementsHidden={Boolean(picker)}
+        importantForAccessibility={picker ? 'no-hide-descendants' : 'auto'}>
+        <PageHeader title={session.source.kind === 'upload' ? photoDrawingName : session.source.drawingName} centered
+          trailing={<View style={styles.headerActions}>
+            <CanvasButton glyph={ArrowClockwiseIcon} label="Turn picture" haptic onPress={() => canvas.current?.turn()} disabled={busy || moreOpen} />
+            <CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />
+          </View>} />
+        {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
+        {fillHint && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>{fillHint}</Text>}
+        <View style={styles.workspace}>
+          <View style={styles.canvasArea} onLayout={({ nativeEvent: { layout } }) => setRoom((current) => (current.width === layout.width && current.height === layout.height) ? current : layout)}>
+            {side > 0 && <DrawingCanvas ref={canvas} area={room} side={side} session={session} guideSvg={guideSvg}
+              disabled={busy || moreOpen || Boolean(picker)} onStroke={addStroke} onFillHint={setFillHint} />}
+          </View>
+          {(sideTools || portraitRail) && <View style={styles.sideRail}>{rail(true)}</View>}
+          {sideTools && <ScrollView style={styles.sideTools} contentContainerStyle={styles.sideToolsContent}>{tools}</ScrollView>}
         </View>
-        {(sideTools || portraitRail) && <View style={styles.sideRail}>{rail(true)}</View>}
-        {sideTools && <ScrollView style={styles.sideTools} contentContainerStyle={styles.sideToolsContent}>{tools}</ScrollView>}
+        {moreOpen ? <View style={{ height: height * (theme.sheet.drawDetent + (floatingSheet ? theme.sheet.tabletClearance : 0)) }} />
+          : !sideTools && <View style={styles.bottomTools} onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}>
+              {!portraitRail && rail()}{tools}
+            </View>}
       </View>
-      {moreOpen ? <View style={{ height: height * (theme.sheet.drawDetent + (floatingSheet ? theme.sheet.tabletClearance : 0)) }} />
-        : !sideTools && <View style={styles.bottomTools}>{!portraitRail && rail()}{tools}</View>}
+      {picker && (
+        <View style={[styles.overlay, { top: insets.top, bottom: insets.bottom, left: insets.left, right: insets.right }]}
+          accessibilityViewIsModal onAccessibilityEscape={dismissPicker}>
+          <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Close picker" onPress={dismissPicker} />
+          <View pointerEvents="box-none" style={[styles.picker, sideTools ? styles.pickerBesideTools : { bottom: toolbarHeight + theme.space.xs }]}>
+            <GestureDetector gesture={swipePicker}>
+              <View pointerEvents="box-none">
+                {picker.kind === 'brushes'
+                  ? <BrushTray selected={session.brushToolId} fillAvailable={fillAvailable} alignRight={sideTools} onPick={pickTool} />
+                  : <ShadeFan selected={session.markerColor} index={picker.index} anchorX={picker.x - insets.left}
+                      width={pickerWidth} onPick={(color) => {
+                        setColorChoices((choices) => ({ ...choices, [picker.index]: color }))
+                        pickColor(color)
+                      }} />}
+              </View>
+            </GestureDetector>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: theme.colors.background },
+  content: { flex: 1 },
   workspace: { flex: 1, flexDirection: 'row', justifyContent: 'center' },
   canvasArea: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 1 },
   headerActions: { flexDirection: 'row', gap: theme.space.sm },
   status: { textAlign: 'center', paddingHorizontal: theme.space.lg },
   sideRail: { width: theme.target.child + theme.space.sm, marginRight: theme.space.sm },
-  sideTools: { width: theme.target.child * 4 + theme.space.lg, flexGrow: 0 },
+  sideTools: { width: sideToolsWidth, flexGrow: 0 },
   sideToolsContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: theme.space.sm },
   bottomTools: { gap: theme.space.xs, paddingVertical: theme.space.xs },
+  overlay: { ...StyleSheet.absoluteFill, zIndex: 1 },
+  picker: { position: 'absolute', left: 0, right: 0 },
+  pickerBesideTools: { top: 0, bottom: 0, right: sideToolsWidth + theme.space.xs, justifyContent: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: theme.space.lg, padding: theme.space.lg },
 })

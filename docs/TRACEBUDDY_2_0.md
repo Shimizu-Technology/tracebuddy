@@ -28,7 +28,7 @@ Every 2.0 screen follows these. A PR that breaks one needs a written reason.
 
 1. **Pictures first.** The first screen shows things to draw. Mode choices come after a picture is picked.
 2. **Touch the picture, not buttons about it.** Drag moves, pinch resizes, twist rotates. Fade is one slider that stays on screen. Arrow-button nudges and +/- steppers are only fine-tuning extras.
-3. **Never cover the work.** A panel never hides the guide or canvas the user is adjusting. Panels are short (40% of the screen at most on phones), swipe down to close, and leave the subject visible. If something needs more room, the subject moves up, not under.
+3. **Keep the work visible.** Adjustment panels are short (40% of the screen at most on phones), swipe down to close, and leave the subject visible. Move the subject up when an adjustment panel needs room. The brush tray and shade fan are temporary pickers next to the tools. They keep the canvas framing fixed and close on an outside tap.
 4. **Works without reading.** Every child-facing control is recognizable from its icon. Text labels help adults but never carry the meaning alone. When read-aloud is on, prompts have a speaker button.
 5. **One main action per screen,** visibly larger and in the brand color. Everything else stays quiet.
 6. **Grown-up actions behind a gate.** Deleting, clearing, settings, printing, and the handwriting setup in Grown-ups (letter style, guide lines, practice sheets) need a parent gate. Typing a quick name or word, using a photo, and tracing do not, so children and adults are never blocked from drawing.
@@ -96,8 +96,11 @@ Opens as a native sheet over Home or the current picture group.
 
 - An edge-to-edge square document. The guide shows faintly under the ink, and its outlines are also drawn above the ink so coloring never hides them. This is today's "lines on top" behavior, now always on.
 - One finger draws. Two fingers pan and zoom (zoom range 1–5×). No Draw/Move toggle.
-- **Color rail:** a crayon box of 12 colors always on screen (side rail on iPad and landscape, bottom strip on phone portrait). The current color shows as a raised crayon.
-- **Tools:** three size dots, the brush style (crayon, marker, paint, pencil) as a single button that cycles or opens a small sheet, an eraser, Undo (large), and **Done** (main action). Picking a color while erasing switches back to the last brush.
+- **Color rail:** 15 crayons, including White, Gray, and Skin (side rail on iPad and landscape, bottom strip on phone portrait). Tap a crayon to choose it. Tap the raised crayon again or hold any crayon to see five shades. The rail keeps the chosen shade and the drawing saves its exact color.
+- **Tools:** four size dots (Fine, Round, Big, Huge), a button showing the current brush, a separate eraser, Undo, and **Done**. The brush button opens a tray with icons and stroke samples for Marker, Crayon, Watercolor, Pencil, and Fill. The tray and shade fan float next to the tools and keep the picture at its current size and position. Pick a tool, tap outside, or swipe down to close the tray. While erasing, tapping any crayon restores the last brush, even if its color was already selected.
+- **Watercolor:** new strokes multiply with the ink underneath them. Marker covers earlier ink. Saved Paint strokes keep their original appearance. A saved Paint brush selection opens as Watercolor.
+- **Fill:** tap a closed region or the background of a line-art picture. The guide defines the boundaries, including the outlines of generated Bubble and Practice letters. Faint handwriting rules and drawn ink leave the regions open. A tap on a guide line leaves the drawing unchanged. Each fill is one undoable shape, and the eraser works on fills too. Photos and older word guides that rely on SVG text show an unavailable Fill button with a hint.
+- Fill caches up to six guide masks at 500 × 500 pixels. It extends one mask pixel under the outline, simplifies and rounds the contour, and saves it in the 1,000-unit document space. Guides over 500,000 characters are ineligible. The search and contour tracing stop at 150 ms or 24,000 corners. If they hit either limit, the drawing stays intact and the app suggests using a brush.
 - Grown-up extras in More (•••): guide strength, stickers and shapes (dragged and pinched directly, not moved with arrow buttons), clear all (gated), save to Photos.
 - Lessons run inside this screen. The step strip shows the picture, step number, instruction, and Listen. The controls below the canvas switch between watching and drawing.
 
@@ -236,6 +239,6 @@ Paper Lock ("Stick to paper") stays behind `EXPO_PUBLIC_PAPER_LOCK` until all of
 
 - A pre-reader can pick a picture, draw on the screen, finish, and find the drawing again without help or reading.
 - An older adult can set up paper tracing (picture, On paper, position, fade, lock) in under a minute on their first try, without reading instructions.
-- No panel ever hides the guide or canvas being adjusted, and every panel closes with a swipe down.
+- Adjustment panels leave the subject visible and close with a swipe down. The brush tray and shade fan keep the canvas framing fixed while open.
 - Every saved drawing from 1.2 and 1.3 opens in 2.0.
 - iPhone (small and large) and iPad, portrait and landscape, at default and large text sizes.

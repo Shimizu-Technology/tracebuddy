@@ -20,7 +20,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-export type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint' | 'eraser'
+export type BrushToolId = 'pencil' | 'marker' | 'crayon' | 'paint' | 'fill' | 'eraser'
 export type PracticeStrokeMode = 'draw' | 'erase'
 
 type BrushTool = {
@@ -38,6 +38,8 @@ export type PracticeStroke = {
   width: number
   opacity: number
   mode: PracticeStrokeMode
+  kind?: 'fill'
+  blend?: 'multiply'
   dasharray?: number[]
   lessonStep?: number
 }
@@ -101,6 +103,16 @@ export const brushTools: BrushTool[] = [
   { id: 'eraser', label: 'Eraser', widthMultiplier: 2.2, opacity: 1, mode: 'erase' },
 ]
 
+export const watercolorOpacity = 0.72
+export const coloringBrushTools: BrushTool[] = [
+  { ...brushTools[1], opacity: 1 },
+  brushTools[2],
+  { ...brushTools[3], label: 'Watercolor', opacity: watercolorOpacity },
+  brushTools[0],
+  { id: 'fill', label: 'Fill', widthMultiplier: 1, opacity: 1, mode: 'draw' },
+  brushTools[4],
+]
+
 export const brushSizes = [
   { label: 'Fine', value: 5 },
   { label: 'Round', value: 9 },
@@ -114,14 +126,17 @@ export function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | n
   const stroke = value as Partial<PracticeStroke>
   if (typeof stroke.path !== 'string' || !stroke.path.startsWith('M ')) return null
   if (typeof stroke.width !== 'number' || !Number.isFinite(stroke.width) || stroke.width <= 0) return null
+  const fill = stroke.kind === 'fill' && stroke.mode !== 'erase'
 
   return {
+    ...(fill ? { kind: 'fill' } : {}),
+    ...(stroke.blend === 'multiply' && !fill && stroke.mode !== 'erase' ? { blend: 'multiply' } : {}),
     ...(typeof stroke.lessonStep === 'number' && Number.isSafeInteger(stroke.lessonStep) && stroke.lessonStep >= 0
       ? { lessonStep: stroke.lessonStep } : {}),
     path: stroke.path,
     color: typeof stroke.color === 'string' ? stroke.color : defaultMarkerColor,
     width: practiceStrokeWidth(stroke.width),
-    opacity: typeof stroke.opacity === 'number' ? clamp(stroke.opacity, 0.05, 1) : 0.9,
+    opacity: typeof stroke.opacity === 'number' && Number.isFinite(stroke.opacity) ? clamp(stroke.opacity, 0.05, 1) : 0.9,
     mode: stroke.mode === 'erase' ? 'erase' : 'draw',
     dasharray: Array.isArray(stroke.dasharray) && stroke.dasharray.every((item) => typeof item === 'number') ? stroke.dasharray : undefined,
   }
@@ -210,7 +225,7 @@ export function normalizeSavedPracticeSession(value: unknown): SavedPracticeSess
     guideOnTop: typeof session.guideOnTop === 'boolean' ? session.guideOnTop : true,
     markerColor: typeof session.markerColor === 'string' ? session.markerColor : defaultMarkerColor,
     markerWidth: typeof session.markerWidth === 'number' ? session.markerWidth : 9,
-    brushToolId: session.brushToolId && brushTools.some((tool) => tool.id === session.brushToolId) ? session.brushToolId : 'marker',
+    brushToolId: session.brushToolId && coloringBrushTools.some((tool) => tool.id === session.brushToolId) ? session.brushToolId : 'marker',
   }
 }
 

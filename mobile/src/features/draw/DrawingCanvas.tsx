@@ -1,4 +1,4 @@
-import { useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, Ref } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -7,14 +7,17 @@ import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets'
 
 import { documentPoint } from '../../../practiceModel'
 import type { Point, Viewport } from '../../../practiceModel'
-import { brushTools, documentStrokeWidth } from '../../../practiceStorageModel'
+import { coloringBrushTools, documentStrokeWidth } from '../../../practiceStorageModel'
 import type { PracticeStroke, SavedPracticeSession } from '../../../practiceStorageModel'
 import { CanvasButton } from '../../ui/CanvasButton'
 import { MagnifyingGlassMinusIcon } from '../../ui/icons'
 import { theme } from '../../ui/theme'
 import { DrawingDocument } from './DrawingDocument'
+import { prepareFillGuide, supportsFill } from './fillGuide'
+import { fillDocumentScale, fillResolution, floodFill } from './floodFill'
 import type { LiveInk } from './inkTypes'
 import { keepStrokeOnPinch, keepStrokeSample, pointDistance, roundedPoint, strokePath, unturnPoint, withFinalPoint } from './strokeGeometry'
+import { watercolorPigment } from './watercolor'
 
 const emptyPath = 'M 0 0'
 const fit: Viewport = { x: 0, y: 0, scale: 1 }
@@ -37,6 +40,7 @@ type Props = {
   readOnly?: boolean
   disabled: boolean
   onStroke: (stroke: PracticeStroke) => void
+  onFillHint?: (hint: string | null) => void
 }
 
 function touchTime() {
@@ -62,7 +66,7 @@ function boundTranslation(value: number, scale: number, side: number) {
   return Math.max(side * (1 - scale), Math.min(0, value))
 }
 
-export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, readOnly, disabled, onStroke }: Props) {
+export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, readOnly, disabled, onStroke, onFillHint }: Props) {
   const viewport = useSharedValue(fit)
   // Counts up so every turn spins clockwise; mapping only uses it modulo four. View only: ink stays upright.
   const turns = useSharedValue(0)
@@ -72,15 +76,44 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
   const livePath = useSharedValue(emptyPath)
   const liveWidth = useSharedValue(1)
   const active = useSharedValue<Active | null>(null)
+  const fillTap = useSharedValue<{ id: number; finger: Point } | null>(null)
+  const fillMask = useRef<{ guide: string; mask: Uint8Array | null }>(null)
   const sequence = useSharedValue(0)
   const pair = useSharedValue<Pair | null>(null)
   const blockedUntilLift = useSharedValue(false)
   const [lastCommit, setLastCommit] = useState(0)
-  const brush = brushTools.find(({ id }) => id === session.brushToolId) ?? brushTools[1]
+  const brush = coloringBrushTools.find(({ id }) => id === session.brushToolId) ?? coloringBrushTools[0]
+  const filling = brush.id === 'fill'
+  const fillGuide = supportsFill(guideSvg, session.source.kind === 'upload') ? guideSvg : undefined
+  const canFill = Boolean(fillGuide)
+  useEffect(() => {
+    if (!filling || readOnly || !fillGuide) return
+    let current = true
+    if (fillMask.current?.guide === fillGuide && !fillMask.current.mask) fillMask.current = null
+    let rasterFrame: number | undefined
+    // Let the selected tool paint before rasterization occupies the JS thread.
+    const firstFrame = requestAnimationFrame(() => {
+      rasterFrame = requestAnimationFrame(() => {
+        if (!current) return
+        void prepareFillGuide(fillGuide).then((mask) => {
+          if (current) fillMask.current = { guide: fillGuide, mask }
+        })
+      })
+    })
+    return () => {
+      current = false
+      cancelAnimationFrame(firstFrame)
+      if (rasterFrame !== undefined) cancelAnimationFrame(rasterFrame)
+    }
+  }, [fillGuide, filling, readOnly])
+
   const markerWidth = session.markerWidth
+  const color = session.markerColor
   const style = useMemo<LiveInk['style']>(() => ({
-    color: session.markerColor, opacity: brush.opacity, mode: brush.mode, dasharray: brush.dasharray,
-  }), [brush, session.markerColor])
+    color: brush.id === 'paint' ? watercolorPigment(color) : color,
+    opacity: brush.opacity, mode: brush.mode, dasharray: brush.dasharray,
+    ...(brush.id === 'paint' && { blend: 'multiply' }),
+  }), [brush, color])
   const live = useMemo(() => ({ path: livePath, width: liveWidth, style }), [livePath, liveWidth, style])
 
   function pictureFinger(finger: Point) {
@@ -97,6 +130,26 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
   function commit(stroke: PracticeStroke, serial: number) {
     setLastCommit(serial)
     onStroke(stroke)
+  }
+
+  function applyFill(point: Point) {
+    if (readOnly || !fillGuide) return
+    const ready = fillMask.current
+    if (ready?.guide !== fillGuide) {
+      onFillHint?.('Getting Fill ready. Tap again in a moment.')
+      return
+    }
+    if (!ready.mask) {
+      onFillHint?.('Fill couldn’t read this picture. Try a brush.')
+      return
+    }
+    const result = floodFill(ready.mask, fillResolution, fillResolution,
+      point.x / fillDocumentScale, point.y / fillDocumentScale, { scale: fillDocumentScale })
+    if (result.status === 'limit') onFillHint?.('Couldn’t fill this area. Try a brush.')
+    if (result.status === 'filled') {
+      onFillHint?.(null)
+      onStroke({ kind: 'fill', mode: 'draw', path: result.path, color, opacity: 1, width: 1 })
+    }
   }
 
   function finishStroke(reason: 'finish' | 'pinch' | 'cancel') {
@@ -130,8 +183,9 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
       // by the UI recognizer, including one finalized by this flush.
       scheduleOnUI(() => {
         'worklet'
-        if (active.get()) {
+        if (active.get() || fillTap.get()) {
           finishStroke('finish')
+          fillTap.set(null)
           blockedUntilLift.set(true)
         }
         scheduleOnRN(resolve)
@@ -164,8 +218,9 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
   // End the stroke and ignore the fingers still down, so the view change can't bend a line across the picture.
   function settleFingers() {
     'worklet'
-    if (!active.get() && !pair.get()) return
+    if (!active.get() && !pair.get() && !fillTap.get()) return
     finishStroke('finish')
+    fillTap.set(null)
     pair.set(null)
     blockedUntilLift.set(true)
   }
@@ -200,6 +255,7 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
         manager.begin()
         manager.activate()
         finishStroke('pinch')
+        fillTap.set(null)
         blockedUntilLift.set(true)
         if (!pair.get()) pair.set({ ids: [first.id, second.id], ...pairPosition(squarePoint(first, offset), squarePoint(second, offset)), viewport: viewport.get() })
         return
@@ -211,6 +267,10 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
       manager.activate()
       const point = pictureFinger(first)
       if (!point) return
+      if (filling) {
+        if (canFill) fillTap.set({ id: first.id, finger: { x: first.x, y: first.y } })
+        return
+      }
       const width = documentStrokeWidth(markerWidth, brush.widthMultiplier, side, viewport.get().scale)
       const points = [roundedPoint(point)]
       // A tiny segment gives an unmoved finger the same round dot in both renderers.
@@ -236,6 +296,12 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
         const x = next.middle.x - (multi.middle.x - multi.viewport.x) * ratio
         const y = next.middle.y - (multi.middle.y - multi.viewport.y) * ratio
         viewport.set({ scale, x: boundTranslation(x, scale, side), y: boundTranslation(y, scale, side) })
+        return
+      }
+      const tap = fillTap.get()
+      if (tap) {
+        const finger = allTouches.find(({ id }) => id === tap.id)
+        if (finger && pointDistance(tap.finger, finger) > 12) fillTap.set(null)
         return
       }
       const current = active.get()
@@ -266,6 +332,15 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
       const left = (id: number) => changedTouches.some((finger) => finger.id === id)
       const current = active.get()
       if (current && left(current.id)) finishStroke('finish')
+      const tap = fillTap.get()
+      if (tap && left(tap.id)) {
+        fillTap.set(null)
+        const finger = changedTouches.find(({ id }) => id === tap.id)
+        if (filling && !readOnly && finger && pointDistance(tap.finger, finger) <= 12) {
+          const point = pictureFinger(finger)
+          if (point) scheduleOnRN(applyFill, point)
+        }
+      }
       const multi = pair.get()
       if (multi && multi.ids.some(left)) pair.set(null)
       if (allTouches.every(({ id }) => left(id))) {
@@ -275,12 +350,14 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
     })
     .onTouchesCancelled((_event, manager) => {
       finishStroke('cancel')
+      fillTap.set(null)
       pair.set(null)
       blockedUntilLift.set(false)
       manager.fail()
     })
     .onFinalize(() => {
       finishStroke('cancel')
+      fillTap.set(null)
       pair.set(null)
       blockedUntilLift.set(false)
     })
@@ -292,13 +369,13 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
           collapsable={false}
           accessible
           accessibilityLabel={readOnly ? 'Lesson picture' : 'Drawing canvas'}
-          accessibilityHint={readOnly ? 'Pinch to zoom.' : 'Draw with one finger. Pinch and drag with two fingers to zoom and move.'}
+          accessibilityHint={readOnly ? 'Pinch to zoom.' : filling ? 'Tap an area to fill it. Pinch with two fingers to zoom.' : 'Draw with one finger. Pinch and drag with two fingers to zoom and move.'}
           style={[styles.area, { width: area.width, height: area.height }]}
         >
           <View style={[styles.viewport, { width: side, height: side }]}>
             <Animated.View pointerEvents="none" style={[styles.document, transform]}>
               <Animated.View style={[{ width: side, height: side }, turned]}>
-                <DrawingDocument side={side} session={session} guideSvg={guideSvg} guideLayer={guideLayer} live={readOnly ? undefined : live} />
+                <DrawingDocument side={side} session={session} guideSvg={guideSvg} guideLayer={guideLayer} live={readOnly || filling ? undefined : live} />
               </Animated.View>
             </Animated.View>
           </View>
