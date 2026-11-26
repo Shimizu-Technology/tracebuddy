@@ -14,7 +14,8 @@ import { MagnifyingGlassMinusIcon } from '../../ui/icons'
 import { theme } from '../../ui/theme'
 import { DrawingDocument } from './DrawingDocument'
 import { prepareFillGuide, supportsFill } from './fillGuide'
-import { fillDocumentScale, fillResolution, floodFill } from './floodFill'
+import { fillDocumentScale, floodFill } from './floodFill'
+import type { FillGuideIndex } from './floodFill'
 import type { LiveInk } from './inkTypes'
 import { keepStrokeOnPinch, keepStrokeSample, pointDistance, roundedPoint, strokePath, unturnPoint, withFinalPoint } from './strokeGeometry'
 import { watercolorPigment } from './watercolor'
@@ -78,7 +79,7 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
   const liveWidth = useSharedValue(1)
   const active = useSharedValue<Active | null>(null)
   const fillTap = useSharedValue<{ id: number; finger: Point } | null>(null)
-  const fillMask = useRef<{ guide: string; mask: Uint8Array | null }>(null)
+  const preparedFillGuide = useRef<{ guide: string; index: FillGuideIndex | null }>(null)
   const sequence = useSharedValue(0)
   const pair = useSharedValue<Pair | null>(null)
   const blockedUntilLift = useSharedValue(false)
@@ -90,14 +91,14 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
   useEffect(() => {
     if (!filling || readOnly || !fillGuide) return
     let current = true
-    if (fillMask.current?.guide === fillGuide && !fillMask.current.mask) fillMask.current = null
+    if (preparedFillGuide.current?.guide === fillGuide && !preparedFillGuide.current.index) preparedFillGuide.current = null
     let rasterFrame: number | undefined
     // Let the selected tool paint before rasterization occupies the JS thread.
     const firstFrame = requestAnimationFrame(() => {
       rasterFrame = requestAnimationFrame(() => {
         if (!current) return
-        void prepareFillGuide(fillGuide).then((mask) => {
-          if (current) fillMask.current = { guide: fillGuide, mask }
+        void prepareFillGuide(fillGuide).then((index) => {
+          if (current) preparedFillGuide.current = { guide: fillGuide, index }
         })
       })
     })
@@ -135,16 +136,16 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
 
   function applyFill(point: Point) {
     if (readOnly || !fillGuide) return
-    const ready = fillMask.current
+    const ready = preparedFillGuide.current
     if (ready?.guide !== fillGuide) {
       onFillHint?.('Getting Fill ready. Tap again in a moment.')
       return
     }
-    if (!ready.mask) {
+    if (!ready.index) {
       onFillHint?.('Fill couldn’t read this picture. Try a brush.')
       return
     }
-    const result = floodFill(ready.mask, fillResolution, fillResolution,
+    const result = floodFill(ready.index,
       point.x / fillDocumentScale, point.y / fillDocumentScale, { scale: fillDocumentScale })
     if (result.status === 'limit') onFillHint?.('Couldn’t fill this area. Try a brush.')
     if (result.status === 'filled') {
