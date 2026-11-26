@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
 import { completeGuidedLesson, guidedLessons, normalizeLearningProgress } from '../shared/lessons'
-import generated from '../shared/lessons/lessons.generated.json'
-import drawingLessonStepCounts from '../shared/lessons/step-counts.generated.json'
-import { drawingLessons } from '../shared/lessons/drawingLessons'
+import lessonIndex from '../shared/lessons/lesson-index.generated.json'
+import { lessonGeometryLoaders } from '../shared/lessons/lesson-geometry.generated'
+import strokeLock from '../shared/lessons/strokes.lock.json'
+import { drawingLessonById, drawingLessonIndex } from '../shared/lessons/drawingLessons'
 import { normalizeSavedPracticeSession } from '../mobile/practiceStorageModel'
 import {
   lessonForSession, lessonResume, lessonSessionId, recordLessonProgress, undoLessonStroke,
@@ -19,7 +21,36 @@ const text = (value: unknown): value is string => typeof value === 'string' && v
 const tokenPattern = /[MLQCZ]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g
 const commandSize = { M: 2, L: 2, Q: 4, C: 6, Z: 0 }
 const ids = new Set(guidedLessons.map(({ id }) => id))
-const pictures = new Set<string>()
+const lessonsRoot = new URL('../shared/lessons/', import.meta.url)
+const artRoot = new URL('../shared/art/', import.meta.url)
+const specsRoot = new URL('specs/', lessonsRoot)
+const geometryRoot = new URL('geometry/', lessonsRoot)
+const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+const locks = strokeLock as Record<string, { lineSha256: string; specSha256: string }>
+const specs = new Map<string, { title: string; steps: { say: string }[] }>()
+const geometryFiles = readdirSync(geometryRoot, { recursive: true, withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+  .map((entry) => `${entry.parentPath.split(/[/\\]/).at(-1)}/${entry.name.slice(0, -5)}`)
+  .sort()
+
+for (const file of readdirSync(specsRoot).filter((name) => name.endsWith('.json'))) {
+  const bytes = readFileSync(new URL(file, specsRoot))
+  const spec = JSON.parse(bytes.toString()) as { picture: string; title: string; steps: { say: string }[] }
+  assert(typeof spec.picture === 'string' && /^(simple|detailed)\/[a-z0-9-]+$/.test(spec.picture), `${file}: invalid picture ID`)
+  assert(!specs.has(spec.picture), `${file}: duplicate spec for ${spec.picture}`)
+  const lock = locks[spec.picture]
+  assert(lock, `${file}: missing stroke lock for ${spec.picture}`)
+  assert.equal(sha256(bytes), lock.specSha256, `${file}: spec changed. Regenerate the lesson data.`)
+  assert.equal(sha256(readFileSync(new URL(`${spec.picture}/line.svg`, artRoot))), lock.lineSha256,
+    `${spec.picture}: line.svg changed. Review the stroke map and re-lock the lesson.`)
+  specs.set(spec.picture, spec)
+}
+
+const specIds = [...specs.keys()].sort()
+assert.deepEqual(Object.keys(locks).sort(), specIds, 'Stroke lock keys must match spec IDs')
+assert.deepEqual(lessonIndex.map(({ id }) => id).sort(), specIds, 'Lesson index IDs must match spec IDs')
+assert.deepEqual(Object.keys(lessonGeometryLoaders).sort(), specIds, 'Lazy geometry loaders must match spec IDs')
+assert.deepEqual(geometryFiles, specIds, 'Generated geometry files must match spec IDs')
 
 function object(value: unknown, keys: string[], context: string) {
   assert(value && typeof value === 'object' && !Array.isArray(value), context)
@@ -50,23 +81,29 @@ function checkPath(d: string, context: string) {
   return { start, end }
 }
 
-assert(Array.isArray(generated) && generated.length > 0, 'Provide at least one lesson')
-for (const [i, data] of (generated as unknown[]).entries()) {
-  const lesson = object(data, ['id', 'pictureId', 'level', 'title', 'strokeWidth', 'steps'], `Lesson ${i + 1}`)
-  const { id, pictureId, level, title, strokeWidth, steps } = lesson
+assert(lessonIndex.length > 0, 'Provide at least one lesson')
+for (const [i, data] of lessonIndex.entries()) {
+  const lesson = object(data, ['id', 'pictureId', 'level', 'title', 'stepCount'], `Lesson ${i + 1}`)
+  const { id, pictureId, level, title, stepCount } = lesson
   assert(text(id) && !ids.has(id), `Invalid or duplicate lesson ID: ${id}`)
   ids.add(id)
   assert((level === 'simple' || level === 'detailed') && text(pictureId) && manifests[level].has(pictureId),
     `${id} must reference an existing ${level} picture: ${pictureId}`)
-  const pictureKey = `${level}/${pictureId}`
-  assert.equal(id, pictureKey, "Lesson IDs use level/pictureId")
-  assert(!pictures.has(pictureKey), `Duplicate lesson for ${pictureKey}`)
-  pictures.add(pictureKey)
-  assert(text(title) && positive(strokeWidth) && strokeWidth <= 1000, id)
-  assert(Array.isArray(steps) && steps.length > 0, `${id} needs steps`)
+  assert.equal(id, `${level}/${pictureId}`, 'Lesson IDs use level/pictureId')
+  const spec = specs.get(id)!
+  assert(text(title) && title === spec.title, `${id}: index title must match the spec`)
+  assert(Array.isArray(spec.steps) && spec.steps.length > 0 && stepCount === spec.steps.length,
+    `${id}: index step count must match the spec`)
+
+  const geometry = object(JSON.parse(readFileSync(new URL(`${id}.json`, geometryRoot), 'utf8')), ['id', 'strokeWidth', 'steps'], id)
+  const { strokeWidth, steps } = geometry
+  assert.equal(geometry.id, id, `${id}: geometry ID must match the spec`)
+  assert(positive(strokeWidth) && strokeWidth <= 1000, id)
+  assert(Array.isArray(steps) && steps.length === stepCount, `${id}: geometry step count must match the spec`)
   for (const [j, rawStep] of steps.entries()) {
     const context = `${id}, step ${j + 1}`
     const { say, strokes, dots } = object(rawStep, ['say', 'strokes', 'dots'], context)
+    assert.equal(say, spec.steps[j].say, `${context}: narration must match the spec`)
     assert(text(say) && say.trim().split(/\s+/).length <= 10, `${context} needs a sentence of at most 10 words`)
     assert(Array.isArray(strokes) && Array.isArray(dots) && strokes.length + dots.length > 0, `${context} needs a stroke or dot`)
     for (const [k, rawStroke] of strokes.entries()) {
@@ -86,15 +123,16 @@ for (const [i, data] of (generated as unknown[]).entries()) {
   }
 }
 
-assert.deepEqual(drawingLessonStepCounts, Object.fromEntries(drawingLessons.map(({ id, steps }) => [id, steps.length])))
-const cat = drawingLessons.find(({ id }) => id === 'simple/cat')!
-assert.notEqual(lessonSessionId(cat), lessonSessionId({ ...cat, id: 'detailed/cat', level: 'detailed' }))
+const catMetadata = drawingLessonById('simple/cat')!
+const cat = { ...catMetadata, ...JSON.parse(readFileSync(new URL('simple/cat.json', geometryRoot), 'utf8')) }
+assert.equal(drawingLessonIndex.length, specs.size)
+assert.notEqual(lessonSessionId(cat), lessonSessionId({ id: 'detailed/cat' }))
 const legacy = completeGuidedLesson(normalizeLearningProgress(null), guidedLessons[0])
 const inProgress = recordLessonProgress(legacy, cat, 2)
 assert.deepEqual(normalizeLearningProgress(JSON.parse(JSON.stringify(inProgress))), inProgress)
 assert.deepEqual(lessonResume(inProgress, cat, null), { step: 2, finished: false })
 assert.equal(lessonResume(recordLessonProgress(inProgress, cat, 999), cat, null).step, cat.steps.length - 1)
-assert.equal(lessonForSession(lessonSessionId(cat)), cat)
+assert.equal(lessonForSession(lessonSessionId(cat)), catMetadata)
 assert.equal(lessonForSession('ordinary-drawing'), undefined)
 
 const stroke = { path: 'M 2 2 L 3 3', width: 6 }
@@ -116,4 +154,4 @@ assert.deepEqual(lessonResume(completed, cat, colored), { step: cat.steps.length
 const restarted = recordLessonProgress(completed, cat, 0)
 assert.deepEqual(restarted.completedLessonIds, completed.completedLessonIds)
 assert.deepEqual(lessonResume(restarted, cat, null), { step: 0, finished: false })
-console.log(`Validated ${generated.length} drawing lessons, legacy progress, step-scoped ink and lesson resume.`)
+console.log(`Validated ${lessonIndex.length} drawing lessons, legacy progress, step-scoped ink and lesson resume.`)

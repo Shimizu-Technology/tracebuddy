@@ -2,6 +2,11 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
+import type { DrawingLesson } from '../shared/lessons/drawingLessons'
+import { parseLearningProgress } from '../mobile/src/data/localSettings'
+import { previousWorkSessionKey, serializePreviousWorkIndex, serializePreviousWorkSession } from '../mobile/src/data/previousWork'
+import { learningProgressKey, lessonMutedKey, previousWorkIndexKey } from '../mobile/src/data/storageKeys'
+import { recordLessonProgress } from '../mobile/src/features/learn/lessonPractice'
 import type { SavedPracticeSession } from '../mobile/practiceStorageModel.ts'
 import { createOperationQueue, followLatestSave, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from '../mobile/practiceOperations.ts'
 import { createPracticePreviewCache } from '../mobile/practicePreviewCache.ts'
@@ -234,6 +239,96 @@ assert.deepEqual(writesAfterClear, [])
 clearingCanvas.hook.change((session) => ({ ...session, markerWidth: 13 }))
 assert.ok(await clearingCanvas.hook.save())
 assert.deepEqual(writesAfterClear, ['after-clear'])
+
+// Restart can be in progress when the 450 ms autosave fires. Failure must
+// leave the original drawing as the only snapshot that can be autosaved.
+const restartGate = deferred()
+const resumedDrawingWrites: SavedPracticeSession[] = []
+const restarting = mountDrawSession({
+  readDrawing: async () => null,
+  saveDrawing: async (session) => { resumedDrawingWrites.push(session); return true },
+  deleteDrawing: async () => { throw new Error('Restart must not use the ordinary delete path') },
+})
+restarting.hook.change((session) => ({ ...session, lessonFinished: true, stamp: 'heart' }))
+assert.ok(await restarting.hook.save())
+const resetFailed = restarting.hook.clear(async (original) => {
+  assert.equal(original.stamp, 'heart')
+  await restartGate.promise
+  throw new Error('Partial storage write')
+})
+assert.equal(await restarting.hook.save(), false, 'Restart excludes autosave while its write is pending')
+restartGate.resolve()
+assert.equal(await resetFailed, false)
+assert.ok(await restarting.hook.save())
+assert.deepEqual(resumedDrawingWrites.map(({ stamp }) => stamp), ['heart', 'heart'])
+assert.ok(await restarting.hook.clear(async (original) => {
+  assert.equal(original.sessionId, restarting.initial.sessionId)
+  assert.equal(original.stamp, 'heart')
+  return true
+}))
+assert.ok(await restarting.hook.save())
+assert.equal(resumedDrawingWrites.length, 2, 'A successful restart leaves no empty drawing to autosave')
+
+const restartSource = readFileSync(new URL('../mobile/src/features/learn/lessonStorage.ts', import.meta.url), 'utf8')
+const restartJs = ts.transpileModule(restartSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2023 },
+}).outputText
+const restartExports: Partial<typeof import('../mobile/src/features/learn/lessonStorage')> = {}
+const lesson = {
+  id: 'simple/cat', steps: [{ say: 'Start' }, { say: 'Finish' }],
+} as DrawingLesson
+const savedLesson = { ...restarting.initial, sessionId: 'lesson:simple/cat', lessonFinished: true as const, stamp: 'heart' as const }
+const lessonKey = previousWorkSessionKey(savedLesson.sessionId)
+const beforeProgress = { version: 1, completedLessonIds: [lesson.id, 'easy-flower'], stepByLessonId: { [lesson.id]: 1, 'easy-flower': 2 } }
+const lessonRecords = new Map([
+  [lessonKey, serializePreviousWorkSession(savedLesson)],
+  [previousWorkIndexKey, serializePreviousWorkIndex([savedLesson.sessionId, 'other'])],
+  [learningProgressKey, JSON.stringify(beforeProgress)],
+])
+const beforeRestart = new Map(lessonRecords)
+let failFirstBatch = true
+runInNewContext(restartJs, {
+  exports: restartExports,
+  require(name: string) {
+    switch (name) {
+      case '@react-native-async-storage/async-storage':
+        return { __esModule: true, default: {
+          async multiSet(entries: [string, string][]) {
+            // iOS can apply entries before its manifest write reports failure.
+            for (const [key, value] of entries) lessonRecords.set(key, value)
+            if (failFirstBatch) { failFirstBatch = false; throw new Error('Manifest write failed') }
+          },
+          async removeItem(key: string) { lessonRecords.delete(key) },
+        } }
+      case '../../../practiceOperations': return { writeIfCurrent }
+      case '../../data/drawingImageFiles': return { cleanupDrawingImagesInQueue: async () => undefined }
+      case '../../data/localSettings': return { parseLearningProgress }
+      case '../../data/nativeStorage': return {
+        previousWorkStorage: {
+          queuePreviousWorkWrite: createOperationQueue(),
+          readPreviousWorkIds: async () => JSON.parse(lessonRecords.get(previousWorkIndexKey)!).ids,
+        },
+        queueDrawingPreferencesOperation: createOperationQueue(),
+        readLocalSetting: async (key: string) => lessonRecords.get(key) ?? null,
+      }
+      case '../../data/practiceImageCleanup': return { drawingImageUris: () => [] }
+      case '../../data/previousWork': return { previousWorkSessionKey, serializePreviousWorkIndex, serializePreviousWorkSession }
+      case '../../data/storageKeys': return { learningProgressKey, lessonMutedKey, previousWorkIndexKey }
+      case './lessonPractice': return { recordLessonProgress }
+      default: throw new Error(`Unexpected import ${name}`)
+    }
+  },
+})
+assert.ok(restartExports.restartSavedLesson)
+await assert.rejects(() => restartExports.restartSavedLesson!(lesson, savedLesson, () => true), /Manifest write failed/)
+assert.deepEqual(lessonRecords, beforeRestart, 'A partial storage failure restores the drawing, index and progress')
+assert.ok(await restartExports.restartSavedLesson(lesson, savedLesson, () => true))
+assert.equal(lessonRecords.has(lessonKey), false)
+assert.deepEqual(JSON.parse(lessonRecords.get(previousWorkIndexKey)!).ids, ['other'])
+assert.deepEqual(JSON.parse(lessonRecords.get(learningProgressKey)!), {
+  ...beforeProgress, stepByLessonId: { [lesson.id]: 0, 'easy-flower': 2 },
+})
+console.log('Lesson restart excludes autosave and restores old ink and progress after a partial storage failure')
 
 const drawScreenSource = readFileSync(new URL('../mobile/src/features/draw/DrawScreen.tsx', import.meta.url), 'utf8')
 const drawScreenAst = ts.createSourceFile('DrawScreen.tsx', drawScreenSource, ts.ScriptTarget.ES2023, true, ts.ScriptKind.TSX)

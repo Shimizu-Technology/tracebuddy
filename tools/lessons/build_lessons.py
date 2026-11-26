@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 
 from svgpathtools import Arc, Path as SvgPath, parse_path
 
@@ -14,6 +15,7 @@ from extract_strokes import WORK, process, smooth_path
 ROOT = Path(__file__).resolve().parents[2]
 ART = ROOT / "shared" / "art"
 LESSONS = ROOT / "shared" / "lessons"
+GEOMETRY = LESSONS / "geometry"
 
 
 def orient(pts, closed):
@@ -119,23 +121,21 @@ def sample_stroke(d):
         t = (target - a) / (b - a) if b > a else 0
         point = points[right - 1] + (points[right] - points[right - 1]) * t
         pen.append([round(point.real, 1), round(point.imag, 1)])
-    return {"d": path.d(), "len": round(length, 2), "pen": pen}
+    compact = re.sub(r"\.0(?=[,\s]|$)", "", path.d())
+    compact = re.sub(r"\s*([MLQCZ])\s*", r"\1", compact)
+    return {"d": compact, "len": round(length, 2), "pen": pen}
 
 
 def build_lesson(spec, data):
     picture = spec["picture"]
-    level, picture_id = picture.split("/")
     strokes = {str(s["id"]): {"pts": [tuple(p) for p in s["pts"]], "closed": s["closed"]} for s in data["strokes"]}
     paths = apply_ops(strokes, spec.get("ops", {}))
     steps = [{
         "say": step["say"],
-        "strokes": [sample_stroke(paths[str(stroke_id)]) for stroke_id in step["strokes"]],
+        "strokes": [sample_stroke(paths[str(stroke_id)]) for stroke_id in step.get("strokes", [])],
         "dots": [data["dots"][i] for i in step.get("dots", [])],
     } for step in spec["steps"]]
-    return {
-        "id": picture, "pictureId": picture_id, "level": level, "title": spec["title"],
-        "strokeWidth": data["strokeWidth"], "steps": steps,
-    }
+    return {"id": picture, "strokeWidth": data["strokeWidth"], "steps": steps}
 
 
 def main():
@@ -150,15 +150,19 @@ def main():
     lock_file = LESSONS / "strokes.lock.json"
     locked = json.loads(lock_file.read_text()) if lock_file.exists() else {}
     signatures = {}
-    lessons = []
+    metadata = []
+    artifacts = {}
+    loaders = []
     for path in sorted((LESSONS / "specs").glob("*.json")):
         try:
-            spec = json.loads(path.read_text())
+            spec_bytes = path.read_bytes()
+            spec = json.loads(spec_bytes)
             if spec["method"] != "A":
                 raise ValueError("Expected a Method A lesson")
             picture = spec["picture"]
             level, picture_id = picture.split("/")
-            if level not in ("simple", "detailed") or not (ART / picture / "line.svg").is_file():
+            line = ART / picture / "line.svg"
+            if level not in ("simple", "detailed") or not line.is_file():
                 raise ValueError(f"Unknown curated picture: {picture}")
             if picture in signatures:
                 raise ValueError(f"Duplicate lesson for {picture}")
@@ -175,27 +179,44 @@ def main():
                 check_signature(picture, stroke_signature(reference), signature)
             elif args.lock_picture != picture:
                 check_signature(picture, locked.get(picture), signature)
-            signatures[picture] = signature
-            lessons.append(build_lesson(spec, data))
+            line_hash = hashlib.sha256(line.read_bytes()).hexdigest()
+            if not args.import_stroke_maps and args.lock_picture != picture and locked[picture]["lineSha256"] != line_hash:
+                raise ValueError(f"{picture}: line.svg changed. Review the numbered stroke map and re-lock the picture.")
+            signatures[picture] = {
+                **signature, "lineSha256": line_hash, "specSha256": hashlib.sha256(spec_bytes).hexdigest(),
+            }
+            geometry = build_lesson(spec, data)
+            metadata.append({
+                "id": picture, "pictureId": picture_id, "level": level, "title": spec["title"],
+                "stepCount": len(geometry["steps"]),
+            })
+            artifacts[GEOMETRY / level / f"{picture_id}.json"] = json.dumps(geometry, separators=(",", ":")) + "\n"
+            loaders.append(f'  "{picture}": () => require("./geometry/{picture}.json"),')
         except (KeyError, IndexError, ValueError, OSError) as error:
             parser.exit(1, f"{path.name}: {error}\n")
     if args.lock_picture and args.lock_picture not in signatures:
         parser.error(f"No spec for {args.lock_picture}")
-    if args.import_stroke_maps or args.lock_picture:
-        entries = (f"  {json.dumps(k)}: {json.dumps(v, separators=(',', ':'))}" for k, v in sorted(signatures.items()))
-        lock_file.write_text("{\n" + ",\n".join(entries) + "\n}\n")
-    elif signatures.keys() != locked.keys():
+    if not (args.import_stroke_maps or args.lock_picture) and signatures.keys() != locked.keys():
         parser.error("The stroke lock and specs list different pictures. Remove retired pictures from the lock.")
-    output = LESSONS / "lessons.generated.json"
-    # One lesson per line keeps generated diffs scoped to the lesson that changed.
-    generated = "[\n" + ",\n".join(json.dumps(lesson, ensure_ascii=False, separators=(",", ":")) for lesson in lessons) + "\n]\n"
-    counts = {lesson["id"]: len(lesson["steps"]) for lesson in lessons}
-    metadata = LESSONS / "step-counts.generated.json"
-    for destination, content in ((output, generated), (metadata, json.dumps(counts, indent=2, sort_keys=True) + "\n")):
+
+    extra = set(GEOMETRY.glob("*/*.json")) - artifacts.keys()
+    if extra:
+        parser.error(f"Remove retired lesson geometry: {', '.join(str(path.relative_to(ROOT)) for path in sorted(extra))}")
+    entries = (f"  {json.dumps(k)}: {json.dumps(v, separators=(',', ':'))}" for k, v in sorted(signatures.items()))
+    artifacts[lock_file] = "{\n" + ",\n".join(entries) + "\n}\n"
+    artifacts[LESSONS / "lesson-index.generated.json"] = json.dumps(metadata, ensure_ascii=False, indent=2) + "\n"
+    artifacts[LESSONS / "lesson-geometry.generated.ts"] = "\n".join([
+        "// Generated by tools/lessons/build_lessons.py.", 'import type { LessonGeometry } from "./drawingLessons"',
+        "", "/* eslint-disable @typescript-eslint/no-require-imports -- Metro needs literal requires for lazy bundled geometry. */",
+        "export const lessonGeometryLoaders: Readonly<Partial<Record<string, () => LessonGeometry>>> = {",
+        *loaders, "}", "",
+    ])
+    for destination, content in artifacts.items():
         if args.check:
             if not destination.exists() or destination.read_text() != content:
-                parser.exit(1, f"{destination.name} is stale. Regenerate from the committed specs.\n")
+                parser.exit(1, f"{destination.relative_to(ROOT)} is stale. Regenerate from the committed specs.\n")
         else:
+            destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(content)
 
 

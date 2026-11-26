@@ -1,7 +1,7 @@
 import { router } from 'expo-router'
 import { FlatList, StyleSheet, View } from 'react-native'
 
-import { drawingLessons } from '../../../../shared/lessons/drawingLessons'
+import { drawingLessonIndex } from '../../../../shared/lessons/drawingLessons'
 import { resolvePicture } from '../../data/catalog'
 import { Icon } from '../../ui/Icon'
 import { PencilSimpleIcon } from '../../ui/icons'
@@ -14,8 +14,8 @@ import { lessonDestination } from './lessonPractice'
 
 const featuredIds = ['simple/cat', 'simple/fish', 'simple/rocket', 'simple/t-rex', 'detailed/unicorn']
 const shelfLessons = [
-  ...featuredIds.flatMap((id) => drawingLessons.filter((lesson) => lesson.id === id)),
-  ...drawingLessons.filter((lesson) => !featuredIds.includes(lesson.id)),
+  ...featuredIds.flatMap((id) => drawingLessonIndex.filter((lesson) => lesson.id === id)),
+  ...drawingLessonIndex.filter((lesson) => !featuredIds.includes(lesson.id)),
 ]
 
 export function LessonShelf({ width }: { width: number }) {

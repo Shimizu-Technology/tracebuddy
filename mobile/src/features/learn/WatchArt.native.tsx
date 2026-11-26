@@ -1,7 +1,7 @@
 import { Canvas, Circle, Group, Path } from '@shopify/react-native-skia'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { StyleSheet, View } from 'react-native'
-import { Easing, cancelAnimation, useAnimatedReaction, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated'
+import { AppState, StyleSheet, View } from 'react-native'
+import { Easing, ReduceMotion, cancelAnimation, useAnimatedReaction, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated'
 import type { SharedValue } from 'react-native-reanimated'
 import { scheduleOnRN } from 'react-native-worklets'
 
@@ -47,15 +47,15 @@ function WatchDot({ cx, cy, r, clock, start }: {
 function WatchPencil({ clock, strokes, width }: { clock: SharedValue<number>; strokes: TimedStroke[]; width: number }) {
   const active = useDerivedValue(() => {
     const time = clock.get()
-    return strokes.find((stroke) => time >= stroke.start - announceMs && time < stroke.start + stroke.duration)
+    return strokes.findIndex((stroke) => time >= stroke.start - announceMs && time < stroke.start + stroke.duration)
   })
-  const opacity = useDerivedValue(() => active.get() ? 1 : 0)
+  const opacity = useDerivedValue(() => active.get() >= 0 ? 1 : 0)
   const startDotOpacity = useDerivedValue(() => {
-    const stroke = active.get()
+    const stroke = strokes[active.get()]
     return stroke && clock.get() < stroke.start ? 1 : 0
   })
   const transform = useDerivedValue(() => {
-    const stroke = active.get()
+    const stroke = strokes[active.get()]
     if (!stroke) return [{ translateX: 0 }, { translateY: 0 }]
     const fraction = Math.max(0, Math.min(1, (clock.get() - stroke.start) / stroke.duration))
     const index = fraction * (stroke.pen.length - 1)
@@ -76,12 +76,12 @@ function WatchPencil({ clock, strokes, width }: { clock: SharedValue<number>; st
   )
 }
 
-export function WatchArt({ lesson, step, side, still, onStart }: WatchArtProps) {
-  if (still) return <StillWatchArt lesson={lesson} step={step} onStart={onStart} />
-  return <AnimatedStep lesson={lesson} step={step} side={side} onStart={onStart} />
+export function WatchArt({ lesson, step, side, still, onStart, onFinish }: WatchArtProps) {
+  if (still) return <StillWatchArt lesson={lesson} step={step} onStart={onStart} onFinish={onFinish} />
+  return <AnimatedStep lesson={lesson} step={step} side={side} onStart={onStart} onFinish={onFinish} />
 }
 
-function AnimatedStep({ lesson, step, side, onStart }: Omit<WatchArtProps, 'still'>) {
+function AnimatedStep({ lesson, step, side, onStart, onFinish }: Omit<WatchArtProps, 'still'>) {
   const { strokeWidth } = lesson
   const current = lesson.steps[step]
   const timeline = useMemo(() => timeStep(current), [current])
@@ -102,14 +102,40 @@ function AnimatedStep({ lesson, step, side, onStart }: Omit<WatchArtProps, 'stil
     },
   )
 
+  const notifyFinish = useCallback(() => {
+    if (!playing.current) return
+    playing.current = false
+    onFinish()
+  }, [onFinish])
+
   useEffect(() => {
-    playing.current = true
-    clock.set(withTiming(timeline.end, { duration: timeline.end, easing: Easing.linear }))
-    return () => {
+    function cancelPlayback() {
       playing.current = false
       cancelAnimation(clock)
     }
-  }, [clock, timeline.end])
+
+    let started = false
+    function startPlayback() {
+      if (started) return
+      started = true
+      playing.current = true
+      clock.set(withTiming(timeline.end, {
+        duration: timeline.end, easing: Easing.linear, reduceMotion: ReduceMotion.Never,
+      }, (finished) => {
+        if (finished) scheduleOnRN(notifyFinish)
+      }))
+    }
+
+    const listener = AppState.addEventListener('change', (status) => {
+      if (status === 'active') startPlayback()
+      else cancelPlayback()
+    })
+    if (AppState.currentState === 'active' || AppState.currentState == null) startPlayback()
+    return () => {
+      listener.remove()
+      cancelPlayback()
+    }
+  }, [clock, notifyFinish, timeline.end])
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">

@@ -1,5 +1,5 @@
 import type { Drawing, DrawingCategoryId, DrawingDifficulty } from './drawings'
-import drawingLessonStepCounts from './lessons/step-counts.generated.json'
+import { drawingLessonIndex } from './lessons/drawingLessons'
 
 export type GuidedLessonStep = {
   title: string
@@ -145,7 +145,7 @@ type LessonWithSteps = { id: string; steps: readonly unknown[] }
 
 const lessonStepCounts = new Map([
   ...guidedLessons.map(({ id, steps }): [string, number] => [id, steps.length]),
-  ...Object.entries(drawingLessonStepCounts),
+  ...drawingLessonIndex.map(({ id, stepCount }): [string, number] => [id, stepCount]),
 ])
 
 export const emptyLearningProgress: LearningProgress = {

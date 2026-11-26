@@ -22,10 +22,16 @@ export function useLessonSpeech(enabled: boolean) {
   }, [])
 
   const speakAutomatically = useCallback((line: string) => {
-    if (focused && enabled) speak(line)
+    if (!focused || !enabled || (AppState.currentState !== 'active' && AppState.currentState != null)) return false
+    speak(line)
+    return true
   }, [enabled, focused, speak])
 
-  useEffect(() => stop, [enabled, focused, stop])
+  useEffect(() => {
+    if (!focused || !enabled) stop()
+  }, [enabled, focused, stop])
+
+  useEffect(() => stop, [stop])
 
   useEffect(() => {
     const listener = AppState.addEventListener('change', (status) => { if (status !== 'active') stop() })

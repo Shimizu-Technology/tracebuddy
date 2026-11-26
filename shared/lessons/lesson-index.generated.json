@@ -1,0 +1,191 @@
+[
+  {
+    "id": "simple/airplane",
+    "pictureId": "airplane",
+    "level": "simple",
+    "title": "Airplane",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/bunny",
+    "pictureId": "bunny",
+    "level": "simple",
+    "title": "Bunny",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/butterfly",
+    "pictureId": "butterfly",
+    "level": "simple",
+    "title": "Butterfly",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/cat",
+    "pictureId": "cat",
+    "level": "simple",
+    "title": "Sleepy cat",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/crab",
+    "pictureId": "crab",
+    "level": "simple",
+    "title": "Crab",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/duck",
+    "pictureId": "duck",
+    "level": "simple",
+    "title": "Duck",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/elephant",
+    "pictureId": "elephant",
+    "level": "simple",
+    "title": "Elephant",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/fish",
+    "pictureId": "fish",
+    "level": "simple",
+    "title": "Fish",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/flower",
+    "pictureId": "flower",
+    "level": "simple",
+    "title": "Flower",
+    "stepCount": 4
+  },
+  {
+    "id": "simple/house",
+    "pictureId": "house",
+    "level": "simple",
+    "title": "House",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/ice-cream",
+    "pictureId": "ice-cream",
+    "level": "simple",
+    "title": "Ice cream",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/lion",
+    "pictureId": "lion",
+    "level": "simple",
+    "title": "Lion",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/narwhal",
+    "pictureId": "narwhal",
+    "level": "simple",
+    "title": "Narwhal",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/octopus",
+    "pictureId": "octopus",
+    "level": "simple",
+    "title": "Octopus",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/owl",
+    "pictureId": "owl",
+    "level": "simple",
+    "title": "Owl",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/penguin",
+    "pictureId": "penguin",
+    "level": "simple",
+    "title": "Penguin",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/pig",
+    "pictureId": "pig",
+    "level": "simple",
+    "title": "Pig",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/present",
+    "pictureId": "present",
+    "level": "simple",
+    "title": "Present",
+    "stepCount": 5
+  },
+  {
+    "id": "simple/puppy",
+    "pictureId": "puppy",
+    "level": "simple",
+    "title": "Puppy",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/rainbow",
+    "pictureId": "rainbow",
+    "level": "simple",
+    "title": "Rainbow",
+    "stepCount": 4
+  },
+  {
+    "id": "simple/rocket",
+    "pictureId": "rocket",
+    "level": "simple",
+    "title": "Rocket",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/sea-turtle",
+    "pictureId": "sea-turtle",
+    "level": "simple",
+    "title": "Sea turtle",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/snowman",
+    "pictureId": "snowman",
+    "level": "simple",
+    "title": "Snowman",
+    "stepCount": 6
+  },
+  {
+    "id": "simple/sun",
+    "pictureId": "sun",
+    "level": "simple",
+    "title": "Sun",
+    "stepCount": 4
+  },
+  {
+    "id": "simple/t-rex",
+    "pictureId": "t-rex",
+    "level": "simple",
+    "title": "T-rex",
+    "stepCount": 6
+  },
+  {
+    "id": "detailed/unicorn",
+    "pictureId": "unicorn",
+    "level": "detailed",
+    "title": "Unicorn",
+    "stepCount": 8
+  },
+  {
+    "id": "simple/whale",
+    "pictureId": "whale",
+    "level": "simple",
+    "title": "Whale",
+    "stepCount": 5
+  }
+]

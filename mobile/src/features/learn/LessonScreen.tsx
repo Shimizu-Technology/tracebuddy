@@ -1,12 +1,13 @@
 import { router, useLocalSearchParams, useNavigation } from 'expo-router'
 import { usePreventRemove } from 'expo-router/react-navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, AppState, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import Animated, { ReduceMotion, ZoomIn, useReducedMotion } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { drawingLessonById } from '../../../../shared/lessons/drawingLessons'
 import type { DrawingLesson } from '../../../../shared/lessons/drawingLessons'
+import { lessonGeometryLoaders } from '../../../../shared/lessons/lesson-geometry.generated'
 import type { PracticeStroke, SavedPracticeSession } from '../../../practiceStorageModel'
 import { resolvePicture, sourceForPicture } from '../../data/catalog'
 import { newDrawing, readDrawing } from '../../data/drawingLibrary'
@@ -30,7 +31,7 @@ import { useDrawSession } from '../draw/useDrawSession'
 import { LessonArt } from './LessonArt'
 import { WatchArt } from './WatchArt'
 import { lessonResume, lessonSessionId, undoLessonStroke } from './lessonPractice'
-import { readLessonMuted, readLessonProgress, saveLessonMuted, saveLessonProgress } from './lessonStorage'
+import { readLessonMuted, readLessonProgress, restartSavedLesson, saveLessonMuted, saveLessonProgress } from './lessonStorage'
 import { useLessonSpeech } from './useLessonSpeech'
 
 type Resume = ReturnType<typeof lessonResume>
@@ -43,7 +44,11 @@ const celebration = ZoomIn.duration(360).reduceMotion(ReduceMotion.System)
 
 export default function LessonScreen() {
   const { id, level } = useLocalSearchParams<{ id: string; level: string }>()
-  const lesson = drawingLessonById(`${level}/${id}`)
+  const lesson = useMemo(() => {
+    const metadata = drawingLessonById(`${level}/${id}`)
+    const geometry = metadata && lessonGeometryLoaders[metadata.id]?.()
+    return metadata && geometry ? { ...metadata, ...geometry } : undefined
+  }, [id, level])
   if (lesson) return <LoadLesson key={lesson.id} lesson={lesson} />
   return <LessonLoading status="error" />
 }
@@ -96,7 +101,7 @@ function leaveLesson() {
 }
 
 function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesson }) {
-  const { session, change, save, saveFailed } = useDrawSession(data.initial, data.wasSaved)
+  const { session, change, save, clear, saveFailed } = useDrawSession(data.initial, data.wasSaved)
   const [step, setStep] = useState(data.progress.step)
   const [phase, setPhase] = useState<Phase>(data.progress.finished ? 'finish' : 'watch')
   const [support, setSupport] = useState<Support>('trace')
@@ -113,9 +118,17 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
   const reduceMotion = useReduceMotion(systemReduceMotion)
   const { say } = lesson.steps[step]
   const { speak, speakAutomatically, stop } = useLessonSpeech(!muted)
+  const cueKey = `${step}-${replay}`
+  const spokenCue = useRef<string>(undefined)
+  const completedCue = useRef<string>(undefined)
+  const interruptedCue = useRef<string>(undefined)
+  const playbackKey = `${cueKey}/${reduceMotion ? 'still' : 'animated'}`
   const cueStep = useCallback(() => {
-    if (!running.current) speakAutomatically(say)
-  }, [say, speakAutomatically])
+    if (!running.current && spokenCue.current !== cueKey && speakAutomatically(say)) spokenCue.current = cueKey
+  }, [cueKey, say, speakAutomatically])
+  const completeWatch = useCallback(() => {
+    if (AppState.currentState === 'active' || AppState.currentState == null) completedCue.current = playbackKey
+  }, [playbackKey])
   const last = step === lesson.steps.length - 1
   const side = Math.floor(Math.min(room.width, room.height))
   const copy = phase === 'draw' && support === 'copy'
@@ -128,10 +141,30 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
     return save()
   }, [save])
 
+  const handleAppActivity = useEffectEvent((active: boolean, wasActive: boolean) => {
+    if (active === wasActive) return
+    if (!active) {
+      interruptedCue.current = watch && completedCue.current !== playbackKey ? cueKey : undefined
+      void flushAndSave()
+      return
+    }
+
+    const restart = watch && interruptedCue.current === cueKey
+    interruptedCue.current = undefined
+    if (restart) setReplay((value) => value + 1)
+    else if (watch && reduceMotion) completedCue.current = playbackKey
+  })
+
   useEffect(() => {
-    const listener = AppState.addEventListener('change', (status) => { if (status !== 'active') void flushAndSave() })
+    let active = AppState.currentState === 'active' || AppState.currentState == null
+    if (!active) handleAppActivity(false, true)
+    const listener = AppState.addEventListener('change', (status) => {
+      const wasActive = active
+      active = status === 'active'
+      handleAppActivity(active, wasActive)
+    })
     return () => listener.remove()
-  }, [flushAndSave])
+  }, [])
 
   const addStroke = useCallback((stroke: PracticeStroke) => {
     change((value) => ({ ...value, strokes: [...value.strokes, { ...stroke, lessonStep: step }] }))
@@ -182,9 +215,7 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
 
   function drawAgain() {
     void transact(async () => {
-      await saveLessonProgress(lesson, 0)
-      change(() => ({ ...newDrawing(session.source), sessionId: session.sessionId, title: lesson.title }))
-      if (!await save()) throw new Error('Save failed')
+      if (!await clear((drawing, isCurrent) => restartSavedLesson(lesson, drawing, isCurrent))) throw new Error('Save failed')
       setRoom({ width: 0, height: 0 })
       setStep(0)
       setPhase('watch')
@@ -196,6 +227,7 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
     if (next === 'draw') setPhase(next)
     else void transact(async () => {
       await canvas.current?.flush()
+      setReplay((value) => value + 1)
       setPhase(next)
     })
   }
@@ -251,7 +283,10 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
           <Text variant="label" accessibilityLiveRegion="polite" accessibilityLabel={say}
             numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.82} maxFontSizeMultiplier={1.45}>{say}</Text>
         </View>
-        <CanvasButton glyph={SpeakerHighIcon} label="Listen" onPress={() => speak(say)} style={styles.listen} />
+        <CanvasButton glyph={SpeakerHighIcon} label="Listen" onPress={() => {
+          if (watch) spokenCue.current = cueKey
+          speak(say)
+        }} style={styles.listen} />
       </View>
       {!watch && (
         <View style={styles.support}>
@@ -274,7 +309,7 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
           {side > 0 && (
             <DrawingCanvas ref={canvas} area={room} side={side} session={visibleSession} disabled={busy} readOnly={watch} onStroke={addStroke}
               guideLayer={watch
-                ? <WatchArt key={`${step}-${replay}`} lesson={lesson} step={step} side={side} still={reduceMotion} onStart={cueStep} />
+                ? <WatchArt key={cueKey} lesson={lesson} step={step} side={side} still={reduceMotion} onStart={cueStep} onFinish={completeWatch} />
                 : !copy && <LessonArt lesson={lesson} step={step} guide />} />
           )}
         </View>

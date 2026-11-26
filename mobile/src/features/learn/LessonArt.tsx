@@ -31,8 +31,11 @@ export const LessonArt = memo(function LessonArt({ lesson, step, guide = false, 
   )
 })
 
-export function StillWatchArt({ lesson, step, onStart }: { lesson: DrawingLesson; step: number; onStart: () => void }) {
-  const start = useEffectEvent(onStart)
+export function StillWatchArt({ lesson, step, onStart, onFinish }: { lesson: DrawingLesson; step: number; onStart: () => void; onFinish: () => void }) {
+  const start = useEffectEvent(() => {
+    onStart()
+    onFinish()
+  })
   useEffect(() => { start() }, [])
   return <LessonArt lesson={lesson} step={step} />
 }

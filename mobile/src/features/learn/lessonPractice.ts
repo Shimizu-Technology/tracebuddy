@@ -1,16 +1,16 @@
 import { completeGuidedLesson, normalizeLearningProgress, updateLearningStep } from '../../../../shared/lessons'
 import type { LearningProgress } from '../../../../shared/lessons'
 import { drawingLessonById } from '../../../../shared/lessons/drawingLessons'
-import type { DrawingLesson } from '../../../../shared/lessons/drawingLessons'
+import type { DrawingLesson, DrawingLessonMetadata } from '../../../../shared/lessons/drawingLessons'
 import type { PracticeStroke, SavedPracticeSession } from '../../../practiceStorageModel'
 
 const lessonSessionPrefix = 'lesson:'
 
-export function lessonDestination(lesson: DrawingLesson) {
+export function lessonDestination(lesson: DrawingLessonMetadata) {
   return { pathname: '/learn/[level]/[id]' as const, params: { level: lesson.level, id: lesson.pictureId } }
 }
 
-export function lessonSessionId(lesson: DrawingLesson) {
+export function lessonSessionId(lesson: Pick<DrawingLessonMetadata, 'id'>) {
   return lessonSessionPrefix + lesson.id
 }
 
