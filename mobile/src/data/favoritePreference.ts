@@ -44,7 +44,8 @@ export function createArtFavoritePreference(
   async function readInQueue() {
     const current = await read(artFavoritesKey)
     // The new key is the migration marker. An empty list is a valid saved choice.
-    if (current !== null) return readStringIds(JSON.parse(current))
+    // A damaged list reads as empty rather than blocking every later toggle.
+    if (current !== null) return readStringIds(parseLegacyJson(current))
 
     const [legacy, art] = await Promise.all([read(drawingPreferencesKey), read(legacyArtFavoritesKey)])
     const existingIds = readStringIds(parseLegacyJson(art))
