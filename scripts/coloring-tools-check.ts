@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { gunzipSync } from 'node:zlib'
 
 import { brushTools, coloringBrushTools, normalizeSavedPracticeSession, normalizeSavedPracticeStroke } from '../mobile/practiceStorageModel.ts'
 import { crayons, selectedCrayon } from '../mobile/src/features/draw/crayonShades.ts'
 import { prepareFillGuide, supportsFill } from '../mobile/src/features/draw/fillGuide.ts'
-import { fillBudgetMs, fillDocumentScale, fillResolution, floodFill, guideBarriers } from '../mobile/src/features/draw/floodFill.ts'
+import { fillBudgetMs, fillDocumentScale, fillResolution, floodFill, guideBarriers, indexFillGuide } from '../mobile/src/features/draw/floodFill.ts'
 
 const oldPaint = { path: 'M 100 200 L 800 400', mode: 'draw', color: '#B99488', width: 78, opacity: 0.42 }
 const wash = { ...oldPaint, blend: 'multiply', opacity: 0.72 }
@@ -98,7 +101,8 @@ function includes(path: string, x: number, y: number) {
   return winding !== 0
 }
 
-const inner = floodFill(mask, size, size, 5, 5)
+const smallGuide = indexFillGuide(mask, size, size)
+const inner = floodFill(smallGuide, 5, 5)
 assert.equal(inner.status, 'filled')
 if (inner.status === 'filled') {
   assert.ok(includes(inner.path, 5.5, 5.5))
@@ -106,18 +110,20 @@ if (inner.status === 'filled') {
   assert.ok(!includes(inner.path, 2.5, 6.5), 'stays inside the outer guide')
   assert.ok(!includes(inner.path, 8.5, 8.5), 'keeps the central island')
 }
-const outer = floodFill(mask, size, size, 0, 0)
+const outer = floodFill(smallGuide, 0, 0)
 assert.equal(outer.status, 'filled')
 if (outer.status === 'filled') {
   assert.ok(includes(outer.path, 0.5, 0.5))
   assert.ok(!includes(outer.path, 5.5, 5.5), 'leaves the enclosed region alone')
 }
-assert.deepEqual(floodFill(mask, size, size, 3, 3), { status: 'miss' })
-assert.deepEqual(floodFill(mask, size, size, size, -1), { status: 'miss' })
-assert.deepEqual(floodFill(mask, size, size, 5, 5, { budgetMs: 0 }), { status: 'limit' })
+assert.deepEqual(floodFill(smallGuide, 3, 3), { status: 'miss' })
+assert.deepEqual(floodFill(smallGuide, size, -1), { status: 'miss' })
+assert.deepEqual(floodFill(smallGuide, 5, 5, { budgetMs: 0 }), { status: 'limit', reason: 'time' })
 
-// This file runs under --jitless. Each large fixture must finish within the
-// production deadline, with a smaller saved path than the old circle paths.
+// This file runs under --jitless. Allow extra wall-clock time for loaded CI
+// runners. Independently bound path size, which does not depend on scheduling.
+const testBudgetMs = fillBudgetMs * 2
+const testOptions = { scale: fillDocumentScale, budgetMs: testBudgetMs }
 const paper = new Uint8Array(fillResolution ** 2)
 const center = fillResolution / 2
 const circle = Uint8Array.from(paper, (_, index) => {
@@ -131,16 +137,50 @@ const largeCases = [
   { name: 'circle background', mask: circle, x: 0, y: 0, inside: [[0.5, 0.5], [999.5, 999.5]], outside: [[500, 500]], maxLength: 6_000 },
 ]
 for (const fixture of largeCases) {
+  const guide = indexFillGuide(fixture.mask, fillResolution, fillResolution)
   const start = performance.now()
-  const result = floodFill(fixture.mask, fillResolution, fillResolution, fixture.x, fixture.y, { scale: fillDocumentScale })
+  const result = floodFill(guide, fixture.x, fixture.y, testOptions)
   const elapsed = performance.now() - start
-  assert.equal(result.status, 'filled', `${fixture.name} exceeded the ${fillBudgetMs} ms budget`)
+  assert.equal(result.status, 'filled', `${fixture.name} exceeded the ${testBudgetMs} ms test budget`)
   if (result.status !== 'filled') continue
   assert.ok(result.path.length <= fixture.maxLength, `${fixture.name} path has ${result.path.length} characters`)
   if (fixture.mask === circle) assert.match(result.path, /Q/, 'curved outlines are smoothed')
   for (const [x, y] of fixture.inside) assert.ok(includes(result.path, x, y), `${fixture.name} includes ${x}, ${y}`)
   for (const [x, y] of fixture.outside) assert.ok(!includes(result.path, x, y), `${fixture.name} excludes ${x}, ${y}`)
   console.log(`Fill ${fixture.name}: ${elapsed.toFixed(1)} ms, ${result.path.length} path characters`)
+}
+
+// Browser-rasterized at the app's resolution by fill-guide-benchmark.ts --fixtures.
+const realMasks: { picture: string; svgHash: string; mask: string }[] = JSON.parse(gunzipSync(
+  readFileSync(new URL('./fixtures/coloring-guides.json.gz', import.meta.url)),
+).toString('utf8'))
+const realCases = [
+  { picture: 'simple/t-rex', seed: [264, 236], ink: [355, 236], neighbor: [315, 329], maxLength: 14_000 },
+  { picture: 'detailed/t-rex', seed: [265, 223], ink: [195, 223], neighbor: [301, 357], maxLength: 16_000 },
+  { picture: 'detailed/whale', seed: [247, 254], ink: [199, 254], neighbor: [357, 298], maxLength: 11_000 },
+  { picture: 'detailed/heart-pattern', seed: [243, 204], ink: [225, 204], neighbor: [130, 133], maxLength: 28_000 },
+] as const
+for (const { picture, seed, ink, neighbor, maxLength } of realCases) {
+  const fixture = realMasks.find((mask) => mask.picture === picture)
+  assert.ok(fixture, `Missing ${picture} mask`)
+  const svg = readFileSync(new URL(`../shared/art/${picture}/line.svg`, import.meta.url))
+  assert.equal(fixture.svgHash, createHash('sha256').update(svg).digest('hex'), `Regenerate the updated ${picture} mask`)
+  const barriers = Buffer.from(fixture.mask, 'base64')
+  assert.equal(barriers.length, fillResolution ** 2, picture)
+  assert.equal(barriers[ink[1] * fillResolution + ink[0]], 1, `${picture} edge sample is on the ink`)
+  const guide = indexFillGuide(barriers, fillResolution, fillResolution)
+  const start = performance.now()
+  const result = floodFill(guide, ...seed, testOptions)
+  const elapsed = performance.now() - start
+  assert.equal(result.status, 'filled', `${picture} must fill within ${testBudgetMs} ms`)
+  assert.ok(result.path.length <= maxLength, `${picture} path has ${result.path.length} characters`)
+  const coversPixel = ([x, y]: readonly [number, number]) =>
+    includes(result.path, (x + 0.5) * fillDocumentScale, (y + 0.5) * fillDocumentScale)
+  assert.ok(coversPixel(seed), `${picture} colors the tapped region`)
+  assert.ok(coversPixel(ink), `${picture} reaches under the ink`)
+  assert.ok(!coversPixel(neighbor), `${picture} leaves a neighboring region alone`)
+  assert.ok(!coversPixel([0, 0]), `${picture} leaves the background alone`)
+  console.log(`Fill ${picture}: ${elapsed.toFixed(1)} ms, ${result.corners} raw corners, ${result.path.length} path characters`)
 }
 
 console.log('Coloring tools checks passed: stroke round trips, 75 shades, mask retry, guide barriers and region fill')

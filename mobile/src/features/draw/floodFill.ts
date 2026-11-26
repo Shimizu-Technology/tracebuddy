@@ -8,7 +8,12 @@ const region = 1
 const dilation = 2
 const examined = 4
 
-export type FillResult = { status: 'filled'; path: string } | { status: 'miss' | 'limit' }
+export type FillResult =
+  | { status: 'filled'; path: string; corners: number }
+  | { status: 'limit'; reason: 'time' | 'corners' }
+  | { status: 'miss' }
+
+export type FillGuideIndex = ReturnType<typeof indexFillGuide>
 
 export function guideBarriers(rgba: Uint8Array | Uint8ClampedArray) {
   const barriers = new Uint8Array(rgba.length / 4)
@@ -22,69 +27,109 @@ export function guideBarriers(rgba: Uint8Array | Uint8ClampedArray) {
   return barriers
 }
 
+// Index the open spans once when the guide loads. Fill taps can then step over
+// long stretches of white space and visit individual pixels only at the ink.
+export function indexFillGuide(barriers: Uint8Array, width: number, height: number) {
+  const rows = new Uint32Array(height + 1)
+  const starts: number[] = []
+  const ends: number[] = []
+  for (let y = 0; y < height; y++) {
+    rows[y] = starts.length
+    const rowEnd = (y + 1) * width
+    let pixel = y * width
+    while (pixel < rowEnd) {
+      if (barriers[pixel]) {
+        pixel++
+        continue
+      }
+      starts.push(pixel++)
+      while (pixel < rowEnd && !barriers[pixel]) pixel++
+      ends.push(pixel - 1)
+    }
+  }
+  rows[height] = starts.length
+  return { width, height, rows, starts: Uint32Array.from(starts), ends: Uint32Array.from(ends) }
+}
+
+function firstSpanEndingAtOrAfter(guide: FillGuideIndex, row: number, pixel: number) {
+  let low = guide.rows[row]
+  let high = guide.rows[row + 1]
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (guide.ends[middle] < pixel) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
 /** Trace the outer and inner boundaries of one four-connected region. */
 export function floodFill(
-  barriers: Uint8Array, width: number, height: number, x: number, y: number,
+  guide: FillGuideIndex, x: number, y: number,
   { budgetMs = fillBudgetMs, scale = 1 }: { budgetMs?: number; scale?: number } = {},
 ): FillResult {
+  const { width, height, rows, starts, ends } = guide
   x = Math.floor(x)
   y = Math.floor(y)
-  if (!Number.isFinite(x + y) || x < 0 || x >= width || y < 0 || y >= height || barriers[y * width + x]) {
-    return { status: 'miss' }
-  }
-  if (budgetMs <= 0) return { status: 'limit' }
+  if (!Number.isFinite(x + y) || x < 0 || x >= width || y < 0 || y >= height) return { status: 'miss' }
+
+  const seed = y * width + x
+  const seedSpan = firstSpanEndingAtOrAfter(guide, y, seed)
+  if (seedSpan === rows[y + 1] || starts[seedSpan] > seed) return { status: 'miss' }
+  if (budgetMs <= 0) return { status: 'limit', reason: 'time' }
 
   const deadline = performance.now() + budgetMs
-  const filled = new Uint8Array(barriers.length)
-  const pending = [y * width + x]
+  const filled = new Uint8Array(width * height)
+  const pending = [seedSpan]
   const boundary: number[] = []
   let work = 0
 
   while (pending.length) {
-    if ((++work & 255) === 0 && performance.now() >= deadline) return { status: 'limit' }
-    const seed = pending.pop()!
-    if (filled[seed]) continue
-    const start = seed - seed % width
-    const end = start + width - 1
-    let left = seed
-    let right = seed
-    while (left > start && !filled[left - 1] && !barriers[left - 1]) left--
-    while (right < end && !filled[right + 1] && !barriers[right + 1]) right++
+    if ((++work & 63) === 0 && performance.now() >= deadline) return { status: 'limit', reason: 'time' }
+    const span = pending.pop()!
+    const left = starts[span]
+    if (filled[left]) continue
+    const right = ends[span]
+    const row = Math.floor(left / width)
     filled.fill(region, left, right + 1)
 
     // Only span ends and pixels facing a barrier or page edge can have an
     // exposed edge. Add adjacent guide pixels to tuck the fill under the ink.
     boundary.push(left, right)
-    if (left > start && barriers[left - 1] && !filled[left - 1]) {
+    if (left > row * width && !filled[left - 1]) {
       filled[left - 1] = dilation
       boundary.push(left - 1)
     }
-    if (right < end && barriers[right + 1] && !filled[right + 1]) {
+    if (right < (row + 1) * width - 1 && !filled[right + 1]) {
       filled[right + 1] = dilation
       boundary.push(right + 1)
     }
 
-    for (let offset = -width; offset <= width; offset += 2 * width) {
-      const adjacent = left + offset
-      let wasOpen = false
-      if (adjacent < 0 || adjacent >= filled.length) {
+    for (let offset = -1; offset <= 1; offset += 2) {
+      const adjacentRow = row + offset
+      if (adjacentRow < 0 || adjacentRow >= height) {
         for (let i = left; i <= right; i++) boundary.push(i)
         continue
       }
-      for (let i = left, j = adjacent; i <= right; i++, j++) {
-        if ((++work & 255) === 0 && performance.now() >= deadline) return { status: 'limit' }
-        if (barriers[j]) {
-          boundary.push(i)
-          if (!filled[j]) {
-            filled[j] = dilation
-            boundary.push(j)
+
+      const shift = offset * width
+      const adjacentEnd = right + shift
+      let pixel = left + shift
+      let next = firstSpanEndingAtOrAfter(guide, adjacentRow, pixel)
+      const rowEnd = rows[adjacentRow + 1]
+      while (pixel <= adjacentEnd) {
+        const hasOverlap = next < rowEnd && starts[next] <= adjacentEnd
+        const inkEnd = hasOverlap ? starts[next] : adjacentEnd + 1
+        for (; pixel < inkEnd; pixel++) {
+          boundary.push(pixel - shift)
+          if (!filled[pixel]) {
+            filled[pixel] = dilation
+            boundary.push(pixel)
           }
-          wasOpen = false
-        } else {
-          const open = !filled[j]
-          if (open && !wasOpen) pending.push(j)
-          wasOpen = open
         }
+        if (!hasOverlap) break
+        if (!filled[starts[next]]) pending.push(next)
+        pixel = ends[next] + 1
+        next++
       }
     }
   }
@@ -95,7 +140,7 @@ export function floodFill(
   const edges = new Uint8Array(stride * (height + 1))
   const vertices: number[] = []
   for (const index of boundary) {
-    if ((++work & 255) === 0 && performance.now() >= deadline) return { status: 'limit' }
+    if ((++work & 255) === 0 && performance.now() >= deadline) return { status: 'limit', reason: 'time' }
     if (filled[index] & examined) continue
     filled[index] |= examined
     const col = index % width
@@ -130,7 +175,7 @@ export function floodFill(
       let direction = 31 - Math.clz32(edges[start] & -edges[start])
       const contour = [start]
       do {
-        if ((++work & 255) === 0 && performance.now() >= deadline) return { status: 'limit' }
+        if ((++work & 255) === 0 && performance.now() >= deadline) return { status: 'limit', reason: 'time' }
         edges[vertex] &= ~(1 << direction)
         vertex += steps[direction]
         if (vertex === start) break
@@ -139,17 +184,19 @@ export function floodFill(
         const next = edges[vertex] & (1 << right) ? right
           : edges[vertex] & (1 << direction) ? direction : (direction + 3) & 3
         if (next !== direction) {
-          if (++corners > maxCorners) return { status: 'limit' }
+          if (++corners > maxCorners) return { status: 'limit', reason: 'corners' }
           contour.push(vertex)
           direction = next
         }
       } while (vertex !== start)
-      if (++corners > maxCorners) return { status: 'limit' }
+      if (++corners > maxCorners) return { status: 'limit', reason: 'corners' }
       const path = smoothContour(contour, stride, scale, deadline)
-      if (path === null) return { status: 'limit' }
+      if (path === null) return { status: 'limit', reason: 'time' }
       paths.push(path)
     }
   }
 
-  return performance.now() >= deadline ? { status: 'limit' } : { status: 'filled', path: paths.join(' ') }
+  const path = paths.join(' ')
+  if (performance.now() >= deadline) return { status: 'limit', reason: 'time' }
+  return { status: 'filled', path, corners }
 }
