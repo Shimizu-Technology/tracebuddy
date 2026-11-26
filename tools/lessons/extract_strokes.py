@@ -1,7 +1,7 @@
 """Method A step 1: turn a TraceBuddy line.svg (filled potrace outlines) into centerline strokes.
 
 Usage:
-  .venv/bin/python scripts/extract_strokes.py <art-root> <level/id> [<level/id> ...]
+  tools/lessons/.venv/bin/python tools/lessons/extract_strokes.py <art-root> <level/id> [<level/id> ...]
 
 For each picture it writes work/<level>/<id>/strokes.json and work/<level>/<id>/strokes-labeled.png
 (every stroke in its own color with its number at the start point, so a person can
