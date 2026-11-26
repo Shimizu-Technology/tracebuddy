@@ -101,7 +101,14 @@ assert.deepEqual((await storage.loadPreviousWorkSessions())[0], keepsake)
 allowWrite = false
 await storage.loadPreviousWorkSessionsWithLegacyMigration({ width: 200, height: 400 })
 assert.ok(records.has(legacyKey), 'A failed migration keeps the original autosave')
+const migrateForBackup = () => storage.queuePreviousWorkWrite(() =>
+  storage.migrateLegacyPracticeAutosavesInQueue({ width: 200, height: 400 }, () => true, true))
+await assert.rejects(migrateForBackup(), /fixture storage write failed/, 'An actual storage failure blocks an incomplete backup')
+afterRead = async (key) => { if (key === legacyKey) throw new SyntaxError('simulated native read failure') }
+await assert.rejects(migrateForBackup(), /simulated native read failure/, 'Legacy parse recovery does not swallow a native read error')
+afterRead = undefined
 allowWrite = true
+await migrateForBackup()
 const sessions = await storage.loadPreviousWorkSessionsWithLegacyMigration({ width: 200, height: 400 })
 assert.deepEqual(sessions.map((session) => session.sessionId), [savedIn12.sessionId, 'legacy-line-paths'])
 assert.equal(sessions[1].strokes[0].path, 'M 100 100 L 300 200')

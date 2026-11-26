@@ -1,12 +1,23 @@
 /** The directory version describes the file layout. Contents are still v2 session JSON. */
 export const drawingRecordFolder = 'tracebuddy-drawings-v1'
 
+class InvalidDrawingRecordIdError extends Error {
+  constructor() { super('Invalid drawing ID') }
+}
+
 export function drawingRecordFileName(id: string) {
   // Escape characters such as '/' without passing URI escapes to the filesystem.
   const name = encodeURIComponent(id).replace(/%[0-9A-F]{2}|[A-Z~]/g, (part) =>
     '~' + (part.length === 1 ? part.charCodeAt(0).toString(16) : part.slice(1).toLowerCase()))
-  if (!name || name.length > 230) throw new Error('Invalid drawing ID')
+  if (!name || name.length > 230) throw new InvalidDrawingRecordIdError()
   return name + '.json'
+}
+
+export function canUseDrawingRecordFile(id: string) {
+  try { return Boolean(drawingRecordFileName(id)) } catch (error) {
+    if (error instanceof InvalidDrawingRecordIdError || error instanceof URIError) return false
+    throw error
+  }
 }
 
 function drawingIdFromFile(name: string) {
@@ -43,11 +54,11 @@ export function createDrawingRecords(io: DrawingFileIO) {
       }
       return [...new Set(names.map(drawingIdFromFile).filter((id): id is string => id !== undefined))]
     },
-    async read(id: string) {
+    async read(id: string, copy: 'primary' | 'previous') {
       const file = drawingRecordFileName(id)
-      return await io.read(file) ?? await io.read(file + '.previous')
+      return io.read(copy === 'primary' ? file : file + '.previous')
     },
-    async write(id: string, value: string) {
+    async write(id: string, value: string, isReadable: (raw: string | null) => boolean) {
       const file = drawingRecordFileName(id)
       const previous = file + '.previous'
       const pending = file + '.pending'
@@ -56,7 +67,11 @@ export function createDrawingRecords(io: DrawingFileIO) {
         // file. Keep the old version reachable even on platforms whose move
         // replaces an existing destination by unlinking it first.
         await io.write(pending, value)
-        if (await io.exists(file)) await io.move(file, previous)
+        // When recovering from a corrupt primary, keep an existing fallback
+        // until the replacement has been published successfully.
+        if (await io.exists(file) && (!await io.exists(previous) || isReadable(await io.read(file)))) {
+          await io.move(file, previous)
+        }
         await io.move(pending, file)
         await io.remove(previous).catch(() => undefined)
       } finally {

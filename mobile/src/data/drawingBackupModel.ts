@@ -1,12 +1,15 @@
 import { normalizeDrawingPreferences, normalizeLearningProgress } from '../../../shared'
 import type { DrawingPreferences, LearningProgress } from '../../../shared'
 import type { SavedPracticeSession } from '../../practiceStorageModel'
-import { drawingRecordFileName } from './drawingRecords'
+import { canUseDrawingRecordFile } from './drawingRecords'
 import { parseArtFavorites } from './favoritePreference'
+import { isHistoricalLegacyPracticeSessionId } from './legacyPractice'
 import { mapDrawingImageUris, drawingImageUris } from './practiceImageCleanup'
-import { normalizePreviousWorkSession } from './previousWork'
+import { practiceImageFolder } from './practiceSource'
+import { normalizePreviousWorkSession, UnreadableDrawingRecordError } from './previousWork'
 
-export const maxDrawingBackupBytes = 64 * 1024 * 1024
+export const maxDrawingBackupMiB = 32
+export const maxDrawingBackupBytes = maxDrawingBackupMiB * 1024 * 1024
 const maxImageBytes = 24 * 1024 * 1024
 const maxImageCharacters = maxImageBytes / 3 * 4
 const backupFormat = 'TraceBuddy drawings'
@@ -41,6 +44,38 @@ function invalid(): never {
 
 function checkSize(size: number, limit = maxDrawingBackupBytes) {
   if (size > limit) throw new DrawingBackupError('too-large')
+}
+
+function utf8ByteLength(value: string) {
+  // Count directly to avoid allocating another copy of the backup's bytes.
+  let bytes = value.length
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i)
+    if (code < 0x80) continue
+    const next = value.charCodeAt(i + 1)
+    if (code >= 0xd800 && code <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) {
+      bytes += 2
+      i += 1
+    } else bytes += code < 0x800 ? 1 : 2
+  }
+  return bytes
+}
+
+type BackupImageFileIO = {
+  getInfo: (uri: string) => Promise<{ exists: false } | { exists: true; isDirectory: boolean; size: number }>
+  readBase64: (uri: string) => Promise<string>
+}
+
+export async function readDrawingBackupImage(uri: string, documentDirectory: string | null, maxBytes: number, io: BackupImageFileIO): Promise<BackupImage> {
+  const root = documentDirectory && `${documentDirectory}${practiceImageFolder}/`
+  const extension = /\.([a-z0-9]{1,8})$/i.exec(uri)?.[1].toLowerCase() ?? 'jpg'
+  if (!root || !uri.startsWith(root) || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(uri.slice(root.length))) {
+    return { extension, base64: null }
+  }
+  const info = await io.getInfo(uri)
+  if (!info.exists || info.isDirectory || info.size === 0) return { extension, base64: null }
+  checkSize(info.size, maxBytes)
+  return { extension, base64: await io.readBase64(uri) || null }
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -81,13 +116,16 @@ function checkSvg(svg: string | undefined) {
   // Saved guides are embedded line art. Reject external references and
   // elements such as <use> that can recursively expand into native views.
   const markup = svg.replace(/^\s*<\?xml\s[^>]*\?>/, '').replace(/<!--[\s\S]*?-->/g, '')
-  if (!/^\s*<svg[\s>]/.test(markup) || /\b(?:href|src|on[a-z]+)\s*=/i.test(markup)
-    || /url\s*\(/i.test(markup.replace(/url\s*\(\s*#[\w:.-]+\s*\)/gi, ''))) return invalid()
+  if (!/^\s*<svg[\s/>]/.test(markup)) return invalid()
 
   const tags = []
   let rootEnded = false
-  for (const [tag, close, name] of markup.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)?[^<>]*>?/g)) {
-    if (rootEnded || !drawingSvgElements.has(name) || !tag.endsWith('>') || tags.length > 48) return invalid()
+  for (const [tag, close, name, attributes] of markup.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)(?=[\s/>])((?:"[^"<>]*"|'[^'<>]*'|[^"'<>])*)>|</g)) {
+    if (rootEnded || !drawingSvgElements.has(name) || tags.length > 48) return invalid()
+    // Scan markup attributes only. Words such as "one =" and "url(x)" are
+    // normal drawing text, while the same syntax in an attribute can load a resource.
+    if (/\b(?:href|src|on[a-z]+)\s*=/i.test(attributes)
+      || /url\s*\(/i.test(attributes.replace(/url\s*\(\s*#[\w:.-]+\s*\)/gi, ''))) return invalid()
     if (close) {
       if (tags.pop() !== name) return invalid()
     } else if (!tag.endsWith('/>')) tags.push(name)
@@ -102,9 +140,9 @@ function decodeDrawing(value: unknown, imageCount: number) {
     || typeof candidate.createdAt !== 'string' || !Number.isFinite(Date.parse(candidate.createdAt))
     || typeof candidate.updatedAt !== 'string' || !Number.isFinite(Date.parse(candidate.updatedAt))
     || !Array.isArray(candidate.strokes) || !Array.isArray(candidate.stickers)) return invalid()
+  if (!canUseDrawingRecordFile(candidate.sessionId) && !isHistoricalLegacyPracticeSessionId(candidate.sessionId)) return invalid()
   let drawing: SavedPracticeSession | null
   try {
-    drawingRecordFileName(candidate.sessionId)
     drawing = normalizePreviousWorkSession(candidate)
   } catch { return invalid() }
   if (!drawing) return invalid()
@@ -122,7 +160,7 @@ function decodeDrawing(value: unknown, imageCount: number) {
 }
 
 export function parseDrawingBackup(raw: string): DrawingBackup {
-  checkSize(raw.length)
+  checkSize(utf8ByteLength(raw))
   let parsed: unknown
   try { parsed = JSON.parse(raw) } catch { return invalid() }
   const data = object(parsed)
@@ -163,15 +201,20 @@ export async function buildDrawingBackup(
     if (!refs.has(resolved)) refs.set(resolved, refs.size)
     return imageReference(refs.get(resolved)!)
   }))
-  for (const drawing of drawings) decodeDrawing(drawing, refs.size)
   const backup: DrawingBackup = { ...contents, format: backupFormat, version: 1, drawings, images: [] }
-  let characters = JSON.stringify(backup).length
-  checkSize(characters)
+  let bytes = utf8ByteLength(JSON.stringify({ ...backup, drawings: [] }))
+  for (const [index, drawing] of drawings.entries()) {
+    decodeDrawing(drawing, refs.size)
+    bytes += utf8ByteLength(JSON.stringify(drawing)) + (index === 0 ? 0 : 1)
+    checkSize(bytes)
+  }
+  checkSize(bytes)
   for (const uri of refs.keys()) {
-    const remainingBytes = Math.floor((maxDrawingBackupBytes - characters) * 3 / 4)
-    const image = validImage(await readImage(uri, Math.min(maxImageBytes, remainingBytes)))
-    characters += JSON.stringify(image).length + 1
-    checkSize(characters)
+    const remainingBytes = maxDrawingBackupBytes - bytes
+    const image = validImage(await readImage(uri, Math.min(maxImageBytes, Math.floor(remainingBytes / 4) * 3)))
+    const metadata = { extension: image.extension, base64: image.base64 === null ? null : '' }
+    bytes += utf8ByteLength(JSON.stringify(metadata)) + (image.base64?.length ?? 0) + (backup.images.length === 0 ? 0 : 1)
+    checkSize(bytes)
     backup.images.push(image)
   }
   return backup
@@ -215,7 +258,10 @@ export async function mergeDrawingBackup(backup: DrawingBackup, io: DrawingResto
   const missing = new Set<string>()
   try {
     for (const drawing of backup.drawings) {
-      const local = await io.readDrawing(drawing.sessionId)
+      const local = await io.readDrawing(drawing.sessionId).catch((error: unknown) => {
+        if (error instanceof UnreadableDrawingRecordError) return null
+        throw error
+      })
       if (local && Date.parse(drawing.updatedAt) <= Date.parse(local.updatedAt)) {
         result.kept += 1
         continue
@@ -225,14 +271,16 @@ export async function mergeDrawingBackup(backup: DrawingBackup, io: DrawingResto
         if (restoredImages.has(ref)) continue
         const image = backup.images[referenceIndex(ref, backup.images.length)]
         restoredImages.set(ref, await io.writeImage(image))
-        if (image.base64 === null) missing.add(ref)
       }
       await io.writeDrawing(mapDrawingImageUris(drawing, (ref) => restoredImages.get(ref)!))
+      for (const ref of refs) {
+        if (backup.images[referenceIndex(ref, backup.images.length)].base64 === null) missing.add(ref)
+      }
+      result.missingPhotos = missing.size
       if (local) result.updated += 1
       else result.added += 1
     }
     await io.writeSettings(backup)
-    result.missingPhotos = missing.size
     return result
   } catch (cause) {
     throw new DrawingRestoreWriteError(result, { cause })

@@ -1,12 +1,28 @@
 import { createTextDrawing, drawingById } from '../../../shared'
 import { brushTools, defaultMarkerColor, makePracticeSessionTitle, normalizeSavedPracticeStroke, practiceStrokeWidth } from '../../practiceStorageModel'
 import type { BrushToolId, PracticeSource, PracticeStroke, SavedPracticeSession } from '../../practiceStorageModel'
-import { createPracticeSessionId, makePracticeSource } from './practiceSource'
+import { canUseDrawingRecordFile } from './drawingRecords'
+import { makePracticeSource } from './practiceSource'
 import { legacyPracticeAutosavePrefix } from './storageKeys'
 
+export function historicalLegacyPracticeSessionId(storageKey: string) {
+  const suffix = storageKey.slice(legacyPracticeAutosavePrefix.length).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 150)
+  return suffix ? `legacy-${suffix}` : undefined
+}
+
+export function isHistoricalLegacyPracticeSessionId(id: string) {
+  return /^legacy-[a-zA-Z0-9._-]{1,150}$/.test(id)
+}
+
 export function legacyPracticeSessionId(storageKey: string) {
-  const suffix = storageKey.slice(legacyPracticeAutosavePrefix.length).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 150) || createPracticeSessionId()
-  return `legacy-${suffix}`
+  const historicalId = historicalLegacyPracticeSessionId(storageKey)
+  if (historicalId && canUseDrawingRecordFile(historicalId)) return historicalId
+
+  // Uppercase letters take three bytes in a record filename. Keep a readable
+  // prefix and distinguish long legacy keys that share it.
+  let hash = 2166136261
+  for (let i = 0; i < storageKey.length; i += 1) hash = Math.imul(hash ^ storageKey.charCodeAt(i), 16777619)
+  return `${historicalId?.slice(0, 70) ?? 'legacy-empty'}-${(hash >>> 0).toString(36)}`
 }
 
 function isLegacyUploadAutosaveKey(storageKey: string) {

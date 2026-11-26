@@ -3,8 +3,9 @@ import { createOperationQueue, writeIfCurrent } from '../../practiceOperations'
 import type { OperationGuard } from '../../practiceOperations'
 import { normalizeSavedPracticeSession } from '../../practiceStorageModel'
 import type { SavedPracticeSession } from '../../practiceStorageModel'
+import { canUseDrawingRecordFile } from './drawingRecords'
 import type { createDrawingRecords } from './drawingRecords'
-import { legacyPracticeSessionId, normalizeLegacyPracticeAutosave } from './legacyPractice'
+import { historicalLegacyPracticeSessionId, legacyPracticeSessionId, normalizeLegacyPracticeAutosave } from './legacyPractice'
 import { legacyPracticeAutosavePrefix, previousWorkIndexKey, previousWorkSessionPrefix } from './storageKeys'
 
 export function previousWorkSessionKey(sessionId: string) {
@@ -19,17 +20,35 @@ export function serializePreviousWorkIndex(ids: string[]) {
   return JSON.stringify({ version: 1, ids })
 }
 
-export function parsePreviousWorkSession(rawSession: string | null) {
-  return rawSession ? normalizePreviousWorkSession(JSON.parse(rawSession)) : null
+export class UnreadableDrawingRecordError extends Error {
+  constructor(message: string) { super(message) }
 }
 
-export function normalizePreviousWorkSession(value: Partial<SavedPracticeSession> | null) {
+export function parsePreviousWorkSession(rawSession: string | null) {
+  if (rawSession === null) return null
+  let value: unknown
+  try { value = JSON.parse(rawSession) } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    throw new UnreadableDrawingRecordError('Saved drawing is not valid JSON')
+  }
+  return normalizePreviousWorkSession(value)
+}
+
+export function normalizePreviousWorkSession(value: unknown) {
   if (value === null) return null // A tombstone written by an older 2.0 lesson restart.
   const session = normalizeSavedPracticeSession(value)
-  if (!session || (value.strokes !== undefined && (!Array.isArray(value.strokes) || value.strokes.length !== session.strokes.length))
-    || (value.stickers !== undefined && (!Array.isArray(value.stickers) || value.stickers.length !== session.stickers.length))) {
-    throw new Error('Saved drawing has unreadable content')
+  const raw = value as Partial<SavedPracticeSession>
+  if (!session || (raw.strokes !== undefined && (!Array.isArray(raw.strokes) || raw.strokes.length !== session.strokes.length))
+    || (raw.stickers !== undefined && (!Array.isArray(raw.stickers) || raw.stickers.length !== session.stickers.length))) {
+    throw new UnreadableDrawingRecordError('Saved drawing has unreadable content')
   }
+  return session
+}
+
+function parseRecord(raw: string, id: string, allowTombstone: boolean) {
+  const session = parsePreviousWorkSession(raw)
+  if (!session && !allowTombstone) throw new UnreadableDrawingRecordError('Drawing file has no drawing')
+  if (session && session.sessionId !== id) throw new UnreadableDrawingRecordError('Drawing ID does not match its record')
   return session
 }
 
@@ -38,11 +57,26 @@ type PreviousWorkIO = Pick<typeof AsyncStorage, 'getAllKeys' | 'getItem' | 'setI
 export function createPreviousWorkStorage(storage: PreviousWorkIO, files?: ReturnType<typeof createDrawingRecords>) {
   const queuePreviousWorkWrite = createOperationQueue()
 
-  async function readSessionInQueue(id: string) {
-    const raw = await files?.read(id) ?? await storage.getItem(previousWorkSessionKey(id))
-    const session = parsePreviousWorkSession(raw)
-    if (session && session.sessionId !== id) throw new Error('Drawing ID does not match its record')
-    return session
+  async function readSessionInQueue(id: string, forImageCleanup = false) {
+    let corrupt: UnreadableDrawingRecordError | undefined
+    function tryRecord(raw: string | null, allowTombstone = false) {
+      if (raw === null) return null
+      try { return parseRecord(raw, id, allowTombstone) } catch (error) {
+        if (forImageCleanup || !(error instanceof UnreadableDrawingRecordError)) throw error
+        corrupt ??= error
+        return null
+      }
+    }
+
+    if (files && canUseDrawingRecordFile(id)) {
+      for (const copy of ['primary', 'previous'] as const) {
+        const session = tryRecord(await files.read(id, copy))
+        if (session) return session
+      }
+    }
+    const legacy = tryRecord(await storage.getItem(previousWorkSessionKey(id)), true)
+    if (!legacy && corrupt) throw corrupt
+    return legacy
   }
 
   async function listSessionIdsInQueue() {
@@ -51,14 +85,14 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO, files?: Retur
     return [...new Set([...oldIds, ...(await files?.listIds() ?? [])])]
   }
 
-  async function readSessionsInQueue(onUnreadable?: () => void) {
+  async function readSessionsInQueue(onUnreadable?: () => void, forImageCleanup = false) {
     // The old index is only a cache. A missing entry or a failed index write
     // cannot hide a committed drawing, even when the index parses correctly.
     const ids = await listSessionIdsInQueue()
     const sessions: SavedPracticeSession[] = []
     for (let offset = 0; offset < ids.length; offset += 8) {
       const batch = await Promise.all(ids.slice(offset, offset + 8).map(async (id) => {
-        try { return await readSessionInQueue(id) } catch (error) {
+        try { return await readSessionInQueue(id, forImageCleanup) } catch (error) {
           if (!onUnreadable) throw error
           onUnreadable()
           return null
@@ -71,7 +105,15 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO, files?: Retur
 
   function writeSessionInQueue(session: SavedPracticeSession) {
     const value = JSON.stringify(session)
-    return files ? files.write(session.sessionId, value) : storage.setItem(previousWorkSessionKey(session.sessionId), value)
+    const { sessionId } = session
+    if (!files || !canUseDrawingRecordFile(sessionId)) return storage.setItem(previousWorkSessionKey(sessionId), value)
+    return files.write(sessionId, value, (raw) => {
+      if (raw === null) return false
+      try { return Boolean(parseRecord(raw, sessionId, false)) } catch (error) {
+        if (error instanceof UnreadableDrawingRecordError) return false
+        throw error
+      }
+    })
   }
 
   async function deleteSessionInQueue(id: string) {
@@ -80,24 +122,40 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO, files?: Retur
     const key = previousWorkSessionKey(id)
     if (id.startsWith('legacy-')) {
       for (const legacyKey of await storage.getAllKeys()) {
-        if (legacyKey.startsWith(legacyPracticeAutosavePrefix) && legacyPracticeSessionId(legacyKey) === id) await storage.removeItem(legacyKey)
+        if (legacyKey.startsWith(legacyPracticeAutosavePrefix)
+          && (legacyPracticeSessionId(legacyKey) === id || historicalLegacyPracticeSessionId(legacyKey) === id)) {
+          await storage.removeItem(legacyKey)
+        }
       }
     }
     if (await storage.getItem(key) !== null) await storage.removeItem(key)
-    await files?.remove(id)
+    if (files && canUseDrawingRecordFile(id)) await files.remove(id)
   }
 
   async function migrateLegacyPracticeAutosaves(legacyCanvasSize: { width: number; height: number }, isCurrent: OperationGuard, requireWritable = false) {
     const keys = await storage.getAllKeys()
     for (const key of keys.filter((key) => key.startsWith(legacyPracticeAutosavePrefix))) {
       if (!isCurrent()) return
+      let raw: string | null
+      try { raw = await storage.getItem(key) } catch (error) {
+        if (requireWritable) throw error
+        continue
+      }
+      if (raw === null) continue
+      let value: unknown
+      try { value = JSON.parse(raw) } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error
+        continue // Keep unreadable legacy bytes without blocking healthy drawings.
+      }
+      const session = normalizeLegacyPracticeAutosave(value, key, legacyCanvasSize)
+      if (!session || !isCurrent()) continue
       try {
-        const raw = await storage.getItem(key)
-        const session = raw ? normalizeLegacyPracticeAutosave(JSON.parse(raw), key, legacyCanvasSize) : null
-        if (!session || !isCurrent()) continue
         // A kill after the drawing write can leave an old autosave behind.
         // Never overwrite a newer drawing when conversion is retried.
-        if (!await readSessionInQueue(session.sessionId) && isCurrent()) await writeSessionInQueue(session)
+        const historicalId = historicalLegacyPracticeSessionId(key)
+        const existing = await readSessionInQueue(session.sessionId)
+          ?? (historicalId && historicalId !== session.sessionId ? await readSessionInQueue(historicalId) : null)
+        if (!existing && isCurrent()) await writeSessionInQueue(session)
         if (isCurrent()) await storage.removeItem(key)
       } catch (error) {
         // Leave the legacy autosave in place if migration cannot complete.
@@ -126,6 +184,7 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO, files?: Retur
     queuePreviousWorkWrite,
     readSessionInQueue,
     readSessionsInQueue,
+    readSessionsForImageCleanupInQueue: () => readSessionsInQueue(undefined, true),
     writeSessionInQueue,
     deleteSessionInQueue,
     async clearSessionFilesInQueue() {

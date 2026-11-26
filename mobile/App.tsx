@@ -267,7 +267,7 @@ async function cleanupStoredImageUrisIfUnusedNow(candidateUris: string[]) {
   if (storedUris.length === 0) return
 
   const referencedUris = new Set<string>(await storedResumeImageUris())
-  const storedSessions = await previousWorkStorage.readSessionsInQueue()
+  const storedSessions = await previousWorkStorage.readSessionsForImageCleanupInQueue()
   storedSessions.forEach((session) => {
     storedUploadedImageUrisFromSession(session).forEach((uri) => referencedUris.add(uri))
   })
@@ -300,7 +300,7 @@ async function cleanupOrphanedStoredImages(preserveUris: string[] = []) {
       if (!directoryInfo?.exists) return
 
       const referencedUris = new Set([...preserveUris, ...activeStoredImageUris, ...await storedResumeImageUris()].filter(isStoredUploadedImageUri))
-      const storedSessions = await previousWorkStorage.readSessionsInQueue()
+      const storedSessions = await previousWorkStorage.readSessionsForImageCleanupInQueue()
       storedSessions.forEach((session) => {
         storedUploadedImageUrisFromSession(session).forEach((uri) => referencedUris.add(uri))
       })

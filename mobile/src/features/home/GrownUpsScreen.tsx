@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { readArtistLevel, writeArtistLevel } from '../../data/artistLevel'
 import type { ArtLevel } from '../../data/catalog'
 import { pickAndRestoreDrawingBackup, shareDrawingBackup } from '../../data/drawingBackup'
-import { DrawingBackupError, DrawingRestoreWriteError } from '../../data/drawingBackupModel'
+import { DrawingBackupError, DrawingRestoreWriteError, maxDrawingBackupMiB } from '../../data/drawingBackupModel'
 import type { DrawingRestoreResult } from '../../data/drawingBackupModel'
 import { Button } from '../../ui/Button'
 import { HoldButton } from '../../ui/HoldButton'
@@ -20,11 +20,11 @@ import { ArtistChoice } from './ArtistChoice'
 const backupErrorMessages = {
   backup: {
     invalid: 'A saved drawing could not be read. Open My drawings and try again.',
-    'too-large': 'Your drawings are too large to fit in one backup on this device.',
+    'too-large': `Your library is larger than TraceBuddy’s ${maxDrawingBackupMiB} MB backup limit. You can save individual drawings to Photos from My drawings.`,
   },
   restore: {
     invalid: 'Choose a drawings backup made by TraceBuddy.',
-    'too-large': 'This backup is too large to open on this device.',
+    'too-large': `This file is larger than TraceBuddy’s ${maxDrawingBackupMiB} MB restore limit.`,
   },
 }
 

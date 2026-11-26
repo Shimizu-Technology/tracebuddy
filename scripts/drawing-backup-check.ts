@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict'
+import { createTextDrawing } from '../shared/drawings'
 import type { PracticeStroke, SavedPracticeSession } from '../mobile/practiceStorageModel'
 import { buildDrawingBackup, DrawingBackupError, DrawingRestoreWriteError, maxDrawingBackupBytes, mergeDrawingBackup,
-  mergeDrawingBackupSettings, parseDrawingBackup } from '../mobile/src/data/drawingBackupModel'
+  mergeDrawingBackupSettings, parseDrawingBackup, readDrawingBackupImage } from '../mobile/src/data/drawingBackupModel'
 import type { DrawingBackupSettings } from '../mobile/src/data/drawingBackupModel'
 import { createDrawingRecords, drawingRecordFileName } from '../mobile/src/data/drawingRecords'
 import { newDrawing, drawingCopy } from '../mobile/src/data/drawingSession'
+import { legacyPracticeSessionId } from '../mobile/src/data/legacyPractice'
 import { createPracticeImageCleanup, drawingImageUris } from '../mobile/src/data/practiceImageCleanup'
 import { createPreviousWorkStorage, normalizePreviousWorkSession, previousWorkSessionKey, serializePreviousWorkIndex } from '../mobile/src/data/previousWork'
-import { previousWorkIndexKey } from '../mobile/src/data/storageKeys'
+import { legacyPracticeAutosavePrefix, previousWorkIndexKey } from '../mobile/src/data/storageKeys'
 import { preserveLessonDrawing } from '../mobile/src/features/learn/lessonPractice'
 
 const saved = (id: string, updatedAt = '2026-11-26T09:30:00.000Z'): SavedPracticeSession => ({
@@ -33,6 +35,8 @@ const files = new Map<string, string>()
 let failKey: string | undefined
 let failStage = false
 let failPublish = false
+let failReadFile: string | undefined
+const nativeReadError = new SyntaxError('Native record read failed')
 const makeStore = () => createPreviousWorkStorage({
   getAllKeys: async () => [...kv.keys()],
   getItem: async (key) => kv.get(key) ?? null,
@@ -44,7 +48,10 @@ const makeStore = () => createPreviousWorkStorage({
 }, createDrawingRecords({
   list: async () => [...files.keys()],
   exists: async (name) => files.has(name),
-  read: async (name) => files.get(name) ?? null,
+  read: async (name) => {
+    if (name === failReadFile) throw nativeReadError
+    return files.get(name) ?? null
+  },
   async write(name, value) {
     if (failStage) {
       files.set(name, value.slice(0, 150))
@@ -124,6 +131,20 @@ files.set(largeFile + '.pending', '{"truncated')
 const restartedStore = makeStore()
 assert.ok((await restartedStore.loadPreviousWorkSessions()).some(({ sessionId }) => sessionId === large.sessionId))
 assert.ok(!files.has(largeFile + '.pending'), 'Restart ignores abandoned staging data')
+for (const corrupt of ['', '{', JSON.stringify({ ...large, strokes: ['truncated'] }), JSON.stringify({ ...large, sessionId: 'wrong' }), 'null']) {
+  files.set(largeFile, corrupt)
+  assert.deepEqual(await restartedStore.readPreviousWorkSession(large.sessionId), canonical(large), 'A corrupt primary can load its valid previous copy')
+}
+await assert.rejects(restartedStore.readSessionsForImageCleanupInQueue(), /no drawing/, 'Cleanup refuses a scan when the fallback cannot account for the damaged primary')
+failPublish = true
+await assert.rejects(put({ ...large, strokes: [marker] }), /publish/)
+failPublish = false
+assert.deepEqual(await restartedStore.readPreviousWorkSession(large.sessionId), canonical(large), 'A failed repair must preserve the only readable fallback')
+files.set(largeFile, '')
+files.set(largeFile + '.previous', '{')
+kv.set(previousWorkSessionKey(large.sessionId), JSON.stringify(large))
+assert.deepEqual(await restartedStore.readPreviousWorkSession(large.sessionId), canonical(large), 'The historical AsyncStorage row is the third fallback')
+kv.delete(previousWorkSessionKey(large.sessionId))
 await put(large)
 assert.ok(files.has(largeFile) && !files.has(largeFile + '.previous'))
 
@@ -139,7 +160,7 @@ await put(fresh)
 const photoFiles = new Set([photoUri])
 const sweep = createPracticeImageCleanup('file:///old/Documents/', {
   list: async () => ['paper.png'],
-  readReferences: async () => (await store.readSessionsInQueue()).flatMap(drawingImageUris),
+  readReferences: async () => (await store.readSessionsForImageCleanupInQueue()).flatMap(drawingImageUris),
   async remove(uri) { photoFiles.delete(uri) },
 })
 await store.queuePreviousWorkWrite(async () => {
@@ -233,6 +254,88 @@ assert.equal((await store.loadPreviousWorkSessions()).length, 3)
 failAfter = undefined
 assert.equal((await restore()).added, 297, 'Retry skips drawings already committed')
 
+const repair = other[2]
+const repairFile = drawingRecordFileName(repair.sessionId)
+const onlyRepair = { ...parsed, drawings: [canonical(repair)] }
+files.set(repairFile, '{broken record')
+failReadFile = repairFile
+await assert.rejects(store.queuePreviousWorkWrite(() => mergeDrawingBackup(onlyRepair, toEmpty)),
+  (error) => error instanceof DrawingRestoreWriteError && error.cause === nativeReadError)
+assert.equal(files.get(repairFile), '{broken record', 'Restore cannot overwrite an uninspected record after an I/O failure')
+failReadFile = undefined
+assert.deepEqual(await store.queuePreviousWorkWrite(() => mergeDrawingBackup(onlyRepair, toEmpty)),
+  { added: 1, updated: 0, kept: 0, missingPhotos: 0 }, 'Restore can replace a proven corrupt record')
+assert.deepEqual(await store.readPreviousWorkSession(repair.sessionId), canonical(repair))
+
+const withMissingPhoto = parsed.drawings.find(({ sessionId }) => sessionId === sticker.sessionId)!
+for (const drawings of [[withMissingPhoto, repair], [repair, withMissingPhoto]]) {
+  files.clear()
+  kv.clear()
+  writes = 0
+  failAfter = 1
+  const missingPhotos = drawings[0] === withMissingPhoto ? 1 : 0
+  await assert.rejects(store.queuePreviousWorkWrite(() => mergeDrawingBackup({ ...parsed, drawings }, toEmpty)),
+    (error) => error instanceof DrawingRestoreWriteError && error.result.added === 1 && error.result.missingPhotos === missingPhotos,
+    'A partial restore reports missing photos only for drawings it saved')
+}
+failAfter = undefined
+
+// A migrated v1.1 key is deterministic and fits the native filename budget.
+// Preserve an original overlong ID if a previous app already saved its row.
+const longLegacyKey = legacyPracticeAutosavePrefix + 'A'.repeat(145) + 'owl'
+const siblingKey = legacyPracticeAutosavePrefix + 'A'.repeat(145) + 'bat'
+const shortenedId = legacyPracticeSessionId(longLegacyKey)
+assert.doesNotThrow(() => drawingRecordFileName(shortenedId))
+assert.notEqual(shortenedId, legacyPracticeSessionId(siblingKey))
+const legacyData = JSON.stringify({ drawingId: 'butterfly', drawingName: 'Butterfly', strokes: [marker] })
+const historicalLongId = 'legacy-' + 'A'.repeat(145) + 'owl'
+assert.throws(() => drawingRecordFileName(historicalLongId), /Invalid drawing ID/)
+const oldLongRecord = { ...saved(historicalLongId), strokes: [marker] }
+files.clear()
+kv.clear()
+kv.set(longLegacyKey, legacyData)
+kv.set(siblingKey, legacyData)
+kv.set(previousWorkSessionKey(historicalLongId), JSON.stringify(oldLongRecord))
+await store.queuePreviousWorkWrite(() => store.migrateLegacyPracticeAutosavesInQueue({ width: 200, height: 400 }, () => true, true))
+assert.deepEqual(await store.readPreviousWorkSession(historicalLongId), canonical(oldLongRecord))
+assert.ok(await store.readPreviousWorkSession(legacyPracticeSessionId(siblingKey)))
+assert.equal(await store.readPreviousWorkSession(shortenedId), null, 'A lingering autosave must not duplicate its already migrated record')
+const oldLongBackup = parseDrawingBackup(JSON.stringify(await buildDrawingBackup(
+  { ...emptySettings, drawings: [oldLongRecord] }, (uri) => uri, async () => { throw new Error('No images expected') },
+)))
+kv.clear()
+assert.equal((await store.queuePreviousWorkWrite(() => mergeDrawingBackup(oldLongBackup, toEmpty))).added, 1)
+assert.deepEqual(await store.readPreviousWorkSession(historicalLongId), canonical(oldLongRecord))
+
+const fixtureDocs = 'file:///old/Documents/'
+const inspected: string[] = []
+const readPhotoFiles = {
+  async getInfo(uri: string) {
+    inspected.push(uri)
+    return uri === photoUri ? { exists: true as const, isDirectory: false, size: 10 } : { exists: true as const, isDirectory: false, size: 0 }
+  },
+  async readBase64(uri: string) {
+    assert.equal(uri, photoUri, 'A zero-byte photo must not be read')
+    return png
+  },
+}
+const outOfFolder = { ...photo, sessionId: 'old-photo', source: {
+  ...photo.source, uploadedImage: { ...photo.source.uploadedImage!, uri: fixtureDocs + 'tracebuddy-images/old.JPG' },
+} }
+const imageBackup = await buildDrawingBackup({ ...emptySettings, drawings: [photo, sticker, outOfFolder] }, (uri) => uri,
+  (uri, maxBytes) => readDrawingBackupImage(uri, fixtureDocs, maxBytes, readPhotoFiles))
+assert.deepEqual(inspected, [photoUri, missingUri], 'Backup does not open files outside the safe photo directory')
+assert.deepEqual(parseDrawingBackup(JSON.stringify(imageBackup)).images,
+  [{ extension: 'png', base64: png }, { extension: 'png', base64: null }, { extension: 'jpg', base64: null }])
+
+for (const words of ['one = 2', 'url(x)', 'href=src onload=2']) {
+  const drawing = createTextDrawing(words)
+  const source = { kind: 'custom' as const, drawingId: drawing.id, drawingName: words, drawingTheme: 'My words', drawingSvg: drawing.svg }
+  const wordBackup = await buildDrawingBackup({ ...emptySettings, drawings: [{ ...saved('words'), source }] }, (uri) => uri,
+    async () => { throw new Error('No images expected') })
+  assert.equal(parseDrawingBackup(JSON.stringify(wordBackup)).drawings[0].source.drawingSvg, drawing.svg)
+}
+
 const reject = (input: string) => assert.throws(() => parseDrawingBackup(input), (error) => error instanceof DrawingBackupError && error.reason === 'invalid')
 const small = { ...backup, drawings: [backup.drawings.find(({ sessionId }) => sessionId === photo.sessionId)!] }
 const [valid] = small.drawings
@@ -243,11 +346,22 @@ reject(JSON.stringify({ ...small, drawings: [valid, valid] }))
 reject(JSON.stringify({ ...small, drawings: [{ ...valid, strokes: [false] }] }))
 reject(JSON.stringify({ ...small, drawings: [{ ...valid, updatedAt: 'yesterday' }] }))
 reject(JSON.stringify({ ...small, drawings: [{ ...valid, source: { ...valid.source, drawingSvg: '<svg><image href="file:///data/private.png"/></svg>' } }] }))
+for (const attribute of ['href="https://example.invalid/picture.svg"', 'style="fill:url(https://example.invalid/picture.svg)"']) {
+  reject(JSON.stringify({ ...small, drawings: [{ ...valid, source: { ...valid.source, drawingSvg: `<svg><path ${attribute}/></svg>` } }] }))
+}
 reject(JSON.stringify({ ...small, drawings: [{ ...valid, source: { ...valid.source, uploadedImage: { uri: 'file:///data/private.png' } } }] }))
 reject(JSON.stringify({ ...small, images: [{ extension: '../png', base64: png }] }))
 reject(JSON.stringify({ ...small, images: [{ extension: 'png', base64: 'a***' }] }))
 reject(JSON.stringify({ ...small, images: [], drawings: [valid] }))
 reject(JSON.stringify({ ...small, progress: { ...small.progress, stepByLessonId: ['bad'] } }))
-assert.throws(() => parseDrawingBackup(' '.repeat(maxDrawingBackupBytes + 1)),
-  (error) => error instanceof DrawingBackupError && error.reason === 'too-large')
+const tooLarge = (error: unknown) => error instanceof DrawingBackupError && error.reason === 'too-large'
+assert.equal(maxDrawingBackupBytes, 32 * 1024 * 1024)
+const utf8Archive = JSON.stringify({ ...small, drawings: [{ ...valid, title: 'é𝄞' }] })
+const padding = maxDrawingBackupBytes - Buffer.byteLength(utf8Archive)
+assert.equal(parseDrawingBackup(utf8Archive + ' '.repeat(padding)).drawings[0].title, 'é𝄞')
+assert.throws(() => parseDrawingBackup(utf8Archive + ' '.repeat(padding + 1)), tooLarge, 'Restore checks UTF-8 bytes')
+const wideTitle = '絵'.repeat(400_000)
+await assert.rejects(buildDrawingBackup({ ...emptySettings, drawings: Array.from({ length: 28 }, (_, i) =>
+  ({ ...saved('utf8-' + i), title: wideTitle })) }, (uri) => uri, async () => { throw new Error('No images expected') }),
+tooLarge, 'Export checks actual UTF-8 size before allocating the full file')
 console.log('Drawing backup: 300 drawings, multi-megabyte ink, aborted writes, index recovery, copy/delete/replay, identical round-trip, merge/retry, missing photos and malformed/oversized files')

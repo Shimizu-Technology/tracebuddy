@@ -5,7 +5,7 @@ import { Platform } from 'react-native'
 
 import {
   buildDrawingBackup, DrawingBackupError, maxDrawingBackupBytes, mergeDrawingBackup, mergeDrawingBackupSettings,
-  parseDrawingBackup, withBackupFavorites,
+  parseDrawingBackup, readDrawingBackupImage, withBackupFavorites,
 } from './drawingBackupModel'
 import type { DrawingBackupSettings } from './drawingBackupModel'
 import { cleanupDrawingImagesInQueue } from './drawingImageFiles'
@@ -41,18 +41,9 @@ async function writeMergedSettings(incoming: DrawingBackupSettings) {
   }
 }
 
-async function readImage(uri: string, maxBytes: number) {
-  const root = `${FileSystem.documentDirectory}${practiceImageFolder}/`
-  const name = uri.slice(root.length)
-  if (!FileSystem.documentDirectory || !uri.startsWith(root) || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(name)) {
-    throw new Error('A drawing photo is outside app storage')
-  }
-  const extension = /\.([a-z0-9]{1,8})$/i.exec(name)?.[1].toLowerCase() ?? 'jpg'
-  const info = await FileSystem.getInfoAsync(uri)
-  if (!info.exists) return { extension, base64: null }
-  if (info.isDirectory) throw new Error('A drawing photo could not be opened')
-  if (info.size > maxBytes) throw new DrawingBackupError('too-large')
-  return { extension, base64: await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 }) }
+const backupImageFiles = {
+  getInfo: (uri: string) => FileSystem.getInfoAsync(uri),
+  readBase64: (uri: string) => FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 }),
 }
 
 export async function shareDrawingBackup(legacyCanvasSize: { width: number; height: number }) {
@@ -64,7 +55,8 @@ export async function shareDrawingBackup(legacyCanvasSize: { width: number; heig
       const drawings = await previousWorkStorage.readSessionsInQueue()
       const { progress, artFavorites, legacyFavorites } = await readBackupSettings()
       return buildDrawingBackup({ drawings, progress, artFavorites, legacyFavorites },
-        (uri) => rebasePracticeImageUri(uri, FileSystem.documentDirectory), readImage)
+        (uri) => rebasePracticeImageUri(uri, FileSystem.documentDirectory),
+        (uri, maxBytes) => readDrawingBackupImage(uri, FileSystem.documentDirectory, maxBytes, backupImageFiles))
     })
   })
 

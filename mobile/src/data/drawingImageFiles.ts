@@ -13,7 +13,7 @@ const cleanup = createPracticeImageCleanup(FileSystem.documentDirectory, {
     return info.exists ? FileSystem.readDirectoryAsync(directory) : []
   },
   async readReferences() {
-    const savedUris = (await previousWorkStorage.readSessionsInQueue()).flatMap(drawingImageUris)
+    const savedUris = (await previousWorkStorage.readSessionsForImageCleanupInQueue()).flatMap(drawingImageUris)
     const resume = parseResumeContext(await AsyncStorage.getItem(resumeContextKey))
     const resumeUri = normalizePracticeSource(resume?.source)?.uploadedImage?.uri
     return resumeUri ? [...savedUris, resumeUri] : savedUris
