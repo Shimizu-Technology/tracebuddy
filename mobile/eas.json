@@ -12,12 +12,15 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_TB2": "1",
+        "EXPO_PUBLIC_PAPER_LOCK": "0"
+      }
     },
     "testflight-2": {
       "extends": "production",
       "env": {
-        "EXPO_PUBLIC_TB2": "1",
         "EXPO_PUBLIC_PAPER_LOCK": "1"
       }
     }

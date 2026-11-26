@@ -32,7 +32,8 @@ export default function RootLayout() {
   const [timedOut, setTimedOut] = useState(false)
   const reduceMotion = useReduceMotion()
   const { fontScale } = useWindowDimensions()
-  const expandedKeepsake = (Platform.OS === 'ios' && Platform.isPad) || fontScale >= theme.layout.stackedHeaderFontScale
+  const iPad = Platform.OS === 'ios' && Platform.isPad
+  const expandedKeepsake = iPad || fontScale >= theme.layout.stackedHeaderFontScale
   const ready = loaded || Boolean(error) || timedOut
   const sheet = { ...smallSheetOptions, sheetResizeAnimationEnabled: !reduceMotion }
 
@@ -61,7 +62,9 @@ export default function RootLayout() {
               <Stack.Screen name="group/[id]" />
               <Stack.Screen name="draw/[id]" options={{ gestureEnabled: false }} />
               <Stack.Screen name="learn/[level]/[id]" options={{ gestureEnabled: false }} />
-              <Stack.Screen name="picture/[id]" options={{ ...sheet, sheetAllowedDetents: [0.7, 1], sheetLargestUndimmedDetentIndex: 'none' }} />
+              <Stack.Screen name="picture/[id]" options={{
+                ...sheet, sheetAllowedDetents: [0.7, 1], sheetInitialDetentIndex: iPad ? 1 : 0, sheetLargestUndimmedDetentIndex: 'none',
+              }} />
               <Stack.Screen name="my-name" options={{ ...sheet, sheetAllowedDetents: [0.82, 1], sheetLargestUndimmedDetentIndex: 'none' }} />
               <Stack.Screen name="done" options={{ ...sheet, sheetAllowedDetents: [0.72, 1], sheetInitialDetentIndex: expandedKeepsake ? 1 : 0, sheetLargestUndimmedDetentIndex: 'none' }} />
               <Stack.Screen name="draw-more" options={{ ...sheet, sheetAllowedDetents: [theme.sheet.drawDetent] }} />
