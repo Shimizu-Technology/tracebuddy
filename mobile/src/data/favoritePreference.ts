@@ -9,13 +9,17 @@ function readStringIds(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
 }
 
-export function parseLegacyFavoritePreferences(raw: string | null) {
-  let value: unknown
+function parseLegacyJson(raw: string | null): unknown {
   try {
-    value = raw ? JSON.parse(raw) : null
+    return raw ? JSON.parse(raw) : null
   } catch (error) {
     if ((error as Error)?.name !== 'SyntaxError') throw error
+    return null
   }
+}
+
+export function parseLegacyFavoritePreferences(raw: string | null) {
+  const value = parseLegacyJson(raw)
   const preferences = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
   return {
     version: 1,
@@ -43,7 +47,7 @@ export function createArtFavoritePreference(
     if (current !== null) return readStringIds(JSON.parse(current))
 
     const [legacy, art] = await Promise.all([read(drawingPreferencesKey), read(legacyArtFavoritesKey)])
-    const existingIds = readStringIds(art ? JSON.parse(art) : null)
+    const existingIds = readStringIds(parseLegacyJson(art))
     const ids = mergeLegacyFavoriteSubjects(existingIds, parseLegacyFavoritePreferences(legacy).favoriteIds)
     await writeInQueue(ids)
     return ids

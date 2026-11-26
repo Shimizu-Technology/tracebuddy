@@ -297,6 +297,12 @@ failFavoriteWrite = true
 await assert.rejects(reopening.toggle('flower'), /Could not write art favorites/)
 assert.deepEqual((await reopening.read()).value, confirmedFavorites.value, 'A failed toggle leaves the last confirmed favorites')
 
+failFavoriteWrite = false
+favoriteRecords.delete(artFavoritesKey)
+favoriteRecords.set(legacyArtFavoritesKey, '{')
+assert.deepEqual((await openFavorites().read()).value, imported, 'Malformed old art favorites do not block the 1.2 import')
+assert.equal(favoriteRecords.get(legacyArtFavoritesKey), '{')
+
 for (const id of ['puppy', 'bunny', 'panda', 'seahorse', 'hibiscus']) {
   assert.equal(legacyFavoriteSubjects.get(id), id, 'Reintroduced guides keep their IDs as art subjects')
 }
