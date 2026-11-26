@@ -155,32 +155,33 @@ const realMasks: { picture: string; svgHash: string; mask: string }[] = JSON.par
   readFileSync(new URL('./fixtures/coloring-guides.json.gz', import.meta.url)),
 ).toString('utf8'))
 const realCases = [
-  { picture: 'simple/t-rex', seed: [264, 236], ink: [355, 236], neighbor: [315, 329], maxLength: 14_000 },
-  { picture: 'detailed/t-rex', seed: [265, 223], ink: [195, 223], neighbor: [301, 357], maxLength: 16_000 },
-  { picture: 'detailed/whale', seed: [247, 254], ink: [199, 254], neighbor: [357, 298], maxLength: 11_000 },
-  { picture: 'detailed/heart-pattern', seed: [243, 204], ink: [225, 204], neighbor: [130, 133], maxLength: 28_000 },
+  { picture: 'simple/t-rex', region: 'body', seed: [264, 236], ink: [355, 236], untouched: [[315, 329], [0, 0]], maxLength: 14_000 },
+  { picture: 'detailed/t-rex', region: 'body', seed: [265, 223], ink: [195, 223], untouched: [[301, 357], [0, 0]], maxLength: 16_000 },
+  { picture: 'detailed/t-rex', region: 'background', seed: [205, 203], ink: [62, 203], untouched: [[265, 223]], maxLength: 11_000 },
+  { picture: 'detailed/whale', region: 'body', seed: [247, 254], ink: [199, 254], untouched: [[357, 298], [0, 0]], maxLength: 11_000 },
+  { picture: 'detailed/heart-pattern', region: 'large region', seed: [243, 204], ink: [225, 204], untouched: [[130, 133], [0, 0]], maxLength: 28_000 },
 ] as const
-for (const { picture, seed, ink, neighbor, maxLength } of realCases) {
+for (const { picture, region, seed, ink, untouched, maxLength } of realCases) {
+  const name = `${picture} ${region}`
   const fixture = realMasks.find((mask) => mask.picture === picture)
   assert.ok(fixture, `Missing ${picture} mask`)
   const svg = readFileSync(new URL(`../shared/art/${picture}/line.svg`, import.meta.url))
   assert.equal(fixture.svgHash, createHash('sha256').update(svg).digest('hex'), `Regenerate the updated ${picture} mask`)
   const barriers = Buffer.from(fixture.mask, 'base64')
   assert.equal(barriers.length, fillResolution ** 2, picture)
-  assert.equal(barriers[ink[1] * fillResolution + ink[0]], 1, `${picture} edge sample is on the ink`)
+  assert.equal(barriers[ink[1] * fillResolution + ink[0]], 1, `${name} edge sample is on the ink`)
   const guide = indexFillGuide(barriers, fillResolution, fillResolution)
   const start = performance.now()
   const result = floodFill(guide, ...seed, testOptions)
   const elapsed = performance.now() - start
-  assert.equal(result.status, 'filled', `${picture} must fill within ${testBudgetMs} ms`)
-  assert.ok(result.path.length <= maxLength, `${picture} path has ${result.path.length} characters`)
+  assert.equal(result.status, 'filled', `${name} must fill within ${testBudgetMs} ms`)
+  assert.ok(result.path.length <= maxLength, `${name} path has ${result.path.length} characters`)
   const coversPixel = ([x, y]: readonly [number, number]) =>
     includes(result.path, (x + 0.5) * fillDocumentScale, (y + 0.5) * fillDocumentScale)
-  assert.ok(coversPixel(seed), `${picture} colors the tapped region`)
-  assert.ok(coversPixel(ink), `${picture} reaches under the ink`)
-  assert.ok(!coversPixel(neighbor), `${picture} leaves a neighboring region alone`)
-  assert.ok(!coversPixel([0, 0]), `${picture} leaves the background alone`)
-  console.log(`Fill ${picture}: ${elapsed.toFixed(1)} ms, ${result.corners} raw corners, ${result.path.length} path characters`)
+  assert.ok(coversPixel(seed), `${name} colors the tapped region`)
+  assert.ok(coversPixel(ink), `${name} reaches under the ink`)
+  for (const pixel of untouched) assert.ok(!coversPixel(pixel), `${name} leaves ${pixel} clear`)
+  console.log(`Fill ${name}: ${elapsed.toFixed(1)} ms, ${result.corners} raw corners, ${result.path.length} path characters`)
 }
 
 console.log('Coloring tools checks passed: stroke round trips, 75 shades, mask retry, guide barriers and region fill')
