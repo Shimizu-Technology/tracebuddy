@@ -38,6 +38,7 @@ import { useDrawSession } from './useDrawSession'
 
 type Params = PictureParams & { fresh?: '1' }
 type Picker = { kind: 'brushes' } | { kind: 'shades'; index: number; x: number }
+const sideToolsWidth = theme.target.child * 4 + theme.space.lg
 
 export default function DrawScreen() {
   const params = useLocalSearchParams<Params>()
@@ -88,6 +89,7 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
   const [busy, setBusy] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [picker, setPicker] = useState<Picker | null>(null)
+  const [toolbarHeight, setToolbarHeight] = useState(0)
   const [fillHint, setFillHint] = useState<string | null>(null)
   const [colorChoices, setColorChoices] = useState<Record<number, string>>(() => ({
     [selectedCrayon(initial.markerColor)]: initial.markerColor,
@@ -233,56 +235,69 @@ function ActiveDrawing({ initial, guideSvg, wasSaved, params }: { initial: Saved
     />
   )
   const rail = (vertical = false) => <ColorRail selected={session.markerColor} choices={colorChoices} vertical={vertical} disabled={busy}
-    onPick={pickColor} onShades={(index, x) => setPicker({ kind: 'shades', index, x })} />
+    erasing={session.brushToolId === 'eraser'} onPick={pickColor} onShades={(index, x) => setPicker({ kind: 'shades', index, x })} />
+  const pickerWidth = width - insets.left - insets.right - (sideTools ? sideToolsWidth + theme.space.xs : 0)
 
   return (
     <SafeAreaView style={styles.page}>
-      <PageHeader title={session.source.kind === 'upload' ? photoDrawingName : session.source.drawingName} centered
-        trailing={<View style={styles.headerActions}>
-          <CanvasButton glyph={ArrowClockwiseIcon} label="Turn picture" haptic onPress={() => canvas.current?.turn()} disabled={busy || moreOpen} />
-          <CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />
-        </View>} />
-      {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
-      {fillHint && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>{fillHint}</Text>}
-      <View style={styles.workspace}>
-        <View style={styles.canvasArea} onLayout={({ nativeEvent: { layout } }) => setRoom((current) => (current.width === layout.width && current.height === layout.height) ? current : layout)}>
-          {side > 0 && <DrawingCanvas ref={canvas} area={room} side={side} session={session} guideSvg={guideSvg}
-            disabled={busy || moreOpen || Boolean(picker)} onStroke={addStroke} onFillHint={setFillHint} />}
+      <View style={styles.content} accessibilityElementsHidden={Boolean(picker)}
+        importantForAccessibility={picker ? 'no-hide-descendants' : 'auto'}>
+        <PageHeader title={session.source.kind === 'upload' ? photoDrawingName : session.source.drawingName} centered
+          trailing={<View style={styles.headerActions}>
+            <CanvasButton glyph={ArrowClockwiseIcon} label="Turn picture" haptic onPress={() => canvas.current?.turn()} disabled={busy || moreOpen} />
+            <CanvasButton glyph={DotsThreeIcon} label="More" onPress={openMore} disabled={busy || moreOpen} />
+          </View>} />
+        {saveFailed && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>Couldn’t save yet. Try Done again.</Text>}
+        {fillHint && <Text variant="label" tone="muted" accessibilityLiveRegion="polite" style={styles.status}>{fillHint}</Text>}
+        <View style={styles.workspace}>
+          <View style={styles.canvasArea} onLayout={({ nativeEvent: { layout } }) => setRoom((current) => (current.width === layout.width && current.height === layout.height) ? current : layout)}>
+            {side > 0 && <DrawingCanvas ref={canvas} area={room} side={side} session={session} guideSvg={guideSvg}
+              disabled={busy || moreOpen || Boolean(picker)} onStroke={addStroke} onFillHint={setFillHint} />}
+          </View>
+          {(sideTools || portraitRail) && <View style={styles.sideRail}>{rail(true)}</View>}
+          {sideTools && <ScrollView style={styles.sideTools} contentContainerStyle={styles.sideToolsContent}>{tools}</ScrollView>}
         </View>
-        {(sideTools || portraitRail) && <View style={styles.sideRail}>{rail(true)}</View>}
-        {sideTools && <ScrollView style={styles.sideTools} contentContainerStyle={styles.sideToolsContent}>{tools}</ScrollView>}
+        {moreOpen ? <View style={{ height: height * (theme.sheet.drawDetent + (floatingSheet ? theme.sheet.tabletClearance : 0)) }} />
+          : !sideTools && <View style={styles.bottomTools} onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}>
+              {!portraitRail && rail()}{tools}
+            </View>}
       </View>
       {picker && (
-        <GestureDetector gesture={swipePicker}>
-          <View style={styles.picker} pointerEvents="box-none" accessibilityViewIsModal onAccessibilityEscape={dismissPicker}>
-            {picker.kind === 'brushes'
-              ? <BrushTray selected={session.brushToolId} fillAvailable={fillAvailable} onPick={pickTool} />
-              : <ShadeFan selected={session.markerColor} index={picker.index} anchorX={picker.x - insets.left}
-                  width={width - insets.left - insets.right} onPick={(color) => {
-                    setColorChoices((choices) => ({ ...choices, [picker.index]: color }))
-                    pickColor(color)
-                  }} />}
+        <View style={[styles.overlay, { top: insets.top, bottom: insets.bottom, left: insets.left, right: insets.right }]}
+          accessibilityViewIsModal onAccessibilityEscape={dismissPicker}>
+          <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Close picker" onPress={dismissPicker} />
+          <View pointerEvents="box-none" style={[styles.picker, sideTools ? styles.pickerBesideTools : { bottom: toolbarHeight + theme.space.xs }]}>
+            <GestureDetector gesture={swipePicker}>
+              <View pointerEvents="box-none">
+                {picker.kind === 'brushes'
+                  ? <BrushTray selected={session.brushToolId} fillAvailable={fillAvailable} alignRight={sideTools} onPick={pickTool} />
+                  : <ShadeFan selected={session.markerColor} index={picker.index} anchorX={picker.x - insets.left}
+                      width={pickerWidth} onPick={(color) => {
+                        setColorChoices((choices) => ({ ...choices, [picker.index]: color }))
+                        pickColor(color)
+                      }} />}
+              </View>
+            </GestureDetector>
           </View>
-        </GestureDetector>
+        </View>
       )}
-      {moreOpen ? <View style={{ height: height * (theme.sheet.drawDetent + (floatingSheet ? theme.sheet.tabletClearance : 0)) }} />
-        : !sideTools && <View style={styles.bottomTools}>{!portraitRail && rail()}{tools}</View>}
-      {picker && <Pressable style={styles.dismissPicker} accessibilityRole="button" accessibilityLabel="Close picker" onPress={dismissPicker} />}
     </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: theme.colors.background },
+  content: { flex: 1 },
   workspace: { flex: 1, flexDirection: 'row', justifyContent: 'center' },
   canvasArea: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 1 },
   headerActions: { flexDirection: 'row', gap: theme.space.sm },
   status: { textAlign: 'center', paddingHorizontal: theme.space.lg },
   sideRail: { width: theme.target.child + theme.space.sm, marginRight: theme.space.sm },
-  sideTools: { width: theme.target.child * 4 + theme.space.lg, flexGrow: 0 },
+  sideTools: { width: sideToolsWidth, flexGrow: 0 },
   sideToolsContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: theme.space.sm },
   bottomTools: { gap: theme.space.xs, paddingVertical: theme.space.xs },
-  picker: { zIndex: 2, paddingVertical: theme.space.xs },
-  dismissPicker: { ...StyleSheet.absoluteFill, zIndex: 1 },
+  overlay: { ...StyleSheet.absoluteFill, zIndex: 1 },
+  picker: { position: 'absolute', left: 0, right: 0 },
+  pickerBesideTools: { top: 0, bottom: 0, right: sideToolsWidth + theme.space.xs, justifyContent: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: theme.space.lg, padding: theme.space.lg },
 })

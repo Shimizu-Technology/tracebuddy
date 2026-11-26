@@ -14,7 +14,7 @@ import { MagnifyingGlassMinusIcon } from '../../ui/icons'
 import { theme } from '../../ui/theme'
 import { DrawingDocument } from './DrawingDocument'
 import { prepareFillGuide, supportsFill } from './fillGuide'
-import { fillResolution, floodFill } from './floodFill'
+import { fillDocumentScale, fillResolution, floodFill } from './floodFill'
 import type { LiveInk } from './inkTypes'
 import { keepStrokeOnPinch, keepStrokeSample, pointDistance, roundedPoint, strokePath, unturnPoint, withFinalPoint } from './strokeGeometry'
 import { watercolorPigment } from './watercolor'
@@ -89,10 +89,22 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
   useEffect(() => {
     if (!filling || readOnly || !fillGuide) return
     let current = true
-    void prepareFillGuide(fillGuide).then((mask) => {
-      if (current) fillMask.current = { guide: fillGuide, mask }
+    if (fillMask.current?.guide === fillGuide && !fillMask.current.mask) fillMask.current = null
+    let rasterFrame: number | undefined
+    // Let the selected tool paint before rasterization occupies the JS thread.
+    const firstFrame = requestAnimationFrame(() => {
+      rasterFrame = requestAnimationFrame(() => {
+        if (!current) return
+        void prepareFillGuide(fillGuide).then((mask) => {
+          if (current) fillMask.current = { guide: fillGuide, mask }
+        })
+      })
     })
-    return () => { current = false }
+    return () => {
+      current = false
+      cancelAnimationFrame(firstFrame)
+      if (rasterFrame !== undefined) cancelAnimationFrame(rasterFrame)
+    }
   }, [fillGuide, filling, readOnly])
 
   const markerWidth = session.markerWidth
@@ -131,7 +143,8 @@ export function DrawingCanvas({ ref, area, side, session, guideSvg, guideLayer, 
       onFillHint?.('Fill couldn’t read this picture. Try a brush.')
       return
     }
-    const result = floodFill(ready.mask, fillResolution, fillResolution, point.x, point.y)
+    const result = floodFill(ready.mask, fillResolution, fillResolution,
+      point.x / fillDocumentScale, point.y / fillDocumentScale, { scale: fillDocumentScale })
     if (result.status === 'limit') onFillHint?.('Couldn’t fill this area. Try a brush.')
     if (result.status === 'filled') {
       onFillHint?.(null)

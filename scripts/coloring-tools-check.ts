@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 
 import { brushTools, coloringBrushTools, normalizeSavedPracticeSession, normalizeSavedPracticeStroke } from '../mobile/practiceStorageModel.ts'
 import { crayons, selectedCrayon } from '../mobile/src/features/draw/crayonShades.ts'
-import { supportsFill } from '../mobile/src/features/draw/fillGuide.ts'
-import { fillResolution, floodFill, guideBarriers } from '../mobile/src/features/draw/floodFill.ts'
+import { prepareFillGuide, supportsFill } from '../mobile/src/features/draw/fillGuide.ts'
+import { fillBudgetMs, fillDocumentScale, fillResolution, floodFill, guideBarriers } from '../mobile/src/features/draw/floodFill.ts'
 
 const oldPaint = { path: 'M 100 200 L 800 400', mode: 'draw', color: '#B99488', width: 78, opacity: 0.42 }
 const wash = { ...oldPaint, blend: 'multiply', opacity: 0.72 }
@@ -41,6 +41,12 @@ assert.equal(supportsFill(outline, false), true)
 assert.equal(supportsFill(outline, true), false)
 assert.equal(supportsFill('<svg><text>x</text></svg>', false), false)
 assert.equal(supportsFill(outline.padEnd(500_001), false), false)
+const failedMask = prepareFillGuide(outline)
+assert.equal(prepareFillGuide(outline), failedMask, 'shares an in-flight rasterization')
+assert.equal(await failedMask, null)
+const retryMask = prepareFillGuide(outline)
+assert.notEqual(retryMask, failedMask, 'allows a failed rasterization to be retried')
+assert.equal(await retryMask, null)
 assert.deepEqual(guideBarriers(new Uint8Array([
   23, 32, 51, 255, // line
   23, 32, 51, 76,  // faint handwriting rule
@@ -60,19 +66,33 @@ for (let y = 3; y <= 12; y++) {
 
 function includes(path: string, x: number, y: number) {
   let previousX = 0, previousY = 0
+  let startX = 0, startY = 0
   let winding = 0
-  for (const match of path.matchAll(/M (\d+) (\d+)|H(\d+)|V(\d+)/g)) {
-    const [, moveX, moveY, horizontal, vertical] = match
-    if (moveX) {
-      previousX = Number(moveX)
-      previousY = Number(moveY)
-    } else if (horizontal) {
-      previousX = Number(horizontal)
+  function lineTo(nextX: number, nextY: number) {
+    if ((previousY <= y && y < nextY) || (nextY <= y && y < previousY)) {
+      const intersection = previousX + (nextX - previousX) * (y - previousY) / (nextY - previousY)
+      if (x < intersection) winding += nextY > previousY ? 1 : -1
+    }
+    previousX = nextX
+    previousY = nextY
+  }
+
+  for (const [, command, coordinates] of path.matchAll(/([MLQZ])([^MLQZ]*)/g)) {
+    const [a, b, c, d] = coordinates.trim().split(/\s+/).map(Number)
+    if (command === 'M') {
+      startX = previousX = a
+      startY = previousY = b
+    } else if (command === 'L') {
+      lineTo(a, b)
+    } else if (command === 'Q') {
+      const fromX = previousX, fromY = previousY
+      for (let i = 1; i <= 8; i++) {
+        const t = i / 8
+        lineTo((1 - t) ** 2 * fromX + 2 * t * (1 - t) * a + t * t * c,
+          (1 - t) ** 2 * fromY + 2 * t * (1 - t) * b + t * t * d)
+      }
     } else {
-      const nextY = Number(vertical)
-      if (x < previousX && previousY <= y && y < nextY) winding++
-      if (x < previousX && nextY <= y && y < previousY) winding--
-      previousY = nextY
+      lineTo(startX, startY)
     }
   }
   return winding !== 0
@@ -94,9 +114,33 @@ if (outer.status === 'filled') {
 }
 assert.deepEqual(floodFill(mask, size, size, 3, 3), { status: 'miss' })
 assert.deepEqual(floodFill(mask, size, size, size, -1), { status: 'miss' })
-assert.deepEqual(floodFill(mask, size, size, 5, 5, 0), { status: 'limit' })
-assert.deepEqual(floodFill(new Uint8Array(fillResolution ** 2), fillResolution, fillResolution, 0, 0, 1000), {
-  status: 'filled', path: 'M 0 0 H1000 V1000 H0 V0 Z',
-})
+assert.deepEqual(floodFill(mask, size, size, 5, 5, { budgetMs: 0 }), { status: 'limit' })
 
-console.log('Coloring tools checks passed: legacy paint and new stroke round trips, 75 shades, guide barriers and region fill')
+// This file runs under --jitless. Each large fixture must finish within the
+// production deadline, with a smaller saved path than the old circle paths.
+const paper = new Uint8Array(fillResolution ** 2)
+const center = fillResolution / 2
+const circle = Uint8Array.from(paper, (_, index) => {
+  const dx = index % fillResolution - center
+  const dy = Math.floor(index / fillResolution) - center
+  return Number(Math.abs(Math.hypot(dx, dy) - fillResolution * 0.35) < 1.6)
+})
+const largeCases = [
+  { name: 'blank page', mask: paper, x: 0, y: 0, inside: [[0.5, 0.5], [999.5, 999.5]], outside: [], maxLength: 100 },
+  { name: 'circle interior', mask: circle, x: center, y: center, inside: [[500, 500], [500, 153]], outside: [[500, 140]], maxLength: 6_000 },
+  { name: 'circle background', mask: circle, x: 0, y: 0, inside: [[0.5, 0.5], [999.5, 999.5]], outside: [[500, 500]], maxLength: 6_000 },
+]
+for (const fixture of largeCases) {
+  const start = performance.now()
+  const result = floodFill(fixture.mask, fillResolution, fillResolution, fixture.x, fixture.y, { scale: fillDocumentScale })
+  const elapsed = performance.now() - start
+  assert.equal(result.status, 'filled', `${fixture.name} exceeded the ${fillBudgetMs} ms budget`)
+  if (result.status !== 'filled') continue
+  assert.ok(result.path.length <= fixture.maxLength, `${fixture.name} path has ${result.path.length} characters`)
+  if (fixture.mask === circle) assert.match(result.path, /Q/, 'curved outlines are smoothed')
+  for (const [x, y] of fixture.inside) assert.ok(includes(result.path, x, y), `${fixture.name} includes ${x}, ${y}`)
+  for (const [x, y] of fixture.outside) assert.ok(!includes(result.path, x, y), `${fixture.name} excludes ${x}, ${y}`)
+  console.log(`Fill ${fixture.name}: ${elapsed.toFixed(1)} ms, ${result.path.length} path characters`)
+}
+
+console.log('Coloring tools checks passed: stroke round trips, 75 shades, mask retry, guide barriers and region fill')

@@ -34,13 +34,14 @@ const swatches: Partial<Record<BrushToolId, PracticeStroke[]>> = {
   ],
 }
 
-export function BrushTray({ selected, fillAvailable, onPick }: {
+export function BrushTray({ selected, fillAvailable, alignRight, onPick }: {
   selected: BrushToolId
   fillAvailable: boolean
+  alignRight: boolean
   onPick: (tool: BrushToolId) => void
 }) {
   return (
-    <View style={styles.brushTray}>
+    <View style={[styles.brushTray, alignRight && styles.trayBesideTools]}>
       <View style={styles.brushRow}>
         {drawingBrushes.map(({ id, label }) => (
           <PressTarget key={id} accessibilityLabel={label}
@@ -49,7 +50,8 @@ export function BrushTray({ selected, fillAvailable, onPick }: {
             style={[styles.brush, selected === id && styles.selected]} onPress={() => onPick(id)}>
             <Icon glyph={brushGlyphs[id]} />
             <PracticeInk side={swatchSide} strokes={swatches[id] ?? []} />
-            <Text variant="small" maxFontSizeMultiplier={1.25} style={styles.brushLabel}>{label}</Text>
+            <Text variant="small" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}
+              maxFontSizeMultiplier={1.25} style={styles.brushLabel}>{label}</Text>
           </PressTarget>
         ))}
       </View>
@@ -86,10 +88,11 @@ export function ShadeFan({ index, selected, anchorX, width, onPick }: {
 
 const styles = StyleSheet.create({
   brushTray: { alignSelf: 'center', maxWidth: '100%', backgroundColor: theme.colors.surface, borderRadius: theme.radius.tile, ...theme.floatingShadow },
+  trayBesideTools: { alignSelf: 'flex-end' },
   brushRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
-  brush: { width: buttonWidth, minHeight: buttonWidth, justifyContent: 'center', alignItems: 'center', paddingVertical: theme.space.xs, borderRadius: theme.space.lg },
+  brush: { width: buttonWidth + theme.space.sm, minHeight: buttonWidth, justifyContent: 'center', alignItems: 'center', paddingVertical: theme.space.xs, borderRadius: theme.space.lg },
   selected: { backgroundColor: theme.pastels.peach },
-  brushLabel: { textAlign: 'center' },
+  brushLabel: { textAlign: 'center', alignSelf: 'stretch' },
   unavailable: { textAlign: 'center', marginBottom: theme.space.xs },
   shadeFan: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignSelf: 'flex-start', maxWidth: '100%', backgroundColor: theme.colors.surface, borderRadius: theme.radius.tile, ...theme.floatingShadow },
   shadeButton: { width: buttonWidth, height: buttonWidth, alignItems: 'center', justifyContent: 'center' },

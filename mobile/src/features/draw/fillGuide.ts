@@ -16,7 +16,10 @@ export function prepareFillGuide(guideSvg: string) {
     cache.set(guideSvg, existing)
     return existing
   }
-  const pending = rasterizeFillGuide(guideSvg).catch(() => null)
+  const pending = rasterizeFillGuide(guideSvg).catch(() => null).then((mask) => {
+    if (!mask && cache.get(guideSvg) === pending) cache.delete(guideSvg)
+    return mask
+  })
   cache.set(guideSvg, pending)
   if (cache.size > 6) cache.delete(cache.keys().next().value!)
   return pending

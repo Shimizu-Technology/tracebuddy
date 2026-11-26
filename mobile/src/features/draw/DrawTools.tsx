@@ -11,11 +11,12 @@ import { theme } from '../../ui/theme'
 import { brushGlyphs, drawingBrushes } from './brushPresentation'
 import { crayons, selectedCrayon } from './crayonShades'
 
-export function ColorRail({ selected, choices, vertical, disabled, onPick, onShades }: {
+export function ColorRail({ selected, choices, vertical, disabled, erasing, onPick, onShades }: {
   selected: string
   choices: Record<number, string>
   vertical?: boolean
   disabled: boolean
+  erasing: boolean
   onPick: (color: string) => void
   onShades: (index: number, x: number) => void
 }) {
@@ -27,17 +28,19 @@ export function ColorRail({ selected, choices, vertical, disabled, onPick, onSha
       {crayons.map((crayon, index) => (
         <Crayon key={crayon.name} crayon={crayon} disabled={disabled} active={active === index}
           value={active === index ? selected : choices[index] ?? crayon.value}
+          shadesOnTap={active === index && !erasing}
           onPick={onPick} onShades={(x) => onShades(index, x)} />
       ))}
     </ScrollView>
   )
 }
 
-function Crayon({ crayon, value, active, disabled, onPick, onShades }: {
+function Crayon({ crayon, value, active, disabled, shadesOnTap, onPick, onShades }: {
   crayon: (typeof crayons)[number]
   value: string
   active: boolean
   disabled: boolean
+  shadesOnTap: boolean
   onPick: (color: string) => void
   onShades: (x: number) => void
 }) {
@@ -47,12 +50,12 @@ function Crayon({ crayon, value, active, disabled, onPick, onShades }: {
   return (
     <View ref={anchor} collapsable={false}>
       <PressTarget accessibilityLabel={shade?.name ?? crayon.name} selected={active}
-        accessibilityHint={active ? 'Opens more shades.' : undefined}
-        onPress={() => active ? showShades() : onPick(value)} onLongPress={showShades} disabled={disabled} style={styles.crayonHit}>
+        accessibilityHint={shadesOnTap ? 'Opens more shades.' : undefined}
+        onPress={() => shadesOnTap ? showShades() : onPick(value)} onLongPress={showShades} disabled={disabled} style={styles.crayonHit}>
         <View style={[styles.crayon, active && styles.raisedCrayon]}>
           <View style={[styles.crayonCap, { backgroundColor: value }]} />
           <View style={[styles.crayonBody, { backgroundColor: value }]} />
-          {active && <View style={styles.shadesHint}><Icon glyph={DotsThreeIcon} size={theme.space.lg} /></View>}
+          {shadesOnTap && <View style={styles.shadesHint}><Icon glyph={DotsThreeIcon} size={theme.space.lg} /></View>}
         </View>
       </PressTarget>
     </View>
