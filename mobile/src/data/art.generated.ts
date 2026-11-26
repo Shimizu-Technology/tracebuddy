@@ -411,6 +411,12 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "camping-tent", name: "Tent and Campfire", category: "nature", color: () => require("../../../shared/art/simple/camping-tent/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/camping-tent/line.svg") } },
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
     { id: "farmer", name: "Farmer", category: "people", color: () => require("../../../shared/art/simple/farmer/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/farmer/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "builder", name: "Builder", category: "people", color: () => require("../../../shared/art/simple/builder/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/builder/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "trophy", name: "Trophy", category: "fun", color: () => require("../../../shared/art/simple/trophy/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/trophy/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "microphone", name: "Microphone", category: "fun", color: () => require("../../../shared/art/simple/microphone/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/simple/microphone/line.svg") } },
   ],
   detailed: [
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
@@ -839,6 +845,16 @@ export const generatedArt: Record<ArtLevel, readonly GeneratedArt[]> = {
     { id: "camping-tent", name: "Tent and Campfire", category: "nature", color: () => require("../../../shared/art/detailed/camping-tent/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/camping-tent/line.svg") } },
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
     { id: "farmer", name: "Farmer", category: "people", color: () => require("../../../shared/art/detailed/farmer/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/farmer/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "builder", name: "Builder", category: "people", color: () => require("../../../shared/art/detailed/builder/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/builder/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "trophy", name: "Trophy", category: "fun", color: () => require("../../../shared/art/detailed/trophy/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/trophy/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "microphone", name: "Microphone", category: "fun", color: () => require("../../../shared/art/detailed/microphone/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/microphone/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "flower-wreath", name: "Flower Wreath", category: "patterns", color: () => require("../../../shared/art/detailed/flower-wreath/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/flower-wreath/line.svg") } },
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro needs literal asset requires.
+    { id: "butterfly-garden", name: "Butterfly Garden", category: "patterns", color: () => require("../../../shared/art/detailed/butterfly-garden/color.webp"), line: { kind: 'asset', moduleId: () => require("../../../shared/art/detailed/butterfly-garden/line.svg") } },
   ],
 }
-// Line art SHA-256: c23fe0b7516c9fd95124e9cc10edb32cc5e586b0fa445d6a4f2050a4c5ecffb7
+// Line art SHA-256: 2ded9bffd9da6f559e1858a838021748cfd432be51ff1c11d2976bf5cbed6bd6
