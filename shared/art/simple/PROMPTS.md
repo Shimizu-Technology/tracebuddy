@@ -526,3 +526,29 @@ Added **19 new subjects** across 7 categories (`animals`, `ocean`, `magic`, `go`
 
 - **0 art rejections** across all 19 completed Simple subjects (38/38 generated images approved on first visual output, with deterministic cleanups on `hummingbird`, `stingray`, and `rose` noted above).
 - **Deferred due to HTTP 429 quota exhaustion (3 Simple subjects remaining):** `builder` ("Builder", `people`), `trophy` ("Trophy", `fun`), and `microphone` ("Microphone", `fun`) hit `HTTP 429 RESOURCE_EXHAUSTED` starting Subject 20 (`builder`, quota resets after ~3h04m). Generation stopped immediately per batch rules so all 19 fully completed subjects could be committed cleanly.
+
+---
+
+## Batch 7b (expansion — deferred from Batch 7)
+
+Completed the **3 deferred Simple subjects** from Batch 7 across 2 categories (`people`, `fun`), bringing the published Simple manifest from 204 to **207 subjects** (the 2 `patterns` subjects `flower-wreath` and `butterfly-garden` are Detailed-only and intentionally omitted from Simple).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch7b/raw/simple/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch7b/simple-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Line weight (`Disk:4` erosion survival):** min `36.3%` (`builder`), median `53.5%`, max `57.7%` (`microphone`) — every Simple subject is visibly thicker than its Detailed counterpart.
+- **Stroke thickening applied (1 subject, to keep bold toddler-traceable S1 weight and clear Simple-vs-Detailed line-weight hierarchy):**
+  - `builder`: raw `24.3%` → thickened with `Disk:3` to **`36.3%`** (1024 px render; cleanly thicker than Detailed `28.8%`)
+- **Enclosed exterior pockets cleared transparent:** `trophy` (both C-handle interior openings).
+
+### Per-Subject Descriptions (3 Batch 7b Subjects)
+
+#### People
+- **`builder` ("Builder"):** Forward-facing chubby smiling original kid construction worker waving hello with one hand and holding a chunky rounded hammer in the other, wearing a plain ribbed hard hat (no logo/text), short-sleeve shirt, utility belt with buckle and pouch, pants, and chunky work boots (`Disk:4 = 36.3%`, `Disk:3` from raw `24.3%`). Color: sunny butter-yellow hard hat, chestnut-brown hair, honey-tan skin, sky-blue shirt, caramel belt and pouch with golden buckle, periwinkle-denim pants, cocoa-brown boots, silver-gray hammer head with caramel wooden handle.
+
+#### Fun
+- **`trophy` ("Trophy"):** Straight-on chubby cartoon winner's trophy cup with a hollow five-pointed star emblem, two chunky C-curved side handles (openings cleared), flared stem, and two-tier pedestal base with a completely blank rectangular nameplate; strictly no text or numbers (`Disk:4 = 53.5%`). Color: golden-yellow cup/handles/stem, butter-yellow star, caramel-wood pedestal base, pale butter-cream blank nameplate.
+- **`microphone` ("Microphone"):** Gently tilted chubby cartoon handheld singing microphone with wide-spaced crisscross grille ball, bold equator band and collar ring, chunky handle with oval power switch, bottom cap, and short hollow S-curved cord (`Disk:4 = 57.7%`). Color: cool pale silver-blue-gray grille, butter-yellow equator band and collar, coral-red handle, sky-blue and yellow switch, periwinkle cap, slate-blue-gray cord.
+
+### Batch 7b Rejection & Regeneration Log (Simple — 0 Rejections)
+
+- **0 art rejections** across all 3 completed Simple subjects (6/6 generated images approved on first visual output).

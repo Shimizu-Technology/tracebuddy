@@ -1915,5 +1915,50 @@
     "line": "farmer/line.svg",
     "color": "farmer/color.webp",
     "notes": ""
+  },
+  {
+    "id": "builder",
+    "name": "Builder",
+    "category": "people",
+    "level": "detailed",
+    "line": "builder/line.svg",
+    "color": "builder/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "trophy",
+    "name": "Trophy",
+    "category": "fun",
+    "level": "detailed",
+    "line": "trophy/line.svg",
+    "color": "trophy/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "microphone",
+    "name": "Microphone",
+    "category": "fun",
+    "level": "detailed",
+    "line": "microphone/line.svg",
+    "color": "microphone/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "flower-wreath",
+    "name": "Flower Wreath",
+    "category": "patterns",
+    "level": "detailed",
+    "line": "flower-wreath/line.svg",
+    "color": "flower-wreath/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "butterfly-garden",
+    "name": "Butterfly Garden",
+    "category": "patterns",
+    "level": "detailed",
+    "line": "butterfly-garden/line.svg",
+    "color": "butterfly-garden/color.webp",
+    "notes": ""
   }
 ]

@@ -622,3 +622,39 @@ For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px
 
 - **0 art rejections** across all 19 completed Detailed subjects (38/38 generated images approved on first attempt, with deterministic master hollowing on `motorcycle` tires and `camping-tent` doorway noted above).
 - **Deferred due to HTTP 429 quota exhaustion (5 Detailed subjects remaining):** `builder` ("Builder", `people`, both levels), `trophy` ("Trophy", `fun`, both levels), `microphone` ("Microphone", `fun`, both levels), `flower-wreath` ("Flower Wreath", `patterns`, Detailed-only), and `butterfly-garden` ("Butterfly Garden", `patterns`, Detailed-only) hit `HTTP 429 RESOURCE_EXHAUSTED` starting Subject 20 (`builder`, quota resets after ~3h04m). Generation stopped immediately per batch rules so all 19 fully finished subjects could be committed and pushed cleanly.
+
+---
+
+## Batch 7b (expansion — deferred from Batch 7)
+
+Completed all **5 deferred Detailed subjects** from Batch 7 across 3 categories (`people`, `fun`, plus 2 Detailed-only `patterns` designs `flower-wreath` and `butterfly-garden`), bringing the published Detailed manifest from 213 to **218 subjects**. All 5 subjects used the locked revised bold S2 prompts with the felt-tip marker-weight reinforcement sentence appended.
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch7b/raw/detailed/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch7b/detailed-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Batch 7b final `Disk:4` range:** **min = `23.7%` (`butterfly-garden`), median = `27.2%`, max = `31.7%` (`microphone`)** — all 5/5 verified `≥ 23.7%` with zero hairlines, zero merged parallel lines, and every paired Simple counterpart visibly thicker than Detailed.
+- **Stroke thickening applied (re-vectorized from the same raw master after the 1680×1680 threshold, measured on 1024 px SVG render — 5 subjects):**
+  - `Disk:4` (1 subject — people rule):
+    - `builder`: raw `2.1%` → thickened **`28.8%`** (face, waving fingers, safety vest stripes, buttons, tool-belt wrenches, tape measure, and boot laces stayed cleanly separated at 420 px; well below Simple `36.3%`)
+  - `Disk:3` (2 subjects under 20% raw `Disk:4`):
+    - `flower-wreath`: raw `3.2%` → thickened **`26.6%`** (layered rose petals, daisy rays, leaf veins, buds, and berries stayed crisp and separated at 420 px)
+    - `butterfly-garden`: raw `2.5%` → thickened **`23.7%`** (geometric butterfly wing panels, tiny center butterfly, daisy petals, tulip folds, leaf veins, and grass blades stayed crisp and unmerged)
+  - `Disk:2` (2 subjects in the 20–26% raw `Disk:4` band):
+    - `trophy`: raw `20.8%` → thickened **`27.2%`** (faceted star lines, laurel leaves, S-scroll handles, and blank plaque stayed crisp and well below Simple `53.5%`)
+    - `microphone`: raw `23.9%` → thickened **`31.7%`** (diamond grille mesh, double equator band, ribbed collar, sliding switch, and floating notes stayed crisp and well below Simple `57.7%`)
+- **Enclosed exterior pockets cleared transparent:** `builder` (1 gap between right forearm, wrench pouch, and hammer handle), `trophy` (2 S-scroll handle openings), `flower-wreath` (center circular ring + 20 small stem/leaf/berry background gaps), and `butterfly-garden` (10 interior stem/leaf/grass background gaps).
+
+### Per-Subject Catalog & Traceability Metrics (Batch 7b — 5 Subjects)
+
+For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px SVG render; raw pre-thickening `Disk:4` and disk radius are noted in the Description column. SVG sizes reflect post-`art:optimize` SVGO output.
+
+| # | ID | Name | Category | `Disk:2` | `Disk:3` | `Disk:4` | `Disk:5` | SVG (KB) | WebP (KB) | Description |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| 214 | `builder` | Builder | `people` | 65.6% | 46.0% | **28.8%** | 12.8% | 37.9 | 20.8 | Original friendly waving storybook construction worker in plain ridged hard hat, collared shirt, reflective safety vest, tool belt with wrenches and tape measure, cuffed pants, and lace-up boots holding a hammer *(Disk:4 from raw 2.1%)* |
+| 215 | `trophy` | Trophy | `fun` | 63.3% | 42.8% | **27.2%** | 13.8% | 38.3 | 26.5 | Classic ornate storybook winner's trophy cup with faceted five-pointed star, flanking laurel sprigs, transparent S-scroll handles, baluster stem, and tiered pedestal with completely blank plaque; no text *(Disk:2 from raw 20.8%)* |
+| 216 | `microphone` | Microphone | `fun` | 69.1% | 48.5% | **31.7%** | 15.3% | 42.3 | 27.7 | Classic stage singing microphone angled upper-left with diamond mesh head, double equator band, ribbed collar, recessed sliding switch, curved hollow cord, and two hollow floating music notes; no text *(Disk:2 from raw 23.9%)* |
+| 217 | `flower-wreath` | Flower Wreath | `patterns` | 65.0% | 43.7% | **26.6%** | 9.8% | 79.3 | 43.3 | Detailed-only circular botanical flower wreath around a transparent open center built from layered roses, daisies, five-petal blossoms, veined leaves, closed buds, and hollow berries (21 exterior pockets cleared) *(Disk:3 from raw 3.2%)* |
+| 218 | `butterfly-garden` | Butterfly Garden | `patterns` | 63.0% | 41.0% | **23.7%** | 9.4% | 91.4 | 53.2 | Detailed-only storybook floral garden vignette with four butterflies (geometric hollow wing panels) fluttering above daisies, tulips, a five-petal blossom, buds, veined leaves, and a curved grassy base (10 exterior gaps cleared) *(Disk:3 from raw 2.5%)* |
+
+### Batch 7b Rejection & Regeneration Log (Detailed — 0 Rejections)
+
+- **0 art rejections** across all 5 completed Detailed subjects (10/10 generated images approved on first attempt).

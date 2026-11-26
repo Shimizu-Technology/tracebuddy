@@ -1834,5 +1834,32 @@
     "line": "farmer/line.svg",
     "color": "farmer/color.webp",
     "notes": ""
+  },
+  {
+    "id": "builder",
+    "name": "Builder",
+    "category": "people",
+    "level": "simple",
+    "line": "builder/line.svg",
+    "color": "builder/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "trophy",
+    "name": "Trophy",
+    "category": "fun",
+    "level": "simple",
+    "line": "trophy/line.svg",
+    "color": "trophy/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "microphone",
+    "name": "Microphone",
+    "category": "fun",
+    "level": "simple",
+    "line": "microphone/line.svg",
+    "color": "microphone/color.webp",
+    "notes": ""
   }
 ]
