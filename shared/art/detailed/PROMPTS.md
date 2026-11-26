@@ -490,3 +490,74 @@ At 420 px, six Detailed outlines still read thin after the batch's own pass. Eac
 - `chef`: `Disk:5`, 29.3% → 40.3%
 
 Zebra stripes, the stethoscope and the spokes stay separated. Piano keys and fern leaflets are denser but remain distinct at phone size.
+
+---
+
+## Batch 6 (expansion)
+
+Added **23 new subjects** across 7 categories (`fun`, `go`, `holidays`, `food`, `nature`, `animals`, plus 1 Detailed-only `patterns` design `city-skyline`; the 24th planned subject `flower-wreath` was deferred after hitting an HTTP 429 image-generation quota limit), bringing the published Detailed manifest from 167 to **190 subjects**. All 23 subjects used the locked revised bold S2 prompts with the felt-tip marker-weight reinforcement sentence appended.
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch6/raw/detailed/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch6/detailed-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Batch 6 final `Disk:4` range:** **min = `25.9%` (`lighthouse`), median = `31.9%`, max = `47.3%` (`basketball`)** — all 23/23 verified `≥ 25.9%` with zero hairlines, zero merged parallel lines, and every Simple counterpart visibly thicker than Detailed.
+- **Stroke thickening applied (re-vectorized from the same raw master after the 1680×1680 threshold, measured on 1024 px SVG render — 15 subjects):**
+  - `Disk:4` (2 subjects with thinner raw lines and open spacing checked at 420 px):
+    - `toy-blocks`: raw `12.0%` → thickened **`29.4%`** (beveled block panel rims and arch stayed cleanly separated; well below Simple `35.6%`)
+    - `city-skyline`: raw `4.7%` → thickened **`28.8%`** (skyscraper windows, bridge arches, dome ribs, stars, and clouds stayed clearly separated and readable at phone size)
+  - `Disk:3` (4 subjects under 20% raw `Disk:4`):
+    - `lighthouse`: raw `12.8%` → thickened **`25.9%`** (gallery railing posts, door planks, beacon flame, and portholes stayed crisp and separated)
+    - `big-ship`: raw `13.9%` (post-hollowing) → thickened **`26.7%`** (deck window bays, portholes, bow anchor, and mast stayed crisp)
+    - `ice-cream-truck`: raw `18.7%` → thickened **`29.1%`** (waffle cone grid, awning stripes, and dripping trim stayed cleanly separated)
+    - `llama`: raw `15.2%` → thickened **`30.0%`** (Andean diamond saddle blanket, collar, and wool curls stayed crisp)
+  - `Disk:2` (9 subjects in the 20–26% raw `Disk:4` band):
+    - `trumpet`: raw `20.6%` (post-hollowing) → thickened **`31.9%`** (valves, tuning loops, pinky ring, and eighth notes stayed cleanly separated)
+    - `crayons`: raw `23.1%` → thickened **`36.0%`** (wavy wrapper stripes and blank ovals stayed crisp and well below Simple `41.1%`)
+    - `sneaker`: raw `24.5%` → thickened **`33.0%`** (eyelets, laces, bow loops, and sole tread stayed crisp)
+    - `garbage-truck`: raw `25.0%` → thickened **`31.9%`** (compactor body ribs, mirror, and hopper lift bar stayed crisp)
+    - `easter-bunny`: raw `20.1%` → thickened **`29.0%`** (whiskers, bow folds, egg patterns, and woven basket bands stayed separated)
+    - `pineapple`: raw `24.4%` → thickened **`32.2%`** (diamond facets, V-accents, and leaf midribs stayed crisp)
+    - `sandcastle`: raw `20.0%` (post-hollowing) → thickened **`31.9%`** (bucket handle, shovel, shell ribs, and battlements stayed crisp)
+    - `kangaroo`: raw `23.8%` → thickened **`33.4%`** (joey face, ears, and paws stayed cleanly separated)
+    - `swan`: raw `25.7%` → thickened **`32.4%`** (layered wing feathers and water-lily petals stayed crisp)
+- **Enclosed exterior pockets cleared transparent:** `toy-blocks` (archway opening), `trumpet` (16 tubing-loop and finger-ring openings), `paint-palette` (thumb hole), `backpack` (top handle loop and left shoulder-strap gap), `sneaker` (heel pull-tab loop and 2 bow-loop openings), `lighthouse` (6 gallery railing gaps), `big-ship` (2 mast guy-line triangles), `ice-cream-truck` (under-cone gap), `easter-bunny` (basket handle opening and paw-handle gap), `cherries` (2 tiny blossom/stem gaps), `sandcastle` (shovel handle D-hole), and `kangaroo` (hind-leg gap and 2 front-arm gaps).
+- **Deterministic post-generation master fixes (0 extra quota spent):**
+  - `trumpet` line: raw master filled a small solid black oval inside the bell throat; deterministically hollowed via `-morphology Erode Disk:7 -blur 0x0.8` composited with `-compose Lighten` before colorization (true raw `Disk:4 = 20.6%` → `31.9%` via `Disk:2`).
+  - `big-ship` line: raw master filled the top rim bands of both smokestacks solid black; deterministically hollowed via masked `-morphology Erode Disk:8 -blur 0x0.8` before colorization (true raw `Disk:4 = 13.9%` → `26.7%` via `Disk:3`).
+  - `easter-bunny` line: generated facing left; horizontally mirrored (`-flop`) before colorization so the bunny faces right holding the basket in front consistently.
+  - `pineapple` line: erased two tiny protruding flat black shadow wings at the bottom corners (`y = 966..985`) before colorization while keeping the rounded base outline intact.
+  - `sandcastle` line: raw master filled the arched doorway interior solid black (`28.3%` inflated `Disk:4`); deterministically hollowed via masked `-morphology Erode Disk:9 -blur 0x0.8` before colorization (true raw `Disk:4 = 20.0%` → `31.9%` via `Disk:2`).
+
+### Per-Subject Catalog & Traceability Metrics (Batch 6 — 23 Subjects)
+
+For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px SVG render; raw pre-thickening `Disk:4` and disk radius are noted in the Description column. SVG sizes reflect post-`art:optimize` SVGO output.
+
+| # | ID | Name | Category | `Disk:2` | `Disk:3` | `Disk:4` | `Disk:5` | SVG (KB) | WebP (KB) | Description |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| 172 | `basketball` | Basketball | `fun` | 74.7% | 59.9% | **47.3%** | 31.6% | 30.6 | 20.1 | Three-quarter spherical basketball with hollow double-lined grooved rubber seams and rounded upper-left shine capsule; no logos or text |
+| 173 | `toy-blocks` | Toy Blocks | `fun` | 65.7% | 46.9% | **29.4%** | 13.6% | 37.7 | 23.8 | Three-quarter stack of six wooden building blocks (cubes, beam, arch bridge with transparent opening, roof prism) with blank beveled panels; no letters *(Disk:4 from raw 12.0%)* |
+| 174 | `trumpet` | Trumpet | `fun` | 69.6% | 47.8% | **31.9%** | 12.3% | 29.3 | 25.1 | Diagonally angled storybook brass trumpet pointing right with three piston valves, transparent tubing loops, hollowed bell throat, and two hollow eighth notes *(Disk:2 from raw 20.6%)* |
+| 175 | `crayons` | Crayons | `fun` | 68.8% | 52.0% | **36.0%** | 20.1% | 52.3 | 30.3 | Upright fanned cluster of five classic wax crayons with sculpted tips, wavy scalloped wrapper stripes, and blank oval emblems; no text *(Disk:2 from raw 23.1%)* |
+| 176 | `paint-palette` | Paint Palette | `fun` | 64.3% | 43.1% | **27.7%** | 9.9% | 32.6 | 25.1 | Beveled wooden kidney-shaped artist's palette with transparent thumb hole, seven swirled rainbow paint dollops, and diagonal paint-dipped brush |
+| 177 | `backpack` | Backpack | `fun` | 66.6% | 48.4% | **31.9%** | 15.7% | 37.8 | 24.1 | Three-quarter canvas explorer backpack with transparent handle and strap gaps, dual buckled flap straps, blank diamond patch, and side pouch water bottle; no text |
+| 178 | `sneaker` | Sneaker | `fun` | 67.8% | 49.4% | **33.0%** | 17.5% | 29.3 | 19.8 | Right-facing classic canvas sneaker with two-layer treaded sole, rubber toe bumper, transparent pull-tab and bow loops, hollow laces, and plain unbranded side; no logos *(Disk:2 from raw 24.5%)* |
+| 179 | `lighthouse` | Lighthouse | `fun` | 63.8% | 43.6% | **25.9%** | 11.8% | 33.4 | 20.6 | Striped storybook coastal lighthouse on a rocky headland framed by curling waves, with stone steps, arched door, portholes, transparent gallery railings, and beacon lamp *(Disk:3 from raw 12.8%)* |
+| 180 | `big-ship` | Big Ship | `go` | 64.2% | 44.8% | **26.7%** | 12.3% | 54.6 | 30.5 | Classic ocean liner sailing right over curling waves with six portholes, bow anchor, tiered window-bay decks, hollowed striped funnels, steam puffs, and mast; no text *(Disk:3 from raw 13.9%)* |
+| 181 | `garbage-truck` | Garbage Truck | `go` | 67.1% | 48.7% | **31.9%** | 15.4% | 24.6 | 14.7 | Classic municipal rear-loader garbage truck facing right with cab beacon, ribbed compactor body, hydraulic rear hopper tailgate, and hollow wheels; no text *(Disk:2 from raw 25.0%)* |
+| 182 | `ice-cream-truck` | Ice Cream Truck | `go` | 65.7% | 46.9% | **29.1%** | 15.5% | 26.8 | 18.8 | Vintage step-van ice cream truck facing right with swirled rooftop cone topper, scalloped striped awning, serving window, dripping trim, and blank door crest; no text *(Disk:3 from raw 18.7%)* |
+| 183 | `easter-bunny` | Easter Bunny | `holidays` | 65.8% | 45.3% | **29.0%** | 12.2% | 45.4 | 27.5 | Cheerful standing storybook Easter Bunny facing right (mirrored) in neck bow holding a woven basket (handle opening cleared) filled with four patterned Easter eggs *(Disk:2 from raw 20.1%)* |
+| 184 | `easter-egg` | Easter Egg | `holidays` | 64.8% | 43.8% | **28.4%** | 12.7% | 59.5 | 35.6 | Ornate upright storybook Easter egg with petal crown, polka dots, three-flower floral band, chevron zigzag ribbon, scalloped lower petals, and base daisies |
+| 185 | `valentine` | Valentine Heart | `holidays` | 67.1% | 47.4% | **31.3%** | 12.0% | 35.8 | 24.7 | Vintage storybook Valentine heart framed by scalloped ruffle trim with satin ribbon bow, two sculpted rosebuds with leaves, and three mini hearts; no text |
+| 186 | `burger` | Burger | `food` | 66.3% | 47.9% | **32.5%** | 17.4% | 38.2 | 27.5 | Tall storybook gourmet cheeseburger with 7-seed sesame bun, ruffled lettuce, two tomato slices, melted cheddar, grilled patty, scalloped pickles, and bottom bun |
+| 187 | `pineapple` | Pineapple | `food` | 68.3% | 47.4% | **32.2%** | 14.3% | 38.6 | 27.9 | Botanical whole tropical pineapple with spacious diagonal diamond facets, V-eye accents, and lush midribbed rosette leaf crown *(Disk:2 from raw 24.4%)* |
+| 188 | `cherries` | Cherries | `food` | 65.8% | 46.8% | **32.4%** | 16.0% | 31.1 | 25.3 | Botanical pair of glossy sweet cherries on curved hollow stems joined at a woody twig nub with two veined leaves and a 5-petal cherry blossom |
+| 189 | `autumn-leaf` | Autumn Leaf | `nature` | 66.7% | 49.3% | **35.3%** | 20.1% | 34.2 | 22.7 | Botanical sugar-maple autumn leaf with five sculpted multi-pointed lobes, radiating veins, curved hollow stem, and a companion plump acorn |
+| 190 | `sandcastle` | Sandcastle | `nature` | 66.7% | 48.6% | **31.9%** | 14.0% | 30.4 | 22.3 | Storybook beach sandcastle with crenellated center tower, conical side towers, pennant flags, deterministically hollowed doorway, pail, shovel, shell, and sea star *(Disk:2 from raw 20.0%)* |
+| 191 | `kangaroo` | Kangaroo | `animals` | 67.2% | 48.6% | **33.4%** | 17.1% | 26.1 | 19.0 | Graceful right-facing red kangaroo with sweeping balancing tail, transparent leg/arm gaps, and smiling baby joey peeking from her belly pouch *(Disk:2 from raw 23.8%)* |
+| 192 | `llama` | Llama | `animals` | 66.8% | 47.3% | **30.0%** | 13.0% | 39.8 | 23.4 | Standing right-facing Andean storybook llama with sculpted wool curls, pom-pom collar, geometric diamond saddle blanket, and hollow hooves *(Disk:3 from raw 15.2%)* |
+| 193 | `swan` | Swan | `animals` | 67.2% | 48.4% | **32.4%** | 14.8% | 36.4 | 23.2 | Graceful right-facing mute swan gliding over wavy water ripples with layered arched wing feathers and a rosy water lily on a lily pad *(Disk:2 from raw 25.7%)* |
+| 194 | `city-skyline` | City Skyline | `patterns` | 66.1% | 47.0% | **28.8%** | 12.5% | 61.5 | 39.5 | Detailed-only circular twilight medallion city skyline with stepped art-deco skyscraper, domed hall, townhouses with medium-sized colorable windows, arched bridge, wavy river, clouds, stars, and moon; no text *(Disk:4 from raw 4.7%)* |
+
+### Batch 6 Rejection & Regeneration Log (Detailed — 0 Rejections)
+
+- **0 art rejections** across all 23 completed Detailed subjects (46/46 generated images approved on first attempt, with deterministic master cleanups on `trumpet`, `big-ship`, `easter-bunny`, `pineapple`, and `sandcastle` noted above).
+- **Deferred due to HTTP 429 quota exhaustion (1 subject remaining):** `flower-wreath` ("Flower Wreath", `patterns`, Detailed-only — 2 images: line + color) hit `HTTP 429 RESOURCE_EXHAUSTED` (quota resets after ~3h15m). Generation stopped immediately per batch rules so the 23 fully finished subjects could be committed and pushed cleanly.

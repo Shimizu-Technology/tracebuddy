@@ -1465,5 +1465,203 @@
     "line": "lei/line.svg",
     "color": "lei/color.webp",
     "notes": ""
+  },
+  {
+    "id": "basketball",
+    "name": "Basketball",
+    "category": "fun",
+    "level": "simple",
+    "line": "basketball/line.svg",
+    "color": "basketball/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "toy-blocks",
+    "name": "Toy Blocks",
+    "category": "fun",
+    "level": "simple",
+    "line": "toy-blocks/line.svg",
+    "color": "toy-blocks/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "trumpet",
+    "name": "Trumpet",
+    "category": "fun",
+    "level": "simple",
+    "line": "trumpet/line.svg",
+    "color": "trumpet/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "crayons",
+    "name": "Crayons",
+    "category": "fun",
+    "level": "simple",
+    "line": "crayons/line.svg",
+    "color": "crayons/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "paint-palette",
+    "name": "Paint Palette",
+    "category": "fun",
+    "level": "simple",
+    "line": "paint-palette/line.svg",
+    "color": "paint-palette/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "backpack",
+    "name": "Backpack",
+    "category": "fun",
+    "level": "simple",
+    "line": "backpack/line.svg",
+    "color": "backpack/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sneaker",
+    "name": "Sneaker",
+    "category": "fun",
+    "level": "simple",
+    "line": "sneaker/line.svg",
+    "color": "sneaker/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "lighthouse",
+    "name": "Lighthouse",
+    "category": "fun",
+    "level": "simple",
+    "line": "lighthouse/line.svg",
+    "color": "lighthouse/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "big-ship",
+    "name": "Big Ship",
+    "category": "go",
+    "level": "simple",
+    "line": "big-ship/line.svg",
+    "color": "big-ship/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "garbage-truck",
+    "name": "Garbage Truck",
+    "category": "go",
+    "level": "simple",
+    "line": "garbage-truck/line.svg",
+    "color": "garbage-truck/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "ice-cream-truck",
+    "name": "Ice Cream Truck",
+    "category": "go",
+    "level": "simple",
+    "line": "ice-cream-truck/line.svg",
+    "color": "ice-cream-truck/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "easter-bunny",
+    "name": "Easter Bunny",
+    "category": "holidays",
+    "level": "simple",
+    "line": "easter-bunny/line.svg",
+    "color": "easter-bunny/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "easter-egg",
+    "name": "Easter Egg",
+    "category": "holidays",
+    "level": "simple",
+    "line": "easter-egg/line.svg",
+    "color": "easter-egg/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "valentine",
+    "name": "Valentine Heart",
+    "category": "holidays",
+    "level": "simple",
+    "line": "valentine/line.svg",
+    "color": "valentine/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "burger",
+    "name": "Burger",
+    "category": "food",
+    "level": "simple",
+    "line": "burger/line.svg",
+    "color": "burger/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "pineapple",
+    "name": "Pineapple",
+    "category": "food",
+    "level": "simple",
+    "line": "pineapple/line.svg",
+    "color": "pineapple/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "cherries",
+    "name": "Cherries",
+    "category": "food",
+    "level": "simple",
+    "line": "cherries/line.svg",
+    "color": "cherries/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "autumn-leaf",
+    "name": "Autumn Leaf",
+    "category": "nature",
+    "level": "simple",
+    "line": "autumn-leaf/line.svg",
+    "color": "autumn-leaf/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "sandcastle",
+    "name": "Sandcastle",
+    "category": "nature",
+    "level": "simple",
+    "line": "sandcastle/line.svg",
+    "color": "sandcastle/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "kangaroo",
+    "name": "Kangaroo",
+    "category": "animals",
+    "level": "simple",
+    "line": "kangaroo/line.svg",
+    "color": "kangaroo/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "llama",
+    "name": "Llama",
+    "category": "animals",
+    "level": "simple",
+    "line": "llama/line.svg",
+    "color": "llama/color.webp",
+    "notes": ""
+  },
+  {
+    "id": "swan",
+    "name": "Swan",
+    "category": "animals",
+    "level": "simple",
+    "line": "swan/line.svg",
+    "color": "swan/color.webp",
+    "notes": ""
   }
 ]

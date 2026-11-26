@@ -403,3 +403,60 @@ Added **22 new subjects** across 8 categories (`animals`, `ocean`, `magic`, `go`
 ### Batch 5 Rejection & Regeneration Log (Simple — 0 Rejections)
 
 - **0 rejections** across all 22 Simple line-art and 22 Simple colorization generations (44/44 approved on first attempt).
+
+---
+
+## Batch 6 (expansion)
+
+Added **22 new subjects** across 6 categories (`fun`, `go`, `holidays`, `food`, `nature`, `animals`), bringing the published Simple manifest from 159 to **181 subjects** (the Detailed-only `patterns` subject `city-skyline` is intentionally omitted from Simple; the second `patterns` subject `flower-wreath` was deferred after hitting an HTTP 429 image-generation quota limit).
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch6/raw/simple/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch6/simple-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Line weight (`Disk:4` erosion survival):** min `33.2%` (`easter-bunny`), median `45.5%`, max `71.7%` (`basketball`) — every Simple subject is visibly thicker than its Detailed counterpart.
+- **Stroke thickening applied (2 subjects, to maintain strong phone-size readability and clear Simple-vs-Detailed line-weight hierarchy):**
+  - `toy-blocks`: raw `28.5%` → thickened with `Disk:2` to **`35.6%`** (measured on 1024 px render; cleanly thicker than Detailed `29.4%`)
+  - `ice-cream-truck`: raw `25.2%` → thickened with `Disk:3` to **`36.6%`** (measured on 1024 px render; cleanly thicker than Detailed `29.1%`, waffle cone grid and awning stripes stayed separated)
+- **Deterministic post-generation master fixes (0 extra quota spent):**
+  - `trumpet` line: raw master filled a small solid black oval inside the bell throat; deterministically hollowed via masked `-morphology Erode Disk:10 -blur 0x0.8` composited with `-compose Lighten` before colorization (`Disk:4 = 50.8%`).
+  - `easter-bunny` line: generated facing left; horizontally mirrored (`-flop`) before colorization so the bunny faces right holding the basket in front consistently.
+- **Enclosed exterior pockets cleared transparent:** `trumpet` (4 open tubing-loop gaps), `paint-palette` (thumb hole), `backpack` (top handle loop), `lighthouse` (2 outer gallery railing gaps), `big-ship` (bow rail gap), `ice-cream-truck` (2 open gaps under the rooftop cone), `easter-bunny` (basket handle opening), and `cherries` (triangle between the two stems).
+
+### Per-Subject Descriptions (22 Batch 6 Subjects)
+
+#### Fun
+- **`basketball` ("Basketball"):** Centered classic round basketball divided into 8 large plain panels by bold curved rib seams; no logos or text (`Disk:4 = 71.7%`). Color: warm bright tangerine-orange panels.
+- **`toy-blocks` ("Toy Blocks"):** Pyramid stack of three plump rounded wooden cube blocks in three-quarter view with plain blank recessed square frames; strictly no letters or numbers (`Disk:4 = 35.6%`, `Disk:2` from raw `28.5%`). Color: warm honey-cream wooden rims with flat coral-red, butter-yellow, and sky-blue blank panels.
+- **`trumpet` ("Trumpet"):** Chubby right-pointing cartoon brass trumpet tilted upward with plump mouthpiece, single tubing loop (4 gaps cleared), three round-topped valves, and deterministically hollowed bell throat (`Disk:4 = 50.8%`). Color: sunny golden-yellow brass, silver-cream mouthpiece and valves, tangerine-amber and honey-amber bell interior.
+- **`crayons` ("Crayons"):** Three chubby wax crayons fanned gently upright with rounded conical tips, straight wrapper stripes, and blank empty ovals; strictly no text (`Disk:4 = 41.1%`). Color: coral-red, butter-yellow, and sky-blue crayons with matching pastel wrappers.
+- **`paint-palette` ("Paint Palette"):** Chubby kidney-shaped artist's paint palette with transparent thumb hole, 4 upper oval paint blobs, wavy lower-left paint patch, and diagonal chunky paintbrush (`Disk:4 = 60.0%`). Color: honey-tan board, coral-red/butter-yellow/mint-green/sky-blue/lilac-purple paints, sky-blue brush handle, silver ferrule, coral-pink brush tip.
+- **`backpack` ("Backpack"):** Chubby forward-facing school backpack with transparent top handle loop, curved top zipper, front zippered pocket with blank star patch, and side pockets/straps; no text (`Disk:4 = 43.7%`). Color: sky-blue body, coral-red front pocket and handle, butter-yellow star and pulls, navy-periwinkle trim and side loops.
+- **`sneaker` ("Sneaker"):** Chubby right-facing side-profile sneaker with thick flat sole, rounded toe cap, curved heel patch, padded collar, 3 lace bands, puffy bow, and completely blank side panel; no logos (`Disk:4 = 56.4%`). Color: coral-red upper/heel, butter-yellow collar/tongue, warm cream-ivory sole/toe/laces/bow.
+- **`lighthouse` ("Lighthouse"):** Plump striped coastal lighthouse on a smooth mound over a single wavy water curve with arched door, round window, gallery ledge (outer railing gaps cleared), lantern room, and dome cap (`Disk:4 = 44.0%`). Color: coral-red and ivory-white tower stripes, coral-red dome/ledge, butter-yellow lantern room, sky-blue window, caramel door, sage-green mound.
+
+#### Things That Go
+- **`big-ship` ("Big Ship"):** Chubby right-facing cruise/ocean liner on a wavy water curve with two stacked passenger decks, 8 round portholes, front bridge window, and 2 striped smokestacks with 3 steam clouds; no text (`Disk:4 = 38.8%`). Color: royal-sky blue hull with coral stripe, ivory-cream decks, sky-ice windows and clouds, coral/yellow funnels.
+- **`garbage-truck` ("Garbage Truck"):** Chubby right-facing cartoon garbage truck with rounded cab, rooftop beacon, striped rear compactor box, sloped tailgate hopper, and 2 hollow wheels; no text (`Disk:4 = 37.7%`). Color: meadow-leaf green body/cab, butter-yellow stripe/beacon/headlight, sky-ice windows, silver-gray frame/bumper, charcoal tires with cream hubcaps.
+- **`ice-cream-truck` ("Ice Cream Truck"):** Chubby right-facing cartoon ice cream van topped with a giant scoop waffle cone (under-cone gaps cleared), scalloped striped awning over serving window, wavy lower stripe, and 2 hollow wheels; no text (`Disk:4 = 36.6%`, `Disk:3` from raw `25.2%`). Color: vanilla-cream upper body, mint-aqua lower body, strawberry-pink stripe/awning/scoop, sky-ice windows, golden-tan cone, charcoal tires.
+
+#### Holidays
+- **`easter-bunny` ("Easter Bunny"):** Sitting chubby smiling Easter Bunny facing right (mirrored) with one bent ear, puffy neck bow, and cotton tail holding a woven Easter basket (handle opening cleared) filled with 4 patterned Easter eggs (`Disk:4 = 33.2%`). Color: cream-oatmeal fur, blush-pink inner ears/nose, white tail, sky-blue bow, honey-caramel basket, pastel butter-yellow/coral-pink/mint-green/lilac eggs.
+- **`easter-egg` ("Easter Egg"):** Plump upright Easter egg decorated with bold horizontal cap, large polka dots, smooth wavy stripe, and chunky zigzag band (`Disk:4 = 64.9%`). Color: butter-yellow cap/dots, lilac-lavender dot band, strawberry-pink wavy band, mint-green mid band, sky-blue zigzag, peach-apricot base.
+- **`valentine` ("Valentine Heart"):** Plump classic Valentine heart wrapped with a curved ribbon sash and puffy upper-left bow, paired with two small floating hearts; no text (`Disk:4 = 56.2%`). Color: rose-coral red heart, blush-pink sash and bow, butter-yellow and strawberry-pink mini hearts.
+
+#### Food
+- **`burger` ("Burger"):** Chubby front-facing cheeseburger with 7-seed domed top bun, wavy lettuce, dripping melted cheese, plump patty, and rounded bottom bun (`Disk:4 = 56.5%`). Color: golden-tan buns, ivory-yellow seeds, meadow-green lettuce, cheddar-yellow cheese, cocoa-brown patty.
+- **`pineapple` ("Pineapple"):** Plump upright whole pineapple with wide diagonal crisscross diamond grid and 5 chunky curved crown leaves (`Disk:4 = 57.7%`). Color: alternating sunny butter-yellow and warm golden-apricot diamonds with meadow-leaf green crown.
+- **`cherries` ("Cherries"):** Pair of plump round cherries with kidney-bean highlights hanging from joined hollow curving stems (inter-stem triangle cleared) with one rounded leaf (`Disk:4 = 56.8%`). Color: bright crimson-red cherries, blush-pink highlights, olive-caramel stems, meadow-green leaf.
+
+#### Nature
+- **`autumn-leaf` ("Autumn Leaf"):** Big chubby maple autumn leaf tilted slightly right with 5 smooth rounded lobes, 5 radiating main veins, and chunky curved hollow stem (`Disk:4 = 59.0%`). Color: warm bright tangerine-orange leaf with caramel-brown stem.
+- **`sandcastle` ("Sandcastle"):** Plump 3-tower battlemented beach sandcastle with center pennant flag, arched doorway, 2 side windows, and a plump sea star on a smooth sand mound (`Disk:4 = 44.0%`). Color: golden-sand towers, pale butter-sand mound, caramel-ochre openings, coral-red flag, coral-peach sea star.
+
+#### Animals
+- **`kangaroo` ("Kangaroo"):** Standing right-facing chubby smiling mother kangaroo with tall rounded ears, curving balancing tail, smooth belly patch, and smiling baby joey peeking from her pouch (`Disk:4 = 38.7%`). Color: golden-caramel tan coat, cream-biscuit belly/pouch/tail underside/inner ears, rosy cheek, cocoa noses.
+- **`llama` ("Llama"):** Standing right-facing chubby smiling fluffy llama with cloud-scalloped wool coat, tall rounded ears, striped saddle blanket, puffy tail, and 4 hooved legs (`Disk:4 = 37.7%`). Color: creamy ivory-oatmeal wool, warm biscuit-peach face and legs, blush inner ear, charcoal hooves, coral-red/butter-yellow/sky-blue blanket.
+- **`swan` ("Swan"):** Gliding right-facing chubby smiling white swan on a single wavy water line with S-curved neck, scalloped folded wing, upturned tail, and rounded beak (`Disk:4 = 46.9%`). Color: warm pearl ivory-cream feathers and bright tangerine-orange beak.
+
+### Batch 6 Rejection & Regeneration Log (Simple — 0 Rejections)
+
+- **0 art rejections** across all 22 Simple subjects (44/44 generated images approved on first visual output). Note: `basketball` Simple line initially returned two transient empty tool responses (`no image generated in response`) when the subject text followed the style block, and succeeded cleanly once the subject description was placed before the verbatim S1 style block (used for all subsequent subjects).
