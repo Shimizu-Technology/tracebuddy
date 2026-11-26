@@ -24,6 +24,7 @@ export const paperTheme = {
     lockIcon: 32,
     shutterRing: 5,
     snapFrameOutset: 6,
+    snapBack: theme.target.child,
     badge: theme.target.child,
     fader: { width: theme.target.adult + 4, knob: 32, track: 8, maxHeight: 360, heightFraction: 0.4 },
     frame: { stroke: 2.5, dash: 9, gap: 7, outset: 10, radius: 12, handle: 16, handleStroke: 3 },

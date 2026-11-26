@@ -97,6 +97,11 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const [celebrated, setCelebrated] = useState(false)
   const standInRef = useRef<View>(null)
   const pendingShot = useRef<PaperShot | null>(null)
+  // A capture or save is running (set synchronously, so a second tap can't start another), and the current
+  // capture attempt. Back, losing the camera and closing the screen start a new attempt number, so a photo
+  // that arrives late for an older attempt is deleted instead of opening review.
+  const snapWorking = useRef(false)
+  const captureAttempt = useRef(0)
   const [hint, setHint] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   // More as a bottom card. Any turn of the device closes it for good (it doesn't come back on turning back).
@@ -291,9 +296,18 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
     if (pendingShot.current) void discardPaperShot(pendingShot.current)
     pendingShot.current = null
   }, [])
-  useEffect(() => dropShot, [dropShot])
+  useEffect(() => () => {
+    captureAttempt.current += 1
+    dropShot()
+  }, [dropShot])
+
+  const cameraLost = !camera.cameraOn || Boolean(camera.access)
+  useEffect(() => {
+    if (cameraLost) captureAttempt.current += 1
+  }, [cameraLost])
 
   const leaveSnap = useCallback(() => {
+    captureAttempt.current += 1
     dropShot()
     setCelebrated(true)
     setSnap(null)
@@ -313,7 +327,10 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   }, [dropShot, leaveSnap, snap, snapBusy])
 
   const shoot = useCallback(async () => {
-    if (snapBusy || !camera.cameraReady) return
+    if (snapWorking.current || !camera.cameraReady) return
+    snapWorking.current = true
+    captureAttempt.current += 1
+    const attempt = captureAttempt.current
     setSnapBusy(true)
     try {
       let shot: PaperShot
@@ -326,17 +343,23 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
         if (!photo) throw new Error('The camera is not ready')
         shot = { uri: photo.uri, width: photo.width, height: photo.height }
       }
+      if (attempt !== captureAttempt.current) {
+        void discardPaperShot(shot)
+        return
+      }
       pendingShot.current = shot
       setSnap({ step: 'review', shot })
     } catch {
-      setToast('That photo didn’t work. Try again.')
+      if (attempt === captureAttempt.current) setToast('That photo didn’t work. Try again.')
     } finally {
+      snapWorking.current = false
       setSnapBusy(false)
     }
-  }, [camera.camera, camera.cameraReady, snapBusy])
+  }, [camera.camera, camera.cameraReady])
 
   const keepShot = useCallback(async (shot: PaperShot) => {
-    if (snapBusy || line.status !== 'ready') return
+    if (snapWorking.current || line.status !== 'ready') return
+    snapWorking.current = true
     setSnapBusy(true)
     try {
       await savePaperKeepsake(picture.picture, line.xml, shot)
@@ -346,9 +369,10 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
     } catch {
       Alert.alert('Couldn’t keep the photo', 'Try again in a moment.')
     } finally {
+      snapWorking.current = false
       setSnapBusy(false)
     }
-  }, [leaveSnap, line, picture.picture, snapBusy])
+  }, [leaveSnap, line, picture.picture])
 
   const sides = { left: insets.left + theme.space.lg, right: insets.right + theme.space.lg }
   const faderHeight = Math.min(paperTheme.size.fader.maxHeight, window.height * paperTheme.size.fader.heightFraction)

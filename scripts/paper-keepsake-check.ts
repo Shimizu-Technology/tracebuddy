@@ -5,9 +5,13 @@ import { normalizePaperPhoto, normalizeSavedPracticeSession } from '../mobile/pr
 import type { SavedPracticeSession } from '../mobile/practiceStorageModel'
 import { catalogPictures, paramsForSource, resolvePicture, sourceForPicture } from '../mobile/src/data/catalog'
 import { isPaperKeepsake, makePaperKeepsake, paperKeepsakeTitle } from '../mobile/src/data/paperKeepsakeModel'
+import { buildDrawingBackup, DrawingBackupError, mergeDrawingBackup, parseDrawingBackup, readDrawingBackupImage } from '../mobile/src/data/drawingBackupModel'
 import { createPracticeImageCleanup, drawingImageUris } from '../mobile/src/data/practiceImageCleanup'
-import { drawingTitle, makePracticeSource, rebasePracticeImageUri } from '../mobile/src/data/practiceSource'
-import { parsePreviousWorkSession, serializePreviousWorkSession } from '../mobile/src/data/previousWork'
+import { drawingTitle, keepsakeImageFolder, makePracticeSource, practiceImageFolder, rebasePracticeImageUri } from '../mobile/src/data/practiceSource'
+import { parsePreviousWorkSession } from '../mobile/src/data/previousWork'
+
+// Saved drawings are stored as their JSON (previousWork.ts and drawingRecords.ts).
+const serializePreviousWorkSession = (session: SavedPracticeSession) => JSON.stringify(session)
 
 // A snapped photo of a drawing made On paper is kept as an ordinary saved drawing with a `paperPhoto`.
 
@@ -54,7 +58,8 @@ function emptyDrawing(source: SavedPracticeSession['source']) {
   assert.ok(drawing)
   return drawing
 }
-const photoUri = 'file:///sandbox/old/Documents/tracebuddy-uploads/work-paper-1.jpg'
+assert.notEqual(keepsakeImageFolder, practiceImageFolder)
+const photoUri = 'file:///sandbox/old/Documents/tracebuddy-keepsakes/work-paper-1.jpg'
 const keepsake = makePaperKeepsake(emptyDrawing(sourceForPicture(picture, guideSvg)), { uri: photoUri, width: 3024, height: 4032 })
 assert.equal(keepsake.title, `${picture.name} (on paper)`)
 assert.equal(drawingTitle(keepsake), `${picture.name} (on paper)`)
@@ -87,12 +92,13 @@ assert.deepEqual(roundTrip(photoKeepsake), photoKeepsake)
 // and goes when its drawing is deleted.
 const documents = 'file:///sandbox/current/Documents/'
 const current = rebasePracticeImageUri(photoUri, documents)
+assert.equal(current, `${documents}tracebuddy-keepsakes/work-paper-1.jpg`, 'Keepsake photos follow a sandbox move')
 const files = new Set([current, rebasePracticeImageUri(tracedPhoto, documents), `${documents}tracebuddy-uploads/work-stray.jpg`])
 // The photo being traced is already a saved photo drawing.
 const photoDrawing = emptyDrawing(uploadSource)
 let records: SavedPracticeSession[] = [photoDrawing]
 const cleanup = createPracticeImageCleanup(documents, {
-  list: async (directory) => [...files].map((uri) => uri.slice(directory.length)),
+  list: async (directory) => [...files].filter((uri) => uri.startsWith(directory)).map((uri) => uri.slice(directory.length)),
   readReferences: async () => records.flatMap((record) => drawingImageUris(record)),
   remove: async (uri) => { files.delete(uri) },
 })
@@ -107,7 +113,7 @@ await cleanup.sweep([current])
 assert.ok(files.has(current), 'A saved keepsake keeps its photo after the lease ends')
 assert.ok(files.has(rebasePracticeImageUri(tracedPhoto, documents)), 'and the photo it traced')
 // A failed save releases the lease with no record: the copied file is removed.
-const failed = `${documents}tracebuddy-uploads/work-failed.jpg`
+const failed = `${documents}tracebuddy-keepsakes/work-failed.jpg`
 files.add(failed)
 const releaseFailed = cleanup.acquire([failed])
 releaseFailed()
@@ -120,5 +126,69 @@ assert.deepEqual([...files], [rebasePracticeImageUri(tracedPhoto, documents)])
 records = []
 await cleanup.sweep()
 assert.equal(files.size, 0)
+
+// The 1.x startup sweep (mobile/App.tsx) deletes every file in tracebuddy-uploads that no source photo or image
+// sticker uses. It never lists tracebuddy-keepsakes, so a 1.x launch on the same data keeps keepsake photos.
+const legacyUploads = `${documents}${practiceImageFolder}/`
+function legacyStartupSweep(onDisk: Set<string>, saved: SavedPracticeSession[]) {
+  const referenced = new Set(saved.flatMap((record) => [record.source.uploadedImage?.uri,
+    ...record.stickers.filter((sticker) => sticker.kind === 'image').map((sticker) => sticker.uri)]))
+  for (const uri of [...onDisk].filter((candidate) => candidate.startsWith(legacyUploads))) {
+    if (!referenced.has(uri)) onDisk.delete(uri)
+  }
+}
+const legacyDisk = new Set([current, `${legacyUploads}work-orphan.jpg`])
+legacyStartupSweep(legacyDisk, [{ ...keepsake, paperPhoto: { uri: current } }])
+assert.deepEqual([...legacyDisk], [current], 'A 1.x sweep removes its own orphans but not keepsake photos')
+
+// Backup and restore (#74): the photo travels as a portable image and comes back into the keepsakes folder.
+const jpeg = Buffer.from('paper photo bytes').toString('base64')
+const disk = new Map([[current, jpeg]])
+const library = new Map([[keepsake.sessionId, { ...keepsake, paperPhoto: { uri: photoUri, width: 3024, height: 4032 } }]])
+const emptySettings = { progress: { version: 1 as const, completedLessonIds: [], stepByLessonId: {} }, artFavorites: [], legacyFavorites: [] }
+const backup = await buildDrawingBackup({ ...emptySettings, drawings: [...library.values()] },
+  (uri) => rebasePracticeImageUri(uri, documents), async (uri) => ({ extension: 'jpg', base64: disk.get(uri) ?? null }))
+// The app's image reader takes files from both drawing image folders and treats anything else as missing.
+const imageIO = {
+  getInfo: async (uri: string) => ({ exists: disk.has(uri), isDirectory: false, size: disk.get(uri)?.length ?? 0 }),
+  readBase64: async (uri: string) => disk.get(uri) ?? '',
+}
+assert.deepEqual(await readDrawingBackupImage(current, documents, 1024, imageIO), { extension: 'jpg', base64: jpeg })
+assert.deepEqual(await readDrawingBackupImage(`${documents}elsewhere/work-paper-1.jpg`, documents, 1024, imageIO), { extension: 'jpg', base64: null })
+const raw = JSON.stringify(backup)
+assert.ok(!raw.includes('/Documents/'), 'The backup has no device paths')
+assert.equal(backup.drawings[0].paperPhoto?.uri, 'tracebuddy-image:0')
+assert.deepEqual(backup.images, [{ extension: 'jpg', base64: jpeg }])
+const parsed = parseDrawingBackup(raw)
+// Lose the photo and the drawing, then restore.
+disk.clear()
+library.clear()
+const kinds: string[] = []
+const result = await mergeDrawingBackup(parsed, {
+  readDrawing: async (id) => library.get(id) ?? null,
+  writeDrawing: async (drawing) => { library.set(drawing.sessionId, roundTrip(drawing)!) },
+  async writeImage(image, kind) {
+    kinds.push(kind)
+    const uri = `${documents}${kind === 'keepsake' ? keepsakeImageFolder : practiceImageFolder}/restored-${kinds.length}.${image.extension}`
+    if (image.base64 !== null) disk.set(uri, image.base64)
+    return uri
+  },
+  writeSettings: async () => undefined,
+})
+assert.deepEqual(result, { added: 1, updated: 0, kept: 0, missingPhotos: 0 })
+assert.deepEqual(kinds, ['keepsake'])
+const restored = library.get(keepsake.sessionId)
+assert.ok(restored && isPaperKeepsake(restored), 'The restored keepsake still opens as a photo')
+assert.equal(restored.paperPhoto.uri, `${documents}tracebuddy-keepsakes/restored-1.jpg`)
+assert.deepEqual([restored.paperPhoto.width, restored.paperPhoto.height], [3024, 4032])
+assert.equal(disk.get(restored.paperPhoto.uri), jpeg, 'The photo bytes are restored into the keepsakes folder')
+assert.equal(restored.title, keepsake.title)
+assert.deepEqual(restored.source, keepsake.source)
+// A backup whose paper photo isn't a portable image reference, or was removed as malformed, is refused.
+const [entry] = parsed.drawings
+for (const paperPhoto of [{ uri: photoUri }, { uri: 'tracebuddy-image:7' }, { uri: 42 }]) {
+  assert.throws(() => parseDrawingBackup(JSON.stringify({ ...parsed, drawings: [{ ...entry, paperPhoto }] })),
+    (error) => error instanceof DrawingBackupError && error.reason === 'invalid')
+}
 
 console.log('Paper keepsake model checks passed')

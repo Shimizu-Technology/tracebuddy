@@ -3,6 +3,10 @@ import type { Drawing } from '../../../shared'
 import type { PracticeSource, SavedPracticeSession, UploadedImage } from '../../practiceStorageModel'
 
 export const practiceImageFolder = 'tracebuddy-uploads'
+// Photos of paper drawings live apart from the uploads: the 1.x startup sweep deletes any file in
+// tracebuddy-uploads that a source photo or sticker doesn't use, and it doesn't know about paper photos.
+export const keepsakeImageFolder = 'tracebuddy-keepsakes'
+export const drawingImageFolders = [practiceImageFolder, keepsakeImageFolder] as const
 export const photoDrawingName = 'My photo'
 
 export function drawingTitle({ source, title, paperPhoto }: Pick<SavedPracticeSession, 'source' | 'title' | 'paperPhoto'>) {
@@ -14,10 +18,10 @@ export function drawingTitle({ source, title, paperPhoto }: Pick<SavedPracticeSe
 
 export function rebasePracticeImageUri(uri: string, documentDirectory: string | null) {
   if (!documentDirectory || !uri.startsWith('file://')) return uri
-  const file = new RegExp(`/Documents/${practiceImageFolder}/([a-zA-Z0-9][a-zA-Z0-9._-]*)$`).exec(uri)?.[1]
+  const match = new RegExp(`/Documents/(${drawingImageFolders.join('|')})/([a-zA-Z0-9][a-zA-Z0-9._-]*)$`).exec(uri)
   // The v2 format stores an absolute URI. An app update can move the sandbox
   // while keeping these files in the same path relative to Documents.
-  return file ? `${documentDirectory}${practiceImageFolder}/${file}` : uri
+  return match ? `${documentDirectory}${match[1]}/${match[2]}` : uri
 }
 
 export function createPracticeSessionId() {

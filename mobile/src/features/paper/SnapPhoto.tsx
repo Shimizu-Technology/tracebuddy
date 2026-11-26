@@ -35,7 +35,7 @@ export function SnapAim({ page, center, ready, busy, onShoot, onBack }: {
         left: center.x - frame.width / 2, top: center.y - frame.height / 2, width: frame.width, height: frame.height,
       }]} />
       <View pointerEvents="box-none" style={[styles.top, { top: insets.top + theme.space.sm, left: insets.left + theme.space.lg }]}>
-        <GlassButton glyph={CaretLeftIcon} label="Back" onPress={onBack} />
+        <GlassButton glyph={CaretLeftIcon} label="Back" onPress={onBack} style={styles.back} />
       </View>
       {/* In the Back button's row, so it never covers the box (held sideways, the box reaches the top). */}
       <Pill text="Fit your paper in the box" announce style={[styles.absolute, { top: insets.top + theme.space.sm * 2 }]} />
@@ -92,6 +92,8 @@ const styles = StyleSheet.create({
     borderColor: colors.onCamera,
   },
   top: { position: 'absolute' },
+  // A child-sized target: children use this screen, unlike On paper's grown-up top buttons.
+  back: { width: size.snapBack, height: size.snapBack },
   shutterDock: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', gap: theme.space.xs },
   shutter: {
     width: size.lockButton,
