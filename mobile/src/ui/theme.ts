@@ -75,7 +75,7 @@ export const theme = {
     bodyWidth: 58,
     bodyHeight: 34,
     shading: '#17203333',
-    sizeDots: [8, 14, 20],
+    sizeDots: [8, 14, 20, 30],
   },
   sample: { tileWidth: 136, artSize: 56, ruleWidth: 1, maxContentWidth: 640 },
 } as const
