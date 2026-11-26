@@ -70,6 +70,8 @@ export const theme = {
       { name: 'Green', value: '#23854F' }, { name: 'Sky blue', value: '#319CF2' },
       { name: 'Blue', value: '#2959C4' }, { name: 'Purple', value: '#854DC4' },
       { name: 'Pink', value: '#ED78A2' }, { name: 'Brown', value: '#926044' },
+      { name: 'White', value: '#FFFFFF' }, { name: 'Gray', value: '#808080' },
+      { name: 'Skin', value: '#B77955' },
     ],
     capWidth: 27,
     bodyWidth: 58,

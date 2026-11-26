@@ -22,7 +22,7 @@ export const PracticeInk = memo(function PracticeInk({ side, strokes, live }: In
               strokeJoin="round"
               style="stroke"
               opacity={live.style.opacity}
-              blendMode={live.style.mode === 'erase' ? 'dstOut' : 'srcOver'}
+              blendMode={live.style.mode === 'erase' ? 'dstOut' : live.style.blend ?? 'srcOver'}
             >
               {live.style.dasharray && <DashPathEffect intervals={live.style.dasharray} />}
             </Path>

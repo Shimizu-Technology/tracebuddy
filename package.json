@@ -34,7 +34,7 @@
     "mobile:start": "npm --prefix mobile run start",
     "mobile:typecheck": "npm --prefix mobile run typecheck",
     "mobile:doctor": "npm --prefix mobile run doctor",
-    "check:native-practice-model": "tsx scripts/native-practice-model-check.ts",
+    "check:native-practice-model": "tsx scripts/native-practice-model-check.ts && tsx scripts/coloring-tools-check.ts",
     "check:audit-model": "node scripts/audit-model-check.mjs",
     "check:native-practice-operations": "tsx scripts/native-practice-operations-check.ts",
     "check:practice-model": "tsx scripts/practice-model-check.ts",

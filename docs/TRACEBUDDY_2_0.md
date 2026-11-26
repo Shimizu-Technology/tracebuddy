@@ -96,8 +96,11 @@ Opens as a native sheet over Home or the current picture group.
 
 - An edge-to-edge square document. The guide shows faintly under the ink, and its outlines are also drawn above the ink so coloring never hides them. This is today's "lines on top" behavior, now always on.
 - One finger draws. Two fingers pan and zoom (zoom range 1–5×). No Draw/Move toggle.
-- **Color rail:** a crayon box of 12 colors always on screen (side rail on iPad and landscape, bottom strip on phone portrait). The current color shows as a raised crayon.
-- **Tools:** three size dots, the brush style (crayon, marker, paint, pencil) as a single button that cycles or opens a small sheet, an eraser, Undo (large), and **Done** (main action). Picking a color while erasing switches back to the last brush.
+- **Color rail:** 15 crayons, including White, Gray, and Skin (side rail on iPad and landscape, bottom strip on phone portrait). Tap a crayon to choose it. Tap the raised crayon again or hold any crayon to see five shades. The rail keeps the chosen shade and the drawing saves its exact color.
+- **Tools:** four size dots (Fine, Round, Big, Huge), a button showing the current brush, a separate eraser, Undo, and **Done**. The brush button opens a tray with icons and stroke samples for Marker, Crayon, Watercolor, Pencil, and Fill. Pick a tool, tap outside, or swipe down to close it. Picking a color while erasing switches back to the last brush.
+- **Watercolor:** new strokes multiply with the ink underneath them. Marker covers earlier ink. Saved Paint strokes keep their original appearance. A saved Paint brush selection opens as Watercolor.
+- **Fill:** tap a closed region or the background of a line-art picture. The guide defines the boundaries, including the outlines of generated Bubble and Practice letters. Faint handwriting rules and drawn ink leave the regions open. A tap on a guide line leaves the drawing unchanged. Each fill is one undoable shape, and the eraser works on fills too. Photos and older word guides that rely on SVG text show an unavailable Fill button with a hint.
+- Fill caches up to six guide masks at 1,000 × 1,000 pixels. It extends a pixel under the outline and saves the region as a path in the drawing. Guides over 500,000 characters are ineligible. The search and contour tracing stop at 100 ms or 24,000 corners. If they hit either limit, the drawing stays intact and the app suggests using a brush.
 - Grown-up extras in More (•••): guide strength, stickers and shapes (dragged and pinched directly, not moved with arrow buttons), clear all (gated), save to Photos.
 - Lessons run inside this screen. The step strip shows the picture, step number, instruction, and Listen. The controls below the canvas switch between watching and drawing.
 
