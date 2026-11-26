@@ -6,10 +6,11 @@ import { buildDrawingBackup, DrawingBackupError, DrawingRestoreWriteError, maxDr
 import type { DrawingBackupSettings } from '../mobile/src/data/drawingBackupModel'
 import { createDrawingRecords, drawingRecordFileName } from '../mobile/src/data/drawingRecords'
 import { newDrawing, drawingCopy } from '../mobile/src/data/drawingSession'
+import { createArtFavoritePreference, parseLegacyFavoritePreferences } from '../mobile/src/data/favoritePreference'
 import { legacyPracticeSessionId } from '../mobile/src/data/legacyPractice'
 import { createPracticeImageCleanup, drawingImageUris } from '../mobile/src/data/practiceImageCleanup'
 import { createPreviousWorkStorage, normalizePreviousWorkSession, previousWorkSessionKey, serializePreviousWorkIndex } from '../mobile/src/data/previousWork'
-import { legacyPracticeAutosavePrefix, previousWorkIndexKey } from '../mobile/src/data/storageKeys'
+import { artFavoritesKey, drawingPreferencesKey, legacyPracticeAutosavePrefix, previousWorkIndexKey } from '../mobile/src/data/storageKeys'
 import { preserveLessonDrawing } from '../mobile/src/features/learn/lessonPractice'
 
 const saved = (id: string, updatedAt = '2026-11-26T09:30:00.000Z'): SavedPracticeSession => ({
@@ -187,6 +188,41 @@ const settings: DrawingBackupSettings = {
   legacyFavorites: ['butterfly'],
 }
 const emptySettings: DrawingBackupSettings = { progress: { version: 1, completedLessonIds: [], stepByLessonId: {} }, artFavorites: [], legacyFavorites: [] }
+
+const favoritesSavedIn12 = '{"version":1,"favoriteIds":["curated-flower-head-008","curated-cute-crab-056","latte-stone","bunny"],"recentIds":["hibiscus","bunny","latte-stone","curated-cute-crab-056"]}'
+const favoriteRecords = new Map<string, string>([[drawingPreferencesKey, favoritesSavedIn12]])
+const favoritesStore = createArtFavoritePreference(async (key) => favoriteRecords.get(key) ?? null, async (key, value) => {
+  favoriteRecords.set(key, value)
+})
+const favoriteBackup = async () => buildDrawingBackup({
+  ...emptySettings,
+  drawings: [],
+  artFavorites: (await favoritesStore.read()).value,
+  legacyFavorites: parseLegacyFavoritePreferences(favoriteRecords.get(drawingPreferencesKey) ?? null).favoriteIds,
+}, (uri) => uri, async () => ({ extension: 'png', base64: null }))
+const withMigratedFavorites = await favoriteBackup()
+const migratedFavorites = ['flower', 'crab', 'latte-stone', 'bunny']
+assert.deepEqual(parseDrawingBackup(JSON.stringify(withMigratedFavorites)), withMigratedFavorites)
+assert.deepEqual(withMigratedFavorites.artFavorites, migratedFavorites)
+
+const oldFavoriteBackup = parseDrawingBackup(JSON.stringify({
+  ...withMigratedFavorites, artFavoritesMigrated: undefined, artFavorites: ['panda'],
+  legacyFavorites: [...withMigratedFavorites.legacyFavorites, 'panda', 'puppy', 'seahorse', 'hibiscus'],
+}))
+assert.deepEqual(oldFavoriteBackup.artFavorites, ['panda', ...migratedFavorites, 'puppy', 'seahorse', 'hibiscus'],
+  'An older backup imports subjects before legacy catalog filtering and deduplicates them')
+
+await favoritesStore.toggle('flower')
+const afterRemoval = await favoriteBackup()
+const activeFavorites = ['crab', 'latte-stone', 'bunny']
+assert.deepEqual(afterRemoval.legacyFavorites, withMigratedFavorites.legacyFavorites)
+assert.deepEqual(afterRemoval.artFavorites, activeFavorites)
+const restoredFavorites = mergeDrawingBackupSettings(emptySettings, parseDrawingBackup(JSON.stringify(afterRemoval)))
+assert.deepEqual(restoredFavorites.artFavorites, activeFavorites, 'A new backup preserves a removal even when the legacy favorite is still present')
+favoriteRecords.set(artFavoritesKey, JSON.stringify(restoredFavorites.artFavorites))
+assert.deepEqual((await favoritesStore.read()).value, activeFavorites)
+assert.equal(favoriteRecords.get(drawingPreferencesKey), favoritesSavedIn12)
+
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII='
 const original = await store.loadPreviousWorkSessions()
 const exportBackup = () => buildDrawingBackup({ ...settings, drawings: original }, (uri) => uri, async (uri) => ({

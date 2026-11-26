@@ -1,8 +1,8 @@
-import { normalizeDrawingPreferences, normalizeLearningProgress } from '../../../shared'
-import type { DrawingPreferences, LearningProgress } from '../../../shared'
+import { drawingById, normalizeLearningProgress } from '../../../shared'
+import type { LearningProgress } from '../../../shared'
 import type { SavedPracticeSession } from '../../practiceStorageModel'
 import { canUseDrawingRecordFile } from './drawingRecords'
-import { parseArtFavorites } from './favoritePreference'
+import { legacyFavoriteSubjects, mergeLegacyFavoriteSubjects } from './legacyFavoriteSubjects'
 import { isHistoricalLegacyPracticeSessionId } from './legacyPractice'
 import { drawingImageRefs, mapDrawingImageUris, drawingImageUris } from './practiceImageCleanup'
 import type { DrawingImageKind } from './practiceImageCleanup'
@@ -30,6 +30,7 @@ type DrawingBackupContents = DrawingBackupSettings & { drawings: SavedPracticeSe
 export type DrawingBackup = DrawingBackupContents & {
   format: typeof backupFormat
   version: 1
+  artFavoritesMigrated: true
   images: BackupImage[]
 }
 
@@ -182,14 +183,19 @@ export function parseDrawingBackup(raw: string): DrawingBackup {
   stringList(progress.completedLessonIds)
   if (progress.version !== 1 || Object.keys(steps).length > 5000
     || !Object.values(steps).every((step) => typeof step === 'number' && Number.isFinite(step))) return invalid()
+  const artFavorites = stringList(data.artFavorites)
+  const legacyFavorites = stringList(data.legacyFavorites)
   return {
     format: backupFormat,
     version: 1,
+    artFavoritesMigrated: true,
     drawings,
     images,
     progress: normalizeLearningProgress(progress),
-    artFavorites: parseArtFavorites(JSON.stringify(stringList(data.artFavorites))),
-    legacyFavorites: normalizeDrawingPreferences({ favoriteIds: stringList(data.legacyFavorites) }).favoriteIds,
+    // Older backups can have subjects in the legacy list. New backups carry
+    // the current art list, including removals made since the one-time import.
+    artFavorites: data.artFavoritesMigrated === true ? artFavorites : mergeLegacyFavoriteSubjects(artFavorites, legacyFavorites),
+    legacyFavorites: [...new Set(legacyFavorites.filter((id) => drawingById(id) || legacyFavoriteSubjects.has(id)))],
   }
 }
 
@@ -204,7 +210,7 @@ export async function buildDrawingBackup(
     if (!refs.has(resolved)) refs.set(resolved, refs.size)
     return imageReference(refs.get(resolved)!)
   }))
-  const backup: DrawingBackup = { ...contents, format: backupFormat, version: 1, drawings, images: [] }
+  const backup: DrawingBackup = { ...contents, format: backupFormat, version: 1, artFavoritesMigrated: true, drawings, images: [] }
   let bytes = utf8ByteLength(JSON.stringify({ ...backup, drawings: [] }))
   for (const [index, drawing] of drawings.entries()) {
     decodeDrawing(drawing, refs.size)
@@ -291,8 +297,4 @@ export async function mergeDrawingBackup(backup: DrawingBackup, io: DrawingResto
   } catch (cause) {
     throw new DrawingRestoreWriteError(result, { cause })
   }
-}
-
-export function withBackupFavorites(preferences: DrawingPreferences, favorites: string[]) {
-  return normalizeDrawingPreferences({ ...preferences, favoriteIds: favorites })
 }

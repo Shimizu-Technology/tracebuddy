@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy'
 import { createOperationQueue, writeIfCurrent } from '../../practiceOperations'
 import type { OperationGuard } from '../../practiceOperations'
 import { createDrawingRecords, drawingRecordFolder } from './drawingRecords'
+import { createArtFavoritePreference } from './favoritePreference'
 import { createPreviousWorkStorage } from './previousWork'
 import type { LocalSettingKey } from './storageKeys'
 
@@ -40,3 +41,9 @@ export function writeLocalSetting(key: LocalSettingKey, serialize: () => string,
 export function writeLocalSettingInQueue(key: LocalSettingKey, value: string) {
   return AsyncStorage.setItem(key, value)
 }
+
+export const artFavoritePreference = createArtFavoritePreference(
+  readLocalSetting,
+  writeLocalSettingInQueue,
+  queueDrawingPreferencesOperation,
+)

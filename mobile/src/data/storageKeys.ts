@@ -11,7 +11,8 @@ export const resumeContextKey = 'tracebuddy.resumeContext.v1'
 export const familyActivityKey = 'tracebuddy.familyActivity.v1'
 export const savedAlignmentKey = 'tracebuddy.savedAlignment.v1'
 export const whoIsDrawingKey = 'tracebuddy.whoIsDrawing.v1'
-export const artFavoritesKey = 'tracebuddy.artFavorites.v1'
+export const legacyArtFavoritesKey = 'tracebuddy.artFavorites.v1'
+export const artFavoritesKey = 'tracebuddy.artFavorites.v2'
 export { modePreferenceKey }
 
 export const localSettingKeys = [
@@ -24,6 +25,7 @@ export const localSettingKeys = [
   familyActivityKey,
   modePreferenceKey,
   whoIsDrawingKey,
+  legacyArtFavoritesKey,
   artFavoritesKey,
 ] as const
 
