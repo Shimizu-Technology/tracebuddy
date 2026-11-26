@@ -21,7 +21,7 @@
       "package": "com.shimizutechnology.tracebuddy",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFF1DC"
+        "backgroundColor": "#C2E4FF"
       },
       "permissions": [
         "android.permission.CAMERA",
