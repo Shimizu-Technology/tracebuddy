@@ -11,10 +11,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.shimizutechnology.tracebuddy",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "TraceBuddy uses your camera to find your paper, place a tracing guide on it, and keep the guide aligned as the device moves. Camera frames, photos, and drawings stay on this device.",
-        "NSPhotoLibraryUsageDescription": "TraceBuddy lets you choose a local photo or drawing to trace or add as a practice sticker. Images stay on this device.",
-        "NSPhotoLibraryAddUsageDescription": "TraceBuddy saves finished drawings to Photos only when you choose Save image."
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": []
       }
     },
     "android": {
@@ -36,21 +38,22 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "TraceBuddy uses your camera to find your paper, place a tracing guide on it, and keep the guide aligned as the device moves. Camera frames, photos, and drawings stay on this device.",
-          "recordAudioAndroid": false
+          "cameraPermission": "Use your camera to trace on paper and take a photo of your finished drawing.",
+          "recordAudioAndroid": false,
+          "microphonePermission": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "TraceBuddy lets you choose a local photo or drawing to trace or add as a practice sticker. Images stay on this device."
+          "photosPermission": "Choose a photo from your library to use in a drawing.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "TraceBuddy saves finished drawings to Photos only when you choose Save image.",
-          "savePhotosPermission": "TraceBuddy saves finished drawings to Photos only when you choose Save image.",
+          "savePhotosPermission": "Save a copy of your drawing to your photo library when you tap Save to Photos.",
           "isAccessMediaLocationEnabled": false
         }
       ],

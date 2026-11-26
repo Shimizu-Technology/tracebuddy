@@ -1,6 +1,6 @@
 # TraceBuddy App Store Submission Notes
 
-This document collects the App Store Connect copy, decisions, and release checklist for iOS releases.
+For TraceBuddy GU 2.0, use [the 2.0 listing and App Review notes](app-store/2.0-listing.md). The sample copy and release notes below are for earlier builds.
 
 ## Important release note
 
