@@ -1,0 +1,7 @@
+{"method": "A", "subject": "flower", "title": "Flower", "picture": "simple/flower", "ops": {},
+ "steps": [
+  {"say": "Draw a circle in the middle.", "strokes": [0]},
+  {"say": "Add big round petals all around.", "strokes": [3, 9, 7, 2, 5, 8]},
+  {"say": "Draw a long stem.", "strokes": [1]},
+  {"say": "Add two leaves.", "strokes": [6, 11, 4, 10]}
+ ]}

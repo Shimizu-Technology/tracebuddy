@@ -1,0 +1,8 @@
+{"method": "A", "subject": "airplane", "title": "Airplane", "picture": "simple/airplane", "ops": {},
+ "steps": [
+  {"say": "Draw a big plane with a wing.", "strokes": [0]},
+  {"say": "Add a little wing at the back.", "strokes": [1, 10, 8]},
+  {"say": "Add stripes on the tail and nose.", "strokes": [4, 3, 9]},
+  {"say": "Draw a window for the pilot.", "strokes": [2]},
+  {"say": "Add three round windows.", "strokes": [7, 6, 5]}
+ ]}

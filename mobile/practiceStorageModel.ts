@@ -39,6 +39,7 @@ export type PracticeStroke = {
   opacity: number
   mode: PracticeStrokeMode
   dasharray?: number[]
+  lessonStep?: number
 }
 
 export type PracticeSticker = {
@@ -82,6 +83,7 @@ export type SavedPracticeSession = {
   brushToolId: BrushToolId
   stamp?: KeepsakeStamp
   finishedAt?: string
+  lessonFinished?: true
 }
 
 export type UploadedImage = {
@@ -112,6 +114,8 @@ export function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | n
   if (typeof stroke.width !== 'number' || !Number.isFinite(stroke.width) || stroke.width <= 0) return null
 
   return {
+    ...(typeof stroke.lessonStep === 'number' && Number.isSafeInteger(stroke.lessonStep) && stroke.lessonStep >= 0
+      ? { lessonStep: stroke.lessonStep } : {}),
     path: stroke.path,
     color: typeof stroke.color === 'string' ? stroke.color : defaultMarkerColor,
     width: practiceStrokeWidth(stroke.width),
@@ -188,6 +192,7 @@ export function normalizeSavedPracticeSession(value: unknown): SavedPracticeSess
 
   return {
     version: 2,
+    ...(session.lessonFinished === true ? { lessonFinished: true } : {}),
     stamp: normalizeStamp(session.stamp),
     finishedAt: typeof session.finishedAt === 'string' && Number.isFinite(Date.parse(session.finishedAt)) ? session.finishedAt : undefined,
     sessionId: session.sessionId,

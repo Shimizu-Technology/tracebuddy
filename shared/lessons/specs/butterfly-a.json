@@ -1,0 +1,9 @@
+{"method": "A", "subject": "butterfly", "title": "Butterfly", "picture": "simple/butterfly", "ops": {},
+ "steps": [
+  {"say": "Draw a round head.", "strokes": [3]},
+  {"say": "Draw a long body.", "strokes": [2]},
+  {"say": "Add two wings on this side.", "strokes": [0, 4]},
+  {"say": "Add two wings on that side.", "strokes": [1, 5]},
+  {"say": "Add circles on the wings.", "strokes": [6, 8, 7, 9]},
+  {"say": "Add feelers and a happy face.", "strokes": [10, 11, 13, 12, 14]}
+ ]}

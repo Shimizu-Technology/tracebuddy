@@ -1,0 +1,9 @@
+{"method": "A", "subject": "crab", "title": "Crab", "picture": "simple/crab", "ops": {},
+ "steps": [
+  {"say": "Draw a big round body.", "strokes": [0]},
+  {"say": "Add two eyes on little sticks.", "strokes": [18, 20, 3, 21, 19, 4]},
+  {"say": "Add a big claw on this side.", "strokes": [12, 16, 1]},
+  {"say": "Add a big claw on that side.", "strokes": [13, 17, 2]},
+  {"say": "Add three legs on each side.", "strokes": [6, 8, 10, 5, 7, 9]},
+  {"say": "Draw shiny eyes and a big smile.", "strokes": [15, 14, 11], "dots": [0, 1]}
+ ]}

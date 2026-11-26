@@ -1,0 +1,10 @@
+{"method": "A", "subject": "rocket", "title": "Rocket", "picture": "simple/rocket",
+ "ops": {},
+ "steps": [
+  {"say": "Draw a tall rocket. Make it pointy at the top.", "strokes": [0]},
+  {"say": "Draw a curved top line and a little shine.", "strokes": [6, 9]},
+  {"say": "Draw a round window with a smaller circle inside.", "strokes": [1, 2]},
+  {"say": "Add a fin on this side.", "strokes": [4, 10]},
+  {"say": "Now add a fin on the other side.", "strokes": [3, 11]},
+  {"say": "Add the engine and a big flame!", "strokes": [7, 5, 8]}
+ ]}

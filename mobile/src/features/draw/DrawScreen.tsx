@@ -1,6 +1,6 @@
 import { photoDrawingName } from '../../data/practiceSource'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
+import { Redirect, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
 import { usePreventRemove } from 'expo-router/react-navigation'
 import { Alert, AppState, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -23,6 +23,7 @@ import { ArrowClockwiseIcon, DotsThreeIcon } from '../../ui/icons'
 import { PageHeader } from '../../ui/PageHeader'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
+import { lessonDestination, lessonForSession } from '../learn/lessonPractice'
 import { PictureLineFeedback } from '../picture/PictureLineFeedback'
 import { DrawingCanvas } from './DrawingCanvas'
 import type { CanvasHandle } from './DrawingCanvas'
@@ -47,6 +48,11 @@ export default function DrawScreen() {
     }).catch(() => { if (active) setLoaded(null) })
     return () => { active = false }
   }, [fresh, sessionId])
+
+  const lesson = sessionId && lessonForSession(sessionId)
+  if (lesson && loaded && fresh !== '1' && !loaded.lessonFinished) {
+    return <Redirect href={lessonDestination(lesson)} />
+  }
 
   if (line.status === 'ready') {
     if (sessionId && loaded) return <ActiveDrawing key={loaded.sessionId} initial={loaded} guideSvg={line.xml} wasSaved={fresh !== '1'} params={params} />

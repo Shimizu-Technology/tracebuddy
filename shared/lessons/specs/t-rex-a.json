@@ -1,0 +1,10 @@
+{"method": "A", "subject": "t-rex", "title": "T-rex", "picture": "simple/t-rex",
+ "ops": {},
+ "steps": [
+  {"say": "Draw a big head with a round nose.", "strokes": [1]},
+  {"say": "Draw a long back and a pointy tail.", "strokes": [0, 5]},
+  {"say": "Add a round tummy and two strong legs.", "strokes": [3, 2, 8]},
+  {"say": "Add two little arms.", "strokes": [14, 4, 16, 13, 11]},
+  {"say": "Add bumpy spikes down the back.", "strokes": [10, 7, 12]},
+  {"say": "Draw an eye, a nose, and a big smile.", "strokes": [6, 15, 17, 9]}
+ ]}

@@ -1,0 +1,8 @@
+{"method": "A", "subject": "octopus", "title": "Octopus", "picture": "simple/octopus", "ops": {"split": [[0, 500, 122]]},
+ "steps": [
+  {"say": "Draw a big round head and two curls.", "strokes": ["0a", "0b"]},
+  {"say": "Add a curly arm on each side.", "strokes": [5, 4]},
+  {"say": "Add two more curly arms.", "strokes": [2, 10, 3, 11]},
+  {"say": "Add the wiggly arms in the middle.", "strokes": [6, 1, 7]},
+  {"say": "Draw two big eyes and a smile.", "strokes": [9, 13, 8, 14, 15, 12], "dots": [0, 1]}
+ ]}

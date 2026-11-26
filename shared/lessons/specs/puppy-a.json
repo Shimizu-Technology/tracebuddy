@@ -1,0 +1,9 @@
+{"method": "A", "subject": "puppy", "title": "Puppy", "picture": "simple/puppy", "ops": {},
+ "steps": [
+  {"say": "Draw a round head and a floppy ear.", "strokes": [0]},
+  {"say": "Add another floppy ear.", "strokes": [4]},
+  {"say": "Draw a collar with a little tag.", "strokes": [6, 16, 7]},
+  {"say": "Draw the body and the legs.", "strokes": [1, 9, 2, 11, 3]},
+  {"say": "Add a waggy tail and little toes.", "strokes": [5, 8, 23, 22, 21, 17, 19, 18, 20]},
+  {"say": "Draw eyes, a nose and a smile.", "strokes": [12, 14, 10, 13, 15], "dots": [0]}
+ ]}

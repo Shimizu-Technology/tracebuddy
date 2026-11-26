@@ -1,4 +1,5 @@
 import type { Drawing, DrawingCategoryId, DrawingDifficulty } from './drawings'
+import { drawingLessonIndex } from './lessons/drawingLessons'
 
 export type GuidedLessonStep = {
   title: string
@@ -140,7 +141,12 @@ export const guidedLessons: GuidedLesson[] = [
   },
 ]
 
-const lessonIds = new Set(guidedLessons.map(({ id }) => id))
+type LessonWithSteps = { id: string; steps: readonly unknown[] }
+
+const lessonStepCounts = new Map([
+  ...guidedLessons.map(({ id, steps }): [string, number] => [id, steps.length]),
+  ...drawingLessonIndex.map(({ id, stepCount }): [string, number] => [id, stepCount]),
+])
 
 export const emptyLearningProgress: LearningProgress = {
   version: 1,
@@ -148,34 +154,34 @@ export const emptyLearningProgress: LearningProgress = {
   stepByLessonId: {},
 }
 
-function clampStep(lesson: GuidedLesson, value: unknown) {
+function clampStep(stepCount: number, value: unknown) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0
-  return Math.min(lesson.steps.length - 1, Math.max(0, Math.floor(value)))
+  return Math.min(stepCount - 1, Math.max(0, Math.floor(value)))
 }
 
 export function normalizeLearningProgress(value: unknown): LearningProgress {
   if (!value || typeof value !== 'object') return { ...emptyLearningProgress, stepByLessonId: {} }
   const candidate = value as Partial<LearningProgress>
   const completedLessonIds = Array.isArray(candidate.completedLessonIds)
-    ? candidate.completedLessonIds.filter((id, index): id is string => typeof id === 'string' && lessonIds.has(id) && candidate.completedLessonIds?.indexOf(id) === index)
+    ? candidate.completedLessonIds.filter((id, index): id is string => typeof id === 'string' && lessonStepCounts.has(id) && candidate.completedLessonIds?.indexOf(id) === index)
     : []
   const stepByLessonId: Record<string, number> = {}
   if (candidate.stepByLessonId && typeof candidate.stepByLessonId === 'object') {
-    for (const lesson of guidedLessons) {
-      if (lesson.id in candidate.stepByLessonId) stepByLessonId[lesson.id] = clampStep(lesson, candidate.stepByLessonId[lesson.id])
+    for (const [id, stepCount] of lessonStepCounts) {
+      if (Object.hasOwn(candidate.stepByLessonId, id)) stepByLessonId[id] = clampStep(stepCount, candidate.stepByLessonId[id])
     }
   }
   return { version: 1, completedLessonIds, stepByLessonId }
 }
 
-export function updateLearningStep(progress: LearningProgress, lesson: GuidedLesson, stepIndex: number): LearningProgress {
+export function updateLearningStep(progress: LearningProgress, lesson: LessonWithSteps, stepIndex: number): LearningProgress {
   return {
     ...progress,
-    stepByLessonId: { ...progress.stepByLessonId, [lesson.id]: clampStep(lesson, stepIndex) },
+    stepByLessonId: { ...progress.stepByLessonId, [lesson.id]: clampStep(lesson.steps.length, stepIndex) },
   }
 }
 
-export function completeGuidedLesson(progress: LearningProgress, lesson: GuidedLesson): LearningProgress {
+export function completeGuidedLesson(progress: LearningProgress, lesson: LessonWithSteps): LearningProgress {
   return {
     version: 1,
     completedLessonIds: progress.completedLessonIds.includes(lesson.id) ? progress.completedLessonIds : [...progress.completedLessonIds, lesson.id],
@@ -184,7 +190,7 @@ export function completeGuidedLesson(progress: LearningProgress, lesson: GuidedL
 }
 
 function lessonSvg(lesson: GuidedLesson, stepIndex: number, includeFuture: boolean) {
-  const activeStep = clampStep(lesson, stepIndex)
+  const activeStep = clampStep(lesson.steps.length, stepIndex)
   const rendered = lesson.steps.map((step, index) => {
     if (!includeFuture && index > activeStep) return ''
     const color = index === activeStep && !includeFuture ? '#FF795D' : '#18243A'
@@ -206,7 +212,7 @@ export function guidedLessonPreviewDrawing(lesson: GuidedLesson): Drawing {
 }
 
 export function guidedLessonStepDrawing(lesson: GuidedLesson, stepIndex: number): Drawing {
-  const activeStep = clampStep(lesson, stepIndex)
+  const activeStep = clampStep(lesson.steps.length, stepIndex)
   return {
     id: `lesson-${lesson.id}-step-${activeStep + 1}`,
     name: `${lesson.title} · Step ${activeStep + 1}`,

@@ -1,0 +1,8 @@
+{"method": "A", "subject": "whale", "title": "Whale", "picture": "simple/whale", "ops": {},
+ "steps": [
+  {"say": "Draw a big round whale.", "strokes": [0]},
+  {"say": "Finish the tail with a curvy line.", "strokes": [1, 4]},
+  {"say": "Draw a line for the tummy.", "strokes": [2, 7]},
+  {"say": "Add two water drops on top.", "strokes": [3, 5]},
+  {"say": "Draw a happy eye.", "strokes": [6], "dots": [0]}
+ ]}

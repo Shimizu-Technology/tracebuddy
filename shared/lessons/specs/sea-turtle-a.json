@@ -1,0 +1,9 @@
+{"method": "A", "subject": "sea-turtle", "title": "Sea turtle", "picture": "simple/sea-turtle", "ops": {},
+ "steps": [
+  {"say": "Draw a big round shell.", "strokes": [0]},
+  {"say": "Draw a circle inside it.", "strokes": [1]},
+  {"say": "Add a round head.", "strokes": [3]},
+  {"say": "Add four flippers and a little tail.", "strokes": [5, 4, 6, 7, 9]},
+  {"say": "Draw shapes on the shell.", "strokes": [17, 2, 19, 18, 8, 15, 12, 14, 10]},
+  {"say": "Draw an eye and a big smile.", "strokes": [16, 13, 11], "dots": [0]}
+ ]}

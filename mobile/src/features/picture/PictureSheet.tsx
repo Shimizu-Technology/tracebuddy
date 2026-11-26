@@ -3,11 +3,14 @@ import { Alert, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router'
 import { StackActions } from 'expo-router/build/react-navigation/routers'
 
+import { drawingLessonForPicture } from '../../../../shared/lessons/drawingLessons'
 import { pictureLevels, resolvePicture } from '../../data/catalog'
 import type { ArtLevel, PictureParams } from '../../data/catalog'
 import { parseModePreference, serializeModePreference } from '../../data/localSettings'
 import { readLocalSetting, writeLocalSetting } from '../../data/nativeStorage'
 import { modePreferenceKey } from '../../data/storageKeys'
+import { Icon } from '../../ui/Icon'
+import { PencilSimpleIcon } from '../../ui/icons'
 import { Button } from '../../ui/Button'
 import { PressTarget } from '../../ui/PressTarget'
 import { Text } from '../../ui/Text'
@@ -16,6 +19,7 @@ import { PictureArt } from './PictureArt'
 import { PictureModeIllustration } from './PictureModeIllustration'
 import { keepDrawingImages } from '../../data/drawingImageFiles'
 import { readPictureLine } from '../../data/usePictureLine'
+import { lessonDestination } from '../learn/lessonPractice'
 import { photoHandoff } from '../paper/usePhotoLease'
 import { picturePastel } from './picturePastel'
 
@@ -33,6 +37,7 @@ export default function PictureSheet() {
   const focused = useRef(false)
   const { height, fontScale } = useWindowDimensions()
   const picture = resolvePicture({ ...params, level })
+  const lesson = picture && drawingLessonForPicture(picture.id, picture.level)
   const levels = picture?.level ? pictureLevels(picture.id) : []
   const photoUri = picture?.uploadedImage?.uri
 
@@ -90,7 +95,7 @@ export default function PictureSheet() {
   const stacked = fontScale >= theme.layout.stackedHeaderFontScale
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={[styles.preview, { width: Math.min(theme.layout.picturePreviewMax, height * 0.255), backgroundColor: theme.pastels[picturePastel[picture.category]] }]}>
+      <View style={[styles.preview, { width: Math.min(theme.layout.picturePreviewMax, height * (lesson ? 0.19 : 0.255)), backgroundColor: theme.pastels[picturePastel[picture.category]] }]}>
         <PictureArt picture={picture} />
       </View>
       <Text accessibilityRole="header" variant="title" style={styles.title}>{picture.name}</Text>
@@ -107,16 +112,29 @@ export default function PictureSheet() {
           ))}
         </View>
       )}
-      <Text tone="muted" style={styles.title}>How do you want to draw?</Text>
+      {!lesson && <Text tone="muted" style={styles.title}>How do you want to draw?</Text>}
       <View style={[styles.choices, stacked && styles.stacked]}>
         {modes.map(({ id, label, pastel }) => (
           <PressTarget key={id} onPress={() => void openMode(id)}
             accessibilityLabel={label} accessibilityHint={lastMode === id ? 'Last used' : undefined}
-            style={[styles.choice, lastMode === id && styles.lastMode]}>
-            <View style={[styles.modeIcon, { backgroundColor: pastel }]}><PictureModeIllustration mode={id} /></View>
-            <Text variant="body" style={styles.title}>{label}</Text>
+            style={[styles.choice, lesson && styles.compactChoice, lastMode === id && styles.lastMode]}>
+            <View style={[styles.modeIcon, { backgroundColor: pastel }]}>
+              <PictureModeIllustration mode={id} height={lesson ? 60 : undefined} />
+            </View>
+            <Text variant={lesson ? 'label' : 'body'} style={styles.title}>{label}</Text>
           </PressTarget>
         ))}
+        {lesson && (
+          <PressTarget accessibilityLabel="Learn to draw this" style={[styles.choice, styles.compactChoice, styles.lessonChoice]}
+            onPress={() => {
+              if (navigating.current) return
+              navigating.current = true
+              router.replace(lessonDestination(lesson))
+            }}>
+            <View style={[styles.modeIcon, styles.lessonIcon]}><Icon glyph={PencilSimpleIcon} size={32} /></View>
+            <Text variant="label" style={styles.title}>Learn to draw this</Text>
+          </PressTarget>
+        )}
       </View>
     </ScrollView>
   )
@@ -142,6 +160,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', borderRadius: theme.radius.tile,
     borderColor: theme.colors.hairline, borderWidth: theme.border.emphasis, backgroundColor: theme.colors.background,
   },
+  compactChoice: { padding: theme.space.sm, gap: theme.space.sm, justifyContent: 'flex-start' },
+  lessonChoice: { backgroundColor: theme.pastels.butter },
+  lessonIcon: { minHeight: 68, alignItems: 'center', justifyContent: 'center' },
   lastMode: { borderColor: theme.colors.ink, backgroundColor: theme.pastels.peach },
   modeIcon: { width: '100%', borderRadius: theme.space.lg, paddingVertical: theme.space.xs },
 })

@@ -1,0 +1,8 @@
+{"method": "A", "subject": "penguin", "title": "Penguin", "picture": "simple/penguin", "ops": {},
+ "steps": [
+  {"say": "Draw a big round body.", "strokes": [0]},
+  {"say": "Add two flappy wings.", "strokes": [2, 5, 3]},
+  {"say": "Draw the face and the tummy.", "strokes": [1, 7]},
+  {"say": "Add two little feet.", "strokes": [10, 8, 6]},
+  {"say": "Draw two eyes and a little beak.", "strokes": [9, 11, 4]}
+ ]}

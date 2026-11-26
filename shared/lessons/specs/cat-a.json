@@ -1,0 +1,71 @@
+{
+ "method": "A",
+ "subject": "cat",
+ "title": "Sleepy cat",
+ "picture": "simple/cat",
+ "ops": {
+  "add": {
+   "pawLeft": "M320 600C338 614 348 640 349 688",
+   "pawRight": "M398 598C376 620 362 650 364 682",
+   "toeRight": "M391 636C379 646 370 660 372 677"
+  }
+ },
+ "steps": [
+  {
+   "say": "Draw a round head with two pointy ears.",
+   "strokes": [
+    0,
+    5,
+    6
+   ]
+  },
+  {
+   "say": "Draw a big round body that curls around.",
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "say": "Add a fluffy tail and the legs.",
+   "strokes": [
+    2,
+    3,
+    4
+   ]
+  },
+  {
+   "say": "Add the little paws.",
+   "strokes": [
+    "pawLeft",
+    17,
+    25,
+    "pawRight",
+    "toeRight",
+    19,
+    7,
+    18,
+    20
+   ]
+  },
+  {
+   "say": "Draw sleepy eyes and a tiny nose.",
+   "strokes": [
+    10,
+    13,
+    8,
+    14
+   ]
+  },
+  {
+   "say": "Add whiskers on both sides.",
+   "strokes": [
+    9,
+    15,
+    26,
+    11,
+    21,
+    23
+   ]
+  }
+ ]
+}

@@ -1,0 +1,9 @@
+{"method": "A", "subject": "lion", "title": "Lion", "picture": "simple/lion", "ops": {"split": [[3, 297, 645]]},
+ "steps": [
+  {"say": "Draw a big round face.", "strokes": [0]},
+  {"say": "Add two little round ears.", "strokes": [6, 24, 7, 25]},
+  {"say": "Draw a fluffy mane all around.", "strokes": [16, 10, 13, 9, 2, 15, 11, 18, 17, 23, "3a"]},
+  {"say": "Draw the body and the legs.", "strokes": ["3b", 21, 12, 1, 22, 27, 20, 4, 19]},
+  {"say": "Add a tail and little toes.", "strokes": [14, 26, 5, 36, 37, 32, 38, 39, 33, 35, 34]},
+  {"say": "Draw two eyes, a nose and a smile.", "strokes": [30, 29, 8, 31, 28]}
+ ]}

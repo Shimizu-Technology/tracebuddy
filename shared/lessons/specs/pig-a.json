@@ -1,0 +1,9 @@
+{"method": "A", "subject": "pig", "title": "Pig", "picture": "simple/pig", "ops": {},
+ "steps": [
+  {"say": "Draw a big head with floppy ears.", "strokes": [10, 4, 22, 6, 5, 17, 29, 8]},
+  {"say": "Add a big round snout.", "strokes": [9, 2]},
+  {"say": "Draw a big round body.", "strokes": [0, 14]},
+  {"say": "Add four little legs.", "strokes": [12, 7, 3, 13, 1, 20, 23, 18, 21]},
+  {"say": "Add a curly tail.", "strokes": [16, 26, 15, 11]},
+  {"say": "Draw an eye, nose holes and a smile.", "strokes": [19, 25, 27, 28, 24], "dots": [0]}
+ ]}

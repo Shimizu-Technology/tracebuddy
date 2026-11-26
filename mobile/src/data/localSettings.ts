@@ -18,7 +18,12 @@ export function parseDrawingPreferences(raw: string | null) {
 }
 
 export function parseLearningProgress(raw: string | null) {
-  return normalizeLearningProgress(parseJson(raw))
+  try {
+    return normalizeLearningProgress(parseJson(raw))
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    return normalizeLearningProgress(null)
+  }
 }
 
 export function parseSavedAlignment(raw: string | null) {

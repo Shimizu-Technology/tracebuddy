@@ -493,6 +493,7 @@ function TraceBuddyMobile() {
   const [drawingPreferencesClearInProgress, setDrawingPreferencesClearInProgress] = useState(false)
   const [learningProgress, setLearningProgress] = useState<LearningProgress>({ ...emptyLearningProgress, stepByLessonId: {} })
   const [learningProgressMessage, setLearningProgressMessage] = useState('')
+  const finishedGuidedLessons = guidedLessons.filter((lesson) => learningProgress.completedLessonIds.includes(lesson.id)).length
   const [selectedLesson, setSelectedLesson] = useState<GuidedLesson>(guidedLessons[0])
   const [savedAlignment, setSavedAlignment] = useState<TraceAlignment | null>(null)
   const [setupCoachOpen, setSetupCoachOpen] = useState(false)
@@ -1552,10 +1553,10 @@ function TraceBuddyMobile() {
                 <Text style={styles.learningEyebrow}>LEARN, DON’T JUST COPY</Text>
                 <Text style={styles.learningCalloutTitle}>Build a drawing one friendly step at a time.</Text>
                 <Text style={styles.learningCalloutCopy}>Eight short lessons teach lines, curves, and picture-building. There are no scores or wrong answers.</Text>
-                <View style={styles.learningProgressTrack} accessibilityLabel={`${learningProgress.completedLessonIds.length} of ${guidedLessons.length} lessons finished`}>
-                  <View style={[styles.learningProgressFill, { width: `${(learningProgress.completedLessonIds.length / guidedLessons.length) * 100}%` }]} />
+                <View style={styles.learningProgressTrack} accessibilityLabel={`${finishedGuidedLessons} of ${guidedLessons.length} lessons finished`}>
+                  <View style={[styles.learningProgressFill, { width: `${(finishedGuidedLessons / guidedLessons.length) * 100}%` }]} />
                 </View>
-                <Text style={styles.learningProgressText}>{learningProgress.completedLessonIds.length} of {guidedLessons.length} finished on this phone</Text>
+                <Text style={styles.learningProgressText}>{finishedGuidedLessons} of {guidedLessons.length} finished on this phone</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.learningQuickList}>
                   {guidedLessons.slice(0, 4).map((lesson) => (
                     <Pressable key={lesson.id} style={styles.learningQuickCard} onPress={() => openGuidedLesson(lesson)} accessibilityRole="button" accessibilityLabel={`Learn ${lesson.title}, ${lesson.steps.length} steps`}>

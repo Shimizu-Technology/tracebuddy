@@ -5,6 +5,7 @@ export const previousWorkSessionPrefix = 'tracebuddy.previousWork.v1.session.'
 export const legacyPracticeAutosavePrefix = 'tracebuddy.practice.v1.'
 export const drawingPreferencesKey = 'tracebuddy.drawingPreferences.v1'
 export const learningProgressKey = 'tracebuddy.learningProgress.v1'
+export const lessonMutedKey = 'tracebuddy.lessonMuted.v1'
 export const parentSetupSeenKey = 'tracebuddy.parentSetupSeen.v1'
 export const resumeContextKey = 'tracebuddy.resumeContext.v1'
 export const familyActivityKey = 'tracebuddy.familyActivity.v1'
@@ -17,6 +18,7 @@ export const localSettingKeys = [
   resumeContextKey,
   drawingPreferencesKey,
   learningProgressKey,
+  lessonMutedKey,
   parentSetupSeenKey,
   savedAlignmentKey,
   familyActivityKey,

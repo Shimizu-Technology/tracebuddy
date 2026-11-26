@@ -1,0 +1,7 @@
+{"method": "A", "subject": "sun", "title": "Sun", "picture": "simple/sun", "ops": {},
+ "steps": [
+  {"say": "Draw a big round circle.", "strokes": [0]},
+  {"say": "Add little triangles on top.", "strokes": [3, 7, 12, 1, 11, 8, 4]},
+  {"say": "Add more triangles at the bottom.", "strokes": [5, 10, 2, 9, 6]},
+  {"say": "Draw two eyes and a big smile.", "strokes": [13, 14, 15]}
+ ]}

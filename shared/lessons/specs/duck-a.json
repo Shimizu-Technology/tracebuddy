@@ -1,0 +1,8 @@
+{"method": "A", "subject": "duck", "title": "Duck", "picture": "simple/duck", "ops": {},
+ "steps": [
+  {"say": "Draw a round head with a beak.", "strokes": [2, 6, 10, 5, 11]},
+  {"say": "Draw a big body with a pointy tail.", "strokes": [3, 0]},
+  {"say": "Add a wing in the middle.", "strokes": [1, 8]},
+  {"say": "Add two flat feet.", "strokes": [7, 12, 4]},
+  {"say": "Draw a happy eye.", "strokes": [9], "dots": [0]}
+ ]}

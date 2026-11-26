@@ -1,0 +1,9 @@
+{"method": "A", "subject": "snowman", "title": "Snowman", "picture": "simple/snowman", "ops": {},
+ "steps": [
+  {"say": "Draw a big round snowball.", "strokes": [0]},
+  {"say": "Add a smaller snowball on top.", "strokes": [1]},
+  {"say": "Put a tall hat on the head.", "strokes": [5, 9, 4]},
+  {"say": "Wrap a cozy scarf around the neck.", "strokes": [6, 23, 24, 26, 25, 18, 27, 30, 3, 28, 21, 19]},
+  {"say": "Add arms, buttons and two little feet.", "strokes": [2, 16, 12, 8, 15, 13, 14, 11, 10]},
+  {"say": "Draw eyes, a carrot nose and a smile.", "strokes": [20, 22, 7, 29, 31, 32, 17]}
+ ]}

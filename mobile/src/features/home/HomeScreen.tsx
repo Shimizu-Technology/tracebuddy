@@ -1,7 +1,7 @@
 import { drawingTitle } from '../../data/practiceSource'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, FlatList, StyleSheet, TextInput, View } from 'react-native'
-import { router, useFocusEffect } from 'expo-router'
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { continueDrawing } from '../../../finishFindModel'
@@ -20,6 +20,7 @@ import { PressTarget } from '../../ui/PressTarget'
 import { Text } from '../../ui/Text'
 import { theme } from '../../ui/theme'
 import { DrawingThumbnail } from '../drawings/DrawingThumbnail'
+import { LessonShelf } from '../learn/LessonShelf'
 import { PictureArt } from '../picture/PictureArt'
 import { PictureTile } from '../picture/PictureTile'
 import { picturePastel } from '../picture/picturePastel'
@@ -37,6 +38,8 @@ const makeYourOwn = [
 
 export default function HomeScreen() {
   const { contentWidth, fontScale, columns, tileWidth } = usePictureGrid()
+  const { lessons } = useLocalSearchParams<{ lessons?: string }>()
+  const grid = useRef<FlatList<GridTile>>(null)
   const [level, setLevel] = useState<ArtLevel | null>()
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
@@ -59,6 +62,14 @@ export default function HomeScreen() {
       .catch(() => { if (active) setLevel(null) })
     return () => { active = false; homeFocused.current = false }
   }, []))
+
+  useFocusEffect(useCallback(() => {
+    if (lessons !== '1') return
+    setSearching(false)
+    setQuery('')
+    grid.current?.scrollToOffset({ offset: 0, animated: false })
+    router.setParams({ lessons: undefined })
+  }, [lessons]))
 
   async function chooseArtist(value: ArtLevel) {
     if (levelPending.current) return
@@ -112,6 +123,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.page}>
       <FlatList
+        ref={grid}
         key={columns}
         data={tiles}
         keyExtractor={(item) => item.kind === 'group' ? `group-${item.group.id}` : `picture-${item.picture.id}`}
@@ -161,6 +173,7 @@ export default function HomeScreen() {
             )}
             {!normalizedQuery && (
               <>
+                <LessonShelf width={Math.min(tileWidth, theme.layout.favoriteTileWidth)} />
                 <View style={styles.row}>
                   {makeYourOwn.map(({ id, label, icon, pastel }) => (
                     <PressTarget key={id} style={styles.special} accessibilityLabel={label}

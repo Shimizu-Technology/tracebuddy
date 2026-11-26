@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { followLatestSave, operationGuard } from '../../../practiceOperations'
+import type { OperationGuard } from '../../../practiceOperations'
 import type { SavedPracticeSession } from '../../../practiceStorageModel'
 import { deleteDrawing, hasDrawingContent, newDrawing, readDrawing, saveDrawing } from '../../data/drawingLibrary'
 
@@ -64,7 +65,7 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
     return followLatestSave(attempt, () => pending.current?.save ?? null, isCurrent)
   }, [])
 
-  const clear = useCallback(async () => {
+  const clear = useCallback(async (restartLesson?: (old: SavedPracticeSession, isCurrent: OperationGuard) => Promise<boolean>) => {
     if (clearing.current) return false
     clearing.current = true
     const old = current.current
@@ -72,17 +73,35 @@ export function useDrawSession(initial: SavedPracticeSession, wasSaved: boolean)
     const isCurrent = operationGuard(token, () => generation.current)
     pending.current = null
     try {
-      if (mayExist.current && !await deleteDrawing(old.sessionId, isCurrent)) return false
-      current.current = newDrawing(old.source)
+      const reset = newDrawing(old.source)
+      let next = reset
+      if (restartLesson) {
+        if (!await restartLesson(old, isCurrent)) return false
+        next = { ...reset, sessionId: old.sessionId, title: old.title }
+      } else if (old.lessonFinished) {
+        next = { ...reset, sessionId: old.sessionId, lessonFinished: true }
+        if (!await saveDrawing(next, isCurrent)) return false
+      } else if (mayExist.current && !await deleteDrawing(old.sessionId, isCurrent)) {
+        return false
+      }
+      current.current = next
       revision.current += 1
       savedRevision.current = revision.current
-      mayExist.current = false
+      mayExist.current = next.lessonFinished === true
       setSession(current.current)
       setDirty(false)
       setSaveFailed(false)
       return true
     } catch {
-      if (isCurrent()) setSaveFailed(true)
+      if (isCurrent()) {
+        setSaveFailed(true)
+        if (restartLesson) {
+          // If storage could not roll back the failed batch, autosave may
+          // retry the original drawing. The reset was never published.
+          revision.current += 1
+          setDirty(true)
+        }
+      }
       return false
     } finally {
       clearing.current = false

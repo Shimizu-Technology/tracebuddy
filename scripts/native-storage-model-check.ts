@@ -18,6 +18,7 @@ assert.deepEqual(localSettingKeys, [
   'tracebuddy.resumeContext.v1',
   'tracebuddy.drawingPreferences.v1',
   'tracebuddy.learningProgress.v1',
+  'tracebuddy.lessonMuted.v1',
   'tracebuddy.parentSetupSeen.v1',
   'tracebuddy.savedAlignment.v1',
   'tracebuddy.familyActivity.v1',
@@ -144,6 +145,7 @@ const progress = { version: 1, completedLessonIds: ['line-control'], stepByLesso
 const alignment = { version: 1, x: 12, y: -10, scale: 1.1, rotation: 15, opacity: 0.45 }
 assert.deepEqual(parseDrawingPreferences(JSON.stringify(preferences)), preferences)
 assert.deepEqual(parseLearningProgress(JSON.stringify(progress)), progress)
+assert.deepEqual(parseLearningProgress('{"completedLessonIds":'), parseLearningProgress(null))
 assert.deepEqual(parseSavedAlignment(JSON.stringify(alignment)), alignment)
 assert.equal(parseParentSetupSeen(parentSetupSeenValue), true)
 assert.equal(parseParentSetupSeen(null), false)
