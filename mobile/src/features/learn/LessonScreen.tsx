@@ -197,6 +197,9 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
     void transact(async () => {
       if (!await flushAndSave()) throw new Error('Save failed')
       await saveLessonProgress(lesson, next)
+      // A fresh cue key per visit, so returning to a step plays and speaks it again
+      // instead of matching the earlier visit's spoken or completed cue.
+      setReplay((value) => value + 1)
       setStep(next)
       setPhase('watch')
     })
@@ -217,6 +220,7 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
     void transact(async () => {
       if (!await clear((drawing, isCurrent) => restartSavedLesson(lesson, drawing, isCurrent))) throw new Error('Save failed')
       setRoom({ width: 0, height: 0 })
+      setReplay((value) => value + 1)
       setStep(0)
       setPhase('watch')
     })
