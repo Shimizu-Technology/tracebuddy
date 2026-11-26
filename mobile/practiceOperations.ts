@@ -14,14 +14,6 @@ export function createOperationQueue() {
   }
 }
 
-export function queueSessionWrite(queue: ReturnType<typeof createOperationQueue>, isCurrent: OperationGuard, sessionId: string, readIds: () => Promise<string[]>, write: (ids: string[]) => Promise<unknown>) {
-  return queue(async () => {
-    if (!isCurrent()) return false
-    const currentIds = await readIds()
-    return writeIfCurrent(isCurrent, () => write([sessionId, ...currentIds.filter((id) => id !== sessionId)]))
-  })
-}
-
 export async function writeIfCurrent(isCurrent: OperationGuard, write: () => Promise<unknown>) {
   if (!isCurrent()) return false
   await write()

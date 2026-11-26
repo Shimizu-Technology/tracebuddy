@@ -4,7 +4,7 @@ import type { BrushToolId, PracticeSource, PracticeStroke, SavedPracticeSession 
 import { createPracticeSessionId, makePracticeSource } from './practiceSource'
 import { legacyPracticeAutosavePrefix } from './storageKeys'
 
-function legacyPracticeSessionId(storageKey: string) {
+export function legacyPracticeSessionId(storageKey: string) {
   const suffix = storageKey.slice(legacyPracticeAutosavePrefix.length).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 150) || createPracticeSessionId()
   return `legacy-${suffix}`
 }
@@ -97,7 +97,7 @@ export function normalizeLegacyPracticeAutosave(value: unknown, storageKey: stri
         .filter((stroke): stroke is PracticeStroke => Boolean(stroke))
         .map((stroke) => scaleLegacyPracticeStroke(stroke, scaleX, scaleY))
     : []
-  if (strokes.length === 0) return null
+  if (!Array.isArray(session.strokes) || strokes.length === 0 || strokes.length !== session.strokes.length) return null
 
   const source = legacyPracticeSource(session.drawingId, session.drawingName, storageKey)
   const updatedAt = typeof session.updatedAt === 'string' ? session.updatedAt : new Date().toISOString()

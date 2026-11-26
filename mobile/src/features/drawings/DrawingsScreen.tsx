@@ -43,6 +43,12 @@ export default function DrawingsScreen() {
         numColumns={columns}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.grid}
+        ListHeaderComponent={failed && Boolean(drawings?.length) ? (
+          <View style={styles.notice}>
+            <Text tone="muted" accessibilityLiveRegion="polite">Some drawings could not open.</Text>
+            <Button label="Try again" target="adult" variant="secondary" onPress={reload} />
+          </View>
+        ) : null}
         ListEmptyComponent={failed ? (
           <View style={styles.empty}>
             <Text variant="heading">My drawings could not load.</Text>
@@ -84,4 +90,5 @@ const styles = StyleSheet.create({
   empty: { minHeight: theme.layout.emptyGalleryMinHeight, alignItems: 'center', justifyContent: 'center', gap: theme.space.lg },
   illustration: { backgroundColor: theme.pastels.peach, borderRadius: theme.radius.tile, padding: theme.space.lg },
   title: { textAlign: 'center' },
+  notice: { gap: theme.space.sm },
 })

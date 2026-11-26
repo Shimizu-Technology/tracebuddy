@@ -113,6 +113,7 @@ Opens as a native sheet over Home or the current picture group.
 ### My drawings
 
 - A big-thumbnail grid, newest first. Tap to keep drawing.
+- Completed Learn drawings stay here when a child chooses Draw again.
 - Long-press opens a gated menu: Copy, Start fresh, Save to Photos, Delete.
 - The empty state shows a friendly picture and a button to pick a picture.
 
@@ -121,6 +122,7 @@ Opens as a native sheet over Home or the current picture group.
 - **Gate:** press and hold a button for two seconds, or answer a simple number question. It's accessible with VoiceOver.
 - Contents:
   - who's drawing (Little artist / Big artist)
+  - drawing backups (native app): save a single file to Files or share it, then choose that file to restore drawings, lesson progress, and favorites. Newer drawings win when the same drawing is in both places.
   - read-aloud on/off
   - sounds and haptics
   - words and names (handwriting) setup

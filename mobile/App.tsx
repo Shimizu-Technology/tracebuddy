@@ -40,11 +40,11 @@ import type { NavigationState } from './practiceModel'
 import { brushSizes, brushTools, defaultMarkerColor, documentStrokeWidth, makePracticeSessionTitle, normalizePracticeSource } from './practiceStorageModel'
 import type { BrushToolId, PracticeSource, PracticeSticker, PracticeStroke, SavedPracticeSession, UploadedImage } from './practiceStorageModel'
 
-import { followLatestSave, operationGuard, shouldPersistResume, writeIfCurrent } from './practiceOperations'
+import { followLatestSave, operationGuard, shouldPersistResume } from './practiceOperations'
 import type { OperationGuard } from './practiceOperations'
 
 import { createPracticeSessionId, drawingFromPracticeSource, makePracticeSource } from './src/data/practiceSource'
-import { makePracticeSaveSignature, parsePreviousWorkSession, previousWorkSessionKey, serializePreviousWorkIndex } from './src/data/previousWork'
+import { makePracticeSaveSignature } from './src/data/previousWork'
 import {
   drawingPreferencesKey, familyActivityKey, learningProgressKey, legacyPracticeAutosavePrefix,
   localSettingKeys, modePreferenceKey, parentSetupSeenKey, previousWorkIndexKey, previousWorkSessionPrefix,
@@ -233,7 +233,6 @@ const {
   loadPreviousWorkSessions,
   loadPreviousWorkSessionsWithLegacyMigration,
   queuePreviousWorkWrite,
-  readPreviousWorkIds,
   savePreviousWorkSession,
 } = previousWorkStorage
 
@@ -256,17 +255,6 @@ function storedUploadedImageUrisFromSession(session: SavedPracticeSession | null
   return uris.filter((uri): uri is string => Boolean(uri && isStoredUploadedImageUri(uri)))
 }
 
-async function inspectAllStoredSessionsForCleanup() {
-  const keys = await AsyncStorage.getAllKeys()
-  const sessionKeys = keys.filter((key) => key.startsWith(previousWorkSessionPrefix))
-  const entries = await AsyncStorage.multiGet(sessionKeys)
-  return entries.map(([key, rawSession]) => {
-    const session = rawSession ? parsePreviousWorkSession(rawSession) : null
-    if (!session) throw new Error(`Could not safely inspect ${key}`)
-    return session
-  })
-}
-
 async function storedResumeImageUris() {
   const raw = await readLocalSetting(resumeContextKey)
   const context = parseResumeContext(raw)
@@ -279,7 +267,7 @@ async function cleanupStoredImageUrisIfUnusedNow(candidateUris: string[]) {
   if (storedUris.length === 0) return
 
   const referencedUris = new Set<string>(await storedResumeImageUris())
-  const storedSessions = await inspectAllStoredSessionsForCleanup()
+  const storedSessions = await previousWorkStorage.readSessionsInQueue()
   storedSessions.forEach((session) => {
     storedUploadedImageUrisFromSession(session).forEach((uri) => referencedUris.add(uri))
   })
@@ -312,7 +300,7 @@ async function cleanupOrphanedStoredImages(preserveUris: string[] = []) {
       if (!directoryInfo?.exists) return
 
       const referencedUris = new Set([...preserveUris, ...activeStoredImageUris, ...await storedResumeImageUris()].filter(isStoredUploadedImageUri))
-      const storedSessions = await inspectAllStoredSessionsForCleanup()
+      const storedSessions = await previousWorkStorage.readSessionsInQueue()
       storedSessions.forEach((session) => {
         storedUploadedImageUrisFromSession(session).forEach((uri) => referencedUris.add(uri))
       })
@@ -331,24 +319,13 @@ async function cleanupOrphanedStoredImages(preserveUris: string[] = []) {
 async function deletePreviousWorkSession(sessionId: string, preserveUris: string[], isCurrent: OperationGuard) {
   return queuePreviousWorkWrite(async () => {
     if (!isCurrent()) return { imageCleanupPending: false, pendingImageUris: [] }
-    const currentIds = await readPreviousWorkIds()
     let sessionInspectionFailed = false
-    const rawDeletedSession = await AsyncStorage.getItem(previousWorkSessionKey(sessionId)).catch(() => {
+    const deletedSession = await previousWorkStorage.readSessionInQueue(sessionId).catch(() => {
       sessionInspectionFailed = true
       return null
     })
-    const deletedSession = (() => {
-      try {
-        return rawDeletedSession ? parsePreviousWorkSession(rawDeletedSession) : null
-      } catch {
-        sessionInspectionFailed = true
-        return null
-      }
-    })()
     if (!isCurrent()) return { imageCleanupPending: false, pendingImageUris: [] }
-    const ids = currentIds.filter((id) => id !== sessionId)
-    await AsyncStorage.multiRemove([previousWorkSessionKey(sessionId)])
-    await writeIfCurrent(isCurrent, () => AsyncStorage.setItem(previousWorkIndexKey, serializePreviousWorkIndex(ids)))
+    await previousWorkStorage.deleteSessionInQueue(sessionId)
     const preservedUris = new Set(preserveUris.filter(isStoredUploadedImageUri))
     const pendingImageUris = storedUploadedImageUrisFromSession(deletedSession).filter((uri) => !preservedUris.has(uri))
     preservedUris.forEach((uri) => activeStoredImageUris.add(uri))
@@ -368,6 +345,7 @@ async function deleteAllPreviousWorkSessions() {
     const keys = await AsyncStorage.getAllKeys()
     const traceBuddyKeys = keys.filter((key) => localSettingKeys.some((settingKey) => settingKey === key) || key === previousWorkIndexKey || key.startsWith(previousWorkSessionPrefix) || key.startsWith(legacyPracticeAutosavePrefix))
     if (traceBuddyKeys.length > 0) await AsyncStorage.multiRemove(traceBuddyKeys)
+    await previousWorkStorage.clearSessionFilesInQueue()
     practicePreviewCache.clear()
     activeStoredImageUris.clear()
     try {

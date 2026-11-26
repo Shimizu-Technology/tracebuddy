@@ -7,6 +7,16 @@ export function drawingImageUris(session: Pick<SavedPracticeSession, 'source' | 
   )].filter((uri): uri is string => Boolean(uri))
 }
 
+export function mapDrawingImageUris(session: SavedPracticeSession, map: (uri: string) => string): SavedPracticeSession {
+  const photo = session.source.uploadedImage
+  return {
+    ...session,
+    source: photo ? { ...session.source, uploadedImage: { ...photo, uri: map(photo.uri) } } : session.source,
+    stickers: session.stickers.map((sticker) =>
+      sticker.kind === 'image' && sticker.uri !== undefined ? { ...sticker, uri: map(sticker.uri) } : sticker),
+  }
+}
+
 export function createPracticeImageCleanup(documentDirectory: string | null, io: {
   list: (directory: string) => Promise<string[]>
   readReferences: () => Promise<string[]>

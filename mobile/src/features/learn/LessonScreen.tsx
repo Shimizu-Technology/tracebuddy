@@ -209,9 +209,9 @@ function LessonPlayer({ lesson, data }: { lesson: DrawingLesson; data: OpenLesso
     stop()
     void transact(async () => {
       if (!await flushAndSave()) throw new Error('Save failed')
-      await saveLessonProgress(lesson, step, true)
-      change((value) => ({ ...value, lessonFinished: true }))
+      change((value) => value.lessonFinished ? value : { ...value, lessonFinished: true })
       if (!await save()) throw new Error('Save failed')
+      await saveLessonProgress(lesson, step, true)
       setPhase('finish')
     })
   }

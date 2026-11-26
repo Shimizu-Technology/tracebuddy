@@ -4,11 +4,11 @@ import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
 import type { DrawingLesson } from '../shared/lessons/drawingLessons'
 import { parseLearningProgress } from '../mobile/src/data/localSettings'
-import { previousWorkSessionKey, serializePreviousWorkIndex, serializePreviousWorkSession } from '../mobile/src/data/previousWork'
+import { createPreviousWorkStorage, previousWorkSessionKey, serializePreviousWorkIndex } from '../mobile/src/data/previousWork'
 import { learningProgressKey, lessonMutedKey, previousWorkIndexKey } from '../mobile/src/data/storageKeys'
-import { recordLessonProgress } from '../mobile/src/features/learn/lessonPractice'
+import { preserveLessonDrawing, recordLessonProgress } from '../mobile/src/features/learn/lessonPractice'
 import type { SavedPracticeSession } from '../mobile/practiceStorageModel.ts'
-import { createOperationQueue, followLatestSave, operationGuard, queueSessionWrite, shouldPersistResume, writeIfCurrent } from '../mobile/practiceOperations.ts'
+import { createOperationQueue, followLatestSave, operationGuard, shouldPersistResume, writeIfCurrent } from '../mobile/practiceOperations.ts'
 import { createPracticePreviewCache } from '../mobile/practicePreviewCache.ts'
 import { normalizeResumeContext, strokePointAction } from '../mobile/practiceModel.ts'
 
@@ -18,12 +18,11 @@ function deferred() {
   return { promise, resolve }
 }
 
-// Use the same queues, guard and read/commit pipeline as native AsyncStorage.
-// Pause before queueing, during index reads, and during the storage commit.
+// Use actual Previous Work storage and pause before queueing, while queued,
+// or during the native commit.
 // The retained save closure reads only parent-owned generation state; protection
 // does not depend on a transient mounted flag or surviving screen instance.
-for (const pauseAt of ['cleanup', 'index', 'commit'] as const) {
-  const sessions = createOperationQueue()
+for (const pauseAt of ['cleanup', 'queued', 'commit'] as const) {
   const preferences = createOperationQueue()
   const store = new Map<string, unknown>([['resume', { lessonId: 'flower' }]])
   const pause = deferred()
@@ -38,16 +37,17 @@ for (const pauseAt of ['cleanup', 'index', 'commit'] as const) {
     started.resolve()
     await pause.promise
   }
+  const work = createPreviousWorkStorage({
+    getAllKeys: async () => [],
+    getItem: async () => null,
+    setItem: async () => { await waitAt('commit'); store.set('drawing', 'ink') },
+    removeItem: async () => undefined,
+  })
+  const sessions = work.queuePreviousWorkWrite
+  if (pauseAt === 'queued') void sessions(() => waitAt('queued'))
   const save = (async () => {
     await waitAt('cleanup')
-    const saved = await queueSessionWrite(sessions, isCurrent, 'drawing', async () => {
-      await waitAt('index')
-      return []
-    }, async (ids) => {
-      await waitAt('commit')
-      store.set('drawing', 'ink')
-      store.set('index', ids)
-    })
+    const saved = await work.savePreviousWorkSession({ sessionId: 'drawing' } as SavedPracticeSession, isCurrent)
     // Same parent callback guard: stale completion cannot re-add work or resume.
     if (saved && isCurrent()) {
       store.set('in-memory-session', 'drawing')
@@ -101,22 +101,27 @@ for (const pauseAt of ['cleanup', 'index', 'commit'] as const) {
 // parent generation stays valid until Clear, regardless of screen lifetime.
 {
   const generation = 0
-  const queue = createOperationQueue()
   const pause = deferred()
   const started = deferred()
   const guard = operationGuard(generation, () => generation)
-  const store = new Map<string, unknown>()
-  const pending = queueSessionWrite(queue, guard, 'ordinary-leave', async () => {
-    started.resolve()
-    await pause.promise
-    return ['older-session']
-  }, async (ids) => { store.set('index', ids); store.set('ordinary-leave', 'ink') })
+  const store = new Map<string, string>()
+  const work = createPreviousWorkStorage({
+    getAllKeys: async () => [...store.keys()],
+    getItem: async (key) => store.get(key) ?? null,
+    async setItem(key, value) {
+      started.resolve()
+      await pause.promise
+      store.set(key, value)
+    },
+    removeItem: async () => undefined,
+  })
+  const drawing = { sessionId: 'ordinary-leave', title: 'Kept ink' } as SavedPracticeSession
+  const pending = work.savePreviousWorkSession(drawing, guard)
   await started.promise
   // The screen exits while the storage operation still owns its captured guard.
   pause.resolve()
   assert.equal(await pending, true)
-  assert.deepEqual(store.get('index'), ['ordinary-leave', 'older-session'])
-  assert.equal(store.get('ordinary-leave'), 'ink')
+  assert.deepEqual(JSON.parse(store.get(previousWorkSessionKey(drawing.sessionId))!), drawing)
 }
 
 // Same transition decision as the touch handler: commit and reset at each exit,
@@ -175,7 +180,7 @@ function mountDrawSession(io: {
   readDrawing: (id: string) => Promise<SavedPracticeSession | null>
   saveDrawing: (session: SavedPracticeSession, current: () => boolean) => Promise<boolean>
   deleteDrawing: (id: string, current: () => boolean) => Promise<boolean>
-}) {
+}, wasSaved = true) {
   const initial = {
     sessionId: 'before-clear', stamp: undefined, strokes: [], updatedAt: '2026-06-01T09:00:00.000Z',
   } as unknown as SavedPracticeSession
@@ -197,7 +202,7 @@ function mountDrawSession(io: {
     },
   })
   assert.ok(exports.useDrawSession)
-  return { initial, hook: exports.useDrawSession(initial, true) }
+  return { initial, hook: exports.useDrawSession(initial, wasSaved) }
 }
 
 const oldWrite = deferred()
@@ -240,7 +245,30 @@ clearingCanvas.hook.change((session) => ({ ...session, markerWidth: 13 }))
 assert.ok(await clearingCanvas.hook.save())
 assert.deepEqual(writesAfterClear, ['after-clear'])
 
-// Restart can be in progress when the 450 ms autosave fires. Failure must
+// The first save can publish just before it sees Clear's revoked generation.
+const releaseFirstWrite = deferred()
+const freshRecords = new Set<string>()
+const freshWork = mountDrawSession({
+  readDrawing: async () => null,
+  saveDrawing: async (session, isCurrent) => {
+    await releaseFirstWrite.promise
+    freshRecords.add(session.sessionId)
+    return isCurrent()
+  },
+  deleteDrawing: async (id) => {
+    await releaseFirstWrite.promise
+    return freshRecords.delete(id)
+  },
+}, false)
+freshWork.hook.change((session) => ({ ...session, stamp: 'heart' }))
+const firstSave = freshWork.hook.save()
+const firstClear = freshWork.hook.clear()
+releaseFirstWrite.resolve()
+assert.equal(await firstSave, false)
+assert.ok(await firstClear)
+assert.equal(freshRecords.size, 0, 'Clear removes a write that reached disk while the first save was being revoked')
+
+// Restart can be in progress when autosave fires. Failure must
 // leave the original drawing as the only snapshot that can be autosaved.
 const restartGate = deferred()
 const resumedDrawingWrites: SavedPracticeSession[] = []
@@ -260,14 +288,14 @@ assert.equal(await restarting.hook.save(), false, 'Restart excludes autosave whi
 restartGate.resolve()
 assert.equal(await resetFailed, false)
 assert.ok(await restarting.hook.save())
-assert.deepEqual(resumedDrawingWrites.map(({ stamp }) => stamp), ['heart', 'heart'])
+assert.deepEqual(resumedDrawingWrites.map(({ stamp }) => stamp), ['heart'])
 assert.ok(await restarting.hook.clear(async (original) => {
   assert.equal(original.sessionId, restarting.initial.sessionId)
   assert.equal(original.stamp, 'heart')
   return true
 }))
 assert.ok(await restarting.hook.save())
-assert.equal(resumedDrawingWrites.length, 2, 'A successful restart leaves no empty drawing to autosave')
+assert.equal(resumedDrawingWrites.length, 1, 'A successful restart leaves no empty drawing to autosave')
 
 const restartSource = readFileSync(new URL('../mobile/src/features/learn/lessonStorage.ts', import.meta.url), 'utf8')
 const restartJs = ts.transpileModule(restartSource, {
@@ -277,58 +305,63 @@ const restartExports: Partial<typeof import('../mobile/src/features/learn/lesson
 const lesson = {
   id: 'simple/cat', steps: [{ say: 'Start' }, { say: 'Finish' }],
 } as DrawingLesson
-const savedLesson = { ...restarting.initial, sessionId: 'lesson:simple/cat', lessonFinished: true as const, stamp: 'heart' as const }
+const savedLesson: SavedPracticeSession = {
+  ...restarting.initial,
+  version: 2, title: 'Cat', source: { kind: 'drawing', drawingName: 'Cat', drawingId: 'cat', drawingTheme: 'Animals' },
+  createdAt: restarting.initial.updatedAt, stickers: [], canvasWidth: 1000, canvasHeight: 1000,
+  guideOpacity: 0.24, guideOnTop: true, markerColor: '#18243A', markerWidth: 9, brushToolId: 'marker',
+  sessionId: 'lesson:simple/cat', lessonFinished: true, stamp: 'heart',
+}
 const lessonKey = previousWorkSessionKey(savedLesson.sessionId)
 const beforeProgress = { version: 1, completedLessonIds: [lesson.id, 'easy-flower'], stepByLessonId: { [lesson.id]: 1, 'easy-flower': 2 } }
 const lessonRecords = new Map([
-  [lessonKey, serializePreviousWorkSession(savedLesson)],
+  [lessonKey, JSON.stringify(savedLesson)],
   [previousWorkIndexKey, serializePreviousWorkIndex([savedLesson.sessionId, 'other'])],
   [learningProgressKey, JSON.stringify(beforeProgress)],
 ])
-const beforeRestart = new Map(lessonRecords)
-let failFirstBatch = true
+let failProgress = true
+const nativeAdapter = {
+  getAllKeys: async () => [...lessonRecords.keys()],
+  getItem: async (key: string) => lessonRecords.get(key) ?? null,
+  async setItem(key: string, value: string) {
+    if (key === learningProgressKey && failProgress) throw new Error('Progress write failed')
+    lessonRecords.set(key, value)
+  },
+  async removeItem(key: string) { lessonRecords.delete(key) },
+}
+const lessonDrawingStorage = createPreviousWorkStorage(nativeAdapter)
 runInNewContext(restartJs, {
   exports: restartExports,
   require(name: string) {
     switch (name) {
-      case '@react-native-async-storage/async-storage':
-        return { __esModule: true, default: {
-          async multiSet(entries: [string, string][]) {
-            // iOS can apply entries before its manifest write reports failure.
-            for (const [key, value] of entries) lessonRecords.set(key, value)
-            if (failFirstBatch) { failFirstBatch = false; throw new Error('Manifest write failed') }
-          },
-          async removeItem(key: string) { lessonRecords.delete(key) },
-        } }
-      case '../../../practiceOperations': return { writeIfCurrent }
-      case '../../data/drawingImageFiles': return { cleanupDrawingImagesInQueue: async () => undefined }
+      case '@react-native-async-storage/async-storage': return { __esModule: true, default: nativeAdapter }
       case '../../data/localSettings': return { parseLearningProgress }
       case '../../data/nativeStorage': return {
-        previousWorkStorage: {
-          queuePreviousWorkWrite: createOperationQueue(),
-          readPreviousWorkIds: async () => JSON.parse(lessonRecords.get(previousWorkIndexKey)!).ids,
-        },
+        previousWorkStorage: lessonDrawingStorage,
         queueDrawingPreferencesOperation: createOperationQueue(),
-        readLocalSetting: async (key: string) => lessonRecords.get(key) ?? null,
+        readLocalSetting: nativeAdapter.getItem,
       }
-      case '../../data/practiceImageCleanup': return { drawingImageUris: () => [] }
-      case '../../data/previousWork': return { previousWorkSessionKey, serializePreviousWorkIndex, serializePreviousWorkSession }
-      case '../../data/storageKeys': return { learningProgressKey, lessonMutedKey, previousWorkIndexKey }
-      case './lessonPractice': return { recordLessonProgress }
+      case '../../data/storageKeys': return { learningProgressKey, lessonMutedKey }
+      case './lessonPractice': return { preserveLessonDrawing, recordLessonProgress }
       default: throw new Error(`Unexpected import ${name}`)
     }
   },
 })
 assert.ok(restartExports.restartSavedLesson)
-await assert.rejects(() => restartExports.restartSavedLesson!(lesson, savedLesson, () => true), /Manifest write failed/)
-assert.deepEqual(lessonRecords, beforeRestart, 'A partial storage failure restores the drawing, index and progress')
+await assert.rejects(() => restartExports.restartSavedLesson!(lesson, savedLesson, () => true), /Progress write failed/)
+assert.ok(lessonRecords.has(lessonKey), 'The lesson slot survives a failed reset')
+assert.deepEqual(JSON.parse(lessonRecords.get(learningProgressKey)!), beforeProgress)
+failProgress = false
 assert.ok(await restartExports.restartSavedLesson(lesson, savedLesson, () => true))
 assert.equal(lessonRecords.has(lessonKey), false)
-assert.deepEqual(JSON.parse(lessonRecords.get(previousWorkIndexKey)!).ids, ['other'])
+const archived = await lessonDrawingStorage.loadPreviousWorkSessions()
+assert.equal(archived.length, 1, 'A retry reuses the archived drawing')
+assert.equal(archived[0].stamp, 'heart')
+assert.equal(archived[0].lessonFinished, true)
 assert.deepEqual(JSON.parse(lessonRecords.get(learningProgressKey)!), {
   ...beforeProgress, stepByLessonId: { [lesson.id]: 0, 'easy-flower': 2 },
 })
-console.log('Lesson restart excludes autosave and restores old ink and progress after a partial storage failure')
+console.log('Lesson Draw again preserves the finished picture, and an interrupted restart can be retried')
 
 const drawScreenSource = readFileSync(new URL('../mobile/src/features/draw/DrawScreen.tsx', import.meta.url), 'utf8')
 const drawScreenAst = ts.createSourceFile('DrawScreen.tsx', drawScreenSource, ts.ScriptTarget.ES2023, true, ts.ScriptKind.TSX)
@@ -383,7 +416,7 @@ function holdButtonHarness(os: 'ios' | 'web', browserConfirm = true) {
   const alerts: AlertButton[][] = []
   const state = { destructiveCalls: 0, browserPrompts: 0 }
   const bindings: Record<string, unknown> = {
-    disabled: false, label: 'Delete', held: { current: false }, dialogOpen: { current: false },
+    disabled: false, parentGate: false, label: 'Delete', held: { current: false }, dialogOpen: { current: false },
     Platform: { OS: os },
     confirm: () => { state.browserPrompts += 1; return browserConfirm },
     Alert: { alert: (_title: string, _message: string | undefined, buttons: AlertButton[]) => { alerts.push(buttons) } },
