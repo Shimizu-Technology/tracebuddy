@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   parentSetupSeenValue, parseDrawingPreferences, parseFamilyActivity, parseLearningProgress,
   parseModePreference, parseParentSetupSeen, parseResumeContext, parseSavedAlignment,
   serializeModePreference, serializeResumeContext,
 } from '../mobile/src/data/localSettings.ts'
-import { toggleFavoriteDrawing } from '../shared/index.ts'
-import { createFavoritePreference, isLegacyFavoriteId, parseArtFavorites } from '../mobile/src/data/favoritePreference.ts'
+import { createArtFavoritePreference } from '../mobile/src/data/favoritePreference.ts'
+import { legacyFavoriteSubjects } from '../mobile/src/data/legacyFavoriteSubjects.ts'
 import { createPracticeImageCleanup, drawingImageUris } from '../mobile/src/data/practiceImageCleanup.ts'
 import { drawingTitle, rebasePracticeImageUri } from '../mobile/src/data/practiceSource.ts'
 import { normalizeLegacyPracticeAutosave } from '../mobile/src/data/legacyPractice.ts'
 import { createPreviousWorkStorage, parsePreviousWorkSession, previousWorkSessionKey } from '../mobile/src/data/previousWork.ts'
 import {
-  legacyPracticeAutosavePrefix, localSettingKeys, previousWorkIndexKey,
+  artFavoritesKey, drawingPreferencesKey, legacyArtFavoritesKey, legacyPracticeAutosavePrefix,
+  localSettingKeys, previousWorkIndexKey,
 } from '../mobile/src/data/storageKeys.ts'
 
 assert.deepEqual(localSettingKeys, [
@@ -25,6 +27,7 @@ assert.deepEqual(localSettingKeys, [
   'tracebuddy.modePreference.v1',
   'tracebuddy.whoIsDrawing.v1',
   'tracebuddy.artFavorites.v1',
+  'tracebuddy.artFavorites.v2',
 ])
 assert.equal(previousWorkIndexKey, 'tracebuddy.previousWork.v1.index')
 assert.equal(legacyPracticeAutosavePrefix, 'tracebuddy.practice.v1.')
@@ -254,41 +257,55 @@ assert.ok(photoFiles.has(currentUpload), 'Only managed candidates can be removed
 await imageCleanup.sweep()
 assert.equal(photoFiles.size, 0, 'Releasing the final reference allows cleanup')
 
-const hydrationStarted = deferred()
-const finishHydration = deferred()
-let legacyFavorites = JSON.stringify(preferences)
-let artFavorites = JSON.stringify(['crab'])
-let failLegacyWrite = false
-const legacy = createFavoritePreference(async () => {
-  hydrationStarted.resolve()
-  await finishHydration.promise
-  return legacyFavorites
-}, async (value) => {
-  if (failLegacyWrite) throw new Error('Could not write legacy favorites')
-  legacyFavorites = value
-}, parseDrawingPreferences, toggleFavoriteDrawing)
-const art = createFavoritePreference(async () => artFavorites, async (value) => { artFavorites = value },
-  parseArtFavorites, (value, id) => [...value, id])
-const initialLegacy = legacy.read()
-await hydrationStarted.promise
-const firstEdit = legacy.toggle('line-paths')
-assert.deepEqual(await art.toggle('cat'), { value: ['crab', 'cat'], revision: 1 })
-finishHydration.resolve()
-assert.deepEqual(await initialLegacy, { value: preferences, revision: 1 })
-const confirmed = await firstEdit
-assert.deepEqual(confirmed.value, { ...preferences, favoriteIds: ['butterfly', 'line-paths'] })
-assert.equal(confirmed.revision, 2)
-failLegacyWrite = true
-await Promise.all([
-  assert.rejects(legacy.toggle('butterfly')),
-  assert.rejects(legacy.toggle('line-paths')),
-])
-assert.deepEqual((await legacy.read()).value, confirmed.value, 'A failed edit cannot resurrect unconfirmed state')
-assert.deepEqual((await art.read()).value, ['crab', 'cat'], 'A legacy failure does not affect art favorites')
+// The original 1.2 record from the in-place upgrade QA.
+const favoritesSavedIn12 = '{"version":1,"favoriteIds":["curated-flower-head-008","curated-cute-crab-056","latte-stone","bunny"],"recentIds":["hibiscus","bunny","latte-stone","curated-cute-crab-056"]}'
+const favoriteRecords = new Map<string, string>([[drawingPreferencesKey, favoritesSavedIn12]])
+let favoriteWrites = 0
+let failFavoriteWrite = false
+const openFavorites = () => createArtFavoritePreference(async (key) => favoriteRecords.get(key) ?? null, async (key, value) => {
+  assert.equal(key, artFavoritesKey, 'The 2.0 preference only writes its own key')
+  if (failFavoriteWrite) throw new Error('Could not write art favorites')
+  favoriteWrites += 1
+  favoriteRecords.set(key, value)
+})
+const art = openFavorites()
+failFavoriteWrite = true
+await assert.rejects(art.read(), /Could not write art favorites/)
+assert.equal(favoriteRecords.has(artFavoritesKey), false, 'A failed import can be retried')
+failFavoriteWrite = false
+const imported = ['flower', 'crab', 'latte-stone', 'bunny']
+assert.deepEqual((await art.read()).value, imported)
+assert.deepEqual((await openFavorites().read()).value, imported, 'Import is idempotent across launches')
+assert.equal(favoriteWrites, 1)
+await art.toggle('flower')
+await art.toggle('latte-stone')
+assert.deepEqual((await openFavorites().read()).value, ['crab', 'bunny'], 'Removed aliases and same-ID favorites stay removed')
+for (const id of ['crab', 'bunny']) await art.toggle(id)
+assert.deepEqual((await openFavorites().read()).value, [], 'An empty 2.0 list still marks the import complete')
+assert.equal(favoriteRecords.get(drawingPreferencesKey), favoritesSavedIn12)
 
-assert(isLegacyFavoriteId('butterfly'), 'Existing favorites still use the legacy store')
-for (const id of ['puppy', 'bunny', 'panda', 'seahorse']) {
-  assert(!isLegacyFavoriteId(id), `Curated ${id} must use the art store because the legacy guide is retired`)
+favoriteRecords.delete(artFavoritesKey)
+favoriteRecords.set(legacyArtFavoritesKey, '["crab","cat"]')
+const reopening = openFavorites()
+const initialArt = reopening.read()
+const earlyToggle = reopening.toggle('crab')
+assert.deepEqual(await initialArt, { value: ['crab', 'cat', 'flower', 'latte-stone', 'bunny'], revision: 1 })
+const confirmedFavorites = { value: ['cat', 'flower', 'latte-stone', 'bunny'], revision: 2 }
+assert.deepEqual(await earlyToggle, confirmedFavorites, 'A toggle queued during hydration starts from the imported list')
+assert.equal(favoriteRecords.get(legacyArtFavoritesKey), '["crab","cat"]')
+failFavoriteWrite = true
+await assert.rejects(reopening.toggle('flower'), /Could not write art favorites/)
+assert.deepEqual((await reopening.read()).value, confirmedFavorites.value, 'A failed toggle leaves the last confirmed favorites')
+
+for (const id of ['puppy', 'bunny', 'panda', 'seahorse', 'hibiscus']) {
+  assert.equal(legacyFavoriteSubjects.get(id), id, 'Reintroduced guides keep their IDs as art subjects')
+}
+for (const level of ['simple', 'detailed']) {
+  const manifest: Array<{ id: string }> = JSON.parse(readFileSync(new URL(`../shared/art/${level}/manifest.json`, import.meta.url), 'utf8'))
+  const subjects = new Set(manifest.map(({ id }) => id))
+  for (const [legacy, subject] of legacyFavoriteSubjects) {
+    assert(subjects.has(subject), `${legacy} maps to missing ${level} subject ${subject}`)
+  }
 }
 
-console.log('Native storage: legacy/current formats, serialized index repair, photo references and independent confirmed favorites')
+console.log('Native storage: legacy/current formats, serialized index repair, photo references and one-time favorites import')

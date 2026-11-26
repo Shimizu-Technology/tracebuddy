@@ -5,14 +5,14 @@ import { Platform } from 'react-native'
 
 import {
   buildDrawingBackup, DrawingBackupError, maxDrawingBackupBytes, mergeDrawingBackup, mergeDrawingBackupSettings,
-  parseDrawingBackup, readDrawingBackupImage, withBackupFavorites,
+  parseDrawingBackup, readDrawingBackupImage,
 } from './drawingBackupModel'
 import type { DrawingBackupSettings } from './drawingBackupModel'
 import { cleanupDrawingImagesInQueue } from './drawingImageFiles'
-import { parseArtFavorites } from './favoritePreference'
-import { parseDrawingPreferences, parseLearningProgress } from './localSettings'
+import { parseLegacyFavoritePreferences } from './favoritePreference'
+import { parseLearningProgress } from './localSettings'
 import {
-  previousWorkStorage, queueDrawingPreferencesOperation, readLocalSetting, writeLocalSettingInQueue,
+  artFavoritePreference, previousWorkStorage, queueDrawingPreferencesOperation, readLocalSetting, writeLocalSettingInQueue,
 } from './nativeStorage'
 import { drawingImageUris } from './practiceImageCleanup'
 import { createPracticeSessionId, keepsakeImageFolder, practiceImageFolder, rebasePracticeImageUri } from './practiceSource'
@@ -21,8 +21,8 @@ import { artFavoritesKey, drawingPreferencesKey, learningProgressKey } from './s
 async function readBackupSettings() {
   const [progress, art, legacy] = await Promise.all([
     readLocalSetting(learningProgressKey).then(parseLearningProgress),
-    readLocalSetting(artFavoritesKey).then(parseArtFavorites),
-    readLocalSetting(drawingPreferencesKey).then(parseDrawingPreferences),
+    artFavoritePreference.readInQueue(),
+    readLocalSetting(drawingPreferencesKey).then(parseLegacyFavoritePreferences),
   ])
   return { progress, artFavorites: art, legacyFavorites: legacy.favoriteIds, preferences: legacy }
 }
@@ -33,7 +33,7 @@ async function writeMergedSettings(incoming: DrawingBackupSettings) {
   const entries = [
     [learningProgressKey, local.progress, merged.progress],
     [artFavoritesKey, local.artFavorites, merged.artFavorites],
-    [drawingPreferencesKey, local.preferences, withBackupFavorites(local.preferences, merged.legacyFavorites)],
+    [drawingPreferencesKey, local.preferences, { ...local.preferences, favoriteIds: merged.legacyFavorites }],
   ] as const
   for (const [key, previous, value] of entries) {
     const serialized = JSON.stringify(value)

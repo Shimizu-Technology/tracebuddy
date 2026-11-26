@@ -4,11 +4,12 @@ import { createTextDrawing } from '../shared/drawings'
 import {
   artLevels, catalogPictures, lineForSource, paramsForPicture, paramsForSource, pictureLevels, resolvePicture, sourceForPicture,
 } from '../mobile/src/data/catalog'
-import { createFavoritePreference, isLegacyFavoriteId, parseArtFavorites } from '../mobile/src/data/favoritePreference'
+import { createArtFavoritePreference } from '../mobile/src/data/favoritePreference'
 import { guideFonts } from '../mobile/src/data/glyphs.generated'
 import { groupsForPictures } from '../mobile/src/data/pictureGroups'
 import { sectionsForPictures } from '../mobile/src/data/pictureSections'
 import { makePracticeSource } from '../mobile/src/data/practiceSource'
+import { artFavoritesKey } from '../mobile/src/data/storageKeys'
 import { layoutTextGuide, textGuideSvg } from '../mobile/src/data/textGuide'
 import { pictureRouteParams, resolvePaperPicture } from '../mobile/src/features/paper/paperPicture'
 import { normalizePracticeSource } from '../mobile/practiceStorageModel'
@@ -93,13 +94,13 @@ assert.notDeepEqual(resolvePicture({ id: 'my-name', level: 'simple', text: 'Ana'
   resolvePicture({ id: 'my-name', level: 'detailed', text: 'Ana' })?.line)
 
 let favoriteStorage: string | null = null
-const favorites = () => createFavoritePreference(
-  async () => favoriteStorage,
-  async (value) => { favoriteStorage = value },
-  parseArtFavorites,
-  (ids, id) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id],
+const favorites = () => createArtFavoritePreference(
+  async (key) => key === artFavoritesKey ? favoriteStorage : null,
+  async (key, value) => {
+    assert.equal(key, artFavoritesKey)
+    favoriteStorage = value
+  },
 )
-assert(!isLegacyFavoriteId('letter-a'), 'letter favorites use the current catalog storage')
 await favorites().toggle('letter-a')
 const favoriteIds = (await favorites().read()).value
 assert.equal(catalogPictures('detailed').find(({ id }) => favoriteIds.includes(id))?.id, 'letter-a')
