@@ -104,7 +104,9 @@ export const brushTools: BrushTool[] = [
 export const brushSizes = [
   { label: 'Fine', value: 5 },
   { label: 'Round', value: 9 },
-  { label: 'Fill', value: 16 },
+  { label: 'Big', value: 16 },
+  // Twice Big, for coloring in large areas quickly.
+  { label: 'Huge', value: 32 },
 ] as const
 
 export function normalizeSavedPracticeStroke(value: unknown): PracticeStroke | null {
