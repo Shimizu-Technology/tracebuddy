@@ -561,3 +561,64 @@ For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px
 
 - **0 art rejections** across all 23 completed Detailed subjects (46/46 generated images approved on first attempt, with deterministic master cleanups on `trumpet`, `big-ship`, `easter-bunny`, `pineapple`, and `sandcastle` noted above).
 - **Deferred due to HTTP 429 quota exhaustion (1 subject remaining):** `flower-wreath` ("Flower Wreath", `patterns`, Detailed-only — 2 images: line + color) hit `HTTP 429 RESOURCE_EXHAUSTED` (quota resets after ~3h15m). Generation stopped immediately per batch rules so the 23 fully finished subjects could be committed and pushed cleanly.
+
+---
+
+## Batch 7 (expansion)
+
+Added **19 new subjects** across 7 categories (`animals`, `ocean`, `magic`, `go`, `food`, `nature`, `people`), bringing the published Detailed manifest from 194 to **213 subjects** (the remaining 5 planned Batch 7 subjects — `builder`, `trophy`, `microphone`, plus Detailed-only `patterns` subjects `flower-wreath` and `butterfly-garden` — were deferred after hitting an HTTP 429 image-generation quota limit starting Subject 20). All 19 subjects used the locked revised bold S2 prompts with the felt-tip marker-weight reinforcement sentence appended.
+
+- **Raw 1024px PNG masters:** stored outside git at `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch7/raw/detailed/`.
+- **Contact sheets:** `/Users/leonshimizu/Desktop/ShimizuTechnology/output/tracebuddy-art-v3/batch7/detailed-sheet.png` and `combined-simple-vs-detailed.png`.
+- **Batch 7 final `Disk:4` range:** **min = `26.9%` (`phoenix`), median = `32.0%`, max = `38.5%` (`avocado`)** — all 19/19 verified `≥ 26.9%` with zero hairlines, zero merged parallel lines, and every Simple counterpart visibly thicker than Detailed.
+- **Stroke thickening applied (re-vectorized from the same raw master after the 1680×1680 threshold, measured on 1024 px SVG render — 12 subjects):**
+  - `Disk:4` (2 subjects with very fine raw lines verified at 420 px):
+    - `tree-house`: raw `0.7%` → thickened **`27.9%`** (balcony posts, horizontal cabin planks, ladder rungs, and tire swing stayed clearly separated and readable at phone size)
+    - `farmer`: raw `4.1%` → thickened **`32.0%`** (eyes, waving fingers, overall buttons, basket weave, and produce stayed cleanly separated at 420 px; well below Simple `39.8%`)
+  - `Disk:3` (9 subjects under 20% raw `Disk:4`):
+    - `camel`: raw `13.5%` → thickened **`33.6%`** (blanket geometric triangles, tassels, and chest fur tufts stayed crisp)
+    - `eagle`: raw `18.2%` → thickened **`37.7%`** (layered flight feathers, tail plumes, and talons stayed separated)
+    - `fairy-house`: raw `13.5%` → thickened **`29.8%`** (underside gills, stone chimney, planked heart door, and flowers stayed crisp)
+    - `phoenix`: raw `7.5%` → thickened **`26.9%`** (wing tiers, crest plumes, and curving tail ribbons stayed cleanly separated)
+    - `monster-truck`: raw `13.5%` → thickened **`32.7%`** (checked at 420 px; coil springs, flame decal, roll bar, and 5-lug rims stayed bold and unmerged)
+    - `motorcycle`: raw `17.4%` (post-hollowing) → thickened **`35.4%`** (checked at 420 px; cooling fins, 5-spoke wheels, and hollowed tires stayed bold and separated)
+    - `taco`: raw `18.7%` → thickened **`37.2%`** (cheese ribbons, diced tomatoes, lettuce veins, and lime segments stayed separated)
+    - `rose`: raw `16.1%` → thickened **`34.5%`** (scrolled inner petals, bud, thorns, and serrated leaf veins stayed crisp)
+    - `camping-tent`: raw `14.8%` (post-hollowing) → thickened **`35.3%`** (sleeping mat spiral, lantern, campfire logs, and pine trees stayed separated)
+  - `Disk:2` (1 subject in the 20–26% raw `Disk:4` band):
+    - `wolf`: raw `22.6%` → thickened **`30.8%`** (facial mask, neck ruff, ear details, and paws stayed crisp and clearly thinner than Simple `38.9%`)
+- **Enclosed exterior pockets cleared transparent:** `phoenix` (5 gaps between curving tail plumes and beneath talons), `monster-truck` (12 roll-bar, bumper, and undercarriage suspension gaps), `motorcycle` (17 five-spoke wheel and open-frame gaps), `popsicle` (1 open gap between the two wooden sticks), `rose` (3 leaf-to-stem background gaps), `tree-house` (14 ladder-rung, branch-fork, under-deck, and tire-swing center hole openings), and `camping-tent` (4 sky gaps between pine trees/tent and stake rope).
+- **Deterministic post-generation master fixes (0 extra quota spent):**
+  - `motorcycle` line: raw master filled both outer tire bands solid black (`43.0%` inflated `Disk:4`); deterministically hollowed via `-negate -morphology Erode Disk:9 -blur 0x0.8` composited with `-compose Lighten` before colorization so both tires became clean hollow colorable rings (true raw `Disk:4 = 17.4%` → `35.4%` via `Disk:3`).
+  - `camping-tent` line: raw master filled the small upper triangular doorway cavity behind the rolled sleeping mat solid black (`20.9%` inflated `Disk:4`); deterministically hollowed via `-negate -morphology Erode Disk:8 -blur 0x0.8` composited with `-compose Lighten` before colorization (true raw `Disk:4 = 14.8%` → `35.3%` via `Disk:3`).
+
+### Per-Subject Catalog & Traceability Metrics (Batch 7 — 19 Subjects)
+
+For thickened subjects, `Disk:2`–`Disk:5` reflect the final vectorized 1024 px SVG render; raw pre-thickening `Disk:4` and disk radius are noted in the Description column. SVG sizes reflect post-`art:optimize` SVGO output.
+
+| # | ID | Name | Category | `Disk:2` | `Disk:3` | `Disk:4` | `Disk:5` | SVG (KB) | WebP (KB) | Description |
+|---:|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| 195 | `rhino` | Rhino | `animals` | 64.1% | 44.4% | **28.9%** | 12.2% | 29.3 | 17.3 | Friendly storybook rhinoceros striding right with sculpted shoulder/haunch armor folds, two curved horns, alert ears, and three-toed feet |
+| 196 | `camel` | Camel | `animals` | 67.9% | 49.9% | **33.6%** | 17.6% | 35.3 | 27.9 | Graceful two-humped storybook desert camel standing right with sculpted chest fur ruff, geometric tasseled blanket, and padded two-toed feet *(Disk:3 from raw 13.5%)* |
+| 197 | `wolf` | Wolf | `animals` | 66.1% | 46.7% | **30.8%** | 14.6% | 30.0 | 18.1 | Gentle smiling storybook timber wolf standing right with pointed ears, fluffy neck ruff, hollow facial mask and belly markings, and bushy tail *(Disk:2 from raw 22.6%)* |
+| 198 | `otter` | Otter | `animals` | 61.6% | 41.1% | **27.6%** | 13.1% | 29.0 | 17.4 | Charming storybook sea otter floating on its back (head right) over wavy water ripples holding a ribbed scallop shell on its chest |
+| 199 | `eagle` | Eagle | `animals` | 70.7% | 52.8% | **37.7%** | 17.9% | 36.7 | 24.3 | Noble storybook bald eagle soaring right with two-tier layered outstretched wings, scalloped white neck collar, hooked beak, 7-feather tail, and talons *(Disk:3 from raw 18.2%)* |
+| 200 | `hummingbird` | Hummingbird | `animals` | 65.3% | 45.1% | **29.3%** | 12.8% | 40.1 | 26.3 | Graceful storybook hummingbird hovering right sipping from a curved trumpet-vine blossom with two veined leaves, scalloped throat gorget, and fanned tail |
+| 201 | `stingray` | Stingray | `ocean` | 66.8% | 47.2% | **31.7%** | 17.0% | 27.5 | 20.1 | Graceful spotted storybook stingray gliding diagonally upward-right with undulating diamond wings, pale curled edge fold, hollow oval spots, and long sweeping tail |
+| 202 | `shrimp` | Shrimp | `ocean` | 69.0% | 51.5% | **35.7%** | 16.5% | 33.3 | 29.7 | Friendly storybook ocean shrimp swimming right with 5-segment arched shell, two sweeping hollow antennae, spaced jointed legs, and 3-lobe fanned tail |
+| 203 | `fairy-house` | Mushroom Fairy House | `magic` | 65.6% | 46.2% | **29.8%** | 14.1% | 48.9 | 32.3 | Enchanting storybook mushroom fairy cottage with spotted cap, underside gills, crooked stone chimney, shuttered round window, heart-cutout plank door, stepping stones, and companion mushrooms *(Disk:3 from raw 13.5%)* |
+| 204 | `phoenix` | Fire Bird | `magic` | 64.7% | 43.9% | **26.9%** | 9.4% | 49.2 | 39.5 | Majestic storybook phoenix rising right with flowing head crest, two-tiered flame wings, scalloped breast feathers, and three S-curved teardrop tail plumes (5 tail gaps cleared) *(Disk:3 from raw 7.5%)* |
+| 205 | `monster-truck` | Monster Truck | `go` | 68.0% | 49.6% | **32.7%** | 16.0% | 47.3 | 27.1 | Classic right-facing storybook monster truck with roof-light roll bar, hollow flame decal (no text/logos), coil-spring suspension (12 gaps cleared), and gigantic lugged 5-lug tires *(Disk:3 from raw 13.5%)* |
+| 206 | `motorcycle` | Motorcycle | `go` | 69.4% | 51.6% | **35.4%** | 16.4% | 40.2 | 22.6 | Classic vintage right-facing storybook motorcycle with striped teardrop tank (no logos), windscreen, cooling-fin engine, deterministically hollowed tires, and transparent 5-spoke rims *(Disk:3 from raw 17.4%)* |
+| 207 | `taco` | Taco | `food` | 69.9% | 52.4% | **37.2%** | 20.1% | 45.2 | 37.1 | Three-quarter storybook crunchy taco in a spotted tortilla shell stuffed with ruffled lettuce, diced tomatoes, sliced avocado, cheese ribbons, and filling beside a lime wedge *(Disk:3 from raw 18.7%)* |
+| 208 | `popsicle` | Popsicle | `food` | 63.9% | 45.1% | **29.4%** | 14.9% | 39.1 | 22.9 | Festive storybook summer popsicle pair: chocolate-glazed sprinkle striped fruit pop with melty droplet paired with a twin-groove berry pop and mint leaves (stick gap cleared) |
+| 209 | `avocado` | Avocado | `food` | 68.5% | 50.3% | **38.5%** | 25.6% | 30.0 | 24.2 | Botanical storybook avocado duo: ripe halved avocado with scalloped rind, concentric flesh rings, and glossy pit paired with a whole avocado and two veined leaves |
+| 210 | `rose` | Rose | `nature` | 68.6% | 50.0% | **34.5%** | 16.3% | 43.1 | 27.0 | Botanical long-stemmed garden rose with scrolled overlapping petals, curving sepals, closed side rosebud, two blunt hollow thorns, and serrated veined leaves (3 leaf-stem gaps cleared) *(Disk:3 from raw 16.1%)* |
+| 211 | `tree-house` | Tree House | `nature` | 64.4% | 43.9% | **27.9%** | 12.2% | 88.1 | 42.9 | Storybook backyard oak treehouse with pennant-topped pitched roof, balcony porch, 6-rung ladder, and hanging rope tire swing (14 ladder, branch, and tire-hole gaps cleared) *(Disk:4 from raw 0.7%)* |
+| 212 | `camping-tent` | Tent and Campfire | `nature` | 69.1% | 51.0% | **35.3%** | 18.0% | 44.4 | 28.6 | Cozy storybook campsite vignette with striped A-frame tent (doorway deterministically hollowed), rolled sleeping mat, lantern, stone-ringed campfire, and two pine trees (4 sky gaps cleared) *(Disk:3 from raw 14.8%)* |
+| 213 | `farmer` | Farmer | `people` | 67.6% | 49.0% | **32.0%** | 14.4% | 35.7 | 21.3 | Friendly waving storybook farmer in straw sun hat, collared shirt, cuffed denim overalls, and farm boots holding a woven basket with apples, carrot, and pumpkin *(Disk:4 from raw 4.1%)* |
+
+### Batch 7 Rejection & Regeneration Log (Detailed — 0 Rejections)
+
+- **0 art rejections** across all 19 completed Detailed subjects (38/38 generated images approved on first attempt, with deterministic master hollowing on `motorcycle` tires and `camping-tent` doorway noted above).
+- **Deferred due to HTTP 429 quota exhaustion (5 Detailed subjects remaining):** `builder` ("Builder", `people`, both levels), `trophy` ("Trophy", `fun`, both levels), `microphone` ("Microphone", `fun`, both levels), `flower-wreath` ("Flower Wreath", `patterns`, Detailed-only), and `butterfly-garden` ("Butterfly Garden", `patterns`, Detailed-only) hit `HTTP 429 RESOURCE_EXHAUSTED` starting Subject 20 (`builder`, quota resets after ~3h04m). Generation stopped immediately per batch rules so all 19 fully finished subjects could be committed and pushed cleanly.
