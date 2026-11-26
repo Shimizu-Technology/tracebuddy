@@ -7,13 +7,15 @@ export const pictureSections: Partial<Record<PictureCategory, readonly PictureSe
   letters: letterPictureSections,
   animals: [
     { title: 'Pets and farm', ids: ['puppy', 'cat', 'kitten', 'bunny', 'hamster', 'horse', 'pig', 'sheep', 'cow', 'chicken', 'duck', 'kitty-bow', 'pony'] },
-    { title: 'Wild animals', ids: ['lion', 'tiger', 'elephant', 'giraffe', 'monkey', 'panda', 'koala', 'sloth', 'fox', 'frog', 'penguin', 'polar-bear', 'hedgehog', 'zebra', 'bear', 'deer', 'raccoon', 'squirrel', 'hippo'] },
-    { title: 'Birds', ids: ['owl', 'flamingo', 'toucan', 'peacock'] },
+    { title: 'Wild animals', ids: ['lion', 'tiger', 'elephant', 'giraffe', 'monkey', 'panda', 'koala', 'sloth', 'fox', 'frog', 'penguin', 'polar-bear', 'hedgehog', 'zebra', 'bear', 'deer', 'raccoon', 'squirrel', 'hippo', 'kangaroo', 'llama'] },
+    { title: 'Birds', ids: ['owl', 'flamingo', 'toucan', 'peacock', 'swan'] },
   ],
   holidays: [
     { title: 'Christmas', ids: ['christmas-tree', 'snowman', 'present', 'gingerbread', 'santa', 'wreath', 'reindeer', 'candy-cane', 'stocking'] },
     { title: 'Halloween', ids: ['jack-o-lantern'] },
     { title: 'Thanksgiving', ids: ['turkey'] },
+    { title: 'Easter', ids: ['easter-bunny', 'easter-egg'] },
+    { title: "Valentine's Day", ids: ['valentine'] },
   ],
 }
 
