@@ -40,6 +40,7 @@ import { PermissionCard } from './PermissionCard'
 import { resolvePaperPicture } from './paperPicture'
 import type { PaperParams, PaperPicture } from './paperPicture'
 import { SnapAim, SnapReview } from './SnapPhoto'
+import { createSnapShots } from './snapShots'
 import { TableStandIn } from './TableStandIn'
 import { TipsCard } from './TipsCard'
 import { useCameraAccess } from './useCameraAccess'
@@ -96,12 +97,10 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const [kept, setKept] = useState(false)
   const [celebrated, setCelebrated] = useState(false)
   const standInRef = useRef<View>(null)
-  const pendingShot = useRef<PaperShot | null>(null)
-  // A capture or save is running (set synchronously, so a second tap can't start another), and the current
-  // capture attempt. Back, losing the camera and closing the screen start a new attempt number, so a photo
-  // that arrives late for an older attempt is deleted instead of opening review.
+  // Temporary photo files and capture attempts (see snapShots.ts). A capture or save is running: set
+  // synchronously, so a second tap can't start another.
+  const [shots] = useState(() => createSnapShots((uri) => { void discardPaperShot({ uri }) }))
   const snapWorking = useRef(false)
-  const captureAttempt = useRef(0)
   const [hint, setHint] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   // More as a bottom card. Any turn of the device closes it for good (it doesn't come back on turning back).
@@ -292,26 +291,20 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   }, [])
 
   // A photo that wasn't kept is deleted from the cache when it's retaken or the screen closes.
-  const dropShot = useCallback(() => {
-    if (pendingShot.current) void discardPaperShot(pendingShot.current)
-    pendingShot.current = null
-  }, [])
-  useEffect(() => () => {
-    captureAttempt.current += 1
-    dropShot()
-  }, [dropShot])
+  const dropShot = useCallback(() => shots.drop(), [shots])
+  useEffect(() => () => shots.close(), [shots])
 
   const cameraLost = !camera.cameraOn || Boolean(camera.access)
   useEffect(() => {
-    if (cameraLost) captureAttempt.current += 1
-  }, [cameraLost])
+    if (cameraLost) shots.invalidate()
+  }, [cameraLost, shots])
 
   const leaveSnap = useCallback(() => {
-    captureAttempt.current += 1
+    shots.invalidate()
     dropShot()
     setCelebrated(true)
     setSnap(null)
-  }, [dropShot])
+  }, [dropShot, shots])
 
   // Android Back steps out of snapping instead of leaving On paper, like a picker in Draw.
   useEffect(() => {
@@ -329,50 +322,52 @@ function PaperSession({ picture, params }: { picture: PaperPicture; params: Pape
   const shoot = useCallback(async () => {
     if (snapWorking.current || !camera.cameraReady) return
     snapWorking.current = true
-    captureAttempt.current += 1
-    const attempt = captureAttempt.current
+    const capture = shots.begin()
     setSnapBusy(true)
     try {
       let shot: PaperShot
       if (camera.camera === 'none') {
         // The Simulator has no camera: the photo is of the table stand-in, so the whole flow can be tried.
         const uri = await captureRef(standInRef, { format: 'jpg', quality: 0.9, result: 'tmpfile' })
+        capture.own(uri)
         shot = { uri, ...await imageSize(uri) }
       } else {
         const photo = await cameraRef.current?.takePictureAsync({ quality: 0.85, exif: false })
         if (!photo) throw new Error('The camera is not ready')
+        capture.own(photo.uri)
         shot = { uri: photo.uri, width: photo.width, height: photo.height }
       }
-      if (attempt !== captureAttempt.current) {
-        void discardPaperShot(shot)
-        return
-      }
-      pendingShot.current = shot
-      setSnap({ step: 'review', shot })
+      if (capture.settle(true)) setSnap({ step: 'review', shot })
     } catch {
-      if (attempt === captureAttempt.current) setToast('That photo didn’t work. Try again.')
+      const current = capture.current()
+      capture.settle(false)
+      if (current) setToast('That photo didn’t work. Try again.')
     } finally {
       snapWorking.current = false
-      setSnapBusy(false)
+      if (shots.isOpen()) setSnapBusy(false)
     }
-  }, [camera.camera, camera.cameraReady])
+  }, [camera.camera, camera.cameraReady, shots])
 
   const keepShot = useCallback(async (shot: PaperShot) => {
     if (snapWorking.current || line.status !== 'ready') return
     snapWorking.current = true
+    // The save owns the temporary file until its copy settles, even if the screen closes meanwhile.
+    const release = shots.hold(shot.uri)
     setSnapBusy(true)
     try {
       await savePaperKeepsake(picture.picture, line.xml, shot)
+      if (!shots.isOpen()) return
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined)
       setKept(true)
       leaveSnap()
     } catch {
-      Alert.alert('Couldn’t keep the photo', 'Try again in a moment.')
+      if (shots.isOpen()) Alert.alert('Couldn’t keep the photo', 'Try again in a moment.')
     } finally {
+      release()
       snapWorking.current = false
-      setSnapBusy(false)
+      if (shots.isOpen()) setSnapBusy(false)
     }
-  }, [leaveSnap, line, picture.picture])
+  }, [leaveSnap, line, picture.picture, shots])
 
   const sides = { left: insets.left + theme.space.lg, right: insets.right + theme.space.lg }
   const faderHeight = Math.min(paperTheme.size.fader.maxHeight, window.height * paperTheme.size.fader.heightFraction)

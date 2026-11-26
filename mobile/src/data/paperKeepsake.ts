@@ -35,6 +35,6 @@ export async function savePaperKeepsake(picture: Picture, guideSvg: string, shot
 }
 
 /** A snapped photo that wasn't kept. */
-export function discardPaperShot(shot: PaperShot) {
+export function discardPaperShot(shot: Pick<PaperShot, 'uri'>) {
   return FileSystem.deleteAsync(shot.uri, { idempotent: true }).catch(() => undefined)
 }

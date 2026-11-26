@@ -115,7 +115,7 @@ Opens as a native sheet over Home or the current picture group.
 
 - A big-thumbnail grid, newest first. Tap to keep drawing.
 - Completed Learn drawings stay here when a child chooses Draw again.
-- A photo of a paper drawing (a saved drawing with `paperPhoto`; its `source` is the picture traced) shows its photo as the thumbnail. Tapping it opens the photo full screen with **Trace again** (On paper, same picture and level) and **Save to Photos**, not the drawing canvas. Its long-press menu has Trace again, Save to Photos and Delete. Keep going on Home skips it. Its photo lives in `Documents/tracebuddy-keepsakes` (a folder no 1.x build sweeps), follows the same cleanup, lease and backup rules as other drawing images.
+- A photo of a paper drawing (a saved drawing with `paperPhoto`; its `source` is the picture traced) shows its photo as the thumbnail. Tapping it opens the photo full screen with **Trace again** (On paper, same picture and level) and **Save to Photos**, not the drawing canvas. Its long-press menu has Trace again, Save to Photos and Delete. Keep going on Home skips it. Its photo lives in `Documents/tracebuddy-keepsakes` (a folder no 1.x build sweeps), follows the same cleanup, lease and backup rules as other drawing images. The 1.x screens never list or resume a keepsake, and a save without a paper photo can't replace one. A record whose `paperPhoto` is present but unreadable counts as an unreadable record, so the image sweep stops rather than deleting its photo.
 - Long-press opens a gated menu: Copy, Start fresh, Save to Photos, Delete.
 - The empty state shows a friendly picture and a button to pick a picture.
 

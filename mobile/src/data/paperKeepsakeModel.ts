@@ -14,6 +14,14 @@ export function paperKeepsakeTitle(source: SavedPracticeSession['source']) {
   return `${source.kind === 'upload' ? photoDrawingName : source.drawingName} (on paper)`
 }
 
+/**
+ * The 1.x screens (EXPO_PUBLIC_TB2 off) have no photo view: they would open a keepsake as an empty canvas and
+ * save it back as ink without its photo. They list and resume everything except keepsakes.
+ */
+export function withoutPaperKeepsakes<T extends Pick<SavedPracticeSession, 'paperPhoto'>>(sessions: readonly T[]) {
+  return sessions.filter((session) => !isPaperKeepsake(session))
+}
+
 /** Turns a new, empty drawing of the traced picture into its paper keepsake. */
 export function makePaperKeepsake(drawing: SavedPracticeSession, photo: PaperPhoto): PaperKeepsake {
   return {

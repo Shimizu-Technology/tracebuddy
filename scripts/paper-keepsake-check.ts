@@ -4,11 +4,12 @@ import { hasKeepsakeContent } from '../mobile/finishFindModel'
 import { normalizePaperPhoto, normalizeSavedPracticeSession } from '../mobile/practiceStorageModel'
 import type { SavedPracticeSession } from '../mobile/practiceStorageModel'
 import { catalogPictures, paramsForSource, resolvePicture, sourceForPicture } from '../mobile/src/data/catalog'
-import { isPaperKeepsake, makePaperKeepsake, paperKeepsakeTitle } from '../mobile/src/data/paperKeepsakeModel'
+import { isPaperKeepsake, makePaperKeepsake, paperKeepsakeTitle, withoutPaperKeepsakes } from '../mobile/src/data/paperKeepsakeModel'
 import { buildDrawingBackup, DrawingBackupError, mergeDrawingBackup, parseDrawingBackup, readDrawingBackupImage } from '../mobile/src/data/drawingBackupModel'
 import { createPracticeImageCleanup, drawingImageUris } from '../mobile/src/data/practiceImageCleanup'
 import { drawingTitle, keepsakeImageFolder, makePracticeSource, practiceImageFolder, rebasePracticeImageUri } from '../mobile/src/data/practiceSource'
-import { parsePreviousWorkSession } from '../mobile/src/data/previousWork'
+import { createPreviousWorkStorage, isUnreadableDrawingRecordError, parsePreviousWorkSession, previousWorkSessionKey } from '../mobile/src/data/previousWork'
+import { createSnapShots } from '../mobile/src/features/paper/snapShots'
 
 // Saved drawings are stored as their JSON (previousWork.ts and drawingRecords.ts).
 const serializePreviousWorkSession = (session: SavedPracticeSession) => JSON.stringify(session)
@@ -189,6 +190,158 @@ const [entry] = parsed.drawings
 for (const paperPhoto of [{ uri: photoUri }, { uri: 'tracebuddy-image:7' }, { uri: 42 }]) {
   assert.throws(() => parseDrawingBackup(JSON.stringify({ ...parsed, drawings: [{ ...entry, paperPhoto }] })),
     (error) => error instanceof DrawingBackupError && error.reason === 'invalid')
+}
+
+// Restore with one image used as both a picture's photo and a paper photo: each folder gets its own file.
+const shared = 'file:///sandbox/old/Documents/tracebuddy-uploads/work-shared.jpg'
+const photoDrawingOfShared = { ...emptyDrawing(makePracticeSource(
+  { id: 'my-photo', name: 'My photo', theme: 'Local image', category: 'starters', difficulty: 'Starter', svg: '' },
+  { uri: shared, name: 'My photo' })), sessionId: 'work-shared-photo', updatedAt: '2026-11-26T11:00:00.000Z' }
+const keepsakeOfShared = { ...keepsake, sessionId: 'work-shared-keepsake', paperPhoto: { uri: shared } }
+async function restoreInto(drawings: SavedPracticeSession[]) {
+  const images = new Map([[rebasePracticeImageUri(shared, documents), jpeg]])
+  const exported = parseDrawingBackup(JSON.stringify(await buildDrawingBackup({ ...emptySettings, drawings },
+    (uri) => rebasePracticeImageUri(uri, documents), async (uri) => ({ extension: 'jpg', base64: images.get(uri) ?? null }))))
+  const written: { kind: string; uri: string }[] = []
+  const saved = new Map<string, SavedPracticeSession>()
+  await mergeDrawingBackup(exported, {
+    readDrawing: async () => null,
+    writeDrawing: async (drawing) => { saved.set(drawing.sessionId, drawing) },
+    async writeImage(image, kind) {
+      const uri = `${documents}${kind === 'keepsake' ? keepsakeImageFolder : practiceImageFolder}/restored-${written.length}.${image.extension}`
+      written.push({ kind, uri })
+      return uri
+    },
+    writeSettings: async () => undefined,
+  })
+  return { exported, written, saved }
+}
+// The upload restores first, then the keepsake, from a single shared image.
+const crossKind = await restoreInto([photoDrawingOfShared, keepsakeOfShared])
+assert.equal(crossKind.exported.images.length, 1, 'The backup stores the shared file once')
+assert.deepEqual(crossKind.written.map(({ kind }) => kind), ['drawing', 'keepsake'])
+assert.ok(crossKind.saved.get('work-shared-photo')?.source.uploadedImage?.uri.includes('/tracebuddy-uploads/'))
+assert.ok(crossKind.saved.get('work-shared-keepsake')?.paperPhoto?.uri.includes('/tracebuddy-keepsakes/'),
+  'A keepsake never points at a file in the uploads folder')
+// One kind only: two drawings sharing a photo still restore to one file, as before.
+const sameKind = await restoreInto([photoDrawingOfShared, { ...photoDrawingOfShared, sessionId: 'work-shared-photo-2' }])
+assert.deepEqual(sameKind.written.map(({ kind }) => kind), ['drawing'])
+assert.equal(sameKind.saved.get('work-shared-photo')?.source.uploadedImage?.uri, sameKind.saved.get('work-shared-photo-2')?.source.uploadedImage?.uri)
+
+// A record whose paper photo is present but unreadable is an unreadable record: the image-cleanup scan stops
+// instead of treating its photo as unused, while ordinary reads report the drawing as unreadable.
+const brokenPhoto = JSON.stringify({ ...keepsake, paperPhoto: { uri: null } })
+assert.throws(() => parsePreviousWorkSession(brokenPhoto), isUnreadableDrawingRecordError)
+assert.throws(() => parsePreviousWorkSession(JSON.stringify({ ...keepsake, paperPhoto: null })), isUnreadableDrawingRecordError)
+assert.ok(parsePreviousWorkSession(JSON.stringify({ ...keepsake, paperPhoto: undefined })), 'No paper photo is still an ordinary drawing')
+const kv = new Map<string, string>()
+const store = createPreviousWorkStorage({
+  getAllKeys: async () => [...kv.keys()],
+  getItem: async (key) => kv.get(key) ?? null,
+  async setItem(key, value) { kv.set(key, value) },
+  async removeItem(key) { kv.delete(key) },
+})
+kv.set(previousWorkSessionKey(keepsake.sessionId), brokenPhoto)
+const sweptPhoto = `${documents}${keepsakeImageFolder}/work-paper-1.jpg`
+const sweepFiles = new Set([sweptPhoto])
+const storeCleanup = createPracticeImageCleanup(documents, {
+  list: async (directory) => [...sweepFiles].filter((uri) => uri.startsWith(directory)).map((uri) => uri.slice(directory.length)),
+  readReferences: async () => (await store.readSessionsForImageCleanupInQueue()).flatMap((record) => drawingImageUris(record)),
+  remove: async (uri) => { sweepFiles.delete(uri) },
+})
+await assert.rejects(storeCleanup.sweep(), isUnreadableDrawingRecordError)
+assert.ok(sweepFiles.has(sweptPhoto), 'The photo of a record with a damaged paperPhoto is not swept')
+let unreadable = 0
+assert.deepEqual(await store.loadPreviousWorkSessionsWithLegacyMigration({ width: 1, height: 1 }, () => true, () => { unreadable += 1 }), [])
+assert.equal(unreadable, 1, 'My drawings reports it as unreadable')
+
+// 1.x screens never list or resume a keepsake, and a save without a paper photo can't replace one.
+kv.clear()
+const ordinary = { ...emptyDrawing(sourceForPicture(picture, guideSvg)), sessionId: 'work-ink' }
+assert.deepEqual(withoutPaperKeepsakes([keepsake, ordinary]).map(({ sessionId }) => sessionId), ['work-ink'])
+assert.equal(await store.savePreviousWorkSession(keepsake, () => true), true)
+const asInk = { ...keepsake, paperPhoto: undefined, strokes: [{ path: 'M 1 1 L 9 9', color: '#18243A', width: 9, opacity: 0.9, mode: 'draw' as const }] }
+assert.equal(await store.savePreviousWorkSession(asInk, () => true), false, 'A 1.x save over a keepsake is refused')
+assert.deepEqual((await store.readPreviousWorkSession(keepsake.sessionId))?.paperPhoto, keepsake.paperPhoto)
+assert.equal(await store.savePreviousWorkSession({ ...keepsake, title: 'Renamed' }, () => true), true, 'A keepsake can still be saved with its photo')
+assert.equal(await store.savePreviousWorkSession(ordinary, () => true), true, 'Ordinary drawings save as before')
+assert.equal(await store.savePreviousWorkSession({ ...ordinary, strokes: asInk.strokes }, () => true), true)
+
+// Temporary photo files while snapping (snapShots.ts): each is deleted exactly once, never while in use.
+function snapHarness() {
+  const deleted: string[] = []
+  return { deleted, shots: createSnapShots((uri) => { deleted.push(uri) }) }
+}
+{ // Back while the shutter is busy: the late photo is deleted and doesn't open review.
+  const { deleted, shots } = snapHarness()
+  const capture = shots.begin()
+  shots.invalidate()
+  capture.own('tmp/late.jpg')
+  assert.equal(capture.settle(true), false)
+  assert.deepEqual(deleted, ['tmp/late.jpg'])
+  assert.equal(shots.pending(), null)
+}
+{ // The screen closes before the camera returns: the file is deleted when it arrives.
+  const { deleted, shots } = snapHarness()
+  const capture = shots.begin()
+  shots.close()
+  capture.own('tmp/closed.jpg')
+  assert.equal(capture.current(), false)
+  assert.equal(capture.settle(true), false)
+  assert.deepEqual(deleted, ['tmp/closed.jpg'])
+}
+{ // The Simulator capture returns a file but measuring it fails: the file is released.
+  const { deleted, shots } = snapHarness()
+  const capture = shots.begin()
+  capture.own('tmp/stand-in.jpg')
+  assert.equal(capture.settle(false), false)
+  assert.deepEqual(deleted, ['tmp/stand-in.jpg'])
+}
+{ // Retake deletes the reviewed photo; a capture that fails before any file deletes nothing.
+  const { deleted, shots } = snapHarness()
+  const capture = shots.begin()
+  capture.own('tmp/a.jpg')
+  assert.equal(capture.settle(true), true)
+  assert.equal(shots.pending(), 'tmp/a.jpg')
+  shots.drop()
+  assert.equal(shots.begin().settle(false), false)
+  assert.deepEqual(deleted, ['tmp/a.jpg'])
+}
+{ // Keep it, then the screen is swiped away mid-save: the file stays until the copy settles, then goes once.
+  const { deleted, shots } = snapHarness()
+  const capture = shots.begin()
+  capture.own('tmp/keep.jpg')
+  capture.settle(true)
+  const release = shots.hold('tmp/keep.jpg')
+  shots.close()
+  assert.deepEqual(deleted, [], 'Closing never deletes a file the save is copying')
+  assert.equal(shots.isOpen(), false, 'The save sees the screen closed and gives no feedback')
+  release()
+  assert.deepEqual(deleted, ['tmp/keep.jpg'])
+}
+{ // Keep it succeeds: leaving review doesn't delete it under the save; the save's release deletes it once.
+  const { deleted, shots } = snapHarness()
+  const capture = shots.begin()
+  capture.own('tmp/kept.jpg')
+  capture.settle(true)
+  const release = shots.hold('tmp/kept.jpg')
+  shots.invalidate()
+  shots.drop()
+  assert.deepEqual(deleted, [])
+  release()
+  shots.close()
+  assert.deepEqual(deleted, ['tmp/kept.jpg'])
+}
+{ // Keep it fails on an open screen: the photo stays in review to try again, and goes with Retake.
+  const { deleted, shots } = snapHarness()
+  const capture = shots.begin()
+  capture.own('tmp/retry.jpg')
+  capture.settle(true)
+  shots.hold('tmp/retry.jpg')()
+  assert.deepEqual(deleted, [])
+  assert.equal(shots.pending(), 'tmp/retry.jpg')
+  shots.drop()
+  assert.deepEqual(deleted, ['tmp/retry.jpg'])
 }
 
 console.log('Paper keepsake model checks passed')

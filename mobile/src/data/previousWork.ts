@@ -48,7 +48,9 @@ export function normalizePreviousWorkSession(value: unknown) {
   const session = normalizeSavedPracticeSession(value)
   const raw = value as Partial<SavedPracticeSession>
   if (!session || (raw.strokes !== undefined && (!Array.isArray(raw.strokes) || raw.strokes.length !== session.strokes.length))
-    || (raw.stickers !== undefined && (!Array.isArray(raw.stickers) || raw.stickers.length !== session.stickers.length))) {
+    || (raw.stickers !== undefined && (!Array.isArray(raw.stickers) || raw.stickers.length !== session.stickers.length))
+    // A paper photo the normalizer can't read would otherwise vanish and its file be swept as unused.
+    || (raw.paperPhoto !== undefined && !session.paperPhoto)) {
     throw new UnreadableDrawingRecordError('Saved drawing has unreadable content')
   }
   return session
@@ -209,6 +211,17 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO, files?: Retur
       }),
     migrateLegacyPracticeAutosavesInQueue: migrateLegacyPracticeAutosaves,
     savePreviousWorkSession: (session: SavedPracticeSession, isCurrent: OperationGuard) =>
-      queuePreviousWorkWrite(() => writeIfCurrent(isCurrent, () => writeSessionInQueue(session))),
+      queuePreviousWorkWrite(async () => {
+        // A drawing without a paper photo never replaces a keepsake (a 1.x screen saving it back as ink would
+        // lose the photo, and the next sweep would delete its file).
+        if (!session.paperPhoto) {
+          const existing = await readSessionInQueue(session.sessionId).catch((error: unknown) => {
+            if (isUnreadableDrawingRecordError(error)) return null
+            throw error
+          })
+          if (existing?.paperPhoto) return false
+        }
+        return writeIfCurrent(isCurrent, () => writeSessionInQueue(session))
+      }),
   }
 }

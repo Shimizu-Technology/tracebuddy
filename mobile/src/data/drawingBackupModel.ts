@@ -4,7 +4,8 @@ import type { SavedPracticeSession } from '../../practiceStorageModel'
 import { canUseDrawingRecordFile } from './drawingRecords'
 import { parseArtFavorites } from './favoritePreference'
 import { isHistoricalLegacyPracticeSessionId } from './legacyPractice'
-import { mapDrawingImageUris, drawingImageUris } from './practiceImageCleanup'
+import { drawingImageRefs, mapDrawingImageUris, drawingImageUris } from './practiceImageCleanup'
+import type { DrawingImageKind } from './practiceImageCleanup'
 import { drawingImageFolders } from './practiceSource'
 import { isUnreadableDrawingRecordError, normalizePreviousWorkSession } from './previousWork'
 
@@ -250,7 +251,7 @@ type DrawingRestoreIO = {
   readDrawing: (id: string) => Promise<SavedPracticeSession | null>
   writeDrawing: (drawing: SavedPracticeSession) => Promise<unknown>
   /** `keepsake` is a photo of a paper drawing, which has its own folder. */
-  writeImage: (image: BackupImage, kind: 'drawing' | 'keepsake') => Promise<string>
+  writeImage: (image: BackupImage, kind: DrawingImageKind) => Promise<string>
   writeSettings: (contents: DrawingBackupSettings) => Promise<void>
 }
 
@@ -270,12 +271,14 @@ export async function mergeDrawingBackup(backup: DrawingBackup, io: DrawingResto
         continue
       }
       const refs = drawingImageUris(drawing)
-      for (const ref of new Set(refs)) {
-        if (restoredImages.has(ref)) continue
+      // Each folder gets its own file: one image used as both a picture and a paper photo is written to both.
+      for (const { uri: ref, kind } of drawingImageRefs(drawing)) {
+        const key = `${kind}:${ref}`
+        if (restoredImages.has(key)) continue
         const image = backup.images[referenceIndex(ref, backup.images.length)]
-        restoredImages.set(ref, await io.writeImage(image, ref === drawing.paperPhoto?.uri ? 'keepsake' : 'drawing'))
+        restoredImages.set(key, await io.writeImage(image, kind))
       }
-      await io.writeDrawing(mapDrawingImageUris(drawing, (ref) => restoredImages.get(ref)!))
+      await io.writeDrawing(mapDrawingImageUris(drawing, (ref, kind) => restoredImages.get(`${kind}:${ref}`)!))
       for (const ref of refs) {
         if (backup.images[referenceIndex(ref, backup.images.length)].base64 === null) missing.add(ref)
       }

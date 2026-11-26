@@ -51,6 +51,7 @@ import {
   resumeContextKey, savedAlignmentKey,
 } from './src/data/storageKeys'
 import { previousWorkStorage, queueDrawingPreferencesOperation, readLocalSetting, writeLocalSetting } from './src/data/nativeStorage'
+import { withoutPaperKeepsakes } from './src/data/paperKeepsakeModel'
 import {
   parentSetupSeenValue, parseDrawingPreferences, parseFamilyActivity, parseLearningProgress, parseModePreference,
   parseParentSetupSeen, parseResumeContext, parseSavedAlignment, serializeModePreference, serializeResumeContext,
@@ -230,11 +231,14 @@ function simplifyPracticePoints(points: PracticePoint[], minDistance: number) {
 
 const practicePreviewCache = createPracticePreviewCache()
 const {
-  loadPreviousWorkSessions,
-  loadPreviousWorkSessionsWithLegacyMigration,
   queuePreviousWorkWrite,
   savePreviousWorkSession,
 } = previousWorkStorage
+// Photos of paper drawings (2.0 keepsakes) never reach the gallery, Continue or resume here (see withoutPaperKeepsakes).
+const loadPreviousWorkSessions = (...args: Parameters<typeof previousWorkStorage.loadPreviousWorkSessions>) =>
+  previousWorkStorage.loadPreviousWorkSessions(...args).then(withoutPaperKeepsakes)
+const loadPreviousWorkSessionsWithLegacyMigration = (...args: Parameters<typeof previousWorkStorage.loadPreviousWorkSessionsWithLegacyMigration>) =>
+  previousWorkStorage.loadPreviousWorkSessionsWithLegacyMigration(...args).then(withoutPaperKeepsakes)
 
 function isStoredUploadedImageUri(uri?: string) {
   return Boolean(uri && uploadedWorkDirectory && uri.startsWith(uploadedWorkDirectory))

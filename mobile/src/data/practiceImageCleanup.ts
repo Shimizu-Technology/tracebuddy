@@ -7,14 +7,22 @@ export function drawingImageUris(session: Pick<SavedPracticeSession, 'source' | 
   )].filter((uri): uri is string => Boolean(uri))
 }
 
-export function mapDrawingImageUris(session: SavedPracticeSession, map: (uri: string) => string): SavedPracticeSession {
+/** Where an image lives: drawing images in tracebuddy-uploads, paper photos in tracebuddy-keepsakes. */
+export type DrawingImageKind = 'drawing' | 'keepsake'
+
+export function drawingImageRefs(session: Pick<SavedPracticeSession, 'source' | 'stickers' | 'paperPhoto'>) {
+  const refs: { uri: string; kind: DrawingImageKind }[] = drawingImageUris({ ...session, paperPhoto: undefined }).map((uri) => ({ uri, kind: 'drawing' }))
+  return session.paperPhoto ? [...refs, { uri: session.paperPhoto.uri, kind: 'keepsake' as const }] : refs
+}
+
+export function mapDrawingImageUris(session: SavedPracticeSession, map: (uri: string, kind: DrawingImageKind) => string): SavedPracticeSession {
   const photo = session.source.uploadedImage
   return {
     ...session,
-    source: photo ? { ...session.source, uploadedImage: { ...photo, uri: map(photo.uri) } } : session.source,
+    source: photo ? { ...session.source, uploadedImage: { ...photo, uri: map(photo.uri, 'drawing') } } : session.source,
     stickers: session.stickers.map((sticker) =>
-      sticker.kind === 'image' && sticker.uri !== undefined ? { ...sticker, uri: map(sticker.uri) } : sticker),
-    ...(session.paperPhoto ? { paperPhoto: { ...session.paperPhoto, uri: map(session.paperPhoto.uri) } } : {}),
+      sticker.kind === 'image' && sticker.uri !== undefined ? { ...sticker, uri: map(sticker.uri, 'drawing') } : sticker),
+    ...(session.paperPhoto ? { paperPhoto: { ...session.paperPhoto, uri: map(session.paperPhoto.uri, 'keepsake') } } : {}),
   }
 }
 
