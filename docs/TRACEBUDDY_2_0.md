@@ -61,7 +61,7 @@ Every 2.0 screen follows these. A PR that breaks one needs a written reason.
 
 ### Picture
 
-Opens as a native sheet over Home or the current picture group.
+Opens as a native sheet over Home or the current picture group. On iPad it opens expanded so both drawing choices are in view.
 
 - A large color preview, the name, and a **Simple / Detailed** switch. It starts on the household choice, or the style picked in My words, and only changes this picture. For letters and numbers, Simple uses rounded Fredoka Bubble outlines. Detailed uses Andika Practice outlines with top, middle and baseline guides.
 - Two large illustrated choices: **On paper** (camera over paper) and **On the screen** (draw with a finger).
