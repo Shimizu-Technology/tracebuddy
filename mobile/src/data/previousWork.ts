@@ -21,7 +21,16 @@ export function serializePreviousWorkIndex(ids: string[]) {
 }
 
 export class UnreadableDrawingRecordError extends Error {
-  constructor(message: string) { super(message) }
+  constructor(message: string) {
+    super(message)
+    this.name = 'UnreadableDrawingRecordError'
+  }
+}
+
+// Match by name as well as class: a module loaded twice (tsx, Metro fast
+// refresh) has two copies of the class, and instanceof fails across them.
+export function isUnreadableDrawingRecordError(error: unknown): error is UnreadableDrawingRecordError {
+  return error instanceof Error && error.name === 'UnreadableDrawingRecordError'
 }
 
 export function parsePreviousWorkSession(rawSession: string | null) {
@@ -62,7 +71,7 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO, files?: Retur
     function tryRecord(raw: string | null, allowTombstone = false) {
       if (raw === null) return null
       try { return parseRecord(raw, id, allowTombstone) } catch (error) {
-        if (forImageCleanup || !(error instanceof UnreadableDrawingRecordError)) throw error
+        if (forImageCleanup || !isUnreadableDrawingRecordError(error)) throw error
         corrupt ??= error
         return null
       }
@@ -110,7 +119,7 @@ export function createPreviousWorkStorage(storage: PreviousWorkIO, files?: Retur
     return files.write(sessionId, value, (raw) => {
       if (raw === null) return false
       try { return Boolean(parseRecord(raw, sessionId, false)) } catch (error) {
-        if (error instanceof UnreadableDrawingRecordError) return false
+        if (isUnreadableDrawingRecordError(error)) return false
         throw error
       }
     })

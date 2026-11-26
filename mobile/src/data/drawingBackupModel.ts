@@ -6,7 +6,7 @@ import { parseArtFavorites } from './favoritePreference'
 import { isHistoricalLegacyPracticeSessionId } from './legacyPractice'
 import { mapDrawingImageUris, drawingImageUris } from './practiceImageCleanup'
 import { practiceImageFolder } from './practiceSource'
-import { normalizePreviousWorkSession, UnreadableDrawingRecordError } from './previousWork'
+import { isUnreadableDrawingRecordError, normalizePreviousWorkSession } from './previousWork'
 
 export const maxDrawingBackupMiB = 32
 export const maxDrawingBackupBytes = maxDrawingBackupMiB * 1024 * 1024
@@ -259,7 +259,7 @@ export async function mergeDrawingBackup(backup: DrawingBackup, io: DrawingResto
   try {
     for (const drawing of backup.drawings) {
       const local = await io.readDrawing(drawing.sessionId).catch((error: unknown) => {
-        if (error instanceof UnreadableDrawingRecordError) return null
+        if (isUnreadableDrawingRecordError(error)) return null
         throw error
       })
       if (local && Date.parse(drawing.updatedAt) <= Date.parse(local.updatedAt)) {
