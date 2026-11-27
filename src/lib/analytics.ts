@@ -96,6 +96,14 @@ function getPostHog(): Promise<PostHogClient | null> {
           disable_session_recording: false,
           session_recording: {
             maskAllInputs: true,
+            recordHeaders: false,
+            recordBody: false,
+            maskCapturedNetworkRequestFn: (request) => {
+              if (request?.name) {
+                return { ...request, name: sanitizeAnalyticsUrl(request.name) };
+              }
+              return request;
+            },
           },
           before_send: sanitizeAnalyticsEvent,
         });
